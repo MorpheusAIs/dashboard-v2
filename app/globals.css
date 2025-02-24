@@ -33,6 +33,68 @@
     --sidebar-ring: 240 4.9% 83.9%;
     --radius: 0.25rem;
   }
+
+  /* Base cursor styles */
+  * {
+    cursor: default;
+  }
+
+  /* Reset cursor for interactive elements */
+  a, button, [role="button"], 
+  input[type="button"], input[type="submit"], input[type="reset"],
+  select, [tabindex]:not([tabindex="-1"]),
+  [role="combobox"], [role="listbox"], [role="option"],
+  [role="menuitem"], [role="menu"], [role="menubar"],
+  details, summary,
+  .select-item, /* For shadcn dropdown items */
+  [cmdk-item], /* For command palette items */
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  /* Specific cursor overrides */
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="radio"]):not([type="checkbox"]):not([type="range"]), 
+  input[type="text"], 
+  input[type="email"], 
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"],
+  input[type="time"],
+  textarea,
+  [contenteditable="true"],
+  [role="textbox"],
+  .cursor-text {
+    cursor: text !important;
+  }
+
+  /* Range input cursor */
+  input[type="range"] {
+    cursor: ew-resize;
+  }
+
+  /* Resize cursor for resizable elements */
+  textarea[resize="both"],
+  textarea:not([resize="none"]) {
+    cursor: se-resize;
+  }
+
+  textarea[resize="horizontal"] {
+    cursor: ew-resize;
+  }
+
+  textarea[resize="vertical"] {
+    cursor: ns-resize;
+  }
+
+  * {
+    @apply border-border;
+  }
 }
 
 @layer components {
@@ -188,6 +250,59 @@
   .copy-button {
     @apply copy-button-base hover:bg-emerald-500;
   }
+
+  /* Table styles */
+  .table-container {
+    @apply [&>div]:max-h-[600px] overflow-auto custom-scrollbar;
+  }
+
+  .table-base {
+    @apply border-separate border-spacing-0 [&_td]:border-border [&_th]:border-b [&_th]:border-border [&_tr:not(:last-child)_td]:border-b [&_tr]:border-none;
+  }
+
+  .table-header {
+    @apply sticky top-0 z-10 bg-background/90 backdrop-blur-sm;
+  }
+
+  .table-header-row {
+    @apply hover:bg-transparent border-b border-white/[0.08];
+  }
+
+  .table-header-cell {
+    @apply text-sm font-medium text-gray-400;
+  }
+
+  .table-header-cell-sortable {
+    @apply cursor-pointer hover:text-gray-200 transition-colors;
+  }
+
+  .table-sort-icons {
+    @apply flex flex-col ml-2;
+  }
+
+  .table-sort-icon {
+    @apply h-3 w-3;
+  }
+
+  .table-sort-icon-up {
+    @apply -mb-0.5;
+  }
+
+  .table-sort-icon-down {
+    @apply -mt-0.5;
+  }
+
+  .table-sort-icon-active {
+    @apply text-emerald-400;
+  }
+
+  .table-sort-icon-inactive {
+    @apply text-gray-500/50 group-hover:text-gray-500;
+  }
+
+  .table-row {
+    @apply border-b border-white/[0.08] hover:bg-emerald-400/10 transition-colors;
+  }
 }
 
 body {
@@ -258,11 +373,5 @@ body {
 
   .sidebar-nav-text-collapsed {
     @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:hidden;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
   }
 }

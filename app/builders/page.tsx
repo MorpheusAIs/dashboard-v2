@@ -21,11 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useMemo } from "react";
-import { NetworkIcon } from '@web3icons/react'
 import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import Link from "next/link";
 import { builders } from "./builders-data";
+import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 
 export default function BuildersPage() {
   const [nameFilter, setNameFilter] = useState("");
@@ -159,165 +159,172 @@ export default function BuildersPage() {
                     All
                   </ToggleGroupItem>
                   <ToggleGroupItem value="Arbitrum" className="flex items-center gap-2 px-4">
-                    <NetworkIcon name="arbitrum" size={18} />
+                    <div className="w-[18px] h-[20px] relative">
+                      <ArbitrumIcon size={19} className="text-current" />
+                    </div>
                   </ToggleGroupItem>
                   <ToggleGroupItem value="Base" className="flex items-center gap-2 px-4">
-                    <NetworkIcon name="base" size={18} />
+                    <div className="w-[18px] h-[20px] relative">
+                      <BaseIcon size={19} className="text-current" />
+                    </div>
                   </ToggleGroupItem>
                 </ToggleGroup>
               </div>
             </div>
 
             <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
-              <Table className="border-separate border-spacing-0 [&_td]:border-border [&_th]:border-b [&_th]:border-border [&_tr:not(:last-child)_td]:border-b [&_tr]:border-none">
-                <TableHeader className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm">
-                  <TableRow className="hover:bg-transparent border-b border-white/[0.08]">
-                    <TableHead className="text-sm font-medium text-gray-400">Name</TableHead>
-                    <TableHead className="text-sm font-medium text-gray-400">Networks</TableHead>
-                    <TableHead className="text-sm font-medium text-gray-400">Reward Type</TableHead>
-                    <TableHead 
-                      className="text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors group"
-                      onClick={() => handleSort('totalStaked')}
-                    >
-                      <div className="flex items-center justify-between">
-                        MOR Staked
-                        <div className="flex flex-col ml-2">
-                          <ChevronUp 
-                            className={cn(
-                              "h-3 w-3 -mb-0.5",
-                              sorting?.id === 'totalStaked' && !sorting.desc 
-                                ? "text-emerald-400" 
-                                : "text-gray-500/50 group-hover:text-gray-500"
-                            )} 
-                          />
-                          <ChevronDown 
-                            className={cn(
-                              "h-3 w-3 -mt-0.5",
-                              sorting?.id === 'totalStaked' && sorting.desc 
-                                ? "text-emerald-400" 
-                                : "text-gray-500/50 group-hover:text-gray-500"
-                            )} 
-                          />
-                        </div>
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors group"
-                      onClick={() => handleSort('stakingCount')}
-                    >
-                      <div className="flex items-center justify-between">
-                        # Staking
-                        <div className="flex flex-col ml-2">
-                          <ChevronUp 
-                            className={cn(
-                              "h-3 w-3 -mb-0.5",
-                              sorting?.id === 'stakingCount' && !sorting.desc 
-                                ? "text-emerald-400" 
-                                : "text-gray-500/50 group-hover:text-gray-500"
-                            )} 
-                          />
-                          <ChevronDown 
-                            className={cn(
-                              "h-3 w-3 -mt-0.5",
-                              sorting?.id === 'stakingCount' && sorting.desc 
-                                ? "text-emerald-400" 
-                                : "text-gray-500/50 group-hover:text-gray-500"
-                            )} 
-                          />
-                        </div>
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="text-sm font-medium text-gray-400"
-                    >
-                      Lock period
-                    </TableHead>
-                    <TableHead 
-                      className="text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors group"
-                      onClick={() => handleSort('minDeposit')}
-                    >
-                      <div className="flex items-center justify-between">
-                        Min MOR Deposit
-                        <div className="flex flex-col ml-2">
-                          <ChevronUp 
-                            className={cn(
-                              "h-3 w-3 -mb-0.5",
-                              sorting?.id === 'minDeposit' && !sorting.desc 
-                                ? "text-emerald-400" 
-                                : "text-gray-500/50 group-hover:text-gray-500"
-                            )} 
-                          />
-                          <ChevronDown 
-                            className={cn(
-                              "h-3 w-3 -mt-0.5",
-                              sorting?.id === 'minDeposit' && sorting.desc 
-                                ? "text-emerald-400" 
-                                : "text-gray-500/50 group-hover:text-gray-500"
-                            )} 
-                          />
-                        </div>
-                      </div>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredBuilders.map((builder) => (
-                    <TableRow 
-                      key={builder.id} 
-                      className="border-b border-white/[0.08] hover:bg-emerald-400/10 transition-colors"
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-                            <Image
-                              src={builder.image}
-                              alt={builder.name}
-                              fill
-                              className="object-cover"
+              <div className="table-container">
+                <Table className="table-base">
+                  <TableHeader className="table-header">
+                    <TableRow className="table-header-row">
+                      <TableHead className="table-header-cell">Name</TableHead>
+                      <TableHead className="table-header-cell">Networks</TableHead>
+                      <TableHead className="table-header-cell">Reward Type</TableHead>
+                      <TableHead 
+                        className="table-header-cell table-header-cell-sortable group"
+                        onClick={() => handleSort('totalStaked')}
+                      >
+                        <div className="flex items-center justify-between">
+                          MOR Staked
+                          <div className="table-sort-icons">
+                            <ChevronUp 
+                              className={cn(
+                                "table-sort-icon table-sort-icon-up",
+                                sorting?.id === 'totalStaked' && !sorting.desc 
+                                  ? "table-sort-icon-active" 
+                                  : "table-sort-icon-inactive"
+                              )} 
+                            />
+                            <ChevronDown 
+                              className={cn(
+                                "table-sort-icon table-sort-icon-down",
+                                sorting?.id === 'totalStaked' && sorting.desc 
+                                  ? "table-sort-icon-active" 
+                                  : "table-sort-icon-inactive"
+                              )} 
                             />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Link 
-                              href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
-                              className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
-                            >
-                              {builder.name}
-                            </Link>
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="table-header-cell table-header-cell-sortable group"
+                        onClick={() => handleSort('stakingCount')}
+                      >
+                        <div className="flex items-center justify-between">
+                          # Staking
+                          <div className="table-sort-icons">
+                            <ChevronUp 
+                              className={cn(
+                                "table-sort-icon table-sort-icon-up",
+                                sorting?.id === 'stakingCount' && !sorting.desc 
+                                  ? "table-sort-icon-active" 
+                                  : "table-sort-icon-inactive"
+                              )} 
+                            />
+                            <ChevronDown 
+                              className={cn(
+                                "table-sort-icon table-sort-icon-down",
+                                sorting?.id === 'stakingCount' && sorting.desc 
+                                  ? "table-sort-icon-active" 
+                                  : "table-sort-icon-inactive"
+                              )} 
+                            />
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex -space-x-1">
-                          {builder.networks.map((network) => (
-                            <div
-                              key={network}
-                              className="relative"
-                            >
-                              <NetworkIcon 
-                                name={network.toLowerCase()} 
-                                size={22} 
+                      </TableHead>
+                      <TableHead 
+                        className="table-header-cell"
+                      >
+                        Lock period
+                      </TableHead>
+                      <TableHead 
+                        className="table-header-cell table-header-cell-sortable group"
+                        onClick={() => handleSort('minDeposit')}
+                      >
+                        <div className="flex items-center justify-between">
+                          Min MOR Deposit
+                          <div className="table-sort-icons">
+                            <ChevronUp 
+                              className={cn(
+                                "table-sort-icon table-sort-icon-up",
+                                sorting?.id === 'minDeposit' && !sorting.desc 
+                                  ? "table-sort-icon-active" 
+                                  : "table-sort-icon-inactive"
+                              )} 
+                            />
+                            <ChevronDown 
+                              className={cn(
+                                "table-sort-icon table-sort-icon-down",
+                                sorting?.id === 'minDeposit' && sorting.desc 
+                                  ? "table-sort-icon-active" 
+                                  : "table-sort-icon-inactive"
+                              )} 
+                            />
+                          </div>
+                        </div>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredBuilders.map((builder) => (
+                      <TableRow 
+                        key={builder.id} 
+                        className="table-row"
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
+                              <Image
+                                src={builder.image}
+                                alt={builder.name}
+                                fill
+                                className="object-cover"
                               />
                             </div>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-gray-300">
-                          {builder.rewardType}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-200">{builder.totalStaked.toLocaleString()}</span>
-                      </TableCell>
-                      <TableCell className="text-gray-300">
-                        {builder.stakingCount}
-                      </TableCell>
-                      <TableCell className="text-gray-300">{builder.lockPeriod}</TableCell>
-                      <TableCell className="text-gray-300">{builder.minDeposit}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                            <div className="flex items-center gap-2">
+                              <Link 
+                                href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                                className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                              >
+                                {builder.name}
+                              </Link>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex -space-x-1">
+                            {builder.networks.map((network) => (
+                              <div
+                                key={network}
+                                className="relative w-[22px] h-[22px]"
+                              >
+                                {network === 'Arbitrum' ? (
+                                  <ArbitrumIcon size={22} className="text-current" />
+                                ) : (
+                                  <BaseIcon size={22} className="text-current" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 text-gray-300">
+                            {builder.rewardType}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-gray-200">{builder.totalStaked.toLocaleString()}</span>
+                        </TableCell>
+                        <TableCell className="text-gray-300">
+                          {builder.stakingCount}
+                        </TableCell>
+                        <TableCell className="text-gray-300">{builder.lockPeriod}</TableCell>
+                        <TableCell className="text-gray-300">{builder.minDeposit}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </div>
         </div>
