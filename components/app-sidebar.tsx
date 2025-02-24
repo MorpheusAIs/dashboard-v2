@@ -2,11 +2,12 @@
 
 import * as React from "react"
 import {
-  Building2,
+  CircleDollarSign,
   Cpu,
   Users,
   Wrench,
   Share2,
+  BarChart,
 } from "lucide-react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -24,7 +25,7 @@ const navigation = [
   {
     title: "Capital",
     url: "/capital",
-    icon: Building2,
+    icon: CircleDollarSign,
   },
   {
     title: "Compute",
@@ -45,6 +46,11 @@ const navigation = [
     title: "Referrals",
     url: "/referrals",
     icon: Share2,
+  },
+  {
+    title: "Metrics",
+    url: "/metrics",
+    icon: BarChart,
   },
 ]
 

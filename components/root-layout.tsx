@@ -17,11 +17,29 @@ import {
 } from "@/components/ui/sidebar"
 import { usePathname } from "next/navigation"
 import { MORBalance } from "./MORBalance"
+import { builders } from "@/app/builders/builders-data"
 
-function getPageTitle(pathname: string) {
-  const path = pathname.split('/')[1]
-  if (!path) return 'Dashboard'
-  return path.charAt(0).toUpperCase() + path.slice(1)
+function getPageInfo(pathname: string) {
+  const segments = pathname.split('/')
+  const section = segments[1]
+  
+  if (!section) return { title: 'Dashboard' }
+  
+  // If we're on a builder detail page
+  if (section === 'builders' && segments.length > 2) {
+    const builderSlug = segments[2]
+    const builder = builders.find(b => 
+      b.name.toLowerCase().replace(/\s+/g, '-') === builderSlug
+    )
+    return {
+      title: 'Builders',
+      subPage: builder?.name
+    }
+  }
+  
+  return {
+    title: section.charAt(0).toUpperCase() + section.slice(1)
+  }
 }
 
 export function RootLayoutContent({
@@ -30,7 +48,7 @@ export function RootLayoutContent({
   children: React.ReactNode;
 }) {
   const pathname = usePathname()
-  const pageTitle = getPageTitle(pathname)
+  const pageInfo = getPageInfo(pathname)
 
   return (
     <SidebarProvider>
@@ -49,8 +67,18 @@ export function RootLayoutContent({
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{pageTitle}</BreadcrumbPage>
+                  <BreadcrumbLink href={`/${pageInfo.title.toLowerCase()}`}>
+                    {pageInfo.title}
+                  </BreadcrumbLink>
                 </BreadcrumbItem>
+                {pageInfo.subPage && (
+                  <>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>{pageInfo.subPage}</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
+                )}
               </BreadcrumbList>
             </Breadcrumb>
           </div>
