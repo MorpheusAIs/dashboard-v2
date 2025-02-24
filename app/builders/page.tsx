@@ -33,12 +33,6 @@ export default function BuildersPage() {
   const [networkFilter, setNetworkFilter] = useState<string>("all");
   const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null);
 
-  // Get unique reward types for the dropdown
-  const rewardTypes = useMemo(() => {
-    const types = builders.map(builder => builder.rewardType);
-    return Array.from(new Set(types));
-  }, []);
-
   // Filter and sort builders
   const filteredBuilders = useMemo(() => {
     let result = builders.filter(builder => {
@@ -61,7 +55,13 @@ export default function BuildersPage() {
     }
 
     return result;
-  }, [builders, nameFilter, rewardTypeFilter, networkFilter, sorting]);
+  }, [nameFilter, rewardTypeFilter, networkFilter, sorting]);
+
+  // Get unique reward types for the dropdown
+  const rewardTypes = useMemo(() => {
+    const types = builders.map(builder => builder.rewardType);
+    return Array.from(new Set(types));
+  }, []);
 
   const handleSort = (columnId: string) => {
     setSorting(current => {
