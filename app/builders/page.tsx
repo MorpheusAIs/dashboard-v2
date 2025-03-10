@@ -149,13 +149,11 @@ export default function BuildersPage() {
                     <div className="w-[18px] h-[20px] relative">
                       <ArbitrumIcon size={19} className="text-current" />
                     </div>
-                    <span>Arbitrum</span>
                   </ToggleGroupItem>
                   <ToggleGroupItem value="Base" className="flex items-center gap-2 px-4">
                     <div className="w-[18px] h-[20px] relative">
                       <BaseIcon size={19} className="text-current" />
                     </div>
-                    <span>Base Mainnet</span>
                   </ToggleGroupItem>
                 </ToggleGroup>
               </div>
@@ -289,7 +287,7 @@ export default function BuildersPage() {
                         <TableCell className="table-cell">
                           <div className="flex items-center gap-1">
                             {(builder.networks || []).map((network) => (
-                              <div key={network} className="relative" title={network === "Arbitrum" ? "Arbitrum" : "Base Mainnet"}>
+                              <div key={network} className="relative">
                                 {network === "Arbitrum" ? (
                                   <ArbitrumIcon size={19} className="text-current" />
                                 ) : (
