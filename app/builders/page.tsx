@@ -20,63 +20,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import Link from "next/link";
-import { builders } from "./builders-data";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
+import { useBuilders } from "@/context/builders-context";
 
 export default function BuildersPage() {
-  const [nameFilter, setNameFilter] = useState("");
-  const [rewardTypeFilter, setRewardTypeFilter] = useState<string>("all");
-  const [networkFilter, setNetworkFilter] = useState<string>("all");
-  const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null);
+  // Use the builders context instead of local state
+  const {
+    // Filtering
+    nameFilter,
+    setNameFilter,
+    rewardTypeFilter,
+    setRewardTypeFilter,
+    networkFilter,
+    setNetworkFilter,
+    
+    // Sorting
+    sortColumn,
+    sortDirection,
+    setSorting,
+    
+    // Data
+    filteredBuilders,
+    rewardTypes,
+    isLoading,
+    
+    // Total metrics (independent of filters)
+    totalMetrics
+  } = useBuilders();
 
-  // Filter and sort builders
-  const filteredBuilders = useMemo(() => {
-    let result = builders.filter(builder => {
-      const matchesName = builder.name.toLowerCase().includes(nameFilter.toLowerCase());
-      const matchesRewardType = rewardTypeFilter === "all" || builder.rewardType === rewardTypeFilter;
-      const matchesNetwork = networkFilter === "all" || builder.networks.includes(networkFilter);
-      return matchesName && matchesRewardType && matchesNetwork;
-    });
+  // Convert context sorting to the format expected by the UI
+  const sorting = useMemo(() => {
+    if (!sortColumn) return null;
+    return {
+      id: sortColumn,
+      desc: sortDirection === 'desc'
+    };
+  }, [sortColumn, sortDirection]);
 
-    if (sorting) {
-      result = [...result].sort((a, b) => {
-        const aValue = a[sorting.id as keyof typeof a];
-        const bValue = b[sorting.id as keyof typeof b];
-        
-        if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return sorting.desc ? bValue - aValue : aValue - bValue;
-        }
-        return 0;
-      });
-    }
-
-    return result;
-  }, [nameFilter, rewardTypeFilter, networkFilter, sorting]);
-
-  // Get unique reward types for the dropdown
-  const rewardTypes = useMemo(() => {
-    const types = builders.map(builder => builder.rewardType);
-    return Array.from(new Set(types));
-  }, []);
-
+  // Handle sorting from UI
   const handleSort = (columnId: string) => {
-    setSorting(current => {
-      // If clicking the same column
-      if (current?.id === columnId) {
-        // If it was ascending, make it descending
-        if (!current.desc) {
-          return { id: columnId, desc: true };
-        }
-        // If it was descending, remove sorting
-        return null;
-      }
-      // If clicking a new column, start with ascending
-      return { id: columnId, desc: false };
-    });
+    setSorting(columnId);
   };
 
   return (
@@ -84,19 +71,19 @@ export default function BuildersPage() {
       <div className="page-grid">
         <MetricCard
           title="Active Builders"
-          metrics={[{ value: "75", label: "Builders" }]}
+          metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Builders" }]}
         />
 
         <MetricCard
           title="Total Staked"
-          metrics={[{ value: "100,000", label: "MOR" }]}
+          metrics={[{ value: totalMetrics.totalStaked.toLocaleString(), label: "MOR" }]}
         />
 
         <MetricCard
           className="col-span-2"
           title="Community Stats"
           metrics={[
-            { value: "578", label: "Staking" },
+            { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
             { value: "12.5k", label: "Commits" }
           ]}
         />
@@ -162,11 +149,13 @@ export default function BuildersPage() {
                     <div className="w-[18px] h-[20px] relative">
                       <ArbitrumIcon size={19} className="text-current" />
                     </div>
+                    <span>Arbitrum</span>
                   </ToggleGroupItem>
                   <ToggleGroupItem value="Base" className="flex items-center gap-2 px-4">
                     <div className="w-[18px] h-[20px] relative">
                       <BaseIcon size={19} className="text-current" />
                     </div>
+                    <span>Base Mainnet</span>
                   </ToggleGroupItem>
                 </ToggleGroup>
               </div>
@@ -175,7 +164,7 @@ export default function BuildersPage() {
             <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
               <div className="table-container">
                 <Table className="table-base">
-                  <TableHeader className="table-header">
+                  <TableHeader className="table-header sticky top-0 z-10">
                     <TableRow className="table-header-row">
                       <TableHead className="table-header-cell">Name</TableHead>
                       <TableHead className="table-header-cell">Networks</TableHead>
@@ -274,12 +263,18 @@ export default function BuildersPage() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-                              <Image
-                                src={builder.image}
-                                alt={builder.name}
-                                fill
-                                className="object-cover"
-                              />
+                              {builder.image && builder.image !== '' ? (
+                                <Image
+                                  src={builder.image}
+                                  alt={builder.name}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
+                                  {builder.name.charAt(0)}
+                                </div>
+                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               <Link 
@@ -291,17 +286,14 @@ export default function BuildersPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="flex -space-x-1">
-                            {builder.networks.map((network) => (
-                              <div
-                                key={network}
-                                className="relative w-[22px] h-[22px]"
-                              >
-                                {network === 'Arbitrum' ? (
-                                  <ArbitrumIcon size={22} className="text-current" />
+                        <TableCell className="table-cell">
+                          <div className="flex items-center gap-1">
+                            {(builder.networks || []).map((network) => (
+                              <div key={network} className="relative" title={network === "Arbitrum" ? "Arbitrum" : "Base Mainnet"}>
+                                {network === "Arbitrum" ? (
+                                  <ArbitrumIcon size={19} className="text-current" />
                                 ) : (
-                                  <BaseIcon size={22} className="text-current" />
+                                  <BaseIcon size={19} className="text-current" />
                                 )}
                               </div>
                             ))}
@@ -329,6 +321,13 @@ export default function BuildersPage() {
           </div>
         </div>
       </div>
+
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="flex justify-center my-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+        </div>
+      )}
     </div>
   );
 }

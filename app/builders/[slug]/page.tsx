@@ -24,6 +24,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { builders, Builder } from "../builders-data";
 
+// Function to extract domain from URL
+const extractDomain = (url: string): string => {
+  try {
+    // Remove protocol and www if present
+    const domain = new URL(url).hostname.replace(/^www\./, '');
+    return domain;
+  } catch {
+    // Return original URL if parsing fails
+    return url;
+  }
+};
+
 interface StakingEntry {
   address: string;
   amount: number;
@@ -54,13 +66,16 @@ export default function BuilderPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [userStakedAmount] = useState(1000); // Mock user's staked amount
   const [timeLeft] = useState("15 days"); // Mock time left until unlock
-
+  
   // Find the builder based on the slug
   const builder = builders.find((b: Builder) => b.name.toLowerCase().replace(/\s+/g, '-') === slug);
 
   if (!builder) {
     return <div className="p-8">Builder not found</div>;
   }
+
+  // Use the networks from the builder data
+  const networksToDisplay = builder.networks || ['Base']; // Default to Base if not specified
 
   const handleStake = () => {
     // Implement staking logic here
@@ -78,18 +93,24 @@ export default function BuilderPage() {
         {/* Builder Header */}
         <div className="flex items-start gap-6">
           <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
-            <Image
-              src={builder.image}
-              alt={builder.name}
-              fill
-              className="object-cover"
-            />
+            {builder.localImage && builder.localImage !== '' ? (
+              <Image
+                src={`/${builder.localImage}`}
+                alt={builder.name}
+                fill
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex items-center justify-center size-24 bg-emerald-700 text-white text-4xl font-medium">
+                {builder.name.charAt(0)}
+              </div>
+            )}
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-100 mb-2">{builder.name}</h1>
             <div className="flex items-center gap-4 mb-4">
               <div className="flex -space-x-1">
-                {builder.networks.map((network: string) => (
+                {networksToDisplay.map((network: string) => (
                   <div key={network} className="relative">
                     <NetworkIcon name={network.toLowerCase()} size={24} />
                   </div>
@@ -97,11 +118,24 @@ export default function BuilderPage() {
               </div>
               <span className="text-gray-400">|</span>
               <span className="text-gray-300">{builder.rewardType}</span>
+              {builder.website && (
+                <>
+                  <span className="text-gray-400">|</span>
+                  <a 
+                    href={builder.website} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3"
+                  >
+                    {extractDomain(builder.website)}
+                  </a>
+                </>
+              )}
             </div>
             <p className="text-gray-400 max-w-2xl">
-              This is a mock description for {builder.name}. In a real implementation, 
-              this would contain detailed information about the builder&apos;s project, 
-              their goals, and what users get in return for staking.
+              {builder.description || `This is a mock description for ${builder.name}. In a real implementation, 
+              this would contain detailed information about the builder's project, 
+              their goals, and what users get in return for staking.`}
             </p>
           </div>
         </div>
