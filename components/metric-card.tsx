@@ -1,4 +1,5 @@
 import { Info } from "lucide-react"
+import NumberFlow from '@number-flow/react'
 
 interface MetricValue {
   value: string | number
@@ -15,14 +16,10 @@ interface MetricCardProps {
 export function MetricCard({ title, metrics, className = "" }: MetricCardProps) {
   const isDoubleMetric = metrics.length === 2
 
-  const formatMetricValue = (value: string | number) => {
-    const num = typeof value === 'string' ? 
+  const getNumericValue = (value: string | number): number => {
+    return typeof value === 'string' ? 
       parseFloat(value.replace(/,/g, '')) : 
-      value
-    return Math.floor(num).toLocaleString('en-US')
-    // return Number.isInteger(num) ? 
-    //   num.toLocaleString('en-US', { maximumFractionDigits: 0 }) : 
-    //   num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      value;
   }
 
   return (
@@ -37,7 +34,9 @@ export function MetricCard({ title, metrics, className = "" }: MetricCardProps) 
           <div className="metric-grid">
             {metrics.map((metric, index) => (
               <div key={index} className="metric-container">
-                <span className="metric-value">{formatMetricValue(metric.value)}</span>
+                <span className="metric-value">
+                  <NumberFlow value={getNumericValue(metric.value)} />
+                </span>
                 <span className="metric-label">{metric.label}</span>
                 {metric.change && <span className="metric-change">{metric.change}</span>}
               </div>
@@ -45,7 +44,9 @@ export function MetricCard({ title, metrics, className = "" }: MetricCardProps) 
           </div>
         ) : (
           <div className="metric-container">
-            <span className="metric-value">{formatMetricValue(metrics[0].value)}</span>
+            <span className="metric-value">
+              <NumberFlow value={getNumericValue(metrics[0].value)} />
+            </span>
             <span className="metric-label">{metrics[0].label}</span>
             {metrics[0].change && <span className="metric-change">{metrics[0].change}</span>}
           </div>
