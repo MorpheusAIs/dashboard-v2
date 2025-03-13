@@ -11,6 +11,7 @@ const queryClient = new QueryClient();
 
 if (!projectId) throw new Error("Project ID is not defined");
 
+// Configure Web3Modal with mainnet as the default chain
 createWeb3Modal({
   wagmiConfig: config,
   projectId,

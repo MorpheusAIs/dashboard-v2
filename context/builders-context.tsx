@@ -1,18 +1,13 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { getDefaultClient } from '@/lib/apollo-client';
+import { getClientForNetwork } from '@/lib/apollo-client';
 import { 
-  COMBINED_BUILDERS_LIST,
   COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS
 } from '@/lib/graphql/builders-queries';
 import { 
   BuilderProject, 
   BuildersCounter, 
-  BuildersUser_OrderBy,
-  BuildersProject_OrderBy,
-  OrderDirection,
-  CombinedBuildersListResponse,
   CombinedBuildersListFilteredByPredefinedBuildersResponse
 } from '@/lib/types/graphql';
 import { Builder } from '@/app/builders/builders-data';
@@ -70,8 +65,9 @@ const BuildersContext = createContext<BuildersContextType | undefined>(undefined
 export function BuildersProvider({ children }: { children: ReactNode }) {
   // Raw data state
   const [buildersProjects, setBuildersProjects] = useState<BuilderProject[]>([]);
-  const [userAccountBuildersProjects, setUserAccountBuildersProjects] = useState<BuilderProject[]>([]);
-  const [buildersCounters, setBuildersCounters] = useState<BuildersCounter | undefined>(undefined);
+  // We keep these declarations for type compatibility, even if not actively used
+  const [userAccountBuildersProjects, /*setUserAccountBuildersProjects*/] = useState<BuilderProject[]>([]);
+  const [buildersCounters, /*setBuildersCounters*/] = useState<BuildersCounter | undefined>(undefined);
   
   // Predefined builders state
   const [predefinedBuilders, setPredefinedBuilders] = useState<PredefinedBuilder[]>([]);
@@ -93,8 +89,8 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   // Handle async adaptation of builder projects
   const [adaptedBuilders, setAdaptedBuilders] = useState<Builder[]>([]);
   
-  // Handle async adaptation of user builder projects
-  const [adaptedUserBuilders, setAdaptedUserBuilders] = useState<Builder[]>([]);
+  // Handle async adaptation of user builder projects - keeping for type compatibility
+  const [adaptedUserBuilders, /*setAdaptedUserBuilders*/] = useState<Builder[]>([]);
   
   // Load predefined builders on mount
   useEffect(() => {
@@ -276,160 +272,105 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  // Fetch data function with better error handling
+  // Refresh data from the API
   const fetchData = async () => {
-    // Don't fetch data until predefined builders are loaded
-    if (!predefinedBuildersLoaded) {
-      console.log('Waiting for predefined builders to load...');
-      return;
-    }
+    setIsLoading(true);
+    setError(null);
     
     try {
-      setIsLoading(true);
-      setError(null);
-      
-      console.log('Fetching data from GraphQL API...');
-      const client = getDefaultClient();
-      
-      // Map sorting to GraphQL variables
-      let orderBy = BuildersProject_OrderBy.TotalStaked;
-      let orderDirection = OrderDirection.Desc;
-      
-      if (sortColumn) {
-        switch (sortColumn) {
-          case 'totalStaked':
-            orderBy = BuildersProject_OrderBy.TotalStaked;
-            break;
-          case 'stakingCount':
-            orderBy = BuildersProject_OrderBy.TotalUsers;
-            break;
-          case 'minDeposit':
-            orderBy = BuildersProject_OrderBy.MinimalDeposit;
-            break;
-          default:
-            orderBy = BuildersProject_OrderBy.TotalStaked;
-        }
-        
-        orderDirection = sortDirection === 'asc' ? OrderDirection.Asc : OrderDirection.Desc;
-      }
-      
-      // Extract builder names from predefined builders for filtering
+      // Get predefined builders names to filter the API results
       const predefinedBuilderNames = predefinedBuilders.map(builder => builder.name);
       
-      console.log('Using predefined builder names for filtering:', predefinedBuilderNames);
+      console.log('Fetching data with predefined builder names:', predefinedBuilderNames);
       
-      try {
-        // Use the filtered query with predefined builder names
-        const { data: filteredData } = await client.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
-          query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
-          variables: {
-            orderBy,
-            orderDirection,
-            usersOrderBy: BuildersUser_OrderBy.Staked,
-            usersDirection: OrderDirection.Desc,
-            name_in: predefinedBuilderNames,
-            address: '' // TODO: Add connected wallet address
-          },
-          fetchPolicy: 'network-only'
-        });
-        
-        console.log('GraphQL filtered response:', filteredData);
-        
-        if (!filteredData || !filteredData.buildersProjects || filteredData.buildersProjects.length === 0) {
-          console.warn('No data returned from filtered GraphQL API, trying unfiltered query');
-          
-          // Fallback to unfiltered query if filtered query returns no data
-          const { data: combinedData } = await client.query<CombinedBuildersListResponse>({
-            query: COMBINED_BUILDERS_LIST,
-            variables: {
-              first: 100, // Fetch all data at once
-              skip: 0,
-              orderBy,
-              orderDirection,
-              usersOrderBy: BuildersUser_OrderBy.Staked,
-              usersDirection: OrderDirection.Desc,
-              address: '' // TODO: Add connected wallet address
-            },
-            fetchPolicy: 'network-only'
-          });
-          
-          console.log('GraphQL unfiltered response:', combinedData);
-          
-          if (!combinedData || !combinedData.buildersProjects || combinedData.buildersProjects.length === 0) {
-            console.warn('No data returned from unfiltered GraphQL API, using predefined builders only');
-            setBuildersProjects([]);
-            setUserAccountBuildersProjects([]);
-            setBuildersCounters(undefined);
-          } else {
-            console.log('Setting data from unfiltered GraphQL response');
-            setBuildersProjects(combinedData.buildersProjects);
-            setUserAccountBuildersProjects(
-              combinedData.buildersUsers?.map(user => user.buildersProject as BuilderProject) || []
-            );
-            setBuildersCounters(combinedData.counters?.[0]);
-          }
-        } else {
-          console.log('Setting data from filtered GraphQL response');
-          setBuildersProjects(filteredData.buildersProjects);
-          setUserAccountBuildersProjects(
-            filteredData.buildersUsers?.map(user => user.buildersProject as BuilderProject) || []
-          );
-        }
-      } catch (queryError) {
-        console.error('GraphQL query error:', queryError);
-        // Fall back to predefined builders by setting empty arrays
-        setBuildersProjects([]);
-        setUserAccountBuildersProjects([]);
-        setBuildersCounters(undefined);
-        setError(queryError instanceof Error ? queryError : new Error('GraphQL query failed'));
-      }
+      // Create an array to store results from different networks
+      let combinedBuildersProjects: BuilderProject[] = [];
+      
+      // Create clients for each network
+      const arbitrumClient = getClientForNetwork('Arbitrum');
+      const baseClient = getClientForNetwork('Base');
+      
+      // Fetch data from Arbitrum
+      const arbitrumResponse = await arbitrumClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
+        query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
+        variables: {
+          name_in: predefinedBuilderNames,
+          orderBy: 'totalStaked',
+          orderDirection: 'desc',
+          usersOrderBy: 'buildersProject__totalStaked',
+          usersDirection: 'asc',
+          address: '0x76cc9bccdaf5cd6b6738c706f0611a2ff1efb13e', // Default address for consistency
+        },
+      });
+      
+      console.log('Arbitrum response:', arbitrumResponse.data);
+      
+      // Add network information to each project
+      const arbitrumProjects = arbitrumResponse.data.buildersProjects.map(project => ({
+        ...project,
+        network: 'Arbitrum',
+      }));
+      
+      // Fetch data from Base
+      const baseResponse = await baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
+        query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
+        variables: {
+          name_in: predefinedBuilderNames,
+          orderBy: 'totalStaked',
+          orderDirection: 'desc',
+          usersOrderBy: 'buildersProject__totalStaked',
+          usersDirection: 'asc',
+          address: '0x76cc9bccdaf5cd6b6738c706f0611a2ff1efb13e', // Default address for consistency
+        },
+      });
+      
+      console.log('Base response:', baseResponse.data);
+      
+      // Add network information to each project
+      const baseProjects = baseResponse.data.buildersProjects.map(project => ({
+        ...project,
+        network: 'Base',
+      }));
+      
+      // Combine results from both networks
+      combinedBuildersProjects = [...arbitrumProjects, ...baseProjects];
+      
+      console.log('Combined builders projects:', combinedBuildersProjects);
+      
+      // Save the raw data
+      setBuildersProjects(combinedBuildersProjects);
+      
+      // Adapt the raw data to UI format
+      const adaptedBuilders = await adaptBuilderProjectsToUI(combinedBuildersProjects, predefinedBuilders);
+      setAdaptedBuilders(adaptedBuilders);
+      
+      // Process any user account data if needed
+      // This would be similar to the above but for user-specific data
+      
+      console.log('Fetched and processed data successfully');
     } catch (error) {
-      console.error('Error in fetchData:', error);
-      setBuildersProjects([]);
-      setUserAccountBuildersProjects([]);
-      setBuildersCounters(undefined);
-      setError(error instanceof Error ? error : new Error('An unknown error occurred'));
+      console.error('Error fetching data:', error);
+      setError(error instanceof Error ? error : new Error('Failed to fetch data'));
+      
+      // Fall back to predefined builders if API fetch fails
+      const fallbackBuilders = adaptPredefinedBuildersToBuilders(predefinedBuilders);
+      setAdaptedBuilders(fallbackBuilders);
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   // Fetch data when predefined builders are loaded
   useEffect(() => {
     if (predefinedBuildersLoaded) {
       fetchData();
     }
   }, [predefinedBuildersLoaded]);
-
-  // Handle async adaptation of builder projects
-  useEffect(() => {
-    if (buildersProjects && buildersProjects.length > 0) {
-      setIsLoading(true);
-      adaptBuilderProjectsToUI(buildersProjects, predefinedBuilders)
-        .then(adapted => {
-          setAdaptedBuilders(adapted);
-          setIsLoading(false);
-        })
-        .catch(error => {
-          console.error('Error adapting builder projects:', error);
-          setError(error instanceof Error ? error : new Error('Failed to adapt builder projects'));
-          setIsLoading(false);
-        });
-    }
-  }, [buildersProjects, predefinedBuilders]);
-
-  // Handle async adaptation of user builder projects
-  useEffect(() => {
-    if (userAccountBuildersProjects && userAccountBuildersProjects.length > 0) {
-      adaptBuilderProjectsToUI(userAccountBuildersProjects, predefinedBuilders)
-        .then(adapted => {
-          setAdaptedUserBuilders(adapted);
-        })
-        .catch(error => {
-          console.error('Error adapting user builder projects:', error);
-        });
-    }
-  }, [userAccountBuildersProjects, predefinedBuilders]);
+  
+  // Expose refreshData function for manual refresh
+  const refreshData = async () => {
+    await fetchData();
+  };
 
   return (
     <BuildersContext.Provider
@@ -468,7 +409,7 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
         totalMetrics,
         
         // Refresh data
-        refreshData: fetchData
+        refreshData: refreshData
       }}
     >
       {children}

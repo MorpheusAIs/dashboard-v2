@@ -20,7 +20,9 @@ export async function adaptBuilderProjectToUI(
   );
   
   // Convert totalStaked from string to number (it's in wei format)
-  const totalStaked = parseInt(project.totalStaked) / 1e18;
+  // The value is in gwei (10^18), so divide by 10^18 to get MOR tokens
+  // Use Math.floor to remove decimals
+  const totalStaked = Math.floor(parseInt(project.totalStaked) / 1e18);
   
   // Convert minimalDeposit from string to number (it's in wei format)
   const minDeposit = parseFloat(project.minimalDeposit) / 1e18;
@@ -42,10 +44,25 @@ export async function adaptBuilderProjectToUI(
   const description = predefinedBuilder?.description || '';
   const longDescription = predefinedBuilder?.longDescription || '';
   
-  // Get the appropriate image path
-  const image = getBuilderImagePath(name);
+  // Get image paths from predefined builder if available
+  let image = '';
+  let localImage = '';
   
-  const localImage = predefinedBuilder?.localImage || '';
+  if (predefinedBuilder) {
+    // Use the localImage path from the predefined builder, properly prefixed
+    localImage = predefinedBuilder.localImage && predefinedBuilder.localImage !== '' 
+      ? (predefinedBuilder.localImage.startsWith('/') 
+          ? predefinedBuilder.localImage 
+          : `/${predefinedBuilder.localImage}`)
+      : '';
+    
+    // Use the same image for both properties to ensure consistency
+    image = localImage || getBuilderImagePath(name);
+  } else {
+    // Fallback to default image mapping if no predefined builder found
+    image = getBuilderImagePath(name);
+  }
+  
   const tags = predefinedBuilder?.tags || [];
   const githubUrl = predefinedBuilder?.githubUrl || '';
   const twitterUrl = predefinedBuilder?.twitterUrl || '';

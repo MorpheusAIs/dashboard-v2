@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import Link from "next/link";
@@ -32,6 +32,29 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { BecomeBuilderModal } from "@/components/become-builder-modal";
+
+// Separate component for the modal to ensure it works independently
+function BuilderModalWrapper() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  return (
+    <>
+      <button 
+        onClick={() => setIsModalOpen(true)}
+        className="copy-button mb-4"
+      >
+        {/* <Plus className="mr-2 h-4 w-4" /> */}
+        Become a Builder
+      </button>
+      
+      <BecomeBuilderModal 
+        open={isModalOpen} 
+        onOpenChange={setIsModalOpen} 
+      />
+    </>
+  );
+}
 
 export default function BuildersPage() {
   // Use the builders context instead of local state
@@ -96,7 +119,10 @@ export default function BuildersPage() {
       </div>
 
       <div className="page-section">
-        <h2 className="section-title">Explore Builders</h2>
+        <div className="flex justify-between items-center align-middle">
+          <h2 className="section-title">Explore Builders</h2>
+          <BuilderModalWrapper />
+        </div>
         <div className="section-content group">
           <div className="section-body p-2">
             {/* Filters */}

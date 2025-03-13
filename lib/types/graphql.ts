@@ -44,6 +44,7 @@ export interface BuilderProject {
   withdrawLockPeriodAfterDeposit: string;
   // Additional fields for UI display
   networks?: string[];
+  network?: string;
   rewardType?: string;
   image?: string;
   stakingCount?: number;
