@@ -7,7 +7,10 @@ import { cookieToInitialState } from "wagmi"
 import { config } from "@/config"
 import { Web3Providers } from "@/components/web3-providers"
 import { BuildersProvider } from '@/context/builders-context';
+import { AuthProvider } from '@/context/auth-context';
+import { ComputeProvider } from '@/context/compute-context';
 import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -44,9 +47,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
         <BuildersProvider>
-          <Web3Providers initialState={initialState}>
-            <RootLayoutContent>{children}</RootLayoutContent>
-          </Web3Providers>
+          <ComputeProvider>
+            <Web3Providers initialState={initialState}>
+              <AuthProvider>
+                <RootLayoutContent>{children}</RootLayoutContent>
+                <Toaster />
+              </AuthProvider>
+            </Web3Providers>
+          </ComputeProvider>
         </BuildersProvider>
       </body>
     </html>
