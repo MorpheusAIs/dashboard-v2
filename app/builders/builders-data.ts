@@ -20,6 +20,7 @@ export interface Builder {
   lockPeriod?: string;
   minDeposit?: number;
   stakingCount?: number;
+  userStake?: number;
 }
 
 // Add mock data for fields not in the JSON
