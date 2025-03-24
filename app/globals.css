@@ -251,6 +251,10 @@
     @apply copy-button-base hover:bg-emerald-500;
   }
 
+  .copy-button-secondary {
+    @apply bg-transparent hover:bg-transparent text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50;
+  }
+
   /* Table styles */
   .table-container {
     @apply [&>div]:max-h-[600px] overflow-auto custom-scrollbar;
