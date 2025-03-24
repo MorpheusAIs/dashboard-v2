@@ -17,6 +17,7 @@ import {
   PredefinedBuilder, 
   adaptPredefinedBuildersToBuilders 
 } from '@/lib/utils/load-predefined-builders';
+import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 
 interface BuildersContextType {
   // Raw data from API
@@ -91,6 +92,41 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   
   // Handle async adaptation of user builder projects - keeping for type compatibility
   const [adaptedUserBuilders, /*setAdaptedUserBuilders*/] = useState<Builder[]>([]);
+  
+  // Initialize state from URL params
+  useInitStateFromUrl(
+    'name',
+    (value) => {
+      if (value !== '') setNameFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  useInitStateFromUrl(
+    'rewardType',
+    (value) => {
+      if (value !== '') setRewardTypeFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  useInitStateFromUrl(
+    'network',
+    (value) => {
+      if (value !== '') setNetworkFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  // Initialize sorting from URL
+  useInitStateFromUrl(
+    'sort',
+    (sorting) => {
+      if (sorting.column) setSortColumn(sorting.column);
+      if (sorting.direction) setSortDirection(sorting.direction);
+    },
+    ParamConverters.sorting.deserialize
+  );
   
   // Load predefined builders on mount
   useEffect(() => {
@@ -189,14 +225,15 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     // First apply filters
     finalBuilders.forEach((builder: Builder) => {
       // Case-insensitive name search that works as user types
-      const matchesName = builder.name.toLowerCase().includes(nameFilter.toLowerCase());
+      const matchesName = nameFilter === '' || 
+        builder.name.toLowerCase().includes(nameFilter.toLowerCase());
       
       // Reward type filter
-      const matchesRewardType = rewardTypeFilter === 'all' || 
+      const matchesRewardType = rewardTypeFilter === 'all' || rewardTypeFilter === '' || 
         (builder.rewardType && builder.rewardType.toLowerCase() === rewardTypeFilter.toLowerCase());
       
       // Network filter
-      const matchesNetwork = networkFilter === 'all' || 
+      const matchesNetwork = networkFilter === 'all' || networkFilter === '' || 
         (builder.networks && builder.networks.some(network => 
           network.toLowerCase() === networkFilter.toLowerCase()
         ));
@@ -255,21 +292,21 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     return uniqueTypes;
   }, [finalBuilders]);
   
-  // Handle sorting
+  // Get URL params hook once at the component level
+  const urlParams = useUrlParams();
+  
+  // Then use it in the setSorting function
   const setSorting = (column: string) => {
-    if (sortColumn === column) {
-      // Toggle direction or clear sorting
-      if (sortDirection === 'asc') {
-        setSortDirection('desc');
-      } else if (sortDirection === 'desc') {
-        setSortColumn(null);
-        setSortDirection(null);
-      }
-    } else {
-      // New column, start with ascending
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
+    const newDirection = sortColumn === column 
+      ? (sortDirection === 'asc' ? 'desc' : 'asc')
+      : 'desc';
+    
+    // Update state
+    setSortColumn(column);
+    setSortDirection(newDirection);
+      
+    // Update URL using the hook we got at the component level
+    urlParams.setParam('sort', `${column}-${newDirection}`);
   };
   
   // Refresh data from the API
