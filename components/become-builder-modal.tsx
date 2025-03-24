@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { RiCheckboxCircleFill, RiProgress4Fill } from "@remixicon/react";
+import { useNetwork } from "@/context/network-context";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,11 +38,16 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
+import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Form schemas
 const subnetDetailsSchema = z.object({
   builderName: z.string().min(1, "Builder name is required"),
   minDeposit: z.number().min(0, "Minimum deposit must be a positive number"),
+  network: z.enum(["Arbitrum", "Base"], {
+    required_error: "Please select a network",
+  }),
   withdrawLockPeriod: z.number().min(1, "Withdraw lock period must be at least 1"),
   withdrawLockUnit: z.enum(["hours", "days"]),
   startTime: z.date({
@@ -83,6 +90,10 @@ export function BecomeBuilderModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
+  
+  // Get user's current network
+  const { currentChainId, switchToChain } = useNetwork();
   
   // Initialize form with default values
   const form = useForm<z.infer<typeof formSchema>>({
@@ -91,6 +102,7 @@ export function BecomeBuilderModal({
       subnetDetails: {
         builderName: "",
         minDeposit: 0,
+        network: "Base", // Changed from Arbitrum to Base
         withdrawLockPeriod: 1,
         withdrawLockUnit: "days",
         startTime: new Date(), // Set current date as default
@@ -99,6 +111,32 @@ export function BecomeBuilderModal({
       projectDetails: {},
     },
   });
+
+  // Get the currently selected network from the form
+  const selectedNetwork = form.watch("subnetDetails.network");
+
+  // Check if user is on the correct network
+  const isCorrectNetwork = useCallback(() => {
+    // Map form network names to chain IDs
+    const networkToChainId: Record<string, number> = {
+      "Arbitrum": 42161, // Arbitrum One
+      "Base": 8453,      // Base Mainnet
+    };
+    
+    return currentChainId === networkToChainId[selectedNetwork];
+  }, [currentChainId, selectedNetwork]);
+
+  // Reset network switching state when the network changes
+  useEffect(() => {
+    if (isCorrectNetwork() && isNetworkSwitching) {
+      setIsNetworkSwitching(false);
+      
+      // Show toast notification when network is successfully switched
+      toast.success(`Successfully switched to ${selectedNetwork}`, {
+        id: "network-switch",
+      });
+    }
+  }, [currentChainId, isCorrectNetwork, isNetworkSwitching, selectedNetwork]);
 
   // Calculate seconds for withdraw lock period
   const calculateSecondsForLockPeriod = (period: number, unit: "hours" | "days") => {
@@ -132,6 +170,34 @@ export function BecomeBuilderModal({
 
   // Handle next step
   const handleNext = async () => {
+    // Check if we need to switch networks first
+    if (!isCorrectNetwork()) {
+      setIsNetworkSwitching(true);
+      
+      // Map form network names to chain IDs for switching
+      const networkToChainId: Record<string, number> = {
+        "Arbitrum": 42161, // Arbitrum One
+        "Base": 8453,      // Base Mainnet
+      };
+      
+      // Initiate network switch
+      try {
+        toast.loading(`Switching to ${selectedNetwork}...`, {
+          id: "network-switch",
+        });
+        await switchToChain(networkToChainId[selectedNetwork]);
+      } catch (error) {
+        console.error("Failed to switch network:", error);
+        setIsNetworkSwitching(false);
+        
+        // Show error toast
+        toast.error(`Failed to switch to ${selectedNetwork}`, {
+          id: "network-switch",
+        });
+      }
+      return;
+    }
+    
     // Validate current step
     if (currentStep === 1) {
       const result = await form.trigger("subnetDetails", { shouldFocus: true });
@@ -205,26 +271,63 @@ export function BecomeBuilderModal({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="subnetDetails.minDeposit"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Minimum deposit (MOR)</FormLabel>
-                      <FormControl>
-                        <NumberInput
-                          min={0}
-                          value={field.value}
+                <div className="flex gap-4 items-start">
+                  <FormField
+                    control={form.control}
+                    name="subnetDetails.minDeposit"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel>Minimum deposit (MOR)</FormLabel>
+                        <FormControl>
+                          <NumberInput
+                            min={0}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          This is the minimum amount of MOR users can deposit when staking to your project.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="subnetDetails.network"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormLabel>Network</FormLabel>
+                        <Select 
+                          value={field.value} 
                           onValueChange={field.onChange}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        This is the minimum amount of MOR users can deposit when staking to your project.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select network" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Arbitrum" className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
+                                <ArbitrumIcon size={18} className="text-current" />
+                                <span>Arbitrum</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="Base" className="flex items-center gap-2">
+                              <div className="flex items-center gap-2">
+                                <BaseIcon size={18} className="text-current" />
+                                <span>Base</span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <div className="flex gap-4 items-center">
                   <FormField
@@ -380,7 +483,16 @@ export function BecomeBuilderModal({
             onClick={handleNext}
             className="copy-button"
           >
-            {currentStep < steps.length ? "Next" : "Confirm"}
+            {!isCorrectNetwork() ? (
+              <span className="flex items-center gap-2 align-center justify-center">
+                Switch to {' '}
+                {selectedNetwork === "Arbitrum" ? (
+                  <ArbitrumIcon size={20} className="text-black" fill="#000" />
+                ) : (
+                  <BaseIcon size={20} className="text-black" fill="#000" />
+                )}
+              </span>
+            ) : currentStep < steps.length ? "Next" : "Confirm"}
           </button>
         </DialogFooter>
       </DialogContent>
