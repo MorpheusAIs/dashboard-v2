@@ -15,7 +15,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://6079.ai/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "f2e0e447-26b5-4467-960a-280e4f14cae",
@@ -33,7 +35,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://akash.network/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "452f9d53-230c-48f1-bfa8-2da0c89bcefa",
@@ -51,7 +55,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://ao.arweave.dev/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "e3c17d9f-f1f0-4f09-b8a0-7d4ce329f374",
@@ -69,7 +75,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://arkeo.network/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "8c95ab4f-3028-453c-8aad-f25d3b0cbbb7",
@@ -87,7 +95,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "0e9c31fb-0b39-4f83-8145-7cafc23a3685",
@@ -105,7 +115,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.atxdao.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "b872895b-8566-4def-a059-5a270687e746",
@@ -123,7 +135,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "f4688b7f-ed79-43bc-9e64-2a5ec6c15745",
@@ -141,7 +155,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://mee.biconomy.io/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "fe57c776-c03e-4223-96db-b43e78138684",
@@ -159,7 +175,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d728bdc6-968d-4168-97a5-fc0b4a6a8644",
@@ -177,7 +195,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://taoceti.ai/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "0ce5d1bd-fe44-4d64-8755-bd997fa423b6",
@@ -195,7 +215,9 @@
     "totalStaked": 0,
     "rewardType": "20% APR / API Access",
     "website": "https://coincap.io/",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "ccd5c537-6c5b-47b4-8028-0b3193da32ee",
@@ -213,7 +235,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://dais.global/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "111b6519-0d6f-808b-95d1-e101dea41c15",
@@ -231,7 +255,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://deriskit.ai/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "f54cff5d-bb3c-4ec9-9d9a-d2b32e192e6d",
@@ -249,7 +275,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.exabits.ai/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "b91e4daa-0c34-4a22-b933-896e7834f9bf",
@@ -267,7 +295,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "82b61046-6fab-4dec-8d11-880595b550b0",
@@ -285,7 +315,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.flock.io/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "0036a155-c812-4b24-8f22-39e55768df38",
@@ -303,7 +335,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.freedomgpt.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "6cfd3133-a237-42e4-9e06-fc26e24f93ad",
@@ -321,7 +355,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.genlayer.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "c9bc21bc-c466-4fdc-a8c4-b19ce0f51983",
@@ -339,7 +375,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "3ae359b6-6264-49d8-acc7-a019ecf50db1",
@@ -357,7 +395,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://hyperbolic.xyz/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "de4b7d87-2a88-4cc6-9d6c-3ccdf94cc916",
@@ -375,7 +415,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "e7f42dc5-7e66-486f-ae3f-c631533c5541",
@@ -393,7 +435,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "6fd5736d-11a2-4fb1-986e-68bea06af328",
@@ -411,7 +455,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.lumerin.io/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "f9576476-5a01-4aa9-90f6-60774fee4a6e",
@@ -429,7 +475,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://manifestai.org/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "faba9889-7550-41fe-8af3-81bf696bd412",
@@ -447,7 +495,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://morlord.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "1f37f91c-63fa-47b5-ae4e-eda78e689072",
@@ -465,7 +515,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://near.org/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "55207887-7fea-4e01-96e0-a8c2cf60b340",
@@ -483,7 +535,9 @@
     "totalStaked": 0,
     "rewardType": "Special OGs NFT",
     "website": "https://nounspace.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "3b76d19e-6035-462a-b4e8-9482614b1d4b",
@@ -501,7 +555,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://olas.network/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "606b8f89-7375-4bba-b9ea-2594a190ea55",
@@ -519,7 +575,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://phala.network/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "640ce707-dfe3-49d3-99c3-c8fd000b26c9",
@@ -537,7 +595,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://renascence-labs.xyz/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "638c5b90-4142-4eda-96ae-2794324869f5",
@@ -555,7 +615,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "6b915c51-d356-425d-b3c4-e9c6d9821238",
@@ -573,7 +635,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.sapien.io/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "1d5c71eb-918a-4c70-b287-85fc3592c171",
@@ -591,7 +655,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://shapeshift.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "b66fc9c6-6f87-4dd0-9d9d-5dc1745e0c1f",
@@ -609,7 +675,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.theoriq.ai/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "0e998b04-53b2-41ad-9d66-2932dbe23e35",
@@ -627,7 +695,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "f9df1f1f-e7ff-4c33-b2f9-ad6dcd0a1721",
@@ -645,7 +715,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://venice.ai/chat",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "02f63cdd-2bf8-4853-9f6c-5710d86e2d80",
@@ -663,7 +735,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.wire.network/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076cb",
@@ -681,7 +755,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://zo.me/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076ca",
@@ -699,7 +775,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://rainfall.one/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076cc",
@@ -717,7 +795,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://bloq.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076cd",
@@ -735,7 +815,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://hemi.xyz/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076ce",
@@ -753,7 +835,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://app.virtuals.io/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076cf",
@@ -771,7 +855,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.elizaos.ai/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076cg",
@@ -789,7 +875,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://gifstudios.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076ch",
@@ -807,7 +895,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://github.com/iamai-core",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076ci",
@@ -825,7 +915,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.lumerin.io/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d9bc2735-4579-4f73-a0c9-f4b1afa076ck",
@@ -843,7 +935,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://morlord.com/",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "a1b2c3d4-e5f6-4g7h-8i9j-k0l1m2n3o4p5",
@@ -861,7 +955,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "f9df1f1f-e7ff-4c33-b2f9-ad6dcd0a1721",
@@ -879,7 +975,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://venice.ai/chat",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "b2c3d4e5-f6g7-5h8i-9j0k-l1m2n3o4p5q6",
@@ -897,7 +995,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://open.spotify.com/show/56eTDgUARPiaUntXLnxIGg",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "c3d4e5f6-g7h8-6i9j-0k1l-m2n3o4p5q6r7",
@@ -915,7 +1015,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.mor.builders/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "d4e5f6g7-h8i9-7j0k-1l2m-n3o4p5q6r7s8",
@@ -933,7 +1035,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "e5f6g7h8-i9j0-8k1l-2m3n-o4p5q6r7s8t9",
@@ -951,7 +1055,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.palcapital.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "f6g7h8i9-j0k1-9l2m-3n4o-p5q6r7s8t9u0",
@@ -969,7 +1075,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://pattern.global/",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "g7h8i9j0-k1l2-0m3n-4o5p-q6r7s8t9u0v1",
@@ -987,7 +1095,9 @@
     "totalStaked": 0,
     "rewardType": "Access to Agents",
     "website": "",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "h8i9j0k1-l2m3-1n4o-5p6q-r7s8t9u0v1w2",
@@ -1005,7 +1115,9 @@
     "totalStaked": 0,
     "rewardType": "Ready for White List",
     "website": "https://github.com/domsteil/morpheus-node.git",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "i9j0k1l2-m3n4-2o5p-6q7r-s8t9u0v1w2x3",
@@ -1023,7 +1135,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://panoramablock.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "j0k1l2m3-n4o5-3p6q-7r8s-t9u0v1w2x3y4",
@@ -1041,7 +1155,9 @@
     "totalStaked": 0,
     "rewardType": "Early Access / MOR Yield",
     "website": "https://talesgame.com ",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "k1l2m3n4-o5p6-4q7r-8s9t-u0v1w2x3y4z5",
@@ -1059,7 +1175,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://0xloky.com/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "l2m3n4o5-p6q7-5r8s-9t0u-v1w2x3y4z5a6",
@@ -1077,7 +1195,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://github.com/DavidAJohnston/MySuperAgent",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "m3n4o5p6-q7r8-6s9t-0u1v-w2x3y4z5a6b7",
@@ -1095,7 +1215,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://morpheus.asia/",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "n4o5p6q7-r8s9-7t0u-1v2w-x3y4z5a6b7c8",
@@ -1113,7 +1235,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://x.com/nounspacetom",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "o5p6q7r8-s9t0-8u1v-2w3x-y4z5a6b7c8d9",
@@ -1131,7 +1255,9 @@
     "totalStaked": 0,
     "rewardType": "Access to Agents",
     "website": "https://katara.ai",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "p6q7r8s9-t0u1-9v2w-3x4y-z5a6b7c8d9e0",
@@ -1149,7 +1275,9 @@
     "totalStaked": 0,
     "rewardType": "Airdrops",
     "website": "https://www.z10n.ai",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "q7r8s9t0-u1v2-0w3x-4y5z-a6b7c8d9e0f1",
@@ -1167,7 +1295,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://dais.global/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "r8s9t0u1-v2w3-1x4y-5z6a-b7c8d9e0f1g2",
@@ -1185,7 +1315,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://www.frostbyte.app/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "s9t0u1v2-w3x4-2y5z-6a7b-c8d9e0f1g2h3",
@@ -1203,7 +1335,9 @@
     "totalStaked": 0,
     "rewardType": "To Be Announced",
     "website": "https://unocoin.com/in/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
   },
   {
     "id": "t0u1v2w3-x4y5-3z6a-7b8c-d9e0f1g2h3i4",
@@ -1221,7 +1355,9 @@
     "totalStaked": 0,
     "rewardType": "MOR development",
     "website": "https://growmor.org/",
-    "networks": ["Arbitrum"]
+    "networks": [
+      "Arbitrum"
+    ]
   },
   {
     "id": "u1v2w3x4-y5z6-4a7b-8c9d-e0f1g2h3i4j5",
@@ -1239,6 +1375,651 @@
     "totalStaked": 0,
     "rewardType": "API Access",
     "website": "https://www.satorinet.io/",
-    "networks": ["Base"]
+    "networks": [
+      "Base"
+    ]
+  },
+  {
+    "id": "",
+    "name": "Airvey Advisory",
+    "description": "Supporting Contributors in Building on MOR's Open-Source AI Infrastructure.",
+    "longDescription": "",
+    "image": "",
+    "localImage": "images/AirVeyBlackLogo.jpg",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "To Be Announced",
+    "website": "http://www.airvey.io"
+  },
+  {
+    "id": "",
+    "name": "TacoBytes",
+    "description": "Media and Content, helping give a voice to the builders and talking about what they are doing from a different perspective.",
+    "longDescription": "",
+    "image": "",
+    "localImage": "images/tacobytes.jpg",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "Marketing",
+    "website": "https://x.com/Player1Taco"
+  },
+  {
+    "id": "",
+    "name": "MOR API Access",
+    "description": "Access Morpheus compute with a Rest API key and a few lines of code.",
+    "longDescription": "",
+    "image": "",
+    "localImage": "images/morlord-faba9889-7550-41fe-8af3-81bf696bd412.jpg",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "API Access",
+    "website": "https://x.com/Player1Taco"
+  },
+  {
+    "id": "6bd0895b-0baf-47d8-b39a-768d3550f826",
+    "name": "GenAscend",
+    "description": "GenAscend on Arbitrum",
+    "longDescription": "",
+    "image": "",
+    "localImage": "images/genascend-fe79c605-7e3a-43a3-b4d4-5926dde78ef6.png",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "To Be Announced",
+    "website": "",
+    "networks": [
+      "Arbitrum"
+    ]
+  },
+  {
+    "id": "6e330560-23d3-4939-b3a1-f1af3a5c1649",
+    "name": "Titan.io",
+    "description": "Titan.io on Arbitrum",
+    "longDescription": "",
+    "image": "",
+    "localImage": "images/titan.io-4c7f3be0-87ff-485a-bfa9-ce1907906729.png",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "To Be Announced",
+    "website": "",
+    "networks": [
+      "Arbitrum"
+    ]
+  },
+  {
+    "id": "a1b2c3d4-e5f6-4a5b-9c8d-7e6f5a4b3c2d",
+    "name": "4kGpL8",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "b2c3d4e5-f6a7-5b6c-0d1e-8f7g6h5j4k3",
+    "name": "aB3dH7",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "c3d4e5f6-a7b8-6c7d-1e2f-9g8h7j6k5l4",
+    "name": "9nRt5e",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "d4e5f6a7-b8c9-7d8e-2f3g-0h1j2k3l4m5",
+    "name": "LpM2cA",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "e5f6a7b8-c9d0-8e9f-3g4h-1j2k3l4m5n6",
+    "name": "pR6tG2",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "f6a7b8c9-d0e1-9f0a-4h5j-2k3l4m5n6p7",
+    "name": "nH7lM5",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "a7b8c9d0-e1f2-0a1b-5j6k-3l4m5n6p7q8",
+    "name": "fT6aM1",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "b8c9d0e1-f2a3-1b2c-6k7l-4m5n6p7q8r9",
+    "name": "8lP2kH",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "c9d0e1f2-a3b4-2c3d-7l8m-5n6p7q8r9s0",
+    "name": "rE5dN7",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "d0e1f2a3-b4c5-3d4e-8m9n-6p7q8r9s0t1",
+    "name": "pL1cM6",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "e1f2a3b4-c5d6-4e5f-9n0p-7q8r9s0t1u2",
+    "name": "2hG4yB",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "f2a3b4c5-d6e7-5f6g-0p1q-8r9s0t1u2v3",
+    "name": "eK7nR8",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "a3b4c5d6-e7f8-6g7h-1q2r-9s0t1u2v3w4",
+    "name": "cD3fT9",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "b4c5d6e7-f8a9-7h8j-2r3s-0t1u2v3w4x5",
+    "name": "1mB2pH",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "c5d6e7f8-a9b0-8j9k-3s4t-1u2v3w4x5y6",
+    "name": "Web3 Cities Network",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "d6e7f8a9-b0c1-9k0l-4t5u-2v3w4x5y6z7",
+    "name": "FreeOpsDAO",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "e7f8a9b0-c1d2-0l1m-5u6v-3w4x5y6z7a8",
+    "name": "7yB1gF",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "f8a9b0c1-d2e3-1m2n-6v7w-4x5y6z7a8b9",
+    "name": "Decentranet",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "a9b0c1d2-e3f4-2n3p-7w8x-5y6z7a8b9c0",
+    "name": "eA8cT3",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "b0c1d2e3-f4a5-3p4q-8x9y-6z7a8b9c0d1",
+    "name": "6sN8e4",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "c1d2e3f4-a5b6-4q5r-9y0z-7a8b9c0d1e2",
+    "name": "gF2yM5",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "d2e3f4a5-b6c7-5r6s-0z1a-8b9c0d1e2f3",
+    "name": "6eB1cH",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "e3f4a5b6-c7d8-6s7t-1a2b-9c0d1e2f3g4",
+    "name": "5kP7lT",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "f4a5b6c7-d8e9-7t8u-2b3c-0d1e2f3g4h5",
+    "name": "pR9fL8",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "a5b6c7d8-e9f0-8u9v-3c4d-1e2f3g4h5j6",
+    "name": "Shiza",
+    "description": "",
+    "longDescription": "",
+    "image": "",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "",
+    "website": "",
+    "networks": []
+  },
+  {
+    "id": "",
+    "name": "Distro Media",
+    "description": "Blockchain-powered, AI-enabled news delivery platform",
+    "longDescription": "",
+    "image": "/images/distro-logo.png",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "Airdrop, Product Access",
+    "website": "https://distro.media"
+  },
+  {
+    "id": "",
+    "name": "ccovibe.com",
+    "description": "Project Management and Community for AI Engineers",
+    "longDescription": "",
+    "image": "/images/ccovibe.png",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "To Be Announced",
+    "website": "http://ccovibe.com"
+  },
+  {
+    "id": "",
+    "name": "AI ART by Venice",
+    "description": "A decentralized platform where your Venice AI-generated masterpieces live forever and earn rewards when your art enters the top10",
+    "longDescription": "",
+    "image": "/images/AIARTbyVenice.png",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "To Be Announced",
+    "website": "https://aiartbyvenice_cavey65.arweave.net/"
+  },
+  {
+    "id": "",
+    "name": "SUPERCYCLE",
+    "description": "Crypto AI Media Network",
+    "longDescription": "",
+    "image": "/images/supercycle.png",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "To Be Announced",
+    "website": "https://sup3rcycl3.com/"
+  },
+  {
+    "id": "",
+    "name": "Grakl",
+    "description": "Crypto Protocol Research Assistant",
+    "longDescription": "",
+    "image": "/images/grokl.png",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "To Be Announced",
+    "website": "https://grakl.ai/"
+  },
+  {
+    "id": "",
+    "name": "Mere Morpheus Podcast",
+    "description": "Educational podcast & agent",
+    "longDescription": "",
+    "image": "/images/meremorpheus.png",
+    "localImage": "",
+    "tags": [],
+    "githubUrl": "",
+    "twitterUrl": "",
+    "discordUrl": "",
+    "contributors": 0,
+    "githubStars": 0,
+    "totalStaked": 0,
+    "rewardType": "Product Access",
+    "website": "https://www.youtube.com/playlist?list=PL3s-NHnCxOO6NoCuMJik2Jm0_p2FJzFBh"
   }
 ]
