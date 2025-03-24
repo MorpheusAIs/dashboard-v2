@@ -1,50 +1,60 @@
 "use client";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Search, ChevronUp, ChevronDown, ExternalLink } from "lucide-react";
-import Image from "next/image";
+import { useState, useMemo } from "react";
 import { MetricCard } from "@/components/metric-card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useMemo, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import Link from "next/link";
+import Image from "next/image";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
+import { ExternalLink } from "lucide-react";
+import { BecomeBuilderModal } from "@/components/become-builder-modal";
+import { BulkRegistrationModal } from "@/components/bulk-registration-modal";
 import { useBuilders } from "@/context/builders-context";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
+import { useAuth } from "@/context/auth-context";
+import { DataTable, Column } from "@/components/ui/data-table";
+import { DataFilters } from "@/components/ui/data-filters";
+import { 
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { BecomeBuilderModal } from "@/components/become-builder-modal";
+import { Builder } from "@/app/builders/builders-data";
+import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
+import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
+
+// Interfaces
+interface UserSubnet {
+  id: string;
+  name: string;
+  description: string;
+  network: string;
+  status: string;
+  stakeAmount: number;
+  createdAt: string;
+}
 
 // Separate component for the modal to ensure it works independently
 function BuilderModalWrapper() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const { isAdmin } = useAuth();
   
   return (
-    <>
+    <div className="flex gap-4 items-center">
+      {isAdmin && (
+        <button 
+          onClick={() => setIsBulkModalOpen(true)}
+          className="copy-button copy-button-secondary mb-4"
+        >
+          Bulk registration
+        </button>
+      )}
+      
       <button 
         onClick={() => setIsModalOpen(true)}
         className="copy-button mb-4"
       >
-        {/* <Plus className="mr-2 h-4 w-4" /> */}
         Become a Builder
       </button>
       
@@ -52,12 +62,114 @@ function BuilderModalWrapper() {
         open={isModalOpen} 
         onOpenChange={setIsModalOpen} 
       />
-    </>
+      
+      {isAdmin && (
+        <BulkRegistrationModal
+          open={isBulkModalOpen}
+          onOpenChange={setIsBulkModalOpen}
+        />
+      )}
+    </div>
   );
 }
 
+// Sample subnets data for the "Your Subnets" tab
+const sampleSubnets: UserSubnet[] = [
+  {
+    id: "6bd0895b-0baf-47d8-b39a-768d3550f826",
+    name: "GenAscend",
+    description: "GenAscend on Arbitrum",
+    network: "Arbitrum",
+    status: "Active",
+    stakeAmount: 5000,
+    createdAt: "2023-10-15",
+  },
+  {
+    id: "6e330560-23d3-4939-b3a1-f1af3a5c1649",
+    name: "Titan.io",
+    description: "Titan.io on Arbitrum",
+    network: "Arbitrum",
+    status: "Active",
+    stakeAmount: 7500,
+    createdAt: "2023-11-22",
+  },
+  {
+    id: "a1b2c3d4-e5f6-4a5b-9c8d-7e6f5a4b3c2d",
+    name: "4kGpL8",
+    description: "4kGpL8 subnet for ML computation",
+    network: "Base",
+    status: "Pending",
+    stakeAmount: 3000,
+    createdAt: "2024-01-05",
+  },
+  {
+    id: "b2c3d4e5-f6a7-5b6c-0d1e-8f7g6h5j4k3",
+    name: "aB3dH7",
+    description: "High-performance AI subnet",
+    network: "Arbitrum",
+    status: "Active",
+    stakeAmount: 10000,
+    createdAt: "2023-09-10",
+  },
+  {
+    id: "c3d4e5f6-a7b8-6c7d-1e2f-9g8h7j6k5l4",
+    name: "9nRt5e",
+    description: "Storage subnet on Base",
+    network: "Base",
+    status: "Inactive",
+    stakeAmount: 2500,
+    createdAt: "2024-02-20",
+  },
+];
+
+// Sample data for Participating tab - Projects where the user has staked tokens
+const participatingBuilders: Builder[] = [
+  {
+    id: "1",
+    name: "Neptune AI",
+    description: "AI acceleration subnet for deep learning models",
+    image: "/images/builders/neptune.png",
+    totalStaked: 7250,
+    rewardType: "Token",
+    website: "https://neptune.ai",
+    networks: ["Arbitrum"],
+    lockPeriod: "30 days",
+    stakingCount: 48,
+    userStake: 1200,
+  },
+  {
+    id: "2",
+    name: "Quantum Forge",
+    description: "Distributed computing network for quantum simulations",
+    image: "/images/builders/quantum.png",
+    totalStaked: 12800,
+    rewardType: "Token",
+    website: "https://quantumforge.network",
+    networks: ["Base"],
+    lockPeriod: "60 days",
+    stakingCount: 76,
+    userStake: 2500,
+  },
+  {
+    id: "3",
+    name: "Atlas Protocol",
+    description: "Privacy-preserving computation network",
+    image: "/images/builders/atlas.png",
+    totalStaked: 5600,
+    rewardType: "Fee Share",
+    website: "https://atlasprotocol.io",
+    networks: ["Arbitrum", "Base"],
+    lockPeriod: "45 days",
+    stakingCount: 32,
+    userStake: 850,
+  }
+];
+
 export default function BuildersPage() {
-  // Use the builders context instead of local state
+  // Use the URL params hook
+  const { getParam, setParam } = useUrlParams();
+
+  // Use the builders context
   const {
     // Filtering
     nameFilter,
@@ -81,6 +193,11 @@ export default function BuildersPage() {
     totalMetrics
   } = useBuilders();
 
+  // Initialize tab state from URL or use default
+  const [activeTab, setActiveTab] = useState(() => {
+    return getParam('tab') || 'builders';
+  });
+
   // Convert context sorting to the format expected by the UI
   const sorting = useMemo(() => {
     if (!sortColumn) return null;
@@ -90,17 +207,440 @@ export default function BuildersPage() {
     };
   }, [sortColumn, sortDirection]);
 
-  // Handle sorting from UI
-  const handleSort = (columnId: string) => {
-    setSorting(columnId);
+  // Define columns for the builders table
+  const buildersColumns: Column<Builder>[] = useMemo(
+    () => [
+      {
+        id: "name",
+        header: "Name",
+        cell: (builder) => (
+          <div className="flex items-center gap-3">
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <div className="flex items-center gap-3 cursor-pointer">
+                  <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
+                    {builder.image && builder.image !== '' ? (
+                      <Image
+                        src={builder.image}
+                        alt={builder.name}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
+                        {builder.name.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link 
+                      href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                      className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                    >
+                      {builder.name}
+                    </Link>
+                  </div>
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-300">
+                    {builder.description || "No description available."}
+                  </p>
+                  {builder.website && (
+                    <div className="flex items-center pt-2">
+                      <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
+                      <a 
+                        href={builder.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        Visit Project
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          </div>
+        ),
+      },
+      {
+        id: "networks",
+        header: "Networks",
+        cell: (builder) => (
+          <div className="flex items-center gap-1">
+            {(builder.networks || []).map((network: string) => (
+              <div key={network} className="relative">
+                {network === "Arbitrum" ? (
+                  <ArbitrumIcon size={19} className="text-current" />
+                ) : (
+                  <BaseIcon size={19} className="text-current" />
+                )}
+              </div>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: "rewardType",
+        header: "Reward Type",
+        accessorKey: "rewardType",
+        cell: (builder) => (
+          <div className="flex items-center gap-2 text-gray-300">
+            {builder.rewardType}
+          </div>
+        ),
+      },
+      {
+        id: "totalStaked",
+        header: "MOR Staked",
+        accessorKey: "totalStaked",
+        enableSorting: true,
+        cell: (builder) => (
+          <span className="text-gray-200">{builder.totalStaked.toLocaleString()}</span>
+        ),
+      },
+      {
+        id: "stakingCount",
+        header: "# Staking",
+        accessorKey: "stakingCount",
+        enableSorting: true,
+        cell: (builder) => (
+          <span className="text-gray-300">{builder.stakingCount}</span>
+        ),
+      },
+      {
+        id: "lockPeriod",
+        header: "Lock period",
+        accessorKey: "lockPeriod",
+        cell: (builder) => (
+          <span className="text-gray-300">{builder.lockPeriod}</span>
+        ),
+      },
+      {
+        id: "minDeposit",
+        header: "Min MOR Deposit",
+        accessorKey: "minDeposit",
+        enableSorting: true,
+        cell: (builder) => (
+          <span className="text-gray-300">{builder.minDeposit}</span>
+        ),
+      },
+    ],
+    []
+  );
+
+  // Define columns for the subnets table
+  const subnetsColumns: Column<UserSubnet>[] = useMemo(
+    () => [
+      {
+        id: "name",
+        header: "Name",
+        cell: (subnet) => (
+          <div className="flex items-center gap-3">
+            <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
+              <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
+                {subnet.name.charAt(0)}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link 
+                href={`/subnets/${subnet.id}`}
+                className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+              >
+                {subnet.name}
+              </Link>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "network",
+        header: "Network",
+        cell: (subnet) => (
+          <div className="flex items-center gap-1">
+            <div className="relative">
+              {subnet.network === "Arbitrum" ? (
+                <ArbitrumIcon size={19} className="text-current" />
+              ) : (
+                <BaseIcon size={19} className="text-current" />
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "description",
+        header: "Description",
+        accessorKey: "description",
+        cell: (subnet) => (
+          <span className="text-gray-300">{subnet.description}</span>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorKey: "status",
+        cell: (subnet) => (
+          <span className={cn(
+            "px-2 py-1 rounded-full text-xs",
+            subnet.status === "Active" ? "bg-emerald-900/30 text-emerald-400" :
+            subnet.status === "Pending" ? "bg-yellow-900/30 text-yellow-400" :
+            "bg-red-900/30 text-red-400"
+          )}>
+            {subnet.status}
+          </span>
+        ),
+      },
+      {
+        id: "stakeAmount",
+        header: "Stake Amount",
+        accessorKey: "stakeAmount",
+        cell: (subnet) => (
+          <span className="text-gray-200">{subnet.stakeAmount.toLocaleString()} MOR</span>
+        ),
+      },
+      {
+        id: "createdAt",
+        header: "Created At",
+        accessorKey: "createdAt",
+        cell: (subnet) => (
+          <span className="text-gray-300">{subnet.createdAt}</span>
+        ),
+      },
+    ],
+    []
+  );
+
+  // Define state for your subnets tab filters
+  const [yourSubnetsNameFilter, setYourSubnetsNameFilter] = useState("");
+  const [yourSubnetsNetworkFilter, setYourSubnetsNetworkFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  // Filter the sampleSubnets based on the filters
+  const filteredSampleSubnets = useMemo(() => {
+    return sampleSubnets.filter((subnet) => {
+      const matchesName = yourSubnetsNameFilter === '' || 
+        subnet.name.toLowerCase().includes(yourSubnetsNameFilter.toLowerCase());
+      
+      const matchesNetwork =
+        yourSubnetsNetworkFilter === "all" || yourSubnetsNetworkFilter === "" || 
+        subnet.network === yourSubnetsNetworkFilter;
+      
+      const matchesStatus =
+        statusFilter === "all" || statusFilter === "" || 
+        subnet.status.toLowerCase() === statusFilter.toLowerCase();
+
+      return matchesName && matchesNetwork && matchesStatus;
+    });
+  }, [yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter]);
+
+  // For your subnets filters, initialize from URL only if values exist
+  useInitStateFromUrl(
+    'subnet_name',
+    (value) => {
+      if (value !== '') setYourSubnetsNameFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  useInitStateFromUrl(
+    'subnet_network',
+    (value) => {
+      if (value !== '') setYourSubnetsNetworkFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  useInitStateFromUrl(
+    'subnet_status',
+    (value) => {
+      if (value !== '') setStatusFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  // Define state for participating tab filters
+  const [participatingNameFilter, setParticipatingNameFilter] = useState("");
+  const [participatingNetworkFilter, setParticipatingNetworkFilter] = useState("all");
+  const [participatingTypeFilter, setParticipatingTypeFilter] = useState("all");
+
+  // Filter the participatingBuilders based on the filters
+  const filteredParticipatingBuilders = useMemo(() => {
+    return participatingBuilders.filter((builder) => {
+      const matchesName = participatingNameFilter === '' || 
+        builder.name.toLowerCase().includes(participatingNameFilter.toLowerCase());
+      
+      const matchesNetwork =
+        participatingNetworkFilter === "all" || participatingNetworkFilter === "" || 
+        (builder.networks && builder.networks.some(network => 
+          network.toLowerCase() === participatingNetworkFilter.toLowerCase()
+        ));
+      
+      const matchesType =
+        participatingTypeFilter === "all" || participatingTypeFilter === "" || 
+        (builder.rewardType && builder.rewardType.toLowerCase() === participatingTypeFilter.toLowerCase());
+
+      return matchesName && matchesNetwork && matchesType;
+    });
+  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter]);
+
+  // For participating filters, initialize from URL if values exist
+  useInitStateFromUrl(
+    'participating_name',
+    (value) => {
+      if (value !== '') setParticipatingNameFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  useInitStateFromUrl(
+    'participating_network',
+    (value) => {
+      if (value !== '') setParticipatingNetworkFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  useInitStateFromUrl(
+    'participating_type',
+    (value) => {
+      if (value !== '') setParticipatingTypeFilter(value);
+    },
+    ParamConverters.string.deserialize
+  );
+
+  // Handle tab change with manual URL update
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setParam('tab', value);
   };
+
+  // Define columns for the participating builders table
+  const participatingColumns: Column<Builder & { userStake: number }>[] = useMemo(
+    () => [
+      {
+        id: "name",
+        header: "Name",
+        cell: (builder) => (
+          <div className="flex items-center gap-3">
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <div className="flex items-center gap-3 cursor-pointer">
+                  <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
+                    {builder.image && builder.image !== '' ? (
+                      <Image
+                        src={builder.image}
+                        alt={builder.name}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
+                        {builder.name.charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link 
+                      href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                      className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                    >
+                      {builder.name}
+                    </Link>
+                  </div>
+                </div>
+              </HoverCardTrigger>
+              <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-300">
+                    {builder.description || "No description available."}
+                  </p>
+                  {builder.website && (
+                    <div className="flex items-center pt-2">
+                      <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
+                      <a 
+                        href={builder.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        Visit Project
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+          </div>
+        ),
+      },
+      {
+        id: "networks",
+        header: "Networks",
+        cell: (builder) => (
+          <div className="flex items-center gap-1">
+            {(builder.networks || []).map((network: string) => (
+              <div key={network} className="relative">
+                {network === "Arbitrum" ? (
+                  <ArbitrumIcon size={19} className="text-current" />
+                ) : (
+                  <BaseIcon size={19} className="text-current" />
+                )}
+              </div>
+            ))}
+          </div>
+        ),
+      },
+      {
+        id: "rewardType",
+        header: "Reward Type",
+        accessorKey: "rewardType",
+        cell: (builder) => (
+          <div className="flex items-center gap-2 text-gray-300">
+            {builder.rewardType}
+          </div>
+        ),
+      },
+      {
+        id: "stakeVsTotal",
+        header: "Your stake vs Total",
+        cell: (builder) => (
+          <StakeVsTotalChart 
+            userStake={builder.userStake || 0} 
+            totalStaked={builder.totalStaked} 
+          />
+        ),
+      },
+      {
+        id: "stakingCount",
+        header: "# Staking",
+        accessorKey: "stakingCount",
+        enableSorting: true,
+        cell: (builder) => (
+          <span className="text-gray-300">{builder.stakingCount}</span>
+        ),
+      },
+      {
+        id: "lockPeriod",
+        header: "Lock period",
+        accessorKey: "lockPeriod",
+        cell: (builder) => (
+          <span className="text-gray-300">{builder.lockPeriod}</span>
+        ),
+      },
+    ],
+    []
+  );
 
   return (
     <div className="page-container">
       <div className="page-grid">
         <MetricCard
           title="Active Builders"
-          metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Builders" }]}
+          metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
         />
 
         <MetricCard
@@ -119,297 +659,189 @@ export default function BuildersPage() {
       </div>
 
       <div className="page-section">
-        <div className="flex justify-between items-center align-middle">
-          <h2 className="section-title">Explore Builders</h2>
-          <BuilderModalWrapper />
-        </div>
-        <div className="section-content group">
-          <div className="section-body p-2">
-            {/* Filters */}
-            <div className="flex gap-4 mb-6">
-              <div className="w-64 space-y-2">
-                <Label htmlFor="name-search">Name</Label>
-                <div className="relative">
-                  <Input
-                    id="name-search"
-                    className="pl-9"
-                    placeholder="Search builder name"
-                    value={nameFilter}
-                    onChange={(e) => setNameFilter(e.target.value)}
+        <Tabs 
+          value={activeTab} 
+          onValueChange={handleTabChange}
+          className="w-full"
+        >
+          <div className="flex justify-between items-center align-middle mb-4">
+            <div className="flex flex-row items-center gap-4 align-middle">
+              <h2 className="flex section-title">Explore</h2>
+              <TabsList className="flex h-auto rounded-none border-b border-gray-800 bg-transparent p-0 -mt-3">
+                <TabsTrigger
+                  value="builders"
+                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+                >
+                  Builders
+                </TabsTrigger>
+                <TabsTrigger
+                  value="subnets"
+                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+                >
+                  Your Subnets
+                </TabsTrigger>
+                <TabsTrigger
+                  value="participating"
+                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+                >
+                  Participating
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <BuilderModalWrapper />
+          </div>
+          
+          <div className="section-content group">
+            <TabsContent value="builders">
+              <div className="section-body p-2">
+                {/* Filters for builders */}
+                <DataFilters
+                  nameFilter={nameFilter}
+                  onNameFilterChange={(value) => {
+                    setNameFilter(value);
+                    setParam('name', value || null);
+                  }}
+                  nameFilterLabel="Name"
+                  nameFilterPlaceholder="Search subnet name"
+                  
+                  networkFilter={networkFilter}
+                  onNetworkFilterChange={(value) => {
+                    setNetworkFilter(value);
+                    setParam('network', value === 'all' ? null : value);
+                  }}
+                  showNetworkFilter={true}
+                  
+                  selectFilter={rewardTypeFilter}
+                  onSelectFilterChange={(value) => {
+                    setRewardTypeFilter(value);
+                    setParam('rewardType', value === 'all' ? null : value);
+                  }}
+                  selectFilterLabel="Reward Type"
+                  selectFilterPlaceholder="Select type"
+                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))}
+                  showSelectFilter={true}
+                />
+
+                <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
+                  <DataTable
+                    columns={buildersColumns}
+                    data={filteredBuilders}
+                    isLoading={isLoading}
+                    sorting={sorting}
+                    onSortingChange={(columnId: string) => {
+                      setSorting(columnId);
+                      // Determine the direction based on current state
+                      const newDirection = columnId === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc';
+                      // Update URL parameter
+                      setParam('sort', `${columnId}-${newDirection}`);
+                    }}
+                    loadingRows={6}
+                    noResultsMessage="No builders found."
+                    onRowClick={(builder) => {
+                      window.location.href = `/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`;
+                    }}
                   />
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                    <Search size={16} strokeWidth={2} />
-                  </div>
                 </div>
               </div>
-              <div className="w-48 space-y-2">
-                <Label htmlFor="reward-type">Reward Type</Label>
-                <Select
-                  value={rewardTypeFilter}
-                  onValueChange={setRewardTypeFilter}
-                >
-                  <SelectTrigger id="reward-type">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All types</SelectItem>
-                    {rewardTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-48 space-y-2">
-                <Label>Network</Label>
-                <ToggleGroup 
-                  type="single" 
-                  value={networkFilter}
-                  onValueChange={(value) => {
-                    // Only update if there's a new value
-                    if (value) {
-                      setNetworkFilter(value);
-                    }
+            </TabsContent>
+            
+            {/* Your Subnets Tab Content */}
+            <TabsContent value="subnets">
+              <div className="section-body p-2">
+                {/* Filters for your subnets */}
+                <DataFilters
+                  nameFilter={yourSubnetsNameFilter}
+                  onNameFilterChange={(value) => {
+                    setYourSubnetsNameFilter(value);
+                    setParam('subnet_name', value || null);
                   }}
-                  className="bg-background border border-input p-1"
-                >
-                  <ToggleGroupItem value="all" className="flex items-center gap-2 px-4">
-                    All
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="Arbitrum" className="flex items-center gap-2 px-4">
-                    <div className="w-[18px] h-[20px] relative">
-                      <ArbitrumIcon size={19} className="text-current" />
-                    </div>
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="Base" className="flex items-center gap-2 px-4">
-                    <div className="w-[18px] h-[20px] relative">
-                      <BaseIcon size={19} className="text-current" />
-                    </div>
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-            </div>
+                  nameFilterLabel="Name"
+                  nameFilterPlaceholder="Search subnet name"
+                  
+                  networkFilter={yourSubnetsNetworkFilter}
+                  onNetworkFilterChange={(value) => {
+                    setYourSubnetsNetworkFilter(value);
+                    setParam('subnet_network', value === 'all' ? null : value);
+                  }}
+                  showNetworkFilter={true}
+                  
+                  selectFilter={statusFilter}
+                  onSelectFilterChange={(value) => {
+                    setStatusFilter(value);
+                    setParam('subnet_status', value === 'all' ? null : value);
+                  }}
+                  selectFilterLabel="Status"
+                  selectFilterPlaceholder="Select status"
+                  selectFilterOptions={[
+                    { value: "active", label: "Active" },
+                    { value: "pending", label: "Pending" },
+                    { value: "inactive", label: "Inactive" },
+                  ]}
+                  showSelectFilter={true}
+                />
 
-            <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
-              <div className="table-container">
-                <Table className="table-base">
-                  <TableHeader className="table-header sticky top-0 z-10">
-                    <TableRow className="table-header-row">
-                      <TableHead className="table-header-cell">Name</TableHead>
-                      <TableHead className="table-header-cell">Networks</TableHead>
-                      <TableHead className="table-header-cell">Reward Type</TableHead>
-                      <TableHead 
-                        className="table-header-cell table-header-cell-sortable group"
-                        onClick={() => handleSort('totalStaked')}
-                      >
-                        <div className="flex items-center justify-between">
-                          MOR Staked
-                          <div className="table-sort-icons">
-                            <ChevronUp 
-                              className={cn(
-                                "table-sort-icon table-sort-icon-up",
-                                sorting?.id === 'totalStaked' && !sorting.desc 
-                                  ? "table-sort-icon-active" 
-                                  : "table-sort-icon-inactive"
-                              )} 
-                            />
-                            <ChevronDown 
-                              className={cn(
-                                "table-sort-icon table-sort-icon-down",
-                                sorting?.id === 'totalStaked' && sorting.desc 
-                                  ? "table-sort-icon-active" 
-                                  : "table-sort-icon-inactive"
-                              )} 
-                            />
-                          </div>
-                        </div>
-                      </TableHead>
-                      <TableHead 
-                        className="table-header-cell table-header-cell-sortable group"
-                        onClick={() => handleSort('stakingCount')}
-                      >
-                        <div className="flex items-center justify-between">
-                          # Staking
-                          <div className="table-sort-icons">
-                            <ChevronUp 
-                              className={cn(
-                                "table-sort-icon table-sort-icon-up",
-                                sorting?.id === 'stakingCount' && !sorting.desc 
-                                  ? "table-sort-icon-active" 
-                                  : "table-sort-icon-inactive"
-                              )} 
-                            />
-                            <ChevronDown 
-                              className={cn(
-                                "table-sort-icon table-sort-icon-down",
-                                sorting?.id === 'stakingCount' && sorting.desc 
-                                  ? "table-sort-icon-active" 
-                                  : "table-sort-icon-inactive"
-                              )} 
-                            />
-                          </div>
-                        </div>
-                      </TableHead>
-                      <TableHead 
-                        className="table-header-cell"
-                      >
-                        Lock period
-                      </TableHead>
-                      <TableHead 
-                        className="table-header-cell table-header-cell-sortable group"
-                        onClick={() => handleSort('minDeposit')}
-                      >
-                        <div className="flex items-center justify-between">
-                          Min MOR Deposit
-                          <div className="table-sort-icons">
-                            <ChevronUp 
-                              className={cn(
-                                "table-sort-icon table-sort-icon-up",
-                                sorting?.id === 'minDeposit' && !sorting.desc 
-                                  ? "table-sort-icon-active" 
-                                  : "table-sort-icon-inactive"
-                              )} 
-                            />
-                            <ChevronDown 
-                              className={cn(
-                                "table-sort-icon table-sort-icon-down",
-                                sorting?.id === 'minDeposit' && sorting.desc 
-                                  ? "table-sort-icon-active" 
-                                  : "table-sort-icon-inactive"
-                              )} 
-                            />
-                          </div>
-                        </div>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      // Skeleton loading rows
-                      Array(6).fill(0).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`} className="table-row">
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Skeleton className="size-8 rounded-lg" />
-                              <Skeleton className="h-5 w-32" />
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Skeleton className="h-5 w-10" />
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-24" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-20" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-10" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-16" />
-                          </TableCell>
-                          <TableCell>
-                            <Skeleton className="h-5 w-16" />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      filteredBuilders.map((builder) => (
-                        <TableRow 
-                          key={builder.id} 
-                          className="table-row"
-                        >
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <HoverCard>
-                                <HoverCardTrigger asChild>
-                                  <div className="flex items-center gap-3 cursor-pointer">
-                                    <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-                                      {builder.image && builder.image !== '' ? (
-                                        <Image
-                                          src={builder.image}
-                                          alt={builder.name}
-                                          fill
-                                          className="object-cover"
-                                        />
-                                      ) : (
-                                        <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
-                                          {builder.name.charAt(0)}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Link 
-                                        href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
-                                        className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
-                                      >
-                                        {builder.name}
-                                      </Link>
-                                    </div>
-                                  </div>
-                                </HoverCardTrigger>
-                                <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
-                                  <div className="space-y-2">
-                                    <p className="text-sm text-gray-300">
-                                      {builder.description || "No description available."}
-                                    </p>
-                                    {builder.website && (
-                                      <div className="flex items-center pt-2">
-                                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
-                                        <a 
-                                          href={builder.website} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                                        >
-                                          Visit Project
-                                        </a>
-                                      </div>
-                                    )}
-                                  </div>
-                                </HoverCardContent>
-                              </HoverCard>
-                            </div>
-                          </TableCell>
-                          <TableCell className="table-cell">
-                            <div className="flex items-center gap-1">
-                              {(builder.networks || []).map((network) => (
-                                <div key={network} className="relative">
-                                  {network === "Arbitrum" ? (
-                                    <ArbitrumIcon size={19} className="text-current" />
-                                  ) : (
-                                    <BaseIcon size={19} className="text-current" />
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 text-gray-300">
-                              {builder.rewardType}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-gray-200">{builder.totalStaked.toLocaleString()}</span>
-                          </TableCell>
-                          <TableCell className="text-gray-300">
-                            {builder.stakingCount}
-                          </TableCell>
-                          <TableCell className="text-gray-300">{builder.lockPeriod}</TableCell>
-                          <TableCell className="text-gray-300">{builder.minDeposit}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
+                  <DataTable
+                    columns={subnetsColumns}
+                    data={filteredSampleSubnets}
+                    isLoading={false}
+                    loadingRows={6}
+                    noResultsMessage="No subnets found."
+                    onRowClick={(subnet) => {
+                      window.location.href = `/subnets/${subnet.id}`;
+                    }}
+                  />
+                </div>
               </div>
-            </div>
+            </TabsContent>
+
+            {/* Participating Tab Content */}
+            <TabsContent value="participating">
+              <div className="section-body p-2">
+                {/* Filters for participating */}
+                <DataFilters
+                  nameFilter={participatingNameFilter}
+                  onNameFilterChange={(value) => {
+                    setParticipatingNameFilter(value);
+                    setParam('participating_name', value || null);
+                  }}
+                  nameFilterLabel="Name"
+                  nameFilterPlaceholder="Search subnet name"
+                  
+                  networkFilter={participatingNetworkFilter}
+                  onNetworkFilterChange={(value) => {
+                    setParticipatingNetworkFilter(value);
+                    setParam('participating_network', value === 'all' ? null : value);
+                  }}
+                  showNetworkFilter={true}
+                  
+                  selectFilter={participatingTypeFilter}
+                  onSelectFilterChange={(value) => {
+                    setParticipatingTypeFilter(value);
+                    setParam('participating_type', value === 'all' ? null : value);
+                  }}
+                  selectFilterLabel="Reward Type"
+                  selectFilterPlaceholder="Select type"
+                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))}
+                  showSelectFilter={true}
+                />
+
+                <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
+                  <DataTable
+                    columns={participatingColumns as unknown as Column<Builder>[]}
+                    data={filteredParticipatingBuilders}
+                    isLoading={isLoading}
+                    loadingRows={6}
+                    noResultsMessage="No participating builders found."
+                    onRowClick={(builder) => {
+                      window.location.href = `/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`;
+                    }}
+                  />
+                </div>
+              </div>
+            </TabsContent>
           </div>
-        </div>
+        </Tabs>
       </div>
     </div>
   );
