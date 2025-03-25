@@ -1,0 +1,22 @@
+{
+  "getAllBuildersProjects": {
+    "query": "query { buildersProjects(first: 5) { id name minimalDeposit totalStaked totalUsers withdrawLockPeriodAfterDeposit } }",
+    "description": "Get the first 5 builders projects with their basic info"
+  },
+  "getBuildersProjectByName": {
+    "query": "query getBuildersProjectsByName($name: String!) { buildersProjects(where: { name: $name }) { id name totalStaked totalUsers withdrawLockPeriodAfterDeposit } }",
+    "description": "Get a specific builder project by name",
+    "variables": {
+      "name": "BuilderName"
+    }
+  },
+  "getBuildersProjectUsers": {
+    "query": "query getBuildersProjectUsers($first: Int = 10, $skip: Int = 0, $buildersProjectId: String!) { buildersUsers(first: $first, skip: $skip, where: { buildersProject_: {id: $buildersProjectId} }) { address id staked lastStake } }",
+    "description": "Get users of a specific builder project with pagination",
+    "variables": {
+      "first": 10,
+      "skip": 0,
+      "buildersProjectId": "0x1234567890abcdef1234567890abcdef12345678"
+    }
+  }
+} 

@@ -1,0 +1,18 @@
+{
+  "getSubnetUsers": {
+    "query": "query GetProviders($subnetId: String!, $skip: Int!, $first: Int!) { subnetUsers(where: {subnet_: {id: $subnetId}}, skip: $skip, first: $first) { id staked claimed address __typename } subnets(where: {id: $subnetId}) { fee totalUsers deregistrationOpensAt __typename } }",
+    "description": "Get users of a specific subnet with pagination and subnet details",
+    "variables": {
+      "subnetId": "0x1234567890abcdef1234567890abcdef12345678",
+      "skip": 0,
+      "first": 10
+    }
+  },
+  "getSubnets": {
+    "query": "query GetSubnets($first: Int = 10) { subnets(first: $first) { id owner fee totalUsers totalStaked deregistrationOpensAt } }",
+    "description": "Get the list of subnets with basic information",
+    "variables": {
+      "first": 10
+    }
+  }
+} 
