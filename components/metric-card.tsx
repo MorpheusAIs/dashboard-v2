@@ -1,5 +1,6 @@
 import { Info } from "lucide-react"
 import NumberFlow from '@number-flow/react'
+import { GlowingEffect } from "./ui/glowing-effect"
 
 interface MetricValue {
   value: string | number
@@ -11,9 +12,10 @@ interface MetricCardProps {
   title: string
   metrics: MetricValue[]
   className?: string
+  disableGlow?: boolean;
 }
 
-export function MetricCard({ title, metrics, className = "" }: MetricCardProps) {
+export function MetricCard({ title, metrics, className = "", disableGlow = false }: MetricCardProps) {
   const isDoubleMetric = metrics.length === 2
 
   const getNumericValue = (value: string | number): number => {
@@ -23,8 +25,19 @@ export function MetricCard({ title, metrics, className = "" }: MetricCardProps) 
   }
 
   return (
-    <div className={`card-container group ${className}`}>
+    <div className={`card-container group relative ${className}`}>
       <div className="card-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent" />
+      {!disableGlow && (
+        <GlowingEffect 
+          spread={40}
+          glow={true}
+          disabled={false}
+          proximity={64}
+          inactiveZone={0.01}
+          borderWidth={2}
+          borderRadius="rounded-xl"
+        />
+      )}
       <div className="relative">
         <div className="card-header">
           <h3 className="card-title">{title}</h3>
