@@ -6,8 +6,14 @@ export const GRAPHQL_ENDPOINTS = {
   'Arbitrum': 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest'
 };
 
+// Define the request cache entry type
+interface RequestCacheEntry<T> {
+  timestamp: number;
+  promise: Promise<T>;
+}
+
 // Keep track of recent requests to implement debouncing
-const recentRequests = new Map<string, { timestamp: number, promise: Promise<any> }>();
+const recentRequests = new Map<string, RequestCacheEntry<unknown>>();
 const DEBOUNCE_TIME = 2000; // 2 seconds debounce time
 
 /**
@@ -36,9 +42,9 @@ export const fetchGraphQL = async <T>(
   
   // Check if we have a recent request for this exact query
   const now = Date.now();
-  const recentRequest = recentRequests.get(requestKey);
+  const recentRequest = recentRequests.get(requestKey) as RequestCacheEntry<T> | undefined;
   
-  if (recentRequest && (now - recentRequest.timestamp) < DEBOUNCE_TIME) {
+  if (recentRequest && (now - recentRequest.timestamp < DEBOUNCE_TIME)) {
     console.log(`Debouncing duplicate request: ${operationName} - Using cached response`);
     return recentRequest.promise;
   }
