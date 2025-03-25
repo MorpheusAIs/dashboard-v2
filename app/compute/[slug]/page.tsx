@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCompute } from "@/context/compute-context";
@@ -36,7 +36,6 @@ const getExplorerUrl = (address: string): string => {
 
 export default function ComputeSubnetPage() {
   const { slug } = useParams();
-  const router = useRouter();
   const { subnets, isLoading: isLoadingSubnets } = useCompute();
   const [userStakedAmount] = useState(0); // Mock user's staked amount
   

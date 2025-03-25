@@ -1,14 +1,14 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { builders, Builder } from "../builders-data";
 import { ethers } from "ethers";
-import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
+import { GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
 import { BuildersUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
-import { StakingStatsCard, StatItem } from "@/components/staking/staking-stats-card";
+import { StatItem } from "@/components/staking/staking-stats-card";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
 import { StakingPositionCard } from "@/components/staking/staking-position-card";
 import { StakingTable } from "@/components/staking-table";

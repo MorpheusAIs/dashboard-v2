@@ -20,7 +20,7 @@ export const fetchGraphQL = async <T>(
   endpoint: string, 
   operationName: string,
   query: string, 
-  variables: Record<string, any> = {},
+  variables: Record<string, unknown> = {},
   maxRetries = 3,
   initialBackoff = 1000
 ): Promise<T> => {
