@@ -47,6 +47,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
+    "ethers": "^6.13.5",
     "graphql": "^16.10.0",
     "lucide-react": "^0.474.0",
     "motion": "^10.17.0",

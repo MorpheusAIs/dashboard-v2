@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { builders, Builder } from "../builders-data";
-import { ethers } from "ethers";
+import { formatUnits } from "ethers";
 import { GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
 import { BuildersUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
@@ -24,7 +24,7 @@ const formatDate = (timestamp: number): string => {
 const formatMOR = (weiAmount: string): number => {
   try {
     // Parse the amount and round to the nearest integer
-    return Math.round(parseFloat(ethers.utils.formatUnits(weiAmount, 18)));
+    return Math.round(parseFloat(formatUnits(weiAmount, 18)));
   } catch (error) {
     console.error("Error formatting MOR:", error);
     return 0;
