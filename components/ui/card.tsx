@@ -8,7 +8,7 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "card-container group",
+      "card-container group relative",
       className
     )}
     {...props}
