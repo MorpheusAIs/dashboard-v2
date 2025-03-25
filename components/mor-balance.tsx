@@ -1,9 +1,10 @@
 'use client'
 
 import { formatUnits } from 'viem'
-import { useAccount, useReadContract } from 'wagmi'
+import { useAccount, useReadContract, useChainId } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
 import NumberFlow from '@number-flow/react'
+import { morTokenContracts } from '@/lib/contracts'
 
 const MOR_ABI = [{
   "inputs": [{"internalType": "address","name": "account","type": "address"}],
@@ -13,14 +14,12 @@ const MOR_ABI = [{
   "type": "function"
 }] as const
 
-const ARBITRUM_MOR = '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86'
-const BASE_MOR = '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86'
-
 export function MORBalance() {
   const { address } = useAccount()
+  const chainId = useChainId()
 
   const { data: arbitrumBalance } = useReadContract({
-    address: ARBITRUM_MOR,
+    address: morTokenContracts[42161],
     abi: MOR_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -29,7 +28,7 @@ export function MORBalance() {
   })
 
   const { data: baseBalance } = useReadContract({
-    address: BASE_MOR,
+    address: morTokenContracts[8453],
     abi: MOR_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -37,12 +36,36 @@ export function MORBalance() {
     account: address
   })
 
-  if (!address) return null
+  const { data: arbitrumSepoliaBalance } = useReadContract({
+    address: morTokenContracts[421614],
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 421614, // Arbitrum Sepolia
+    account: address
+  })
 
-  // Format the balance for display
+  if (!address || !chainId) return null
+
+  // Format the balance for display with one decimal
   const formatBalance = (balance: bigint | undefined): number => {
     if (!balance) return 0;
-    return parseFloat(formatUnits(balance, 18));
+    const fullNumber = parseFloat(formatUnits(balance, 18));
+    return Number(fullNumber.toFixed(1));
+  }
+
+  const isTestnet = chainId === 421614; // Arbitrum Sepolia
+
+  if (isTestnet) {
+    return (
+      <div className="hidden md:flex items-center gap-2 text-sm text-white/80 font-medium">
+        <div className="flex items-center gap-1 transition-all duration-200 hover:scale-110 hover:text-white">
+          <ArbitrumIcon size={18} className="text-current" /> 
+          <span className="text-xs">(Sepolia)</span>
+          <NumberFlow value={formatBalance(arbitrumSepoliaBalance)} /> MOR
+        </div>
+      </div>
+    )
   }
 
   return (
