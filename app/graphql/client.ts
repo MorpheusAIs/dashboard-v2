@@ -6,6 +6,10 @@ export const GRAPHQL_ENDPOINTS = {
   'Arbitrum': 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest'
 };
 
+// Keep track of recent requests to implement debouncing
+const recentRequests = new Map<string, { timestamp: number, promise: Promise<any> }>();
+const DEBOUNCE_TIME = 2000; // 2 seconds debounce time
+
 /**
  * Function to make GraphQL API calls with retry logic for rate limiting
  * @param endpoint The GraphQL endpoint URL
@@ -26,6 +30,24 @@ export const fetchGraphQL = async <T>(
 ): Promise<T> => {
   let retries = 0;
   let backoff = initialBackoff;
+
+  // Create a request key based on endpoint, operation and variables
+  const requestKey = `${endpoint}_${operationName}_${JSON.stringify(variables)}`;
+  
+  // Check if we have a recent request for this exact query
+  const now = Date.now();
+  const recentRequest = recentRequests.get(requestKey);
+  
+  if (recentRequest && (now - recentRequest.timestamp) < DEBOUNCE_TIME) {
+    console.log(`Debouncing duplicate request: ${operationName} - Using cached response`);
+    return recentRequest.promise;
+  }
+
+  // Debug logging
+  console.log(`GraphQL Request: ${operationName}`, {
+    endpoint,
+    variables
+  });
 
   const executeRequest = async (): Promise<T> => {
     try {
@@ -64,12 +86,39 @@ export const fetchGraphQL = async <T>(
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      
+      // Log GraphQL errors if present
+      if (result.errors && result.errors.length > 0) {
+        console.error('GraphQL Errors:', result.errors);
+      }
+      
+      // Ensure the data property exists to prevent null references
+      if (!result.data) {
+        result.data = {};
+        console.warn('GraphQL response missing data property');
+      }
+      
+      return result;
     } catch (error) {
       console.error('Error fetching GraphQL data:', error);
       throw error;
     }
   };
 
-  return executeRequest();
+  // Store the request promise in the cache
+  const requestPromise = executeRequest();
+  recentRequests.set(requestKey, { 
+    timestamp: now, 
+    promise: requestPromise 
+  });
+  
+  // Clean up old cache entries after debounce time
+  setTimeout(() => {
+    if (recentRequests.has(requestKey)) {
+      recentRequests.delete(requestKey);
+    }
+  }, DEBOUNCE_TIME);
+
+  return requestPromise;
 }; 

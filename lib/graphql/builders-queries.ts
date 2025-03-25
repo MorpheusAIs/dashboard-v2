@@ -168,4 +168,96 @@ export const COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS = gql`
       }
     }
   }
+`;
+
+// Builder User Default Fragment
+export const BUILDER_USER_DEFAULT_FRAGMENT = gql`
+  fragment BuilderUserDefault on BuilderUser {
+    id
+    address
+    staked
+    claimed
+    claimLockEnd
+    lastStake
+  }
+`;
+
+// Builder Subnet Default Fragment
+export const BUILDER_SUBNET_DEFAULT_FRAGMENT = gql`
+  fragment BuilderSubnetDefault on BuilderSubnet {
+    id
+    name
+    owner
+    minStake
+    fee
+    feeTreasury
+    startsAt
+    withdrawLockPeriodAfterStake
+    maxClaimLockEnd
+    slug
+    description
+    website
+    image
+    totalStaked
+    totalClaimed
+    totalUsers
+    builderUsers {
+      ...BuilderUserDefault
+    }
+  }
+`;
+
+// Query to get user's builder subnets
+export const GET_USER_BUILDER_SUBNETS = gql`
+  ${BUILDER_USER_DEFAULT_FRAGMENT}
+  ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
+  query getUserAccountBuilderSubnets(
+    $address: Bytes = ""
+    $builder_subnet_id: Bytes = ""
+  ) {
+    builderUsers(
+      where: { address: $address, builderSubnet_: { id: $builder_subnet_id } }
+    ) {
+      ...BuilderUserDefault
+      builderSubnet {
+        ...BuilderSubnetDefault
+      }
+    }
+  }
+`;
+
+// Query to get all builder subnets (for Builders tab)
+export const GET_ALL_BUILDER_SUBNETS = gql`
+  ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
+  query getAllBuilderSubnets {
+    builderSubnets {
+      ...BuilderSubnetDefault
+    }
+  }
+`;
+
+// Query to get admin builder subnets (for Your Subnets tab)
+export const GET_ADMIN_BUILDER_SUBNETS = gql`
+  ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
+  query getAdminBuilderSubnets($owner: Bytes = "") {
+    builderSubnets(where: { owner: $owner }) {
+      ...BuilderSubnetDefault
+    }
+  }
+`;
+
+// Query to get participating builder subnets (for Participating tab)
+export const GET_PARTICIPATING_BUILDER_SUBNETS = gql`
+  ${BUILDER_USER_DEFAULT_FRAGMENT}
+  ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
+  query getParticipatingBuilderSubnets($address: Bytes = "") {
+    builderUsers(
+      where: { address: $address, staked_gt: "0" }
+    ) {
+      ...BuilderUserDefault
+      builderSubnet {
+        ...BuilderSubnetDefault
+      }
+    }
+  }
 `; 

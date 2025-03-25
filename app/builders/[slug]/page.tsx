@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { builders, Builder } from "../builders-data";
 import { formatUnits } from "ethers";
@@ -75,6 +75,7 @@ export default function BuilderPage() {
   const [userStakedAmount] = useState(1000); // Mock user's staked amount
   const [timeLeft] = useState("15 days"); // Mock time left until unlock
   const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
+  const refreshRef = useRef(false); // Add a ref to track if refresh has been called
   
   // Find the builder based on the slug
   const builder = builders.find((b: Builder) => b.name.toLowerCase().replace(/\s+/g, '-') === slug);
@@ -104,6 +105,7 @@ export default function BuilderPage() {
     error,
     pagination,
     sorting,
+    refresh
   } = useStakingData({
     projectName: builder?.name,
     network: networksToDisplay[0],
@@ -112,6 +114,17 @@ export default function BuilderPage() {
     initialSort: { column: 'amount', direction: 'desc' },
     initialPageSize: 5,
   });
+  
+  // Add useEffect to trigger data refresh when builder changes
+  useEffect(() => {
+    if (builder?.name && !refreshRef.current) {
+      console.log('Builder found, refreshing data:', builder.name);
+      refreshRef.current = true; // Mark as refreshed
+      refresh();
+    } else if (!builder?.name) {
+      console.log('No builder found for slug:', slug);
+    }
+  }, [builder?.name, refresh, slug]);
   
   // Handlers for staking actions
   const handleStake = (amount: string) => {

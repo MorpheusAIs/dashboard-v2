@@ -54,7 +54,7 @@ export const builderContracts = {
   // Base
   8453: '0x42BB446eAE6dca7723a9eBdb81EA88aFe77eF4B9',
   // Arbitrum Sepolia (testnet)
-  421614: '0x649B24D0b6F5A4c3852fD4C0dD91308902E5fe8a',
+  421614: '0xfc088c5ec4288a3B337C6b93968E521aAf06f346',
 };
 
 // MOR token addresses by chain ID

@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { GRAPHQL_ENDPOINTS, fetchGraphQL } from "@/app/graphql/client";
 import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry } from "@/app/graphql/types";
+import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
+import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
 
 export interface StakingPaginationState {
   currentPage: number;
@@ -87,7 +89,7 @@ export function useStakingData({
         const response = await fetchGraphQL<BuildersGraphQLResponse>(
           endpoint,
           "getBuildersProjectsByName",
-          queryDocument || '', // Use provided query or fallback
+          GET_BUILDERS_PROJECT_BY_NAME,
           { name }
         );
         
@@ -116,33 +118,34 @@ export function useStakingData({
       setError(error instanceof Error ? error : new Error("Failed to fetch project ID"));
       return null;
     }
-  }, [network, queryDocument, isComputeProject]);
+  }, [network, isComputeProject]);
 
   // Fetch data
   const fetchData = useCallback(async () => {
-    // Don't set loading state multiple times if we're already loading
-    if (isLoading) {
-      return;
-    }
-
+    // We should set loading to true on initial load, even if we're already loading
+    // This fixes the issue where tables are stuck in loading state
+    setIsLoading(true);
+    
     try {
-      setIsLoading(true);
       setError(null); // Clear any previous errors when starting a new fetch
       
       // For compute projects, we need a projectId
       if (isComputeProject && !id) {
+        console.log('No project ID available for compute project');
         setIsLoading(false); // End loading if no ID for compute project
         return;
       }
 
       // For builder projects, we need either projectId or projectName
       if (!isComputeProject && !id && !projectName) {
+        console.log('No project ID or name available for builder project');
         setIsLoading(false); // End loading if no parameters for builder project
         return;
       }
       
       // Check cache first
       if (cachedPages[pagination.currentPage]?.length > 0) {
+        console.log('Using cached data for page', pagination.currentPage);
         setEntries(cachedPages[pagination.currentPage]);
         setIsLoading(false);
         return;
@@ -173,12 +176,20 @@ export function useStakingData({
         GRAPHQL_ENDPOINTS[network as keyof typeof GRAPHQL_ENDPOINTS] || 
         GRAPHQL_ENDPOINTS.Base;
       
+      console.log('Fetching data from endpoint:', endpoint);
+      console.log('Query parameters:', {
+        projectId: projectIdToUse,
+        skip,
+        first: pagination.pageSize,
+        isComputeProject
+      });
+      
       // Make the actual data query
       if (isComputeProject) {
         const response = await fetchGraphQL<ComputeGraphQLResponse>(
           endpoint,
           queryFunction || "GetProviders",
-          queryDocument || '',
+          queryDocument || GET_SUBNET_USERS,
           {
             subnetId: projectIdToUse,
             skip,
@@ -189,6 +200,8 @@ export function useStakingData({
         if (!response.data) {
           throw new Error("No data returned from API");
         }
+        
+        console.log('Compute data received:', response);
         
         // Get total users count if available
         const project = response.data.subnets?.[0];
@@ -201,7 +214,7 @@ export function useStakingData({
         }
         
         // Format the data using provided formatter or default
-        const formattedEntries = response.data.subnetUsers?.map(user => {
+        const formattedEntries = (response.data.subnetUsers || []).map(user => {
           if (formatEntryFunc) {
             return formatEntryFunc(user);
           }
@@ -210,10 +223,12 @@ export function useStakingData({
           return {
             address: user.address,
             displayAddress: formatAddress(user.address),
-            amount: parseFloat(user.staked) / 10**18,
-            claimed: parseFloat(user.claimed) / 10**18,
+            amount: parseFloat(user.staked || '0') / 10**18,
+            claimed: parseFloat(user.claimed || '0') / 10**18,
           };
-        }) || [];
+        });
+        
+        console.log('Formatted entries:', formattedEntries);
         
         // Only update cache and state if we have data and we're still on the same page
         setCachedPages(prev => ({
@@ -227,7 +242,7 @@ export function useStakingData({
         const response = await fetchGraphQL<BuildersGraphQLResponse>(
           endpoint,
           queryFunction || "getBuildersProjectUsers",
-          queryDocument || '',
+          queryDocument || GET_BUILDERS_PROJECT_USERS,
           {
             first: pagination.pageSize,
             skip,
@@ -237,12 +252,14 @@ export function useStakingData({
           }
         );
         
-        if (!response.data || !response.data.buildersUsers) {
+        if (!response.data) {
           throw new Error("No data returned from API");
         }
         
+        console.log('Builders data received:', response);
+        
         // Format the data using provided formatter or default
-        const formattedEntries = response.data.buildersUsers.map(user => {
+        const formattedEntries = (response.data.buildersUsers || []).map(user => {
           if (formatEntryFunc) {
             return formatEntryFunc(user);
           }
@@ -251,12 +268,14 @@ export function useStakingData({
           return {
             address: user.address,
             displayAddress: formatAddress(user.address),
-            amount: parseInt(user.staked) / 10**18,
-            timestamp: parseInt(user.lastStake),
+            amount: parseFloat(user.staked || '0') / 10**18,
+            timestamp: parseInt(user.lastStake || '0'),
           };
         });
         
-        // Cache and set entries
+        console.log('Formatted entries:', formattedEntries);
+        
+        // Update cache and state
         setCachedPages(prev => ({
           ...prev,
           [pagination.currentPage]: formattedEntries
@@ -264,39 +283,68 @@ export function useStakingData({
         
         setEntries(formattedEntries);
       }
-        
-      setIsLoading(false);
     } catch (error) {
       console.error("Error fetching staking data:", error);
       setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
-      setIsLoading(false);
-      // Don't clear entries if we fail, keep the previous entries to prevent layout flickering
+      setEntries([]); // Clear entries on error
+    } finally {
+      setIsLoading(false); // Always set loading to false, even on error
     }
   }, [
-    id, 
-    projectName, 
-    isLoading, 
-    pagination,
-    cachedPages,
+    id,
+    projectName,
+    pagination.currentPage,
+    pagination.pageSize,
     network,
-    fetchProjectIdByName,
-    queryEndpoint,
-    queryFunction,
     queryDocument,
-    isComputeProject,
+    queryFunction,
+    queryEndpoint,
     formatEntryFunc,
-    formatAddress
+    formatAddress,
+    isComputeProject,
+    fetchProjectIdByName,
+    cachedPages
   ]);
 
-  // Handle page changes
-  const setPage = useCallback((page: number) => {
-    setPagination(prev => ({
-      ...prev,
-      currentPage: Math.max(1, Math.min(page, prev.totalPages))
-    }));
+  // Define the refresh function to explicitly trigger data fetching
+  const refresh = useCallback(() => {
+    // Clear cached pages when refreshing to ensure we get fresh data
+    setCachedPages({});
+    // Only fetch if we're not already loading
+    if (!isLoading) {
+      fetchData();
+    }
+  }, [fetchData, isLoading]);
+
+  // Initial data fetching - only run once on mount
+  useEffect(() => {
+    fetchData();
+  }, []); // Empty dependency array to run only once
+
+  // Handle pagination and sorting changes
+  useEffect(() => {
+    // Don't fetch on initial mount since we already do that in the effect above
+    const shouldFetch = id !== null || projectName !== undefined;
+    if (shouldFetch) {
+      fetchData();
+    }
+  }, [
+    pagination.currentPage,
+    pagination.pageSize,
+    sorting.column,
+    sorting.direction,
+    fetchData
+  ]);
+
+  // Sorting handler
+  const setSort = useCallback((column: string) => {
+    setSorting(prev => {
+      const direction = prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc';
+      return { column, direction };
+    });
   }, []);
 
-  // Handle next/previous pages
+  // Pagination handlers
   const nextPage = useCallback(() => {
     setPagination(prev => ({
       ...prev,
@@ -309,25 +357,6 @@ export function useStakingData({
       ...prev,
       currentPage: Math.max(prev.currentPage - 1, 1)
     }));
-  }, []);
-
-  // Handle sorting
-  const setSort = useCallback((column: string) => {
-    setSorting(prev => {
-      if (prev.column === column) {
-        // Toggle direction
-        return { 
-          column, 
-          direction: prev.direction === 'asc' ? 'desc' : 'asc' 
-        };
-      }
-      
-      // New column
-      return { column, direction: 'asc' };
-    });
-    
-    // Clear cached pages when sort changes
-    setCachedPages({});
   }, []);
 
   // Sort entries in memory if needed
@@ -351,11 +380,6 @@ export function useStakingData({
     });
   }, [entries, sorting]);
 
-  // Fetch data on mount and when dependencies change
-  useEffect(() => {
-    fetchData();
-  }, [fetchData, pagination.currentPage]);
-
   // Update the useEffect to prevent unnecessary data clearing
   // Fix the issue with project ID changes
   useEffect(() => {
@@ -374,15 +398,16 @@ export function useStakingData({
     isLoading,
     error,
     pagination: {
-      ...pagination,
-      setPage,
+      currentPage: pagination.currentPage,
+      totalPages: pagination.totalPages,
       nextPage,
       prevPage
     },
     sorting: {
-      ...sorting,
+      column: sorting.column,
+      direction: sorting.direction,
       setSort
     },
-    refresh: fetchData
+    refresh
   };
 } 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCompute } from "@/context/compute-context";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
@@ -38,6 +38,7 @@ export default function ComputeSubnetPage() {
   const { slug } = useParams();
   const { subnets, isLoading: isLoadingSubnets } = useCompute();
   const [userStakedAmount] = useState(0); // Mock user's staked amount
+  const refreshRef = useRef(false); // Add a ref to track if refresh has been called
   
   // Find the subnet based on the slug
   const subnet = !isLoadingSubnets ? subnets.find(s => 
@@ -75,10 +76,14 @@ export default function ComputeSubnetPage() {
 
   // When subnet changes, refresh the data
   useEffect(() => {
-    if (subnet?.id) {
+    if (subnet?.id && !refreshRef.current) {
+      console.log('Subnet found, refreshing data:', subnet.id);
+      refreshRef.current = true; // Mark as refreshed
       refresh();
+    } else if (!subnet?.id) {
+      console.log('No subnet found with id for slug:', slug);
     }
-  }, [subnet?.id, refresh]);
+  }, [subnet?.id, refresh, slug]);
   
   // Whether everything is loading
   const isLoading = isLoadingSubnets || isLoadingEntries;
