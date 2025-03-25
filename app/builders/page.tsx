@@ -22,6 +22,7 @@ import {
 import { Builder } from "@/app/builders/builders-data";
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
+import { GlowingEffect } from "@/components/ui/glowing-effect";
 
 // Interfaces
 interface UserSubnet {
@@ -638,24 +639,60 @@ export default function BuildersPage() {
   return (
     <div className="page-container">
       <div className="page-grid">
-        <MetricCard
-          title="Active Builders"
-          metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
-        />
+        <div className="relative">
+          <MetricCard
+            title="Active Builders"
+            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
+            disableGlow={true}
+          />
+          <GlowingEffect 
+            spread={40}
+            glow={true}
+            disabled={false}
+            proximity={64}
+            inactiveZone={0.01}
+            borderWidth={2}
+            borderRadius="rounded-xl"
+          />
+        </div>
 
-        <MetricCard
-          title="Total Staked"
-          metrics={[{ value: totalMetrics.totalStaked.toLocaleString(), label: "MOR" }]}
-        />
+        <div className="relative">
+          <MetricCard
+            title="Total Staked"
+            metrics={[{ value: totalMetrics.totalStaked.toLocaleString(), label: "MOR" }]}
+            disableGlow={true}
+          />
+          <GlowingEffect 
+            spread={40}
+            glow={true}
+            disabled={false}
+            proximity={64}
+            inactiveZone={0.01}
+            borderWidth={2}
+            borderRadius="rounded-xl"
+          />
+        </div>
 
-        <MetricCard
-          className="col-span-2"
-          title="Community Stats"
-          metrics={[
-            { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
-            { value: "12.5k", label: "Commits" }
-          ]}
-        />
+        <div className="relative col-span-2">
+          <MetricCard
+            className="col-span-2"
+            title="Community Stats"
+            metrics={[
+              { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
+              { value: "12.5k", label: "Commits" }
+            ]}
+            disableGlow={true}
+          />
+          <GlowingEffect 
+            spread={40}
+            glow={true}
+            disabled={false}
+            proximity={64}
+            inactiveZone={0.01}
+            borderWidth={2}
+            borderRadius="rounded-xl"
+          />
+        </div>
       </div>
 
       <div className="page-section">
