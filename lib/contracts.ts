@@ -57,6 +57,16 @@ export const builderContracts = {
   421614: '0x649B24D0b6F5A4c3852fD4C0dD91308902E5fe8a',
 };
 
+// MOR token addresses by chain ID
+export const morTokenContracts = {
+  // Arbitrum
+  42161: '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86',
+  // Base
+  8453: '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86',
+  // Arbitrum Sepolia (testnet)
+  421614: '0x34a285A1B1C166420Df5b6630132542923B5b27E',
+} as const;
+
 // Helper to convert days to seconds
 export const daysToSeconds = (days: number): number => {
   return days * 86400; // 86400 seconds in a day
