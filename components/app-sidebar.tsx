@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { useEffect, useRef, useState } from "react"
 
 const navigation = [
   {
@@ -56,29 +57,54 @@ const navigation = [
 
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  
+  // Check for visual width of the sidebar to determine if it's collapsed
+  useEffect(() => {
+    if (!sidebarRef.current) return;
+    
+    const resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        // Assuming sidebar width less than 100px means it's collapsed
+        const isCollapsed = entry.contentRect.width < 100;
+        setCollapsed(isCollapsed);
+      }
+    });
+    
+    resizeObserver.observe(sidebarRef.current);
+    
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
   
   return (
     <Sidebar 
+      ref={sidebarRef}
       collapsible="icon" 
-      className={cn("sidebar-base sidebar-collapsed", className)} 
+      className={cn("sidebar-base", className)} 
       {...props}
     >
-      <SidebarHeader className={cn("sidebar-header sidebar-header-collapsed")}>
+      <SidebarHeader className="sidebar-header">
         <span className="sr-only" role="heading" aria-level={1}>
           Navigation Menu
         </span>
-        <div className={cn("sidebar-logo-container-base sidebar-logo-container-collapsed")}>
+        <div className="sidebar-logo-container-base">
           <Image
             src="/logo-green.svg"
             alt="Logo"
-            width={32}
-            height={32}
-            className={cn("sidebar-logo-base sidebar-logo-collapsed")}
+            width={collapsed ? 24 : 40}
+            height={collapsed ? 24 : 40}
+            className={cn(
+              "sidebar-logo-base",
+              collapsed && "scale-90 -translate-x-3"
+            )}
           />
         </div>
       </SidebarHeader>
-      <SidebarContent>
-        <nav className={cn("sidebar-nav sidebar-nav-collapsed")}>
+      <SidebarContent className="flex flex-col h-full">
+        <nav className="sidebar-nav">
           {navigation.map((item) => {
             const isActive = pathname === item.url
             return (
@@ -86,14 +112,15 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                 key={item.title}
                 href={item.url}
                 className={cn(
-                  "sidebar-nav-link-base sidebar-nav-link-hover sidebar-nav-link-collapsed",
+                  "sidebar-nav-link-base sidebar-nav-link-hover",
                   isActive && "sidebar-nav-link-active"
                 )}
               >
                 <item.icon className="sidebar-nav-icon" />
                 <span className={cn(
-                  "sidebar-nav-text-base sidebar-nav-text-collapsed",
-                  isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive"
+                  "sidebar-nav-text-base",
+                  isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
+                  collapsed && "hidden"
                 )}>
                   {item.title}
                 </span>
