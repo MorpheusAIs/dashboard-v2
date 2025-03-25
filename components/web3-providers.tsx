@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import Web3ModalProvider from "@/context"
 import { cookieToInitialState } from "wagmi"
 import WalletErrorBoundary from './WalletErrorBoundary'
+import { NetworkProvider } from '@/context/network-context'
+import { NetworkEnvironment } from '@/config/networks'
 
 export function Web3Providers({ 
   children,
@@ -12,6 +14,9 @@ export function Web3Providers({
   children: React.ReactNode
   initialState: ReturnType<typeof cookieToInitialState>
 }) {
+  // Default environment is mainnet for safety
+  const defaultEnvironment: NetworkEnvironment = 'mainnet';
+
   useEffect(() => {
     // Cleanup function to handle proper disconnection
     return () => {
@@ -33,7 +38,9 @@ export function Web3Providers({
   return (
     <WalletErrorBoundary>
       <Web3ModalProvider initialState={initialState}>
-        {children}
+        <NetworkProvider defaultEnvironment={defaultEnvironment}>
+          {children}
+        </NetworkProvider>
       </Web3ModalProvider>
     </WalletErrorBoundary>
   )
