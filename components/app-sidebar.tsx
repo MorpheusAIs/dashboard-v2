@@ -42,16 +42,19 @@ const navigation = [
     title: "MOR20",
     url: "/mor20",
     icon: Wrench,
+    disabled: true,
   },
   {
     title: "Referrals",
     url: "/referrals",
     icon: Share2,
+    disabled: true,
   },
   {
     title: "Metrics",
     url: "/metrics",
     icon: BarChart,
+    disabled: true,
   },
 ]
 
@@ -108,23 +111,37 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
           {navigation.map((item) => {
             const isActive = pathname === item.url
             return (
-              <Link
+              <div
                 key={item.title}
-                href={item.url}
                 className={cn(
-                  "sidebar-nav-link-base sidebar-nav-link-hover",
-                  isActive && "sidebar-nav-link-active"
+                  "sidebar-nav-link-base",
+                  item.disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : "sidebar-nav-link-hover",
+                  isActive && !item.disabled && "sidebar-nav-link-active"
                 )}
               >
-                <item.icon className="sidebar-nav-icon" />
-                <span className={cn(
-                  "sidebar-nav-text-base",
-                  isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
-                  collapsed && "hidden"
-                )}>
-                  {item.title}
-                </span>
-              </Link>
+                {!item.disabled ? (
+                  <Link href={item.url} className="flex items-center w-full">
+                    <item.icon className="sidebar-nav-icon" />
+                    <span className={cn(
+                      "sidebar-nav-text-base",
+                      isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
+                      collapsed && "hidden"
+                    )}>
+                      {item.title}
+                    </span>
+                  </Link>
+                ) : (
+                  <>
+                    <item.icon className="sidebar-nav-icon" />
+                    <span className={cn(
+                      "sidebar-nav-text-base sidebar-nav-text-inactive",
+                      collapsed && "hidden"
+                    )}>
+                      {item.title}
+                    </span>
+                  </>
+                )}
+              </div>
             )
           })}
         </nav>
