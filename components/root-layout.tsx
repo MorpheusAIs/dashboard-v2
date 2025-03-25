@@ -16,7 +16,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { usePathname } from "next/navigation"
-import { MORBalance } from "./MORBalance"
+import { MORBalance } from "./mor-balance"
+import { TestnetIndicator } from "./testnet-indicator"
 import { builders } from "@/app/builders/builders-data"
 
 function getPageInfo(pathname: string) {
@@ -55,7 +56,8 @@ export function RootLayoutContent({
       <AppSidebar />
       <SidebarInset>
         <header className="flex h-20 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
+          {/* Left section */}
+          <div className="flex items-center gap-2 px-4 flex-1">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
@@ -82,7 +84,14 @@ export function RootLayoutContent({
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <div className="flex items-center gap-2 ml-auto pr-4">
+
+          {/* Center section */}
+          <div className="flex-1 flex justify-center">
+            <TestnetIndicator />
+          </div>
+
+          {/* Right section */}
+          <div className="flex items-center gap-2 px-4 flex-1 justify-end">
             <MORBalance />
             <w3m-button size="sm"/>
           </div>
