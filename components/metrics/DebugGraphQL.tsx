@@ -1,14 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { fetchGraphQL, getEndpointForNetwork, GRAPHQL_ENDPOINTS } from "@/app/graphql/client";
 import { GET_LIQUIDITY_POOLS } from "@/app/graphql/queries/metrics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+// Define a type for GraphQL response
+interface GraphQLResponse {
+  data?: Record<string, unknown>;
+  errors?: Array<{
+    message: string;
+    locations?: Array<{
+      line: number;
+      column: number;
+    }>;
+    path?: string[];
+    extensions?: Record<string, unknown>;
+  }>;
+}
+
 export default function DebugGraphQL() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<GraphQLResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [network, setNetwork] = useState("Base");
   
@@ -53,7 +67,7 @@ export default function DebugGraphQL() {
       );
       
       console.log("GraphQL response:", response);
-      setResult(response);
+      setResult(response as GraphQLResponse);
     } catch (err) {
       console.error("Error testing endpoint:", err);
       setError(err instanceof Error ? err.message : String(err));

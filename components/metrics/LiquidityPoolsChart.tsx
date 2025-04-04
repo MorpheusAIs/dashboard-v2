@@ -66,7 +66,7 @@ const fetchTokenPrices = async (contractAddresses: string[]) => {
 };
 
 // Extract unique token addresses from the GraphQL response safely
-const getUniqueTokenAddresses = (poolsData: any) => {
+const getUniqueTokenAddresses = (poolsData: LiquidityPoolsData) => {
   if (!poolsData || (!poolsData.poolsToken0 && !poolsData.poolsToken1)) {
     return [];
   }
@@ -111,7 +111,7 @@ const getUniqueTokenAddresses = (poolsData: any) => {
 };
 
 // Transform the GraphQL response into chart data with USD values
-const transformPoolData = (poolsData: any, tokenPrices: Record<string, { usd: number }>) => {
+const transformPoolData = (poolsData: LiquidityPoolsData, tokenPrices: Record<string, { usd: number }>): PoolChartData[] => {
   if (!poolsData || (!poolsData.poolsToken0 && !poolsData.poolsToken1)) {
     return [];
   }
@@ -166,7 +166,7 @@ const transformPoolData = (poolsData: any, tokenPrices: Record<string, { usd: nu
         console.error("Error transforming pool:", err, pool);
         return null;
       }
-    }).filter(Boolean); // Remove any null entries
+    }).filter((item): item is PoolChartData => item !== null); // Type guard to remove nulls
   } catch (error) {
     console.error("Error transforming pool data:", error);
     return [];
@@ -186,7 +186,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 // Custom tooltip component
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (!active || !payload || !payload.length || !payload[0] || !payload[1]) {
     return null;
   }
@@ -254,12 +254,34 @@ export interface LiquidityPoolsData {
   poolsToken1?: Pool[];
 }
 
+// Add this new interface for chart data
+interface PoolChartData {
+  pool: string;
+  MOR: number;
+  morAmount: number;
+  morPriceUSD: number;
+  pairedToken: number;
+  pairedTokenAmount: number;
+  pairedTokenPriceUSD: number;
+  pairedTokenSymbol: string;
+}
+
+// Add interface for the tooltip props
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+    payload?: PoolChartData;
+  }>;
+  label?: string;
+}
+
 interface LiquidityPoolsChartProps {
   data: LiquidityPoolsData;
 }
 
 export function LiquidityPoolsChart({ data }: LiquidityPoolsChartProps) {
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<PoolChartData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
