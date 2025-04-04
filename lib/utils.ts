@@ -5,21 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatNumber(value: string | number): string {
-  // Convert to number if it's a string
-  const num = typeof value === 'string' ? parseFloat(value) : value
-
-  // Check if it's a valid number
-  if (isNaN(num)) return value.toString()
-
-  // Check if it's a whole number
-  if (Number.isInteger(num)) {
-    return num.toLocaleString('en-US')
-  }
-
-  // Format with 2 decimal places and thousands separator
-  return num.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
+/**
+ * Format a number with decimal places only when less than 1
+ * @param value - The number to format
+ * @returns Formatted string with decimal places only when value < 1
+ */
+export function formatNumber(value: number): string {
+  if (isNaN(value)) return '0';
+  
+  return value < 1 
+    ? value.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })
+    : value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }

@@ -3,8 +3,8 @@
 import { useParams } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { builders, Builder } from "../builders-data";
-import { formatUnits } from "ethers";
+import { Builder } from "../builders-data";
+import { formatUnits } from "viem";
 import { GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
 import { BuildersUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
@@ -14,6 +14,12 @@ import { StakingPositionCard } from "@/components/staking/staking-position-card"
 import { StakingTable } from "@/components/staking-table";
 import { useStakingData } from "@/hooks/use-staking-data";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
+import { slugToBuilderName } from "@/app/utils/supabase-utils";
+import { useBuilders } from "@/context/builders-context";
+import { useChainId } from 'wagmi';
+import { arbitrumSepolia } from 'wagmi/chains';
+import { MetricCard } from "@/components/metric-card";
+import { formatNumber } from "@/lib/utils";
 
 // Function to format a timestamp to date
 const formatDate = (timestamp: number): string => {
@@ -24,7 +30,7 @@ const formatDate = (timestamp: number): string => {
 const formatMOR = (weiAmount: string): number => {
   try {
     // Parse the amount and round to the nearest integer
-    return Math.round(parseFloat(formatUnits(weiAmount, 18)));
+    return Math.round(parseFloat(formatUnits(BigInt(weiAmount), 18)));
   } catch (error) {
     console.error("Error formatting MOR:", error);
     return 0;
@@ -33,55 +39,92 @@ const formatMOR = (weiAmount: string): number => {
 
 // Function to get explorer URL based on network
 const getExplorerUrl = (address: string, network?: string): string => {
-  return network === 'Arbitrum' 
+  return network === 'Arbitrum' || network === 'Arbitrum Sepolia'
     ? `https://arbiscan.io/address/${address}`
     : `https://basescan.org/address/${address}`;
 };
 
-// Create a custom stats card component with glowing effect
-function GlowingStatCard({ item }: { item: StatItem }) {
-  return (
-    <div className="relative">
-      <Card>
-        <CardHeader>
-          <CardTitle>{item.label}</CardTitle>
-          {item.description && (
-            <p className="text-sm text-gray-400">{item.description}</p>
-          )}
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold text-gray-100">
-            {typeof item.value === 'number' 
-              ? item.value.toLocaleString() 
-              : item.value}
-          </p>
-        </CardContent>
-      </Card>
-      <GlowingEffect 
-        spread={40}
-        glow={true}
-        disabled={false}
-        proximity={64}
-        inactiveZone={0.01}
-        borderWidth={2}
-        borderRadius="rounded-xl"
-      />
-    </div>
-  );
-}
-
 export default function BuilderPage() {
   const { slug } = useParams();
+  const { builders, buildersProjects, isLoading: isLoadingBuilders } = useBuilders();
+  const chainId = useChainId();
+  const isTestnet = chainId === arbitrumSepolia.id;
+  
   const [userStakedAmount] = useState(1000); // Mock user's staked amount
   const [timeLeft] = useState("15 days"); // Mock time left until unlock
   const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
   const refreshRef = useRef(false); // Add a ref to track if refresh has been called
+  const [builder, setBuilder] = useState<Builder | null>(null);
   
-  // Find the builder based on the slug
-  const builder = builders.find((b: Builder) => b.name.toLowerCase().replace(/\s+/g, '-') === slug);
+  // Find the builder from the context using the slug
+  useEffect(() => {
+    if (typeof slug !== 'string') return;
+    
+    console.log(`Trying to find builder for slug: ${slug}, isTestnet: ${isTestnet}`);
+    console.log(`Available builders: ${builders.length}, available projects: ${buildersProjects.length}`);
+    
+    // Convert slug back to name by replacing hyphens with spaces and capitalizing words
+    const name = slugToBuilderName(slug);
+    
+    let foundBuilder = null;
+    
+    // Case-insensitive match for the builder name
+    if (builders && builders.length > 0) {
+      foundBuilder = builders.find(b => 
+        b.name.toLowerCase() === name.toLowerCase()
+      );
+    }
+    
+    // If in testnet and builder not found, try to find it directly in buildersProjects
+    if (!foundBuilder && isTestnet && buildersProjects && buildersProjects.length > 0) {
+      const testnetBuilder = buildersProjects.find(b => 
+        b.name.toLowerCase() === name.toLowerCase()
+      );
+      
+      if (testnetBuilder) {
+        // Convert testnet project to Builder format if found
+        foundBuilder = {
+          id: testnetBuilder.id,
+          name: testnetBuilder.name,
+          description: testnetBuilder.description || "",
+          long_description: testnetBuilder.description || "",
+          networks: testnetBuilder.networks || ["Arbitrum Sepolia"],
+          network: "Arbitrum Sepolia",
+          totalStaked: testnetBuilder.totalStakedFormatted || 0,
+          minDeposit: testnetBuilder.minDeposit || 0,
+          lockPeriod: testnetBuilder.lockPeriod || "",
+          stakingCount: testnetBuilder.stakingCount || 0,
+          website: testnetBuilder.website || "",
+          image_src: testnetBuilder.image || "",
+          image: testnetBuilder.image || "",
+          tags: [],
+          github_url: "",
+          twitter_url: "",
+          discord_url: "",
+          contributors: 0,
+          github_stars: 0,
+          reward_types: [],
+          reward_types_detail: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      }
+    }
+    
+    if (foundBuilder) {
+      console.log("Found builder:", foundBuilder.name);
+      setBuilder(foundBuilder);
+    } else {
+      console.error(`Builder not found: ${name}. Available builders:`, 
+        builders.map(b => b.name), 
+        "Available projects:", 
+        buildersProjects.map(b => b.name)
+      );
+    }
+  }, [slug, builders, buildersProjects, isTestnet]);
 
   // Use the networks from the builder data
-  const networksToDisplay = builder?.networks || ['Base']; // Default to Base if not specified
+  const networksToDisplay = builder?.networks || (isTestnet ? ['Arbitrum Sepolia'] : ['Base']); 
   
   // Custom formatter function to handle timestamp and unlock date
   const formatStakingEntry = useCallback((user: BuildersUser) => {
@@ -135,28 +178,13 @@ export default function BuilderPage() {
     console.log("Withdrawing:", amount);
   };
 
+  if (isLoadingBuilders) {
+    return <div className="p-8">Loading builder...</div>;
+  }
+
   if (!builder) {
     return <div className="p-8">Builder not found</div>;
   }
-
-  // Prepare stats data
-  const statsItems = [
-    { 
-      label: "Total Staked", 
-      value: `${builder.totalStaked.toLocaleString()} MOR`,
-      description: "Current total MOR staked"
-    },
-    { 
-      label: "Lock Period", 
-      value: builder.lockPeriod || "-",
-      description: "Required locking duration"
-    },
-    { 
-      label: "Minimum Deposit", 
-      value: `${builder.minDeposit} MOR`,
-      description: "Minimum required MOR"
-    }
-  ];
 
   return (
     <div className="page-container">
@@ -164,18 +192,69 @@ export default function BuilderPage() {
         {/* Builder Header */}
         <ProjectHeader
           name={builder.name}
-          description={builder.description}
-          imagePath={builder.localImage}
+          description={builder.description || ""}
+          imagePath={builder.image_src || ""}
           networks={networksToDisplay}
-          website={builder.website}
-          rewardType={builder.rewardType}
+          website={builder.website || ""}
+          rewardType={builder.reward_types?.[0] || ""}
+          backButton={true}
+          backPath="/builders"
         />
 
         {/* Staking Stats */}
-        <div className={`grid grid-cols-1 md:grid-cols-3 gap-4`}>
-          {statsItems.map((item, index) => (
-            <GlowingStatCard key={index} item={item} />
-          ))}
+        <div className={`grid grid-cols-1 md:grid-cols-4 gap-4`}>
+          <div className="relative md:col-span-2">
+            <MetricCard
+              title="Builder Stats"
+              metrics={[
+                { value: builder.totalStaked, label: "MOR" },
+                { value: builder.stakingCount || 0, label: "staking" }
+              ]}
+              autoFormatNumbers={true}
+            />
+            <GlowingEffect 
+              spread={40}
+              glow={true}
+              disabled={false}
+              proximity={64}
+              inactiveZone={0.01}
+              borderWidth={2}
+              borderRadius="rounded-xl"
+            />
+          </div>
+          
+          <div className="relative">
+            <MetricCard
+              title="Lock Period"
+              metrics={[{ value: builder.lockPeriod || "-", label: "" }]}
+            />
+            <GlowingEffect 
+              spread={40}
+              glow={true}
+              disabled={false}
+              proximity={64}
+              inactiveZone={0.01}
+              borderWidth={2}
+              borderRadius="rounded-xl"
+            />
+          </div>
+          
+          <div className="relative">
+            <MetricCard
+              title="Minimum Deposit"
+              metrics={[{ value: builder.minDeposit, label: "MOR" }]}
+              autoFormatNumbers={true}
+            />
+            <GlowingEffect 
+              spread={40}
+              glow={true}
+              disabled={false}
+              proximity={64}
+              inactiveZone={0.01}
+              borderWidth={2}
+              borderRadius="rounded-xl"
+            />
+          </div>
         </div>
 
         {/* Staking Actions */}
@@ -184,9 +263,9 @@ export default function BuilderPage() {
           <div className="relative">
             <StakingFormCard
               title="Stake MOR"
-              description="Stake MOR to support this builder"
+              description=""
               onStake={handleStake}
-              minAmount={builder.minDeposit}
+              minAmount={builder.minDeposit || 1000}
             />
             <GlowingEffect 
               spread={40}
@@ -221,7 +300,7 @@ export default function BuilderPage() {
         {/* Staking Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-bold">All staking addresses</CardTitle>
+            <CardTitle className="text-lg font-bold">All staking addresses ({builder.stakingCount})</CardTitle>
           </CardHeader>
           <CardContent>
             <StakingTable
