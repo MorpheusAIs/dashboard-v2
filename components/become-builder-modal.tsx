@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { RiCheckboxCircleFill, RiProgress4Fill } from "@remixicon/react";
 import { useNetwork } from "@/context/network-context";
+import { useBuilders } from "@/context/builders-context";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -91,9 +92,13 @@ export function BecomeBuilderModal({
 }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
+  const [nameExists, setNameExists] = useState(false);
   
   // Get user's current network
   const { currentChainId, switchToChain } = useNetwork();
+  
+  // Get builders list from context
+  const { builders } = useBuilders();
   
   // Initialize form with default values
   const form = useForm<z.infer<typeof formSchema>>({
@@ -112,8 +117,34 @@ export function BecomeBuilderModal({
     },
   });
 
-  // Get the currently selected network from the form
+  // Get the builder name and network from the form
   const selectedNetwork = form.watch("subnetDetails.network");
+  const builderName = form.watch("subnetDetails.builderName");
+  
+  // Check if the builder name already exists
+  useEffect(() => {
+    if (!builderName || !builders.length) {
+      setNameExists(false);
+      return;
+    }
+    
+    const nameAlreadyExists = builders.some(
+      builder => builder.name.toLowerCase() === builderName.toLowerCase()
+    );
+    
+    setNameExists(nameAlreadyExists);
+    
+    // Set custom error on the field if name exists
+    if (nameAlreadyExists) {
+      form.setError("subnetDetails.builderName", {
+        type: "manual",
+        message: "This builder name already exists"
+      });
+    } else {
+      // Clear the error if name doesn't exist
+      form.clearErrors("subnetDetails.builderName");
+    }
+  }, [builderName, builders, form]);
 
   // Check if user is on the correct network
   const isCorrectNetwork = useCallback(() => {
@@ -198,6 +229,12 @@ export function BecomeBuilderModal({
       return;
     }
     
+    // Check if builder name exists
+    if (nameExists) {
+      toast.error("A builder with this name already exists");
+      return;
+    }
+    
     // Validate current step
     if (currentStep === 1) {
       const result = await form.trigger("subnetDetails", { shouldFocus: true });
@@ -264,7 +301,11 @@ export function BecomeBuilderModal({
                     <FormItem>
                       <FormLabel>Builder name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter builder name" {...field} />
+                        <Input 
+                          placeholder="Enter builder name" 
+                          {...field} 
+                          className={nameExists ? "border-red-500" : ""}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

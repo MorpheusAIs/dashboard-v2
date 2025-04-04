@@ -80,7 +80,7 @@ export function BecomeSubnetModal({ open, onOpenChange }: BecomeSubnetModalProps
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-background border-gray-800">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">Become a Subnet Provider</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-emerald-400">Become a Subnet Provider</DialogTitle>
           <DialogDescription className="text-gray-400">
             Register as a compute subnet provider on the network
           </DialogDescription>
