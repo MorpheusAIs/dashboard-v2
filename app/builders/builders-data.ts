@@ -1,5 +1,4 @@
 import { BuilderDB } from '../lib/supabase';
-import { BuilderWithOnChainData, BuildersService } from '../services/builders.service';
 
 export interface Builder extends BuilderDB {
   totalStaked: number;
@@ -40,7 +39,7 @@ export const mergeBuilderData = (
     stakingCount: onChainData.stakingCount,
     userStake: onChainData.userStake,
     lockPeriod: onChainData.lockPeriod || '',
-    network: onChainData.network || builderDB.network,
-    networks: onChainData.networks || builderDB.networks
+    network: onChainData.network || '',
+    networks: onChainData.networks || builderDB.networks || []
   };
 }; 

@@ -8,7 +8,6 @@ import { formatUnits } from "viem";
 import { GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
 import { BuildersUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
-import { StatItem } from "@/components/staking/staking-stats-card";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
 import { StakingPositionCard } from "@/components/staking/staking-position-card";
 import { StakingTable } from "@/components/staking-table";
@@ -19,7 +18,6 @@ import { useBuilders } from "@/context/builders-context";
 import { useChainId } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 import { MetricCard } from "@/components/metric-card";
-import { formatNumber } from "@/lib/utils";
 
 // Function to format a timestamp to date
 const formatDate = (timestamp: number): string => {

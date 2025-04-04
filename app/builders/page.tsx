@@ -23,7 +23,6 @@ import { Builder } from "@/app/builders/builders-data";
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { useChainId } from 'wagmi';
 import { formatNumber } from "@/lib/utils";
 
 // Interfaces
@@ -208,9 +207,6 @@ const participatingBuilders: Builder[] = [
 ];
 
 export default function BuildersPage() {
-  // Get current chain ID
-  const chainId = useChainId();
-  
   // Use the URL params hook
   const { getParam, setParam } = useUrlParams();
 
@@ -250,12 +246,7 @@ export default function BuildersPage() {
       id: sortColumn,
       desc: sortDirection === 'desc'
     };
-  }, [sortColumn, sortDirection, chainId]);
-
-  // Add chainId as dependency to filtered data
-  const currentFilteredBuilders = useMemo(() => {
-    return filteredBuilders;
-  }, [filteredBuilders, chainId]);
+  }, [sortColumn, sortDirection]);
 
   // Define columns for the builders table
   const buildersColumns: Column<Builder>[] = useMemo(

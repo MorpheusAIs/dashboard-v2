@@ -48,7 +48,7 @@ export function getRewardTypes(builder: BuilderDB): string[] {
   if (typeof builder.reward_types === 'string') {
     try {
       return JSON.parse(builder.reward_types);
-    } catch (_) {
+    } catch {
       return [builder.reward_types];
     }
   }
