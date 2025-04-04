@@ -24,7 +24,7 @@ export interface StakingPositionCardProps {
 
 export function StakingPositionCard({
   title = "Your Position",
-  description = "Manage your staked MOR",
+  description = "",
   userStakedAmount,
   timeUntilUnlock,
   onWithdraw,

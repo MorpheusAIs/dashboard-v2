@@ -16,6 +16,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { usePathname } from "next/navigation"
+import { useChainId } from 'wagmi'
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
 import { builders } from "@/app/builders/builders-data"
@@ -49,6 +50,8 @@ export function RootLayoutContent({
   children: React.ReactNode;
 }) {
   const pathname = usePathname()
+  const chainId = useChainId()
+  const isTestnet = chainId === 421614 // Arbitrum Sepolia
   const pageInfo = getPageInfo(pathname)
 
   return (
@@ -86,8 +89,8 @@ export function RootLayoutContent({
           </div>
 
           {/* Center section */}
-          <div className="flex-1 flex justify-center">
-            <TestnetIndicator />
+          <div className="flex-1 flex justify-center gap-4">
+            {isTestnet && <TestnetIndicator />}
           </div>
 
           {/* Right section */}

@@ -109,9 +109,10 @@ export function ProjectHeader({
       <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
         {imagePath ? (
           <Image
-            src={imagePath.startsWith('/') ? imagePath : `/${imagePath}`}
+            src={imagePath.startsWith('http') ? imagePath : imagePath.startsWith('/') ? imagePath : `/${imagePath}`}
             alt={name}
             fill
+            sizes="96px"
             className="object-cover"
           />
         ) : (

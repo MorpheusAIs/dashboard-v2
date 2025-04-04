@@ -18,8 +18,46 @@ export function Web3Providers({
   const defaultEnvironment: NetworkEnvironment = 'mainnet';
 
   useEffect(() => {
+    // Override console.error to suppress specific Ethereum-related errors
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      const errorMessage = args.join(' ');
+      
+      // Suppress these specific errors that come from conflicting wallet extensions
+      const suppressPatterns = [
+        'Cannot redefine property: ethereum',
+        'Cannot set property ethereum',
+        'Cannot read properties of undefined (reading \'id\')',
+        'Unchecked runtime.lastError',
+      ];
+      
+      const shouldSuppress = suppressPatterns.some(pattern => 
+        errorMessage.includes(pattern)
+      );
+      
+      if (!shouldSuppress) {
+        originalConsoleError(...args);
+      }
+    };
+
+    // Also add a global error handler to catch unhandled promise rejections
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (event.reason && typeof event.reason.message === 'string' && 
+          event.reason.message.includes('ethereum')) {
+        event.preventDefault();
+      }
+    };
+    
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
     // Cleanup function to handle proper disconnection
     return () => {
+      // Restore original console.error
+      console.error = originalConsoleError;
+      
+      // Remove error handler
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      
       // Clear any stored WalletConnect data from localStorage
       Object.keys(localStorage).forEach(key => {
         if (key.toLowerCase().includes('walletconnect')) {
