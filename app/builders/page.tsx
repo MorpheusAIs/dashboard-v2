@@ -23,6 +23,8 @@ import { Builder } from "@/app/builders/builders-data";
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
+import { useChainId } from 'wagmi';
+import { formatNumber } from "@/lib/utils";
 
 // Interfaces
 interface UserSubnet {
@@ -131,12 +133,25 @@ const participatingBuilders: Builder[] = [
     description: "AI acceleration subnet for deep learning models",
     image: "/images/builders/neptune.png",
     totalStaked: 7250,
-    rewardType: "Token",
+    reward_types: ["Token"],
     website: "https://neptune.ai",
     networks: ["Arbitrum"],
     lockPeriod: "30 days",
     stakingCount: 48,
     userStake: 1200,
+    minDeposit: 1000,
+    network: "Arbitrum",
+    long_description: "",
+    image_src: "",
+    tags: [],
+    github_url: "",
+    twitter_url: "",
+    discord_url: "",
+    contributors: 0,
+    github_stars: 0,
+    reward_types_detail: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   },
   {
     id: "2",
@@ -144,12 +159,25 @@ const participatingBuilders: Builder[] = [
     description: "Distributed computing network for quantum simulations",
     image: "/images/builders/quantum.png",
     totalStaked: 12800,
-    rewardType: "Token",
+    reward_types: ["Token"],
     website: "https://quantumforge.network",
     networks: ["Base"],
     lockPeriod: "60 days",
     stakingCount: 76,
     userStake: 2500,
+    minDeposit: 1000,
+    network: "Base",
+    long_description: "",
+    image_src: "",
+    tags: [],
+    github_url: "",
+    twitter_url: "",
+    discord_url: "",
+    contributors: 0,
+    github_stars: 0,
+    reward_types_detail: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   },
   {
     id: "3",
@@ -157,16 +185,32 @@ const participatingBuilders: Builder[] = [
     description: "Privacy-preserving computation network",
     image: "/images/builders/atlas.png",
     totalStaked: 5600,
-    rewardType: "Fee Share",
+    reward_types: ["Fee Share"],
     website: "https://atlasprotocol.io",
     networks: ["Arbitrum", "Base"],
     lockPeriod: "45 days",
     stakingCount: 32,
     userStake: 850,
+    minDeposit: 1000,
+    network: "Arbitrum",
+    long_description: "",
+    image_src: "",
+    tags: [],
+    github_url: "",
+    twitter_url: "",
+    discord_url: "",
+    contributors: 0,
+    github_stars: 0,
+    reward_types_detail: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   }
 ];
 
 export default function BuildersPage() {
+  // Get current chain ID
+  const chainId = useChainId();
+  
   // Use the URL params hook
   const { getParam, setParam } = useUrlParams();
 
@@ -206,7 +250,12 @@ export default function BuildersPage() {
       id: sortColumn,
       desc: sortDirection === 'desc'
     };
-  }, [sortColumn, sortDirection]);
+  }, [sortColumn, sortDirection, chainId]);
+
+  // Add chainId as dependency to filtered data
+  const currentFilteredBuilders = useMemo(() => {
+    return filteredBuilders;
+  }, [filteredBuilders, chainId]);
 
   // Define columns for the builders table
   const buildersColumns: Column<Builder>[] = useMemo(
@@ -220,11 +269,12 @@ export default function BuildersPage() {
               <HoverCardTrigger asChild>
                 <div className="flex items-center gap-3 cursor-pointer">
                   <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-                    {builder.image && builder.image !== '' ? (
+                    {(builder.image_src || builder.image) ? (
                       <Image
-                        src={builder.image}
+                        src={builder.image_src || builder.image || ''}
                         alt={builder.name}
                         fill
+                        sizes="32px"
                         className="object-cover"
                       />
                     ) : (
@@ -274,7 +324,7 @@ export default function BuildersPage() {
           <div className="flex items-center gap-1">
             {(builder.networks || []).map((network: string) => (
               <div key={network} className="relative">
-                {network === "Arbitrum" ? (
+                {network === "Arbitrum" || network === "Arbitrum Sepolia" ? (
                   <ArbitrumIcon size={19} className="text-current" />
                 ) : (
                   <BaseIcon size={19} className="text-current" />
@@ -287,10 +337,10 @@ export default function BuildersPage() {
       {
         id: "rewardType",
         header: "Reward Type",
-        accessorKey: "rewardType",
+        accessorKey: "reward_types",
         cell: (builder) => (
           <div className="flex items-center gap-2 text-gray-300">
-            {builder.rewardType}
+            {builder.reward_types || "TBA"}
           </div>
         ),
       },
@@ -300,7 +350,11 @@ export default function BuildersPage() {
         accessorKey: "totalStaked",
         enableSorting: true,
         cell: (builder) => (
-          <span className="text-gray-200">{builder.totalStaked.toLocaleString()}</span>
+          <span className="text-gray-200">
+            {builder.totalStaked !== undefined ? 
+              formatNumber(builder.totalStaked)
+              : "—"}
+          </span>
         ),
       },
       {
@@ -309,7 +363,9 @@ export default function BuildersPage() {
         accessorKey: "stakingCount",
         enableSorting: true,
         cell: (builder) => (
-          <span className="text-gray-300">{builder.stakingCount}</span>
+          <span className="text-gray-300">
+            {builder.stakingCount !== undefined ? builder.stakingCount : "—"}
+          </span>
         ),
       },
       {
@@ -317,7 +373,9 @@ export default function BuildersPage() {
         header: "Lock period",
         accessorKey: "lockPeriod",
         cell: (builder) => (
-          <span className="text-gray-300">{builder.lockPeriod}</span>
+          <span className="text-gray-300">
+            {builder.lockPeriod || "—"}
+          </span>
         ),
       },
       {
@@ -326,7 +384,9 @@ export default function BuildersPage() {
         accessorKey: "minDeposit",
         enableSorting: true,
         cell: (builder) => (
-          <span className="text-gray-300">{builder.minDeposit}</span>
+          <span className="text-gray-300">
+            {builder.minDeposit !== undefined ? builder.minDeposit.toLocaleString() : "—"}
+          </span>
         ),
       },
     ],
@@ -482,7 +542,7 @@ export default function BuildersPage() {
       
       const matchesType =
         participatingTypeFilter === "all" || participatingTypeFilter === "" || 
-        (builder.rewardType && builder.rewardType.toLowerCase() === participatingTypeFilter.toLowerCase());
+        (builder.reward_types && builder.reward_types.toString().toLowerCase() === participatingTypeFilter.toLowerCase());
 
       return matchesName && matchesNetwork && matchesType;
     });
@@ -531,11 +591,12 @@ export default function BuildersPage() {
               <HoverCardTrigger asChild>
                 <div className="flex items-center gap-3 cursor-pointer">
                   <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-                    {builder.image && builder.image !== '' ? (
+                    {(builder.image_src || builder.image) ? (
                       <Image
-                        src={builder.image}
+                        src={builder.image_src || builder.image || ''}
                         alt={builder.name}
                         fill
+                        sizes="32px"
                         className="object-cover"
                       />
                     ) : (
@@ -598,10 +659,10 @@ export default function BuildersPage() {
       {
         id: "rewardType",
         header: "Reward Type",
-        accessorKey: "rewardType",
+        accessorKey: "reward_types",
         cell: (builder) => (
           <div className="flex items-center gap-2 text-gray-300">
-            {builder.rewardType}
+            {builder.reward_types}
           </div>
         ),
       },
@@ -659,8 +720,9 @@ export default function BuildersPage() {
         <div className="relative">
           <MetricCard
             title="Total Staked"
-            metrics={[{ value: totalMetrics.totalStaked.toLocaleString(), label: "MOR" }]}
+            metrics={[{ value: totalMetrics.totalStaked, label: "MOR" }]}
             disableGlow={true}
+            autoFormatNumbers={true}
           />
           <GlowingEffect 
             spread={40}

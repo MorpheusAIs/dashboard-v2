@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { GRAPHQL_ENDPOINTS, fetchGraphQL } from "@/app/graphql/client";
+import { GRAPHQL_ENDPOINTS, fetchGraphQL, getEndpointForNetwork } from "@/app/graphql/client";
 import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry } from "@/app/graphql/types";
 import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
@@ -78,7 +78,7 @@ export function useStakingData({
   // Fetch project ID by name if needed
   const fetchProjectIdByName = useCallback(async (name: string): Promise<string | null> => {
     try {
-      const endpoint = GRAPHQL_ENDPOINTS[network as keyof typeof GRAPHQL_ENDPOINTS] || GRAPHQL_ENDPOINTS.Base;
+      const endpoint = getEndpointForNetwork(network);
       
       if (isComputeProject) {
         // Logic for compute project
@@ -172,9 +172,7 @@ export function useStakingData({
       const skip = (pagination.currentPage - 1) * pagination.pageSize;
       
       // Get the right endpoint
-      const endpoint = queryEndpoint || 
-        GRAPHQL_ENDPOINTS[network as keyof typeof GRAPHQL_ENDPOINTS] || 
-        GRAPHQL_ENDPOINTS.Base;
+      const endpoint = queryEndpoint || getEndpointForNetwork(network);
       
       console.log('Fetching data from endpoint:', endpoint);
       console.log('Query parameters:', {

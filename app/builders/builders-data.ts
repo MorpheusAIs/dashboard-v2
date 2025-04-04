@@ -1,37 +1,46 @@
-import buildersData from './predefined-builders-meta.json';
+import { BuilderDB } from '../lib/supabase';
+import { BuilderWithOnChainData, BuildersService } from '../services/builders.service';
 
-export interface Builder {
-  id: string;
-  name: string;
-  description: string;
-  longDescription?: string;
-  image: string;
-  localImage?: string;
-  tags?: string[];
-  githubUrl?: string;
-  twitterUrl?: string;
-  discordUrl?: string;
-  contributors?: number;
-  githubStars?: number;
+export interface Builder extends BuilderDB {
   totalStaked: number;
-  rewardType: string;
-  website?: string;
-  networks?: string[];
-  lockPeriod?: string;
-  minDeposit?: number;
+  minimalDeposit?: string;
+  withdrawLockPeriodAfterDeposit?: string;
   stakingCount?: number;
   userStake?: number;
+  image?: string;
+  lockPeriod?: string;
+  minDeposit: number;
+  network: string;
+  networks: string[];
 }
 
-// Add mock data for fields not in the JSON
-const enrichedBuilders: Builder[] = buildersData.map(builder => ({
-  ...builder,
-  // Use the networks from the JSON file or default to ['Base'] if not specified
-  networks: builder.networks || ['Base'],
-  lockPeriod: '30 days', // Mock lock period
-  minDeposit: 1000, // Mock minimum deposit
-  stakingCount: Math.floor(Math.random() * 100), // Mock staking count
-  totalStaked: builder.totalStaked || 0 // Ensure totalStaked has a default value
-}));
+// This will be populated by the component using BuildersService
+export const builders: Builder[] = [];
 
-export const builders = enrichedBuilders; 
+// Helper function to merge on-chain data with builder metadata
+export const mergeBuilderData = (
+  builderDB: BuilderDB,
+  onChainData: {
+    totalStaked?: number;
+    minimalDeposit?: number;
+    withdrawLockPeriodAfterDeposit?: number;
+    stakingCount?: number;
+    userStake?: number;
+    lockPeriod?: string;
+    network?: string;
+    networks?: string[];
+  }
+): Builder => {
+  return {
+    ...builderDB,
+    totalStaked: onChainData.totalStaked || 0,
+    minimalDeposit: onChainData.minimalDeposit?.toString(),
+    minDeposit: onChainData.minimalDeposit || 0,
+    withdrawLockPeriodAfterDeposit: onChainData.withdrawLockPeriodAfterDeposit?.toString(),
+    stakingCount: onChainData.stakingCount,
+    userStake: onChainData.userStake,
+    lockPeriod: onChainData.lockPeriod || '',
+    network: onChainData.network || builderDB.network,
+    networks: onChainData.networks || builderDB.networks
+  };
+}; 
