@@ -372,8 +372,9 @@ export default function ComputePage() {
         <div className="relative">
           <MetricCard
             title="Total Staked"
-            metrics={[{ value: totalMetrics.totalStaked.toLocaleString(), label: "MOR" }]}
+            metrics={[{ value: totalMetrics.totalStaked, label: "MOR" }]}
             disableGlow={true}
+            autoFormatNumbers={true}
           />
           <GlowingEffect 
             spread={40}
