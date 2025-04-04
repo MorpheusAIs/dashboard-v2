@@ -5,10 +5,8 @@ import { onError } from '@apollo/client/link/error';
 
 // Define the network endpoints for different chains
 const NETWORK_ENDPOINTS = {
-  Ethereum: 'https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest',
   Arbitrum: 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest',
-  Sepolia: 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest',
-  ArbitrumSepolia: 'https://api.studio.thegraph.com/query/73688/lumerin-node-testnet/version/latest',
+  ArbitrumSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
   Base: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
 };
 
@@ -28,47 +26,11 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
 
 // Create Apollo clients for each network
 export const apolloClients = {
-  Ethereum: new ApolloClient({
-    link: from([
-      errorLink,
-      new HttpLink({
-        uri: NETWORK_ENDPOINTS.Ethereum,
-      }),
-    ]),
-    cache: new InMemoryCache({
-      addTypename: false // This can help with some GraphQL issues
-    }),
-    queryDeduplication: false,
-    defaultOptions: {
-      query: {
-        fetchPolicy: 'no-cache',
-        errorPolicy: 'all',
-      },
-    },
-  }),
   Arbitrum: new ApolloClient({
     link: from([
       errorLink,
       new HttpLink({
         uri: NETWORK_ENDPOINTS.Arbitrum,
-      }),
-    ]),
-    cache: new InMemoryCache({
-      addTypename: false
-    }),
-    queryDeduplication: false,
-    defaultOptions: {
-      query: {
-        fetchPolicy: 'no-cache',
-        errorPolicy: 'all',
-      },
-    },
-  }),
-  Sepolia: new ApolloClient({
-    link: from([
-      errorLink,
-      new HttpLink({
-        uri: NETWORK_ENDPOINTS.Sepolia,
       }),
     ]),
     cache: new InMemoryCache({
@@ -121,7 +83,7 @@ export const apolloClients = {
 };
 
 // Default client (can be changed based on the current network)
-let defaultClient = apolloClients.Ethereum;
+let defaultClient = apolloClients.Base;
 
 // Function to set the default client
 export const setDefaultClient = (network: keyof typeof apolloClients) => {

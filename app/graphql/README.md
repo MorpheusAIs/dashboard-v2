@@ -18,12 +18,12 @@ This directory contains GraphQL queries, utility functions, and type definitions
 To use these GraphQL utilities in your components:
 
 ```typescript
-import { GRAPHQL_ENDPOINTS, fetchGraphQL } from "@/app/graphql/client";
+import { getEndpointForNetwork, fetchGraphQL } from "@/app/graphql/client";
 import { GET_BUILDERS_PROJECT_BY_NAME } from "@/app/graphql/queries/builders";
 import { BuildersResponse } from "@/app/graphql/types";
 
 // Get the correct endpoint for the network
-const endpoint = GRAPHQL_ENDPOINTS.Base;
+const endpoint = getEndpointForNetwork("Arbitrum");
 
 // Make the GraphQL request
 const response = await fetchGraphQL<BuildersResponse>(
@@ -50,4 +50,9 @@ To add a new GraphQL query:
 The GraphQL endpoints are configured for the following networks:
 
 - Base: `https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api`
-- Arbitrum: `https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest` 
+- Arbitrum: `https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest`
+- Arbitrum_Sepolia: `https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api`
+
+## Utility Functions
+
+- `getEndpointForNetwork(network: string)`: Determines the appropriate GraphQL endpoint based on the network name. This is especially useful for handling testnet endpoints like Arbitrum Sepolia. 

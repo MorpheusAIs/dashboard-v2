@@ -3,7 +3,7 @@ import { GET_BUILDERS_PROJECT } from '@/lib/graphql/builders-queries';
 import { GetBuildersProjectResponse } from '@/lib/types/graphql';
 
 // Networks supported by the application
-export type SupportedNetwork = 'Arbitrum' | 'Base';
+export type SupportedNetwork = 'Arbitrum' | 'Base' | 'Arbitrum_Sepolia';
 
 /**
  * Detects which network a builder belongs to by querying both networks' subgraphs
@@ -43,7 +43,23 @@ export async function detectBuilderNetwork(builderId: string): Promise<Supported
     console.error(`Error querying Base for builder ${builderId}:`, error);
   }
   
-  // If we get here, the builder wasn't found on either network
+  // Try Arbitrum Sepolia
+  try {
+    const { data } = await apolloClients.ArbitrumSepolia.query<GetBuildersProjectResponse>({
+      query: GET_BUILDERS_PROJECT,
+      variables: { id: builderId },
+      fetchPolicy: 'no-cache',
+    });
+    
+    if (data?.buildersProject) {
+      console.log(`Builder ${builderId} found on Arbitrum Sepolia`);
+      return 'Arbitrum_Sepolia';
+    }
+  } catch (error) {
+    console.error(`Error querying Arbitrum Sepolia for builder ${builderId}:`, error);
+  }
+  
+  // If we get here, the builder wasn't found on any network
   console.warn(`Builder ${builderId} not found on any network`);
   return null;
 }

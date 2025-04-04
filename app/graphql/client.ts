@@ -3,7 +3,8 @@
 // GraphQL API endpoints
 export const GRAPHQL_ENDPOINTS = {
   'Base': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
-  'Arbitrum': 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest'
+  'Arbitrum': 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest',
+  'Arbitrum_Sepolia': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
 };
 
 // Define the request cache entry type
@@ -15,6 +16,19 @@ interface RequestCacheEntry<T> {
 // Keep track of recent requests to implement debouncing
 const recentRequests = new Map<string, RequestCacheEntry<unknown>>();
 const DEBOUNCE_TIME = 2000; // 2 seconds debounce time
+
+// Utility function to get the current endpoint for a network
+export const getEndpointForNetwork = (network: string) => {
+  // Check if we're on Arbitrum Sepolia
+  if (network.toLowerCase() === 'arbitrum_sepolia' || 
+      network.toLowerCase() === 'arbitrum sepolia' || 
+      network.toLowerCase() === 'arbitrumsepolia') {
+    return GRAPHQL_ENDPOINTS.Arbitrum_Sepolia;
+  }
+  
+  // Otherwise, use the standard network endpoint if it exists
+  return GRAPHQL_ENDPOINTS[network as keyof typeof GRAPHQL_ENDPOINTS] || GRAPHQL_ENDPOINTS.Base;
+};
 
 /**
  * Function to make GraphQL API calls with retry logic for rate limiting

@@ -36,12 +36,14 @@ export interface BuilderProject {
   claimLockEnd: string;
   id: string;
   minimalDeposit: string;
+  minStake?: string; // Testnet field
   name: string;
   startsAt: string;
   totalClaimed: string;
   totalStaked: string;
   totalUsers: string;
   withdrawLockPeriodAfterDeposit: string;
+  withdrawLockPeriodAfterStake?: string; // Testnet field
   // Additional fields for UI display
   networks?: string[];
   network?: string;
@@ -50,14 +52,19 @@ export interface BuilderProject {
   stakingCount?: number;
   lockPeriod?: string;
   minDeposit?: number;
+  description?: string;
+  website?: string;
+  totalStakedFormatted?: number;
 }
 
 export interface BuilderUser {
-  address: string;
   id: string;
-  lastStake: string;
+  address: string;
   staked: string;
-  buildersProject?: BuilderProject;
+  claimed: string;
+  claimLockEnd: string;
+  lastStake: string;
+  builderSubnet?: BuilderSubnet;
 }
 
 export interface BuildersCounter {
@@ -131,10 +138,86 @@ export interface CombinedBuildersListVariables {
 }
 
 export interface CombinedBuildersListFilteredByPredefinedBuildersVariables {
-  orderBy?: BuildersProject_OrderBy;
-  usersOrderBy?: BuildersUser_OrderBy;
-  usersDirection?: OrderDirection;
-  orderDirection?: OrderDirection;
+  orderBy?: string;
+  usersOrderBy?: string;
+  usersDirection?: string;
+  orderDirection?: string;
   name_in?: string[];
   address?: string;
+}
+
+// For Arbitrum Sepolia Builder Subnets
+export interface BuilderSubnet {
+  id: string;
+  name: string;
+  owner: string;
+  minStake: string;
+  fee: string;
+  feeTreasury: string;
+  startsAt: string;
+  withdrawLockPeriodAfterStake: string;
+  maxClaimLockEnd: string;
+  slug: string;
+  description: string;
+  website: string;
+  image: string;
+  totalStaked: string;
+  totalClaimed: string;
+  totalUsers: string;
+  // Additional fields for UI display
+  networks?: string[];
+  network?: string;
+  rewardType?: string;
+  stakingCount?: number;
+  lockPeriod?: string;
+  minDeposit?: number;
+}
+
+export interface CombinedBuildersListFilteredByPredefinedBuildersTestnetResponse {
+  builderSubnets: BuilderSubnet[];
+  builderUsers: BuilderUser[];
+}
+
+export interface ArbitrumSepoliaCounter {
+  id: string;
+  totalSubnets: string;
+  totalBuilderProjects: string;
+}
+
+export interface CombinedBuilderSubnetsResponse {
+  builderSubnets: BuilderSubnet[];
+  builderUsers: BuilderUser[];
+  counters: ArbitrumSepoliaCounter[];
+}
+
+// For Arbitrum Sepolia
+export enum BuilderSubnet_orderBy {
+  Id = 'id',
+  Name = 'name',
+  Owner = 'owner',
+  MinStake = 'minStake',
+  Fee = 'fee',
+  FeeTreasury = 'feeTreasury',
+  StartsAt = 'startsAt',
+  WithdrawLockPeriodAfterStake = 'withdrawLockPeriodAfterStake',
+  MaxClaimLockEnd = 'maxClaimLockEnd',
+  Slug = 'slug',
+  Description = 'description',
+  Website = 'website',
+  Image = 'image',
+  TotalStaked = 'totalStaked',
+  TotalClaimed = 'totalClaimed',
+  TotalUsers = 'totalUsers',
+  BuilderUsers = 'builderUsers'
+}
+
+export enum BuilderUser_orderBy {
+  Id = 'id',
+  Address = 'address',
+  Staked = 'staked',
+  Claimed = 'claimed',
+  ClaimLockEnd = 'claimLockEnd',
+  LastStake = 'lastStake',
+  BuilderSubnet = 'builderSubnet',
+  BuilderSubnet__TotalStaked = 'builderSubnet__totalStaked'
 } 
