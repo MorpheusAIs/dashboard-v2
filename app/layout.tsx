@@ -46,16 +46,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
-        <BuildersProvider>
+        <Web3Providers initialState={initialState}>
           <ComputeProvider>
-            <Web3Providers initialState={initialState}>
+            <BuildersProvider>
               <AuthProvider>
                 <RootLayoutContent>{children}</RootLayoutContent>
                 <Toaster />
               </AuthProvider>
-            </Web3Providers>
+            </BuildersProvider>
           </ComputeProvider>
-        </BuildersProvider>
+        </Web3Providers>
       </body>
     </html>
   );
