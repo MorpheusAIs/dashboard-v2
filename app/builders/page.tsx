@@ -53,12 +53,13 @@ function BuilderModalWrapper() {
         </button>
       )}
       
-      <button 
-        onClick={() => setIsModalOpen(true)}
-        className="copy-button mb-4"
-      >
-        Become a Builder
-      </button>
+      <Link href="/builders/newsubnet">
+        <button
+          className="copy-button mb-4"
+        >
+          Become a Builder
+        </button>
+      </Link>
       
       <BecomeBuilderModal 
         open={isModalOpen} 
