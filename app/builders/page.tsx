@@ -34,6 +34,49 @@ interface UserSubnet {
   status: string;
   stakeAmount: number;
   createdAt: string;
+  image?: string;
+}
+
+// Add this function near the top of the file, before the component definition
+/**
+ * Validates if a URL is properly formatted and has a valid image file extension
+ */
+function isValidImageUrl(url?: string): boolean {
+  if (!url) return false;
+  
+  try {
+    // First check if it's a properly formatted URL
+    const isProperlyFormatted = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/');
+    if (!isProperlyFormatted) return false;
+    
+    // For absolute URLs, parse and check if pathname contains an image extension
+    if (url.startsWith('http')) {
+      try {
+        const parsedUrl = new URL(url);
+        const pathname = parsedUrl.pathname.toLowerCase();
+        // Check if the pathname contains a valid image extension
+        const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+        return validExtensions.some(ext => pathname.includes(ext));
+      } catch {
+        // If URL parsing fails, fall back to simple check
+        return checkSimpleImageExtension(url);
+      }
+    } 
+    
+    // For relative URLs or fallback, do a simple check
+    return checkSimpleImageExtension(url);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Simple check for image extension anywhere in the URL string
+ */
+function checkSimpleImageExtension(url: string): boolean {
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+  const urlLower = url.toLowerCase();
+  return validExtensions.some(ext => urlLower.includes(ext));
 }
 
 // Separate component for the modal to ensure it works independently
@@ -255,59 +298,77 @@ export default function BuildersPage() {
       {
         id: "name",
         header: "Name",
-        cell: (builder) => (
-          <div className="flex items-center gap-3">
-            <HoverCard>
-              <HoverCardTrigger asChild>
-                <div className="flex items-center gap-3 cursor-pointer">
-                  <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-                    {(builder.image_src || builder.image) ? (
-                      <Image
-                        src={builder.image_src || builder.image || ''}
-                        alt={builder.name}
-                        fill
-                        sizes="32px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
-                        {builder.name.charAt(0)}
+        cell: (builder) => {
+          // Try to safely determine if the image can be rendered
+          const hasValidImage = (() => {
+            try {
+              if (!builder.image_src && !builder.image) return false;
+              const url = builder.image_src || builder.image || '';
+              return isValidImageUrl(url);
+            } catch {
+              return false;
+            }
+          })();
+          
+          return (
+            <div className="flex items-center gap-3">
+              <HoverCard>
+                <HoverCardTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer">
+                    <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
+                      {hasValidImage ? (
+                        <Image
+                          src={builder.image_src || builder.image || ''}
+                          alt={builder.name}
+                          fill
+                          sizes="32px"
+                          className="object-cover"
+                          onError={() => {
+                            // Force a re-render with invalid image
+                            const img = document.querySelector(`[alt="${builder.name}"]`) as HTMLImageElement;
+                            if (img) img.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
+                          {builder.name.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link 
+                        href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                        className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                      >
+                        {builder.name}
+                      </Link>
+                    </div>
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-300">
+                      {builder.description || "No description available."}
+                    </p>
+                    {builder.website && (
+                      <div className="flex items-center pt-2">
+                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
+                        <a 
+                          href={builder.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          Visit Project
+                        </a>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
-                      className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
-                    >
-                      {builder.name}
-                    </Link>
-                  </div>
-                </div>
-              </HoverCardTrigger>
-              <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-300">
-                    {builder.description || "No description available."}
-                  </p>
-                  {builder.website && (
-                    <div className="flex items-center pt-2">
-                      <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
-                      <a 
-                        href={builder.website} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                      >
-                        Visit Project
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-          </div>
-        ),
+                </HoverCardContent>
+              </HoverCard>
+            </div>
+          );
+        },
       },
       {
         id: "networks",
@@ -391,23 +452,52 @@ export default function BuildersPage() {
       {
         id: "name",
         header: "Name",
-        cell: (subnet) => (
-          <div className="flex items-center gap-3">
-            <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-              <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
-                {subnet.name.charAt(0)}
+        cell: (subnet) => {
+          // Try to safely determine if the image can be rendered
+          const hasValidImage = (() => {
+            try {
+              if (!subnet.image) return false;
+              return isValidImageUrl(subnet.image);
+            } catch {
+              return false;
+            }
+          })();
+          
+          return (
+            <div className="flex items-center gap-3">
+              <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
+                {hasValidImage ? (
+                  <div className="relative size-8">
+                    <Image
+                      src={subnet.image || ''}
+                      alt={subnet.name}
+                      fill
+                      sizes="32px"
+                      className="object-cover"
+                      onError={() => {
+                        // Force a re-render with invalid image
+                        const img = document.querySelector(`[alt="${subnet.name}"]`) as HTMLImageElement;
+                        if (img) img.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
+                    {subnet.name.charAt(0)}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Link 
+                  href={`/subnets/${subnet.id}`}
+                  className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                >
+                  {subnet.name}
+                </Link>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Link 
-                href={`/subnets/${subnet.id}`}
-                className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
-              >
-                {subnet.name}
-              </Link>
-            </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         id: "network",
@@ -577,59 +667,77 @@ export default function BuildersPage() {
       {
         id: "name",
         header: "Name",
-        cell: (builder) => (
-          <div className="flex items-center gap-3">
-            <HoverCard>
-              <HoverCardTrigger asChild>
-                <div className="flex items-center gap-3 cursor-pointer">
-                  <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
-                    {(builder.image_src || builder.image) ? (
-                      <Image
-                        src={builder.image_src || builder.image || ''}
-                        alt={builder.name}
-                        fill
-                        sizes="32px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
-                        {builder.name.charAt(0)}
+        cell: (builder: Builder & { userStake: number }) => {
+          // Try to safely determine if the image can be rendered
+          const hasValidImage = (() => {
+            try {
+              if (!builder.image_src && !builder.image) return false;
+              const url = builder.image_src || builder.image || '';
+              return isValidImageUrl(url);
+            } catch {
+              return false;
+            }
+          })();
+          
+          return (
+            <div className="flex items-center gap-3">
+              <HoverCard>
+                <HoverCardTrigger asChild>
+                  <div className="flex items-center gap-3 cursor-pointer">
+                    <div className="relative size-8 rounded-lg overflow-hidden bg-white/[0.05]">
+                      {hasValidImage ? (
+                        <Image
+                          src={builder.image_src || builder.image || ''}
+                          alt={builder.name}
+                          fill
+                          sizes="32px"
+                          className="object-cover"
+                          onError={() => {
+                            // Force a re-render with invalid image
+                            const img = document.querySelector(`[alt="${builder.name}"]`) as HTMLImageElement;
+                            if (img) img.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center size-8 bg-emerald-700 text-white font-medium">
+                          {builder.name.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link 
+                        href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                        className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
+                      >
+                        {builder.name}
+                      </Link>
+                    </div>
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-300">
+                      {builder.description || "No description available."}
+                    </p>
+                    {builder.website && (
+                      <div className="flex items-center pt-2">
+                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
+                        <a 
+                          href={builder.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          Visit Project
+                        </a>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
-                      className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
-                    >
-                      {builder.name}
-                    </Link>
-                  </div>
-                </div>
-              </HoverCardTrigger>
-              <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-300">
-                    {builder.description || "No description available."}
-                  </p>
-                  {builder.website && (
-                    <div className="flex items-center pt-2">
-                      <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
-                      <a 
-                        href={builder.website} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                      >
-                        Visit Project
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-          </div>
-        ),
+                </HoverCardContent>
+              </HoverCard>
+            </div>
+          );
+        },
       },
       {
         id: "networks",
