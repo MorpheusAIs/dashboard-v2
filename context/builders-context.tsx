@@ -18,6 +18,7 @@ import { arbitrumSepolia } from 'wagmi/chains';
 import { useChainId } from 'wagmi';
 import { BuilderDB } from '@/app/lib/supabase';
 import { BuildersService } from '@/app/services/builders.service';
+import { formatTimePeriod } from "@/app/utils/time-utils";
 
 // Remove the NetworkEnvironment type and BuildersProviderProps interface
 interface BuildersContextType {
@@ -200,6 +201,10 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
         const safeTotal = isNaN(totalStaked) ? 0 : totalStaked;
         const safeStakingCount = subnet.stakingCount || 0;
         
+        // Format lock period from seconds to minutes/hours/days
+        const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
+        const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+        
         return {
           id: subnet.id,
           name: subnet.name,
@@ -210,7 +215,8 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
           network: subnet.network || 'Arbitrum Sepolia',
           totalStaked: safeTotal, // Use the safe value
           minDeposit: subnet.minDeposit || 0,
-          lockPeriod: subnet.lockPeriod || '',
+          lockPeriod: lockPeriodFormatted,
+          withdrawLockPeriodRaw: lockPeriodSeconds,
           stakingCount: safeStakingCount,
           website: subnet.website || '',
           // Use the direct image URL for testnet subnets if available
@@ -356,12 +362,16 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
           fetchPolicy: 'no-cache',
         });
         
+        console.log(`[Testnet] Received response with ${response.data.builderSubnets?.length || 0} subnets`);
+        
         // Map subnet data to project format
         combinedProjects = (response.data.builderSubnets || []).map((subnet: {
           id: string;
           name: string;
           owner: string;
           minStake: string;
+          fee: string;
+          feeTreasury: string;
           startsAt: string;
           totalClaimed: string;
           totalStaked: string;
@@ -370,70 +380,70 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
           maxClaimLockEnd: string;
           description: string;
           website: string;
+          slug: string; // May contain incorrect data, not using
           image?: string;
-          builderUsers?: { id: string; address: string; staked: string; claimed: string; }[];
+          builderUsers?: { 
+            id: string; 
+            address: string; 
+            staked: string; 
+            claimed: string;
+            claimLockEnd: string;
+            lastStake: string;
+          }[];
         }) => {
           // Convert Wei to ETH (divide by 10^18) - ensure it's a valid number
           const totalStakedRaw = subnet.totalStaked || '0';
           const totalStakedInMor = Number(totalStakedRaw) / 1e18;
-          const minStakeInEth = Number(subnet.minStake || '0') / 1e18;
+          const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
           
           // Get the correct staking count - from builderUsers array length or totalUsers
           const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
             ? subnet.builderUsers.length 
             : parseInt(subnet.totalUsers || '0', 10);
           
-          // Convert seconds to minutes for lock period and format
+          // Format lock period from seconds to minutes/hours/days
           const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
-          let lockPeriodFormatted = '';
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
           
-          if (lockPeriodSeconds >= 86400) {
-            // If >= 24 hours, show in days
-            const days = Math.floor(lockPeriodSeconds / 86400);
-            lockPeriodFormatted = `${days} day${days !== 1 ? 's' : ''}`;
-          } else if (lockPeriodSeconds >= 3600) {
-            // If >= 60 minutes, show in hours
-            const hours = Math.floor(lockPeriodSeconds / 3600);
-            lockPeriodFormatted = `${hours} hour${hours !== 1 ? 's' : ''}`;
-          } else {
-            // Show in minutes
-            const minutes = Math.floor(lockPeriodSeconds / 60);
-            lockPeriodFormatted = `${minutes} min`;
-          }
-          
-          console.log('Subnet data processing:', {
-            name: subnet.name,
-            totalStakedRaw,
-            totalStakedInMor,
-            stakingCount,
-            totalUsers: subnet.totalUsers,
-            builderUsersLength: subnet.builderUsers?.length
-          });
-          
+          // Map the testnet data structure to match what's expected by the rest of the app
           return {
             id: subnet.id,
-            name: subnet.name,
+            name: subnet.name, // Important - keep original name format with special chars
+            description: subnet.description || '',
+            // Add owner as admin for testnet subnets
             admin: subnet.owner,
-            minimalDeposit: subnet.minStake, // Keep original value for compatibility
-            startsAt: subnet.startsAt,
-            totalClaimed: subnet.totalClaimed,
-            totalStaked: subnet.totalStaked, // Keep original value for compatibility
-            totalUsers: subnet.totalUsers,
-            withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake,
-            claimLockEnd: subnet.maxClaimLockEnd,
-            // Additional fields with proper formatting
             networks: ['Arbitrum Sepolia'],
             network: 'Arbitrum Sepolia',
-            description: subnet.description,
-            website: subnet.website,
-            stakingCount: stakingCount, // Use calculated staking count
+            // Numeric values in the expected format
+            totalStaked: totalStakedInMor,
+            minDeposit: minStakeInMor,
+            minimalDeposit: subnet.minStake,
             lockPeriod: lockPeriodFormatted,
-            minDeposit: minStakeInEth, // Use converted ETH value
-            totalStakedFormatted: totalStakedInMor, // Store formatted value
-            image: subnet.image
+            withdrawLockPeriodRaw: lockPeriodSeconds,
+            stakingCount: stakingCount,
+            totalUsers: subnet.totalUsers,
+            // Other metadata
+            website: subnet.website || '',
+            image: subnet.image || '',
+            // For direct access consistency
+            totalStakedFormatted: totalStakedInMor,
+            // Include original fields for reference if needed
+            startsAt: subnet.startsAt,
+            withdrawLockPeriodAfterStake: subnet.withdrawLockPeriodAfterStake,
+            maxClaimLockEnd: subnet.maxClaimLockEnd,
+            // Convert builderUsers to the expected format
+            users: subnet.builderUsers?.map(user => ({
+              id: user.id,
+              address: user.address,
+              staked: user.staked,
+              claimed: user.claimed,
+              lastStake: user.lastStake,
+              claimLockEnd: user.claimLockEnd
+            })) || []
           };
         });
-        console.log('Fetched from Arbitrum Sepolia:', combinedProjects.length, 'projects');
+        
+        console.log(`[Testnet] Processed ${combinedProjects.length} subnets for display`);
       } else {
         // For mainnet, use existing logic with Supabase filtering
         if (!supabaseBuildersLoaded || supabaseBuilders.length === 0) {
@@ -489,21 +499,7 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
           
           // Format lock period from seconds to minutes/hours/days
           const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
-          let lockPeriodFormatted = '';
-          
-          if (lockPeriodSeconds >= 86400) {
-            // If >= 24 hours, show in days
-            const days = Math.floor(lockPeriodSeconds / 86400);
-            lockPeriodFormatted = `${Math.floor(days)} day${days !== 1 ? 's' : ''}`;
-          } else if (lockPeriodSeconds >= 3600) {
-            // If >= 60 minutes, show in hours
-            const hours = Math.floor(lockPeriodSeconds / 3600);
-            lockPeriodFormatted = `${Math.floor(hours)} hour${hours !== 1 ? 's' : ''}`;
-          } else {
-            // Show in minutes
-            const minutes = Math.floor(lockPeriodSeconds / 60);
-            lockPeriodFormatted = `${Math.floor(minutes)} min`;
-          }
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
           
           return {
             ...project,
@@ -525,21 +521,7 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
           
           // Format lock period from seconds to minutes/hours/days
           const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
-          let lockPeriodFormatted = '';
-          
-          if (lockPeriodSeconds >= 86400) {
-            // If >= 24 hours, show in days
-            const days = Math.floor(lockPeriodSeconds / 86400);
-            lockPeriodFormatted = `${Math.floor(days)} day${days !== 1 ? 's' : ''}`;
-          } else if (lockPeriodSeconds >= 3600) {
-            // If >= 60 minutes, show in hours
-            const hours = Math.floor(lockPeriodSeconds / 3600);
-            lockPeriodFormatted = `${Math.floor(hours)} hour${hours !== 1 ? 's' : ''}`;
-          } else {
-            // Show in minutes
-            const minutes = Math.floor(lockPeriodSeconds / 60);
-            lockPeriodFormatted = `${Math.floor(minutes)} min`;
-          }
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
           
           return {
             ...project,
