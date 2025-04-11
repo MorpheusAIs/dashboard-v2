@@ -64,7 +64,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
         });
       }
     }
-  }, [subnetName]); // Remove form from dependency array
+  }, [subnetName, form]); // Add form to dependency array
 
   // Function to validate image URL
   const validateImageUrl = (url: string) => {
