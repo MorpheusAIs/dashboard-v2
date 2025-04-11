@@ -82,7 +82,7 @@ export function useBuilderData({
 
           setData({
             buildersProjects: filteredData.buildersProjects,
-            userAccountBuildersProjects: filteredData.buildersUsers.map((user: BuilderUser) => user.buildersProject as BuilderProject),
+            userAccountBuildersProjects: filteredData.buildersUsers.map((user: BuilderUser) => user.builderSubnet as unknown as BuilderProject),
             isLoading: false,
             error: null
           });
@@ -104,7 +104,7 @@ export function useBuilderData({
 
           setData({
             buildersProjects: combinedData.buildersProjects,
-            userAccountBuildersProjects: combinedData.buildersUsers.map((user: BuilderUser) => user.buildersProject as BuilderProject),
+            userAccountBuildersProjects: combinedData.buildersUsers.map((user: BuilderUser) => user.builderSubnet as unknown as BuilderProject),
             buildersCounters: combinedData.counters[0],
             isLoading: false,
             error: null
