@@ -1,8 +1,10 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { GRAPHQL_ENDPOINTS, fetchGraphQL, getEndpointForNetwork } from "@/app/graphql/client";
+import { fetchGraphQL, getEndpointForNetwork } from "@/app/graphql/client";
 import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry } from "@/app/graphql/types";
-import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS } from "@/app/graphql/queries/builders";
+import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
+import { useChainId } from 'wagmi';
+import { arbitrumSepolia } from 'wagmi/chains';
 
 export interface StakingPaginationState {
   currentPage: number;
@@ -31,6 +33,32 @@ export interface UseStakingDataProps {
   queryFunction?: string;
   queryDocument?: string;
   isComputeProject?: boolean;
+  isTestnet?: boolean;
+}
+
+// Define types for testnet responses
+interface BuilderSubnetUser {
+  id: string;
+  address: string;
+  staked: string;
+  claimed: string;
+  claimLockEnd: string;
+  lastStake: string;
+}
+
+interface BuilderSubnet {
+  id: string;
+  name: string;
+  totalStaked: string;
+  totalUsers: string;
+  withdrawLockPeriodAfterStake: string;
+  minStake: string;
+  builderUsers?: BuilderSubnetUser[];
+}
+
+interface BuilderSubnetResponse {
+  builderSubnets?: BuilderSubnet[];
+  builderUsers?: BuilderSubnetUser[];
 }
 
 export function useStakingData({
@@ -45,7 +73,12 @@ export function useStakingData({
   queryFunction,
   queryDocument,
   isComputeProject = false,
+  isTestnet: providedIsTestnet,
 }: UseStakingDataProps) {
+  // Auto-detect testnet if not explicitly provided
+  const chainId = useChainId();
+  const isTestnet = providedIsTestnet !== undefined ? providedIsTestnet : chainId === arbitrumSepolia.id;
+  
   // Data fetching state
   const [entries, setEntries] = useState<StakingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,8 +117,71 @@ export function useStakingData({
         // Logic for compute project
         // Not implemented since we're using the existing subnet.id
         return null;
+      } else if (isTestnet) {
+        // Logic for testnet builders project
+        console.log(`[Testnet] Fetching builder subnet by name: ${name}`);
+        
+        const response = await fetchGraphQL<BuilderSubnetResponse>(
+          endpoint,
+          "getBuilderSubnetByName",
+          GET_BUILDER_SUBNET_BY_NAME,
+          { name }
+        );
+        
+        if (response.errors && response.errors.length > 0) {
+          throw new Error(response.errors[0].message);
+        }
+        
+        if (!response.data?.builderSubnets?.length) {
+          return null;
+        }
+        
+        const subnet = response.data.builderSubnets[0];
+        console.log(`[Testnet] Found subnet: ${subnet.name}, id: ${subnet.id}`);
+        
+        // Update total items count
+        if (subnet.totalUsers) {
+          setPagination(prev => ({
+            ...prev,
+            totalItems: parseInt(subnet.totalUsers),
+            totalPages: Math.max(1, Math.ceil(parseInt(subnet.totalUsers) / prev.pageSize))
+          }));
+        }
+        
+        // If the subnet already has builderUsers, we can pre-populate the entries
+        if (subnet.builderUsers && subnet.builderUsers.length > 0) {
+          console.log(`[Testnet] Subnet has ${subnet.builderUsers.length} users, prepopulating`);
+          
+          // Format the data using provided formatter or default
+          const formattedEntries = subnet.builderUsers.map((user: BuilderSubnetUser) => {
+            if (formatEntryFunc) {
+              return formatEntryFunc(user);
+            }
+            
+            // Default formatter
+            return {
+              address: user.address,
+              displayAddress: formatAddress(user.address),
+              amount: parseFloat(user.staked || '0') / 10**18,
+              timestamp: parseInt(user.lastStake || '0'),
+            };
+          });
+          
+          // Cache the entries for page 1
+          setCachedPages(prev => ({
+            ...prev,
+            1: formattedEntries
+          }));
+          
+          // Set entries if we're on page 1
+          if (pagination.currentPage === 1) {
+            setEntries(formattedEntries);
+          }
+        }
+        
+        return subnet.id;
       } else {
-        // Logic for builders project
+        // Logic for mainnet builders project
         const response = await fetchGraphQL<BuildersGraphQLResponse>(
           endpoint,
           "getBuildersProjectsByName",
@@ -118,7 +214,7 @@ export function useStakingData({
       setError(error instanceof Error ? error : new Error("Failed to fetch project ID"));
       return null;
     }
-  }, [network, isComputeProject]);
+  }, [network, isComputeProject, isTestnet, formatEntryFunc, formatAddress, pagination.currentPage, pagination.pageSize]);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -179,7 +275,8 @@ export function useStakingData({
         projectId: projectIdToUse,
         skip,
         first: pagination.pageSize,
-        isComputeProject
+        isComputeProject,
+        isTestnet
       });
       
       // Make the actual data query
@@ -235,8 +332,51 @@ export function useStakingData({
         }));
         
         setEntries(formattedEntries);
+      } else if (isTestnet) {
+        // Testnet builder subnet query
+        const response = await fetchGraphQL<BuilderSubnetResponse>(
+          endpoint,
+          queryFunction || "getBuilderSubnetUsers",
+          queryDocument || GET_BUILDER_SUBNET_USERS,
+          {
+            first: pagination.pageSize,
+            skip,
+            builderSubnetId: projectIdToUse
+          }
+        );
+        
+        if (!response.data) {
+          throw new Error("No data returned from API");
+        }
+        
+        console.log('[Testnet] Builder subnet users data received:', response);
+        
+        // Format the data using provided formatter or default
+        const formattedEntries = (response.data.builderUsers || []).map((user: BuilderSubnetUser) => {
+          if (formatEntryFunc) {
+            return formatEntryFunc(user);
+          }
+          
+          // Default formatter
+          return {
+            address: user.address,
+            displayAddress: formatAddress(user.address),
+            amount: parseFloat(user.staked || '0') / 10**18,
+            timestamp: parseInt(user.lastStake || '0'),
+          };
+        });
+        
+        console.log('[Testnet] Formatted entries:', formattedEntries);
+        
+        // Update cache and state
+        setCachedPages(prev => ({
+          ...prev,
+          [pagination.currentPage]: formattedEntries
+        }));
+        
+        setEntries(formattedEntries);
       } else {
-        // Builders project query
+        // Mainnet builders project query
         const response = await fetchGraphQL<BuildersGraphQLResponse>(
           endpoint,
           queryFunction || "getBuildersProjectUsers",
@@ -300,6 +440,7 @@ export function useStakingData({
     formatEntryFunc,
     formatAddress,
     isComputeProject,
+    isTestnet,
     fetchProjectIdByName,
     cachedPages
   ]);
