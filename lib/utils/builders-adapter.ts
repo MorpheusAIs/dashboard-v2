@@ -2,6 +2,7 @@
 
 import { BuilderProject } from '@/lib/types/graphql';
 import { Builder } from '@/app/builders/builders-data';
+import { formatTimePeriod } from '@/app/utils/time-utils';
 
 /**
  * Adapts the GraphQL BuilderProject data to the UI Builder format
@@ -32,23 +33,13 @@ export async function adaptBuilderProjectToUI(
   
   // Calculate lock period in days from seconds
   let lockPeriod: string | undefined = undefined;
+  let withdrawLockPeriodRaw: number | undefined = undefined;
+  
   if (project.withdrawLockPeriodAfterDeposit) {
-    const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit);
-    
-    if (lockPeriodSeconds >= 86400) {
-      // If >= 24 hours, show in days
-      const days = Math.floor(lockPeriodSeconds / 86400);
-      lockPeriod = `${days} day${days !== 1 ? 's' : ''}`;
-    } else if (lockPeriodSeconds >= 3600) {
-      // If >= 60 minutes, show in hours
-      const hours = Math.floor(lockPeriodSeconds / 3600);
-      lockPeriod = `${hours} hour${hours !== 1 ? 's' : ''}`;
-    } else {
-      // Show in minutes
-      const minutes = Math.floor(lockPeriodSeconds / 60);
-      lockPeriod = `${minutes} min`;
-    }
+    withdrawLockPeriodRaw = parseInt(project.withdrawLockPeriodAfterDeposit);
+    lockPeriod = formatTimePeriod(withdrawLockPeriodRaw);
   }
+  
   console.log(`Builder ${project.name} lockPeriod: ${lockPeriod} (raw: ${project.withdrawLockPeriodAfterDeposit})`);
   
   // Get networks from API data if available
@@ -103,6 +94,7 @@ export async function adaptBuilderProjectToUI(
     totalStaked,
     stakingCount,
     lockPeriod,
+    withdrawLockPeriodRaw,
     website,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
