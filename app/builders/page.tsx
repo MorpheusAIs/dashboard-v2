@@ -24,6 +24,7 @@ import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/
 import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
+import { builderNameToSlug } from "@/app/utils/supabase-utils";
 
 // Interfaces
 interface UserSubnet {
@@ -337,7 +338,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                        href={`/builders/${builderNameToSlug(builder.name)}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -706,7 +707,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`}
+                        href={`/builders/${builderNameToSlug(builder.name)}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -937,7 +938,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`;
+                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
                     }}
                   />
                 </div>
@@ -1033,7 +1034,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No participating builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builder.name.toLowerCase().replace(/\s+/g, '-')}`;
+                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
                     }}
                   />
                 </div>
