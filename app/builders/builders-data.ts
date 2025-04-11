@@ -4,6 +4,7 @@ export interface Builder extends BuilderDB {
   totalStaked: number;
   minimalDeposit?: string;
   withdrawLockPeriodAfterDeposit?: string;
+  withdrawLockPeriodRaw?: number;
   stakingCount?: number;
   userStake?: number;
   image?: string;
@@ -23,6 +24,7 @@ export const mergeBuilderData = (
     totalStaked?: number;
     minimalDeposit?: number;
     withdrawLockPeriodAfterDeposit?: number;
+    withdrawLockPeriodRaw?: number;
     stakingCount?: number;
     userStake?: number;
     lockPeriod?: string;
@@ -36,6 +38,7 @@ export const mergeBuilderData = (
     minimalDeposit: onChainData.minimalDeposit?.toString(),
     minDeposit: onChainData.minimalDeposit || 0,
     withdrawLockPeriodAfterDeposit: onChainData.withdrawLockPeriodAfterDeposit?.toString(),
+    withdrawLockPeriodRaw: onChainData.withdrawLockPeriodRaw,
     stakingCount: onChainData.stakingCount,
     userStake: onChainData.userStake,
     lockPeriod: onChainData.lockPeriod || '',
