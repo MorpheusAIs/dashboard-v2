@@ -10,8 +10,6 @@ import {
   BuilderProject, 
   BuildersCounter, 
   CombinedBuildersListFilteredByPredefinedBuildersResponse,
-  BuildersProject_OrderBy,
-  BuildersUser_OrderBy,
   OrderDirection
 } from '@/lib/types/graphql';
 import { Builder, mergeBuilderData } from '@/app/builders/builders-data';
@@ -386,8 +384,22 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
             : parseInt(subnet.totalUsers || '0', 10);
           
           // Convert seconds to minutes for lock period and format
-          const lockPeriodMinutes = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10) / 60;
-          const lockPeriodFormatted = `${lockPeriodMinutes} min`;
+          const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
+          let lockPeriodFormatted = '';
+          
+          if (lockPeriodSeconds >= 86400) {
+            // If >= 24 hours, show in days
+            const days = Math.floor(lockPeriodSeconds / 86400);
+            lockPeriodFormatted = `${days} day${days !== 1 ? 's' : ''}`;
+          } else if (lockPeriodSeconds >= 3600) {
+            // If >= 60 minutes, show in hours
+            const hours = Math.floor(lockPeriodSeconds / 3600);
+            lockPeriodFormatted = `${hours} hour${hours !== 1 ? 's' : ''}`;
+          } else {
+            // Show in minutes
+            const minutes = Math.floor(lockPeriodSeconds / 60);
+            lockPeriodFormatted = `${minutes} min`;
+          }
           
           console.log('Subnet data processing:', {
             name: subnet.name,
@@ -482,15 +494,15 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
           if (lockPeriodSeconds >= 86400) {
             // If >= 24 hours, show in days
             const days = Math.floor(lockPeriodSeconds / 86400);
-            lockPeriodFormatted = `${days} day${days !== 1 ? 's' : ''}`;
+            lockPeriodFormatted = `${Math.floor(days)} day${days !== 1 ? 's' : ''}`;
           } else if (lockPeriodSeconds >= 3600) {
             // If >= 60 minutes, show in hours
             const hours = Math.floor(lockPeriodSeconds / 3600);
-            lockPeriodFormatted = `${hours} hour${hours !== 1 ? 's' : ''}`;
+            lockPeriodFormatted = `${Math.floor(hours)} hour${hours !== 1 ? 's' : ''}`;
           } else {
             // Show in minutes
             const minutes = Math.floor(lockPeriodSeconds / 60);
-            lockPeriodFormatted = `${minutes} min`;
+            lockPeriodFormatted = `${Math.floor(minutes)} min`;
           }
           
           return {
@@ -518,15 +530,15 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
           if (lockPeriodSeconds >= 86400) {
             // If >= 24 hours, show in days
             const days = Math.floor(lockPeriodSeconds / 86400);
-            lockPeriodFormatted = `${days} day${days !== 1 ? 's' : ''}`;
+            lockPeriodFormatted = `${Math.floor(days)} day${days !== 1 ? 's' : ''}`;
           } else if (lockPeriodSeconds >= 3600) {
             // If >= 60 minutes, show in hours
             const hours = Math.floor(lockPeriodSeconds / 3600);
-            lockPeriodFormatted = `${hours} hour${hours !== 1 ? 's' : ''}`;
+            lockPeriodFormatted = `${Math.floor(hours)} hour${hours !== 1 ? 's' : ''}`;
           } else {
             // Show in minutes
             const minutes = Math.floor(lockPeriodSeconds / 60);
-            lockPeriodFormatted = `${minutes} min`;
+            lockPeriodFormatted = `${Math.floor(minutes)} min`;
           }
           
           return {

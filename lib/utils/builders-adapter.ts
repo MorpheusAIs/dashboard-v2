@@ -34,8 +34,20 @@ export async function adaptBuilderProjectToUI(
   let lockPeriod: string | undefined = undefined;
   if (project.withdrawLockPeriodAfterDeposit) {
     const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit);
-    const lockPeriodDays = Math.ceil(lockPeriodSeconds / (60 * 60 * 24));
-    lockPeriod = `${lockPeriodDays} days`;
+    
+    if (lockPeriodSeconds >= 86400) {
+      // If >= 24 hours, show in days
+      const days = Math.floor(lockPeriodSeconds / 86400);
+      lockPeriod = `${days} day${days !== 1 ? 's' : ''}`;
+    } else if (lockPeriodSeconds >= 3600) {
+      // If >= 60 minutes, show in hours
+      const hours = Math.floor(lockPeriodSeconds / 3600);
+      lockPeriod = `${hours} hour${hours !== 1 ? 's' : ''}`;
+    } else {
+      // Show in minutes
+      const minutes = Math.floor(lockPeriodSeconds / 60);
+      lockPeriod = `${minutes} min`;
+    }
   }
   console.log(`Builder ${project.name} lockPeriod: ${lockPeriod} (raw: ${project.withdrawLockPeriodAfterDeposit})`);
   
