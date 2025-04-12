@@ -236,7 +236,7 @@ export default function BuilderPage() {
       setUserStakedAmount(0);
       setTimeLeft("Not staked");
     }
-  }, [stakerData]);
+  }, [stakerData, timeLeft]);
   
   // Custom formatter function to handle timestamp and unlock date
   const formatStakingEntry = useCallback((user: BuildersUser) => {
