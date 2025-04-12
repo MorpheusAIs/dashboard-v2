@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Builder } from "../builders-data";
 import { formatUnits } from "viem";
 import { GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
-import { BuildersUser } from "@/app/graphql/types";
+import { BuildersUser, SubnetUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
 import { StakingPositionCard } from "@/components/staking/staking-position-card";
@@ -20,6 +20,9 @@ import { arbitrumSepolia } from 'wagmi/chains';
 import { MetricCard } from "@/components/metric-card";
 import { formatTimePeriod } from "@/app/utils/time-utils";
 import BuilderSubnetsAbi from '@/app/abi/BuilderSubnets.json';
+
+// Import BuilderSubnetUser type from our hooks
+import type { BuilderSubnetUser } from "@/hooks/use-staking-data";
 
 // Function to format a timestamp to date
 const formatDate = (timestamp: number): string => {
@@ -239,17 +242,25 @@ export default function BuilderPage() {
   }, [stakerData, timeLeft]);
   
   // Custom formatter function to handle timestamp and unlock date
-  const formatStakingEntry = useCallback((user: BuildersUser) => {
-    // Calculate unlock date using the withdraw lock period
-    const lastStakeTimestamp = parseInt(user.lastStake);
+  const formatStakingEntry = useCallback((user: BuildersUser | BuilderSubnetUser | SubnetUser) => {
+    // Safely access properties that might not exist on all user types
+    const address = user.address;
+    const staked = user.staked || '0';
+    
+    // Get lastStake timestamp - might exist on different properties depending on user type
+    let lastStakeTimestamp = 0;
+    if ('lastStake' in user) {
+      lastStakeTimestamp = typeof user.lastStake === 'string' ? parseInt(user.lastStake) : 0;
+    }
+    
     // Use the raw seconds from the builder object when available, otherwise use the default
     const builderLockPeriod = builder?.withdrawLockPeriodRaw || withdrawLockPeriod;
     const unlockDateTimestamp = lastStakeTimestamp + builderLockPeriod;
     
     return {
-      address: user.address,
-      displayAddress: `${user.address.substring(0, 6)}...${user.address.substring(user.address.length - 4)}`,
-      amount: formatMOR(user.staked),
+      address: address,
+      displayAddress: `${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+      amount: formatMOR(staked),
       timestamp: lastStakeTimestamp,
       unlockDate: unlockDateTimestamp
     };

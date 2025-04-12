@@ -5,12 +5,12 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCompute } from "@/context/compute-context";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
-import { SubnetUser } from "@/app/graphql/types";
+import { SubnetUser, BuildersUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
 import { StakingPositionCard } from "@/components/staking/staking-position-card";
 import { StakingTable } from "@/components/staking-table";
-import { useStakingData } from "@/hooks/use-staking-data";
+import { useStakingData, BuilderSubnetUser } from "@/hooks/use-staking-data";
 import Link from "next/link";
 
 // Format date from timestamp
@@ -46,13 +46,26 @@ export default function ComputeSubnetPage() {
   ) : null;
   
   // Format staking entries from subnet users
-  const formatStakingEntry = useCallback((user: SubnetUser) => {
+  const formatStakingEntry = useCallback((user: BuildersUser | BuilderSubnetUser | SubnetUser) => {
+    // Type guard to check if this is a SubnetUser (it should have __typename and claimed properties)
+    if ('__typename' in user && 'claimed' in user) {
+      // This is a SubnetUser object
+      return {
+        address: user.address,
+        displayAddress: formatAddress(user.address),
+        amount: parseFloat(user.staked || '0') / 10**18,
+        claimed: parseFloat(user.claimed || '0') / 10**18,
+        fee: subnet?.fee || 90, // Use subnet fee or default to 90%
+      };
+    }
+    
+    // For other user types, create a basic entry with defaults
     return {
       address: user.address,
       displayAddress: formatAddress(user.address),
-      amount: parseFloat(user.staked) / 10**18,
-      claimed: parseFloat(user.claimed) / 10**18,
-      fee: subnet?.fee || 90, // Use subnet fee or default to 90%
+      amount: parseFloat(user.staked || '0') / 10**18,
+      timestamp: 'lastStake' in user ? parseInt(user.lastStake || '0') : 0,
+      fee: subnet?.fee || 90,
     };
   }, [subnet?.fee]);
   
