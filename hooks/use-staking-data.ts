@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { fetchGraphQL, getEndpointForNetwork } from "@/app/graphql/client";
-import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry } from "@/app/graphql/types";
+import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry, BuildersUser, SubnetUser } from "@/app/graphql/types";
 import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
 import { useChainId } from 'wagmi';
@@ -28,7 +28,7 @@ export interface UseStakingDataProps {
     direction: 'asc' | 'desc';
   };
   formatAddressFunc?: (address: string) => string;
-  formatEntryFunc?: (entry: any) => StakingEntry;
+  formatEntryFunc?: (entry: BuilderSubnetUser | BuildersUser | SubnetUser) => StakingEntry;
   queryEndpoint?: string;
   queryFunction?: string;
   queryDocument?: string;
@@ -56,9 +56,16 @@ interface BuilderSubnet {
   builderUsers?: BuilderSubnetUser[];
 }
 
-interface BuilderSubnetResponse {
+// Data structure returned inside the data property
+interface BuilderSubnetResponseData {
   builderSubnets?: BuilderSubnet[];
   builderUsers?: BuilderSubnetUser[];
+}
+
+// Full GraphQL response structure for subnet queries, matches other response interfaces
+interface BuilderSubnetResponse {
+  data: BuilderSubnetResponseData;
+  errors?: Array<{ message: string }>;
 }
 
 export function useStakingData({
@@ -132,7 +139,7 @@ export function useStakingData({
           throw new Error(response.errors[0].message);
         }
         
-        if (!response.data?.builderSubnets?.length) {
+        if (!response.data.builderSubnets?.length) {
           return null;
         }
         
@@ -352,7 +359,7 @@ export function useStakingData({
         console.log('[Testnet] Builder subnet users data received:', response);
         
         // Format the data using provided formatter or default
-        const formattedEntries = (response.data.builderUsers || []).map((user: BuilderSubnetUser) => {
+        const formattedEntries = (response.data?.builderUsers || []).map((user: BuilderSubnetUser) => {
           if (formatEntryFunc) {
             return formatEntryFunc(user);
           }
