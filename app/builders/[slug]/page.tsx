@@ -21,8 +21,15 @@ import { MetricCard } from "@/components/metric-card";
 import { formatTimePeriod } from "@/app/utils/time-utils";
 import BuilderSubnetsAbi from '@/app/abi/BuilderSubnets.json';
 
-// Import BuilderSubnetUser type from our hooks
-import type { BuilderSubnetUser } from "@/hooks/use-staking-data";
+// Define the type here instead of importing it
+interface BuilderSubnetUser {
+  id: string;
+  address: string;
+  staked: string;
+  claimed: string;
+  claimLockEnd: string;
+  lastStake: string;
+}
 
 // Function to format a timestamp to date
 const formatDate = (timestamp: number): string => {

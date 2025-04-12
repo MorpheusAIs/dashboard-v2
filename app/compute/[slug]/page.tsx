@@ -10,8 +10,18 @@ import { ProjectHeader } from "@/components/staking/project-header";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
 import { StakingPositionCard } from "@/components/staking/staking-position-card";
 import { StakingTable } from "@/components/staking-table";
-import { useStakingData, BuilderSubnetUser } from "@/hooks/use-staking-data";
+import { useStakingData } from "@/hooks/use-staking-data";
 import Link from "next/link";
+
+// Define the type here instead of importing it
+interface BuilderSubnetUser {
+  id: string;
+  address: string;
+  staked: string;
+  claimed: string;
+  claimLockEnd: string;
+  lastStake: string;
+}
 
 // Format date from timestamp
 const formatDate = (timestamp: string): string => {
