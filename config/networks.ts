@@ -105,7 +105,7 @@ export const testnetChains: Record<string, ChainConfig> = {
       morToken: toContract('0x34a285A1B1C166420Df5b6630132542923B5b27E'),
       l2Factory: toContract('0x3199555a4552848D522cf3D04bb1fE4C512a5d3B'),
       subnetFactory: toContract('0xa41178368f393a224b990779baa9b5855759d45d'),
-      builders: toContract('0x649B24D0b6F5A4c3852fD4C0dD91308902E5fe8a')
+      builders: toContract('0x5271B2FE76303ca7DDCB8Fb6fA77906E2B4f03C7')
     },
     isL2: true,
     layerZeroEndpointId: 10231,

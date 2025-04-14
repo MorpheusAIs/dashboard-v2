@@ -14,16 +14,7 @@ export const ArbitrumSepoliaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (pro
 
 // Define supported chains for this form
 export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
-  [arbitrumSepolia.id]: {
-    ...testnetChains.arbitrumSepolia,
-    contracts: {
-      ...testnetChains.arbitrumSepolia.contracts,
-      builders: {
-        ...testnetChains.arbitrumSepolia.contracts?.builders,
-        address: "0x5271B2FE76303ca7DDCB8Fb6fA77906E2B4f03C7" as Address
-      }
-    }
-  }
+  [arbitrumSepolia.id]: testnetChains.arbitrumSepolia
 };
 
 // Fallback MOR token address on Arbitrum Sepolia
