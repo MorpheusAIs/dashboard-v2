@@ -8,12 +8,12 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 
 export interface StakingFormCardProps {
   title?: string;
   description?: string;
   onStake: (amount: string) => void;
+  onAmountChange?: (amount: string) => void;
   buttonText?: string;
   minAmount?: number;
   maxAmount?: number;
@@ -24,8 +24,9 @@ export interface StakingFormCardProps {
 
 export function StakingFormCard({
   title = "Stake MOR",
-  description = "Stake MOR to support this project",
+  description = "",
   onStake,
+  onAmountChange,
   buttonText = "Stake MOR",
   minAmount,
   maxAmount,
@@ -40,10 +41,17 @@ export function StakingFormCard({
     const amount = parseFloat(stakeAmount);
     if (isNaN(amount) || amount <= 0) return false;
     
+    // Skip minimum validation if minAmount is undefined
     if (minAmount !== undefined && amount < minAmount) return false;
     if (maxAmount !== undefined && amount > maxAmount) return false;
     
     return true;
+  };
+  
+  // New: Check if the amount is just positive for approval
+  const hasPositiveAmount = () => {
+    const amount = parseFloat(stakeAmount);
+    return !isNaN(amount) && amount > 0;
   };
   
   // Show warning based on logic or explicit flag
@@ -53,9 +61,55 @@ export function StakingFormCard({
   );
 
   const handleStake = () => {
-    if (isAmountValid()) {
+    // Allow approval with any positive amount
+    if (buttonText?.toLowerCase().includes('approve') && hasPositiveAmount()) {
+      console.log("Calling onStake for approval with amount:", stakeAmount);
       onStake(stakeAmount);
+    } 
+    // For staking, require valid amount per requirements
+    else if (isAmountValid()) {
+      console.log("Calling onStake for staking with amount:", stakeAmount);
+      onStake(stakeAmount);
+    } else {
+      console.log("Amount validation failed:", {
+        amount: stakeAmount,
+        parsedAmount: parseFloat(stakeAmount),
+        minAmount,
+        maxAmount,
+        isPositive: hasPositiveAmount(),
+        isValid: isAmountValid()
+      });
     }
+  };
+  
+  // Handle amount change with validation and callback
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Get the value from the input
+    let newAmount = e.target.value;
+    
+    // Prevent negative values (input min attribute should handle this,
+    // but this is a backup for manual entry or browsers that don't respect min)
+    if (parseFloat(newAmount) < 0) {
+      newAmount = "0";
+    }
+    
+    setStakeAmount(newAmount);
+    if (onAmountChange) {
+      onAmountChange(newAmount);
+    }
+  };
+
+  // Determine button class
+  const getButtonClass = () => {
+    const baseClass = "w-full copy-button-base";
+    
+    // If button text contains "approve", use white background with black text
+    if (buttonText?.toLowerCase().includes('approve')) {
+      return `${baseClass} bg-white text-black hover:bg-white/90`;
+    }
+    
+    // For stake actions, use primary style
+    return `${baseClass} copy-button`;
   };
 
   return (
@@ -71,10 +125,11 @@ export function StakingFormCard({
             <Input
               id="stake-amount"
               type="number"
+              min="0"
+              step="any"
               placeholder="Enter MOR amount"
               value={stakeAmount}
-              onChange={(e) => setStakeAmount(e.target.value)}
-              disabled={disableStaking}
+              onChange={handleAmountChange}
             />
           </div>
           
@@ -84,19 +139,19 @@ export function StakingFormCard({
             </div>
           )}
           
-          {minAmount !== undefined && (
-            <div className="text-xs text-gray-400">
-              Minimum stake: {minAmount.toLocaleString()} MOR
-            </div>
-          )}
-          
-          <Button 
+          <button 
             onClick={handleStake}
-            className="w-full"
-            disabled={disableStaking || !isAmountValid()}
+            className={getButtonClass()}
+            disabled={
+              disableStaking || 
+              // For approval buttons, only require a positive amount
+              (buttonText?.toLowerCase().includes('approve') 
+                ? !hasPositiveAmount() 
+                : !isAmountValid())
+            }
           >
             {buttonText}
-          </Button>
+          </button>
         </div>
       </CardContent>
     </Card>
