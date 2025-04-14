@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Builder } from "../builders-data";
 import { formatUnits } from "viem";
@@ -195,7 +195,9 @@ export default function BuilderPage() {
   }, [slug, builders, buildersProjects, isTestnet]);
 
   // Use the networks from the builder data
-  const networksToDisplay = builder?.networks || (isTestnet ? ['Arbitrum Sepolia'] : ['Base']); 
+  const networksToDisplay = useMemo(() => {
+    return builder?.networks || (isTestnet ? ['Arbitrum Sepolia'] : ['Base']);
+  }, [builder, isTestnet]);
   
   // Get contract address from configuration
   const contractAddress = isTestnet 

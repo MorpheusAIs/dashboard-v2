@@ -19,7 +19,7 @@ export function MORBalance() {
   const chainId = useChainId()
 
   const { data: arbitrumBalance } = useReadContract({
-    address: morTokenContracts[42161],
+    address: morTokenContracts[42161] as `0x${string}`,
     abi: MOR_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -28,7 +28,7 @@ export function MORBalance() {
   })
 
   const { data: baseBalance } = useReadContract({
-    address: morTokenContracts[8453],
+    address: morTokenContracts[8453] as `0x${string}`,
     abi: MOR_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
@@ -37,7 +37,7 @@ export function MORBalance() {
   })
 
   const { data: arbitrumSepoliaBalance } = useReadContract({
-    address: morTokenContracts[421614],
+    address: morTokenContracts[421614] as `0x${string}`,
     abi: MOR_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
