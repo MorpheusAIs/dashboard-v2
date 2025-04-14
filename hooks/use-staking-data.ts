@@ -37,7 +37,7 @@ export interface UseStakingDataProps {
 }
 
 // Define types for testnet responses
-interface BuilderSubnetUser {
+export interface BuilderSubnetUser {
   id: string;
   address: string;
   staked: string;
@@ -465,12 +465,17 @@ export function useStakingData({
   // Initial data fetching - only run once on mount
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array to run only once
 
   // Handle pagination and sorting changes
   useEffect(() => {
     // Don't fetch on initial mount since we already do that in the effect above
-    const shouldFetch = id !== null || projectName !== undefined;
+    const shouldFetch = (id !== null || projectName !== undefined) && 
+                        (pagination.currentPage > 1 || // Only if not first page
+                        sorting.column !== initialSort.column || // Or if sort changed
+                        sorting.direction !== initialSort.direction); // Or if direction changed
+    
     if (shouldFetch) {
       fetchData();
     }
@@ -478,8 +483,9 @@ export function useStakingData({
     pagination.currentPage,
     pagination.pageSize,
     sorting.column,
-    sorting.direction,
-    fetchData
+    sorting.direction
+    // Remove fetchData from dependencies to prevent re-fetching
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   // Sorting handler

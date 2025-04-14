@@ -1,4 +1,6 @@
 // Builder contract ABI (simplified for our needs)
+import { testnetChains, mainnetChains } from '@/config/networks';
+
 export const buildersAbi = [
   {
     "inputs": [
@@ -47,24 +49,24 @@ export const buildersAbi = [
   }
 ];
 
-// Contract addresses by chain ID
+// Contract addresses by chain ID - derived from networks.ts for single source of truth
 export const builderContracts = {
   // Arbitrum
-  42161: '0xC0eD68f163d44B6e9985F0041fDf6f67c6BCFF3f',
+  42161: mainnetChains.arbitrum.contracts?.builders?.address || '',
   // Base
-  8453: '0x42BB446eAE6dca7723a9eBdb81EA88aFe77eF4B9',
+  8453: mainnetChains.base.contracts?.builders?.address || '',
   // Arbitrum Sepolia (testnet)
-  421614: '0x5271B2FE76303ca7DDCB8Fb6fA77906E2B4f03C7',
+  421614: testnetChains.arbitrumSepolia.contracts?.builders?.address || '',
 };
 
-// MOR token addresses by chain ID
+// MOR token addresses by chain ID - derived from networks.ts for single source of truth
 export const morTokenContracts = {
   // Arbitrum
-  42161: '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86',
+  42161: mainnetChains.arbitrum.contracts?.morToken?.address || '',
   // Base
-  8453: '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86',
+  8453: mainnetChains.base.contracts?.morToken?.address || '',
   // Arbitrum Sepolia (testnet)
-  421614: '0x34a285A1B1C166420Df5b6630132542923B5b27E',
+  421614: testnetChains.arbitrumSepolia.contracts?.morToken?.address || '',
 } as const;
 
 // Helper to convert days to seconds

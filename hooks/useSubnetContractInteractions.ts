@@ -7,7 +7,7 @@ import { useNetwork } from "@/context/network-context";
 import { getUnixTime } from "date-fns";
 
 // Import the ABIs
-import BuilderSubnetsAbi from '@/app/abi/BuilderSubnets.json';
+import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
 import ERC20Abi from '@/app/abi/ERC20.json';
 
 // Import constants
@@ -71,7 +71,7 @@ export const useSubnetContractInteractions = ({
   // Contract Read Hooks
   const { data: morTokenAddressData, isFetching: isFetchingToken } = useReadContract({
     address: builderContractAddress,
-    abi: BuilderSubnetsAbi,
+    abi: BuilderSubnetsV2Abi,
     functionName: 'token',
     chainId: selectedChainId,
     query: {
@@ -414,7 +414,7 @@ export const useSubnetContractInteractions = ({
       // Try the transaction without specifying gas to let the estimator work
       writeContract({
         address: builderContractAddress,
-        abi: BuilderSubnetsAbi,
+        abi: BuilderSubnetsV2Abi,
         functionName: 'createSubnet',
         args: [subnet, metadata],
         chainId: selectedChainId,
