@@ -19,7 +19,10 @@ import { useChainId, useAccount, useReadContract } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 import { MetricCard } from "@/components/metric-card";
 import { formatTimePeriod } from "@/app/utils/time-utils";
-import BuilderSubnetsAbi from '@/app/abi/BuilderSubnets.json';
+import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
+import { useStakingContractInteractions } from "@/hooks/useStakingContractInteractions";
+import { formatEther } from "viem";
+import { testnetChains, mainnetChains } from '@/config/networks';
 
 // Define the type here instead of importing it
 interface BuilderSubnetUser {
@@ -54,11 +57,12 @@ const getExplorerUrl = (address: string, network?: string): string => {
     : `https://basescan.org/address/${address}`;
 };
 
-// Contract addresses for different networks
-const CONTRACT_ADDRESSES = {
-  'Arbitrum Sepolia': '0x6C9427E8d770Ad9e5a493D201280Cc178125CEc0',
-  'Base': '0x0000000000000000000000000000000000000000' // Replace with actual mainnet address when available
-};
+// // Get correct contract addresses from configuration
+// const getContractAddress = (isTestnet: boolean, networkName: string): string | undefined => {
+//   const configs = isTestnet ? testnetChains : mainnetChains;
+//   const config = configs[networkName.toLowerCase().replace(' ', '')];
+//   return config?.contracts?.builders?.address;
+// };
 
 export default function BuilderPage() {
   const { slug } = useParams();
@@ -73,6 +77,7 @@ export default function BuilderPage() {
   const refreshRef = useRef(false); // Add a ref to track if refresh has been called
   const [builder, setBuilder] = useState<Builder | null>(null);
   const [subnetId, setSubnetId] = useState<`0x${string}` | null>(null);
+  const [stakeAmount, setStakeAmount] = useState<string>("");
   
   // Find the builder from the context using the slug
   useEffect(() => {
@@ -192,13 +197,29 @@ export default function BuilderPage() {
   // Use the networks from the builder data
   const networksToDisplay = builder?.networks || (isTestnet ? ['Arbitrum Sepolia'] : ['Base']); 
   
-  // Get contract address based on network
-  const contractAddress = networksToDisplay[0] ? CONTRACT_ADDRESSES[networksToDisplay[0] as keyof typeof CONTRACT_ADDRESSES] : undefined;
+  // Get contract address from configuration
+  const contractAddress = isTestnet 
+    ? testnetChains.arbitrumSepolia.contracts?.builders?.address as `0x${string}` | undefined
+    : mainnetChains.base.contracts?.builders?.address as `0x${string}` | undefined;
+  
+  // Log the addresses for debugging
+  useEffect(() => {
+    console.log("Network information:", {
+      chainId,
+      isTestnet,
+      networksToDisplay,
+      contractAddress,
+      testnetBuildersAddress: testnetChains.arbitrumSepolia.contracts?.builders?.address,
+      testnetTokenAddress: testnetChains.arbitrumSepolia.contracts?.morToken?.address,
+      mainnetBuildersAddress: mainnetChains.base.contracts?.builders?.address,
+      mainnetTokenAddress: mainnetChains.base.contracts?.morToken?.address,
+    });
+  }, [chainId, isTestnet, networksToDisplay, contractAddress]);
   
   // Get staker information from the contract
   const { data: stakerData } = useReadContract({
     address: contractAddress as `0x${string}`,
-    abi: BuilderSubnetsAbi,
+    abi: BuilderSubnetsV2Abi,
     functionName: 'stakers',
     args: subnetId && userAddress ? [subnetId, userAddress] : undefined,
     query: {
@@ -302,13 +323,55 @@ export default function BuilderPage() {
     }
   }, [builder?.name, refresh, slug]);
   
+  // Staking hook
+  const {
+    isCorrectNetwork,
+    tokenSymbol,
+    tokenBalance,
+    needsApproval,
+    isApproving,
+    isStaking,
+    isSubmitting,
+    handleNetworkSwitch,
+    handleApprove,
+    handleStake,
+    checkAndUpdateApprovalNeeded
+  } = useStakingContractInteractions({
+    subnetId: subnetId || undefined,
+    networkChainId: chainId,
+    lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
+    onTxSuccess: () => {
+      // Refresh data after successful transaction
+      setStakeAmount("");
+    }
+  });
+
+  // Check if approval is needed when stake amount changes
+  useEffect(() => {
+    if (stakeAmount && parseFloat(stakeAmount) > 0) {
+      checkAndUpdateApprovalNeeded(stakeAmount);
+    }
+  }, [stakeAmount, checkAndUpdateApprovalNeeded]);
+
   // Handlers for staking actions
-  const handleStake = (amount: string) => {
-    console.log("Staking:", amount);
+  const onStakeSubmit = async () => {
+    // If not on the correct network, switch first
+    if (!isCorrectNetwork()) {
+      await handleNetworkSwitch();
+      return; // Exit after network switch to prevent further action
+    }
+
+    // Already on correct network, handle staking
+    if (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0) {
+      await handleApprove(stakeAmount);
+    } else if (stakeAmount && parseFloat(stakeAmount) > 0) {
+      await handleStake(stakeAmount);
+    }
   };
 
-  const handleWithdraw = (amount: string) => {
+  const onWithdrawSubmit = async (amount: string) => {
     console.log("Withdrawing:", amount);
+    // Withdraw implementation will be added in a future update
   };
 
   if (isLoadingBuilders) {
@@ -399,9 +462,37 @@ export default function BuilderPage() {
           <div className="relative">
             <StakingFormCard
               title="Stake MOR"
-              description=""
-              onStake={handleStake}
-              minAmount={builder.minDeposit || 1000}
+              // description={isLoadingData 
+              //   ? "Loading staking data..." 
+              //   : allowance && allowance > BigInt(0)
+              //     ? `Available balance: ${tokenBalance ? parseFloat(formatEther(tokenBalance)).toFixed(2) : '0'} ${tokenSymbol} (Approved: ${formatEther(allowance)} ${tokenSymbol})` 
+              //     : `Available balance: ${tokenBalance ? parseFloat(formatEther(tokenBalance)).toFixed(2) : '0'} ${tokenSymbol}`
+              // }
+              onStake={onStakeSubmit}
+              onAmountChange={(value) => setStakeAmount(value)}
+              maxAmount={tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0}
+              buttonText={
+                !isCorrectNetwork()
+                  ? "Switch Network"
+                  : isStaking
+                  ? "Staking..."
+                  : isApproving
+                  ? "Approving..."
+                  : needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
+                  ? `Approve ${tokenSymbol}`
+                  : `Stake ${tokenSymbol}`
+              }
+              disableStaking={isSubmitting}
+              showWarning={
+                !isCorrectNetwork() 
+                  ? true 
+                  : needsApproval && !!stakeAmount && parseFloat(stakeAmount) > 0
+              }
+              warningMessage={
+                !isCorrectNetwork() 
+                  ? `Please switch to ${networksToDisplay[0]} network to stake` 
+                  : `You need to approve ${tokenSymbol} spending first`
+              }
             />
             <GlowingEffect 
               spread={40}
@@ -419,7 +510,7 @@ export default function BuilderPage() {
             <StakingPositionCard
               userStakedAmount={userStakedAmount || 0}
               timeUntilUnlock={timeLeft}
-              onWithdraw={handleWithdraw}
+              onWithdraw={onWithdrawSubmit}
               disableWithdraw={!userStakedAmount || timeLeft !== "Unlocked"}
             />
             <GlowingEffect 
