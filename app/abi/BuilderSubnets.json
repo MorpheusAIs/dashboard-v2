@@ -1,1378 +1,754 @@
-[{
-  "inputs": [],
-  "stateMutability": "nonpayable",
-  "type": "constructor"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "address",
-    "name": "previousAdmin",
-    "type": "address"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "newAdmin",
-    "type": "address"
-  }],
-  "name": "AdminChanged",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "address",
-    "name": "beacon",
-    "type": "address"
-  }],
-  "name": "BeaconUpgraded",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "components": [{
-      "internalType": "uint256",
-      "name": "initialAmount",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "decreaseAmount",
-      "type": "uint256"
-    }, {
-      "internalType": "uint128",
-      "name": "payoutStart",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "interval",
-      "type": "uint128"
-    }],
-    "indexed": false,
-    "internalType": "struct IBuilderSubnets.BuildersRewardPoolData",
-    "name": "buildersRewardPoolData",
-    "type": "tuple"
-  }],
-  "name": "BuildersRewardPoolDataSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "stakerAddress",
-    "type": "address"
-  }, {
-    "components": [{
-      "internalType": "uint256",
-      "name": "staked",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "virtualStaked",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "pendingRewards",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "rate",
-      "type": "uint256"
-    }, {
-      "internalType": "uint128",
-      "name": "lastStake",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "claimLockEnd",
-      "type": "uint128"
-    }],
-    "indexed": false,
-    "internalType": "struct IBuilderSubnets.Staker",
-    "name": "staker",
-    "type": "tuple"
-  }, {
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "amount",
-    "type": "uint256"
-  }],
-  "name": "Claimed",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "address",
-    "name": "feeConfig",
-    "type": "address"
-  }],
-  "name": "FeeConfigSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "stakerAddress",
-    "type": "address"
-  }, {
-    "indexed": false,
-    "internalType": "uint256",
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "BidCannotBeCreatedDuringThisPeriod",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAmountIsZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidEndpointLength",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "current",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "max",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidFee",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidFeeTreasuryAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNameLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProviderDeregistered",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "staker",
+        "type": "address"
+      }
+    ],
+    "name": "RestakeDisabled",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "staker",
+        "type": "address"
+      }
+    ],
+    "name": "RestakeInvalidCaller",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "StakeClosed",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "staker",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "claimed",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "rate",
+        "type": "uint256"
+      }
+    ],
+    "name": "Claimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "endpoint",
+        "type": "string"
+      }
+    ],
+    "name": "EndpointUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "feeTreasury",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "feeAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeeClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "feeTreasury",
+        "type": "address"
+      }
+    ],
+    "name": "FeeTreasuryUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "staker",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isRestakeDisabled",
+        "type": "bool"
+      }
+    ],
+    "name": "IsRestakeDisabledUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "isStakeClosed",
+        "type": "bool"
+      }
+    ],
+    "name": "IsStakeClosedUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      }
+    ],
+    "name": "NameUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "staker",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "staked",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalStaked",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "rate",
+        "type": "uint256"
+      }
+    ],
+    "name": "Staked",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "lumerinDiamond_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "feeTreasury_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "fee_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "name_",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "endpoint_",
+        "type": "string"
+      },
+      {
+        "internalType": "uint128",
+        "name": "deregistrationOpensAt_",
+        "type": "uint128"
+      }
+    ],
+    "name": "ProvidersDelegate_init",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "staker_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount_",
+        "type": "uint256"
+      }
+    ],
+    "name": "claim",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32[]",
+        "name": "bidIds_",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "deleteModelBids",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "deregistrationOpensAt",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "endpoint",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "fee",
-    "type": "uint256"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "treasury",
-    "type": "address"
-  }],
-  "name": "FeePaid",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "uint8",
-    "name": "version",
-    "type": "uint8"
-  }],
-  "name": "Initialized",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "bool",
-    "name": "isMigrationOver",
-    "type": "bool"
-  }],
-  "name": "IsMigrationOverSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "maxStakedShareForBuildersPool",
-    "type": "uint256"
-  }],
-  "name": "MaxStakedShareForBuildersPoolSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "minWithdrawLockPeriodAfterStake",
-    "type": "uint256"
-  }],
-  "name": "MinimalWithdrawLockPeriodSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "address",
-    "name": "previousOwner",
-    "type": "address"
-  }, {
-    "indexed": true,
-    "internalType": "address",
-    "name": "newOwner",
-    "type": "address"
-  }],
-  "name": "OwnershipTransferred",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "stakerAddress",
-    "type": "address"
-  }],
-  "name": "PowerFactorReset",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "uint128",
-    "name": "rewardCalculationStartsAt",
-    "type": "uint128"
-  }],
-  "name": "RewardCalculationStartsAtSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "uint128",
-    "name": "to",
-    "type": "uint128"
-  }],
-  "name": "RewardsCollected",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "rewards",
-    "type": "uint256"
-  }],
-  "name": "RewardsNotDistributed",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "stakerAddress",
-    "type": "address"
-  }, {
-    "components": [{
-      "internalType": "uint256",
-      "name": "staked",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "virtualStaked",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "pendingRewards",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "rate",
-      "type": "uint256"
-    }, {
-      "internalType": "uint128",
-      "name": "lastStake",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "claimLockEnd",
-      "type": "uint128"
-    }],
-    "indexed": false,
-    "internalType": "struct IBuilderSubnets.Staker",
-    "name": "staker",
-    "type": "tuple"
-  }],
-  "name": "Staked",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "amount",
-    "type": "uint256"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "treasury",
-    "type": "address"
-  }],
-  "name": "SubnetCreationFeeSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "components": [{
-      "internalType": "string",
-      "name": "name",
-      "type": "string"
-    }, {
-      "internalType": "address",
-      "name": "owner",
-      "type": "address"
-    }, {
-      "internalType": "uint256",
-      "name": "minStake",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "fee",
-      "type": "uint256"
-    }, {
-      "internalType": "address",
-      "name": "feeTreasury",
-      "type": "address"
-    }, {
-      "internalType": "uint128",
-      "name": "startsAt",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "withdrawLockPeriodAfterStake",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "maxClaimLockEnd",
-      "type": "uint128"
-    }],
-    "indexed": false,
-    "internalType": "struct IBuilderSubnets.Subnet",
-    "name": "subnet",
-    "type": "tuple"
-  }],
-  "name": "SubnetEdited",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "oldValue",
-    "type": "address"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "newValue",
-    "type": "address"
-  }],
-  "name": "SubnetFeeTreasurySet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "uint128",
-    "name": "oldValue",
-    "type": "uint128"
-  }, {
-    "indexed": false,
-    "internalType": "uint128",
-    "name": "newValue",
-    "type": "uint128"
-  }],
-  "name": "SubnetMaxClaimLockEndSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "components": [{
-      "internalType": "string",
-      "name": "slug",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "description",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "website",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "image",
-      "type": "string"
-    }],
-    "indexed": false,
-    "internalType": "struct IBuilderSubnets.SubnetMetadata",
-    "name": "subnetMetadata",
-    "type": "tuple"
-  }],
-  "name": "SubnetMetadataEdited",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "oldValue",
-    "type": "uint256"
-  }, {
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "newValue",
-    "type": "uint256"
-  }],
-  "name": "SubnetMinStakeSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "oldValue",
-    "type": "address"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "newValue",
-    "type": "address"
-  }],
-  "name": "SubnetOwnerSet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": false,
-    "internalType": "address",
-    "name": "treasury",
-    "type": "address"
-  }],
-  "name": "TreasurySet",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "address",
-    "name": "implementation",
-    "type": "address"
-  }],
-  "name": "Upgraded",
-  "type": "event"
-}, {
-  "anonymous": false,
-  "inputs": [{
-    "indexed": true,
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "indexed": false,
-    "internalType": "address",
-    "name": "stakerAddress",
-    "type": "address"
-  }, {
-    "components": [{
-      "internalType": "uint256",
-      "name": "staked",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "virtualStaked",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "pendingRewards",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "rate",
-      "type": "uint256"
-    }, {
-      "internalType": "uint128",
-      "name": "lastStake",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "claimLockEnd",
-      "type": "uint128"
-    }],
-    "indexed": false,
-    "internalType": "struct IBuilderSubnets.Staker",
-    "name": "staker",
-    "type": "tuple"
-  }, {
-    "indexed": false,
-    "internalType": "uint256",
-    "name": "amount",
-    "type": "uint256"
-  }],
-  "name": "Withdrawn",
-  "type": "event"
-}, {
-  "inputs": [{
-    "internalType": "address",
-    "name": "token_",
-    "type": "address"
-  }, {
-    "internalType": "address",
-    "name": "feeConfig_",
-    "type": "address"
-  }, {
-    "internalType": "address",
-    "name": "treasury_",
-    "type": "address"
-  }, {
-    "internalType": "uint256",
-    "name": "minWithdrawLockPeriodAfterStake_",
-    "type": "uint256"
-  }, {
-    "internalType": "address",
-    "name": "buildersV3_",
-    "type": "address"
-  }],
-  "name": "BuilderSubnets_init",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "FEE_CLAIM_OPERATION",
-  "outputs": [{
-    "internalType": "bytes32",
-    "name": "",
-    "type": "bytes32"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "FEE_WITHDRAW_OPERATION",
-  "outputs": [{
-    "internalType": "bytes32",
-    "name": "",
-    "type": "bytes32"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "allSubnetsData",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "staked",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "virtualStaked",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "rate",
-    "type": "uint256"
-  }, {
-    "internalType": "uint128",
-    "name": "lastCalculatedTimestamp",
-    "type": "uint128"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "buildersRewardPoolData",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "initialAmount",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "decreaseAmount",
-    "type": "uint256"
-  }, {
-    "internalType": "uint128",
-    "name": "payoutStart",
-    "type": "uint128"
-  }, {
-    "internalType": "uint128",
-    "name": "interval",
-    "type": "uint128"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "buildersV3",
-  "outputs": [{
-    "internalType": "address",
-    "name": "",
-    "type": "address"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "address",
-    "name": "stakerAddress_",
-    "type": "address"
-  }],
-  "name": "claim",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint128",
-    "name": "to_",
-    "type": "uint128"
-  }],
-  "name": "collectPendingRewards",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "components": [{
-      "internalType": "string",
-      "name": "name",
-      "type": "string"
-    }, {
-      "internalType": "address",
-      "name": "owner",
-      "type": "address"
-    }, {
-      "internalType": "uint256",
-      "name": "minStake",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "fee",
-      "type": "uint256"
-    }, {
-      "internalType": "address",
-      "name": "feeTreasury",
-      "type": "address"
-    }, {
-      "internalType": "uint128",
-      "name": "startsAt",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "withdrawLockPeriodAfterStake",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "maxClaimLockEnd",
-      "type": "uint128"
-    }],
-    "internalType": "struct IBuilderSubnets.Subnet",
-    "name": "subnet_",
-    "type": "tuple"
-  }, {
-    "components": [{
-      "internalType": "string",
-      "name": "slug",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "description",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "website",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "image",
-      "type": "string"
-    }],
-    "internalType": "struct IBuilderSubnets.SubnetMetadata",
-    "name": "metadata_",
-    "type": "tuple"
-  }],
-  "name": "createSubnet",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "components": [{
-      "internalType": "string",
-      "name": "slug",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "description",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "website",
-      "type": "string"
-    }, {
-      "internalType": "string",
-      "name": "image",
-      "type": "string"
-    }],
-    "internalType": "struct IBuilderSubnets.SubnetMetadata",
-    "name": "metadata_",
-    "type": "tuple"
-  }],
-  "name": "editSubnetMetadata",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "feeConfig",
-  "outputs": [{
-    "internalType": "address",
-    "name": "",
-    "type": "address"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint128",
-    "name": "to_",
-    "type": "uint128"
-  }],
-  "name": "getMaxTotalVirtualStaked",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint128",
-    "name": "from_",
-    "type": "uint128"
-  }, {
-    "internalType": "uint128",
-    "name": "to_",
-    "type": "uint128"
-  }],
-  "name": "getPeriodRewardForBuildersPool",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint256",
-    "name": "virtualStaked_",
-    "type": "uint256"
-  }, {
-    "internalType": "uint128",
-    "name": "from_",
-    "type": "uint128"
-  }, {
-    "internalType": "uint128",
-    "name": "to_",
-    "type": "uint128"
-  }],
-  "name": "getPeriodRewardForStake",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint128",
-    "name": "from_",
-    "type": "uint128"
-  }, {
-    "internalType": "uint128",
-    "name": "to_",
-    "type": "uint128"
-  }],
-  "name": "getPowerFactor",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "pure",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "address",
-    "name": "stakerAddress_",
-    "type": "address"
-  }],
-  "name": "getStakerPowerFactor",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "address",
-    "name": "stakerAddress_",
-    "type": "address"
-  }],
-  "name": "getStakerRewards",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "string",
-    "name": "name_",
-    "type": "string"
-  }],
-  "name": "getSubnetId",
-  "outputs": [{
-    "internalType": "bytes32",
-    "name": "",
-    "type": "bytes32"
-  }],
-  "stateMutability": "pure",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "isMigrationOver",
-  "outputs": [{
-    "internalType": "bool",
-    "name": "",
-    "type": "bool"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "maxStakedShareForBuildersPool",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "minWithdrawLockPeriodAfterStake",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "owner",
-  "outputs": [{
-    "internalType": "address",
-    "name": "",
-    "type": "address"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "proxiableUUID",
-  "outputs": [{
-    "internalType": "bytes32",
-    "name": "",
-    "type": "bytes32"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "renounceOwnership",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32[]",
-    "name": "subnetIds_",
-    "type": "bytes32[]"
-  }, {
-    "internalType": "address[]",
-    "name": "stakerAddresses_",
-    "type": "address[]"
-  }],
-  "name": "resetPowerFactor",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "rewardCalculationStartsAt",
-  "outputs": [{
-    "internalType": "uint128",
-    "name": "",
-    "type": "uint128"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "components": [{
-      "internalType": "uint256",
-      "name": "initialAmount",
-      "type": "uint256"
-    }, {
-      "internalType": "uint256",
-      "name": "decreaseAmount",
-      "type": "uint256"
-    }, {
-      "internalType": "uint128",
-      "name": "payoutStart",
-      "type": "uint128"
-    }, {
-      "internalType": "uint128",
-      "name": "interval",
-      "type": "uint128"
-    }],
-    "internalType": "struct IBuilderSubnets.BuildersRewardPoolData",
-    "name": "buildersRewardPoolData_",
-    "type": "tuple"
-  }],
-  "name": "setBuildersRewardPoolData",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "address",
-    "name": "feeConfig_",
-    "type": "address"
-  }],
-  "name": "setFeeConfig",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bool",
-    "name": "value_",
-    "type": "bool"
-  }],
-  "name": "setIsMigrationOver",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint256",
-    "name": "maxStakedShareForBuildersPool_",
-    "type": "uint256"
-  }],
-  "name": "setMaxStakedShareForBuildersPool",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint256",
-    "name": "minWithdrawLockPeriodAfterStake_",
-    "type": "uint256"
-  }],
-  "name": "setMinWithdrawLockPeriodAfterStake",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint128",
-    "name": "rewardCalculationStartsAt_",
-    "type": "uint128"
-  }],
-  "name": "setRewardCalculationStartsAt",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "uint256",
-    "name": "subnetCreationFeeAmount_",
-    "type": "uint256"
-  }, {
-    "internalType": "address",
-    "name": "subnetCreationFeeTreasury_",
-    "type": "address"
-  }],
-  "name": "setSubnetCreationFee",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "address",
-    "name": "newValue_",
-    "type": "address"
-  }],
-  "name": "setSubnetFeeTreasury",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "uint128",
-    "name": "newValue_",
-    "type": "uint128"
-  }],
-  "name": "setSubnetMaxClaimLockEnd",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "uint256",
-    "name": "newValue_",
-    "type": "uint256"
-  }],
-  "name": "setSubnetMinStake",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "address",
-    "name": "newValue_",
-    "type": "address"
-  }],
-  "name": "setSubnetOwnership",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "address",
-    "name": "treasury_",
-    "type": "address"
-  }],
-  "name": "setTreasury",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "address",
-    "name": "stakerAddress_",
-    "type": "address"
-  }, {
-    "internalType": "uint256",
-    "name": "amount_",
-    "type": "uint256"
-  }, {
-    "internalType": "uint128",
-    "name": "claimLockEnd_",
-    "type": "uint128"
-  }],
-  "name": "stake",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }, {
-    "internalType": "address",
-    "name": "stakerAddress",
-    "type": "address"
-  }],
-  "name": "stakers",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "staked",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "virtualStaked",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "pendingRewards",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "rate",
-    "type": "uint256"
-  }, {
-    "internalType": "uint128",
-    "name": "lastStake",
-    "type": "uint128"
-  }, {
-    "internalType": "uint128",
-    "name": "claimLockEnd",
-    "type": "uint128"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "subnetCreationFeeAmount",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "subnetCreationFeeTreasury",
-  "outputs": [{
-    "internalType": "address",
-    "name": "",
-    "type": "address"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }],
-  "name": "subnets",
-  "outputs": [{
-    "internalType": "string",
-    "name": "name",
-    "type": "string"
-  }, {
-    "internalType": "address",
-    "name": "owner",
-    "type": "address"
-  }, {
-    "internalType": "uint256",
-    "name": "minStake",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "fee",
-    "type": "uint256"
-  }, {
-    "internalType": "address",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "feeTreasury",
-    "type": "address"
-  }, {
-    "internalType": "uint128",
-    "name": "startsAt",
-    "type": "uint128"
-  }, {
-    "internalType": "uint128",
-    "name": "withdrawLockPeriodAfterStake",
-    "type": "uint128"
-  }, {
-    "internalType": "uint128",
-    "name": "maxClaimLockEnd",
-    "type": "uint128"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }],
-  "name": "subnetsData",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "staked",
-    "type": "uint256"
-  }, {
-    "internalType": "uint256",
-    "name": "virtualStaked",
-    "type": "uint256"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId",
-    "type": "bytes32"
-  }],
-  "name": "subnetsMetadata",
-  "outputs": [{
-    "internalType": "string",
-    "name": "slug",
-    "type": "string"
-  }, {
-    "internalType": "string",
-    "name": "description",
-    "type": "string"
-  }, {
-    "internalType": "string",
-    "name": "website",
-    "type": "string"
-  }, {
-    "internalType": "string",
-    "name": "image",
-    "type": "string"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes4",
-    "name": "interfaceId_",
-    "type": "bytes4"
-  }],
-  "name": "supportsInterface",
-  "outputs": [{
-    "internalType": "bool",
-    "name": "",
-    "type": "bool"
-  }],
-  "stateMutability": "pure",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "token",
-  "outputs": [{
-    "internalType": "address",
-    "name": "",
-    "type": "address"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "address",
-    "name": "newOwner",
-    "type": "address"
-  }],
-  "name": "transferOwnership",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "treasury",
-  "outputs": [{
-    "internalType": "address",
-    "name": "",
-    "type": "address"
-  }],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "address",
-    "name": "newImplementation",
-    "type": "address"
-  }],
-  "name": "upgradeTo",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "address",
-    "name": "newImplementation",
-    "type": "address"
-  }, {
-    "internalType": "bytes",
-    "name": "data",
-    "type": "bytes"
-  }],
-  "name": "upgradeToAndCall",
-  "outputs": [],
-  "stateMutability": "payable",
-  "type": "function"
-}, {
-  "inputs": [],
-  "name": "version",
-  "outputs": [{
-    "internalType": "uint256",
-    "name": "",
-    "type": "uint256"
-  }],
-  "stateMutability": "pure",
-  "type": "function"
-}, {
-  "inputs": [{
-    "internalType": "bytes32",
-    "name": "subnetId_",
-    "type": "bytes32"
-  }, {
-    "internalType": "uint256",
-    "name": "amount_",
-    "type": "uint256"
-  }],
-  "name": "withdraw",
-  "outputs": [],
-  "stateMutability": "nonpayable",
-  "type": "function"
-}]
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getCurrentRate",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "staker_",
+        "type": "address"
+      }
+    ],
+    "name": "getCurrentStakerRewards",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isDeregisterAvailable",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isStakeClosed",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lastContractBalance",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lumerinDiamond",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "name",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "modelId_",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "pricePerSecond_",
+        "type": "uint256"
+      }
+    ],
+    "name": "postModelBid",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32[]",
+        "name": "bidIds_",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "providerDeregister",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "staker_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount_",
+        "type": "uint256"
+      }
+    ],
+    "name": "restake",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "endpoint_",
+        "type": "string"
+      }
+    ],
+    "name": "setEndpoint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "feeTreasury_",
+        "type": "address"
+      }
+    ],
+    "name": "setFeeTreasury",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "isRestakeDisabled_",
+        "type": "bool"
+      }
+    ],
+    "name": "setIsRestakeDisabled",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "isStakeClosed_",
+        "type": "bool"
+      }
+    ],
+    "name": "setIsStakeClosed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "name_",
+        "type": "string"
+      }
+    ],
+    "name": "setName",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount_",
+        "type": "uint256"
+      }
+    ],
+    "name": "stake",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "stakers",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "staked",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "claimed",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "rate",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "pendingRewards",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isRestakeDisabled",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "token",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalRate",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalStaked",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]
