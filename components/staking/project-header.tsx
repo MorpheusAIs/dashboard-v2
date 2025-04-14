@@ -3,6 +3,7 @@ import { NetworkIcon } from '@web3icons/react';
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useState } from "react";
 
 // Helper function to extract domain from URL
 const extractDomain = (url: string): string => {
@@ -14,6 +15,43 @@ const extractDomain = (url: string): string => {
     // Return original URL if parsing fails
     return url;
   }
+};
+
+// Helper function to validate image URL
+const isValidImageUrl = (url?: string): boolean => {
+  if (!url) return false;
+  
+  try {
+    // First check if it's a properly formatted URL
+    const isProperlyFormatted = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/');
+    if (!isProperlyFormatted) return false;
+    
+    // For absolute URLs, parse and check if pathname contains an image extension
+    if (url.startsWith('http')) {
+      try {
+        const parsedUrl = new URL(url);
+        const pathname = parsedUrl.pathname.toLowerCase();
+        // Check if the pathname contains a valid image extension
+        const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+        return validExtensions.some(ext => pathname.includes(ext));
+      } catch {
+        // If URL parsing fails, fall back to simple check
+        return checkSimpleImageExtension(url);
+      }
+    } 
+    
+    // For relative URLs or fallback, do a simple check
+    return checkSimpleImageExtension(url);
+  } catch {
+    return false;
+  }
+};
+
+// Simple check for image extension anywhere in the URL string
+const checkSimpleImageExtension = (url: string): boolean => {
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+  const urlLower = url.toLowerCase();
+  return validExtensions.some(ext => urlLower.includes(ext));
 };
 
 export interface ProjectHeaderProps {
@@ -41,6 +79,19 @@ export function ProjectHeader({
   backPath,
   children,
 }: ProjectHeaderProps) {
+  // Track image loading error
+  const [imageError, setImageError] = useState(false);
+  
+  // Check if image is valid
+  const hasValidImage = (() => {
+    try {
+      if (!imagePath || imageError) return false;
+      return isValidImageUrl(imagePath);
+    } catch {
+      return false;
+    }
+  })();
+
   // Generate project default icon from name
   const firstLetter = name.charAt(0);
   
@@ -107,14 +158,19 @@ export function ProjectHeader({
       {renderBackButton()}
       
       <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
-        {imagePath ? (
-          <Image
-            src={imagePath.startsWith('http') ? imagePath : imagePath.startsWith('/') ? imagePath : `/${imagePath}`}
-            alt={name}
-            fill
-            sizes="96px"
-            className="object-cover"
-          />
+        {hasValidImage ? (
+          <div className="relative size-24">
+            <Image
+              src={imagePath!.startsWith('http') ? imagePath! : imagePath!.startsWith('/') ? imagePath! : `/${imagePath!}`}
+              alt={name}
+              fill
+              sizes="96px"
+              className="object-cover"
+              onError={() => {
+                setImageError(true);
+              }}
+            />
+          </div>
         ) : (
           <div className="flex items-center justify-center size-24 bg-emerald-700 text-white text-4xl font-medium">
             {firstLetter}
