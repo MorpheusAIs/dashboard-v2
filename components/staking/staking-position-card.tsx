@@ -20,6 +20,7 @@ export interface StakingPositionCardProps {
   withdrawButtonText?: string;
   showUnlockTime?: boolean;
   additionalInfo?: React.ReactNode;
+  isWithdrawing?: boolean;
 }
 
 export function StakingPositionCard({
@@ -32,11 +33,16 @@ export function StakingPositionCard({
   withdrawButtonText = "Withdraw MOR",
   showUnlockTime = true,
   additionalInfo,
+  isWithdrawing = false,
 }: StakingPositionCardProps) {
   const [withdrawAmount, setWithdrawAmount] = useState("");
 
   const handleWithdraw = () => {
     onWithdraw(withdrawAmount);
+  };
+
+  const setMaxAmount = () => {
+    setWithdrawAmount(userStakedAmount.toString());
   };
 
   return (
@@ -61,22 +67,32 @@ export function StakingPositionCard({
           
           <div className="space-y-2">
             <Label htmlFor="withdraw-amount">Amount to withdraw</Label>
-            <Input
-              id="withdraw-amount"
-              placeholder="Enter MOR amount"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-              disabled={disableWithdraw}
-            />
+            <div className="flex flex-row items-center align-middle space-x-2">
+              <Input
+                id="withdraw-amount"
+                placeholder="Enter MOR amount"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                disabled={disableWithdraw}
+                className="flex-1"
+              />
+              <button 
+                className="copy-button-secondary h-10 px-4 py-2"
+                onClick={setMaxAmount}
+                disabled={disableWithdraw || userStakedAmount <= 0}
+              >
+                Max
+              </button>
+            </div>
           </div>
           
           <Button 
             onClick={handleWithdraw}
             className="w-full"
             variant="outline"
-            disabled={disableWithdraw || !withdrawAmount}
+            disabled={disableWithdraw || !withdrawAmount || isWithdrawing}
           >
-            {withdrawButtonText}
+            {isWithdrawing ? "Withdrawing..." : withdrawButtonText}
           </Button>
           
           {additionalInfo}

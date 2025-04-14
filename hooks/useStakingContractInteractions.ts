@@ -168,6 +168,35 @@ export const useStakingContractInteractions = ({
     }
   });
 
+  const { data: withdrawTxResult, writeContract: writeWithdraw, isPending: isWithdrawPending, error: withdrawError, reset: resetWithdrawContract } = useWriteContract({
+    mutation: {
+      onError: (error) => {
+        console.error("Detailed withdrawal error:", error);
+        let errorMessage = "Unknown error";
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          
+          // Try to extract the revert reason if available
+          const revertMatch = errorMessage.match(/reverted with reason string '([^']*)'/);
+          if (revertMatch && revertMatch[1]) {
+            errorMessage = `Contract reverted: ${revertMatch[1]}`;
+          }
+          
+          // Extract gas errors
+          if (errorMessage.includes("gas")) {
+            errorMessage = "Transaction would exceed gas limits. The contract function may be failing.";
+          }
+        }
+        
+        toast.error("Withdrawal Failed", { 
+          id: "withdraw-tx", 
+          description: errorMessage 
+        });
+      }
+    }
+  });
+
   const { data: approveTxResult, writeContract: writeApprove, isPending: isApprovePending, error: approveError, reset: resetApproveContract } = useWriteContract({
     mutation: {
       onError: (error) => {
@@ -200,11 +229,13 @@ export const useStakingContractInteractions = ({
   // Transaction Receipt Hooks
   const { isLoading: isStakeTxLoading, isSuccess: isStakeTxSuccess } = useWaitForTransactionReceipt({ hash: stakeTxResult });
   const { isLoading: isApproveTxLoading, isSuccess: isApproveTxSuccess } = useWaitForTransactionReceipt({ hash: approveTxResult });
+  const { isLoading: isWithdrawTxLoading, isSuccess: isWithdrawTxSuccess } = useWaitForTransactionReceipt({ hash: withdrawTxResult });
 
   // Combined Loading States
   const isApproving = isApprovePending || isApproveTxLoading;
   const isStaking = isStakePending || isStakeTxLoading;
-  const isAnyTxPending = isApproving || isStaking;
+  const isWithdrawing = isWithdrawPending || isWithdrawTxLoading;
+  const isAnyTxPending = isApproving || isStaking || isWithdrawing;
   const isSubmitting = isAnyTxPending || isNetworkSwitching;
 
   // Update state variables from read hook data
@@ -288,6 +319,43 @@ export const useStakingContractInteractions = ({
       resetStakeContract();
     }
   }, [isStakePending, isStakeTxSuccess, stakeTxResult, stakeError, resetStakeContract, onTxSuccess, refetchBalance, refetchAllowance, networkChainId, isTestnet]);
+
+  // Handle Withdrawal Transaction Notifications
+  useEffect(() => {
+    if (isWithdrawPending) {
+      toast.loading("Confirm withdrawal in wallet...", { id: "withdraw-tx" });
+    }
+    if (isWithdrawTxSuccess) {
+      toast.success("Successfully withdrawn tokens!", {
+        id: "withdraw-tx",
+        description: `Tx: ${withdrawTxResult?.substring(0, 10)}...`,
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            const chain = getChainById(networkChainId, isTestnet ? 'testnet' : 'mainnet');
+            const explorerUrl = chain?.blockExplorers?.default.url;
+            if (explorerUrl && withdrawTxResult) {
+              window.open(`${explorerUrl}/tx/${withdrawTxResult}`, "_blank");
+            }
+          }
+        }
+      });
+      resetWithdrawContract();
+      // Refresh balance after withdrawal
+      refetchBalance();
+      if (onTxSuccess) {
+        onTxSuccess();
+      }
+    }
+    if (withdrawError) {
+      const errorMsg = withdrawError?.message || "Withdrawal failed.";
+      let displayError = errorMsg.split('(')[0].trim();
+      const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
+      if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
+      toast.error("Withdrawal Failed", { id: "withdraw-tx", description: displayError });
+      resetWithdrawContract();
+    }
+  }, [isWithdrawPending, isWithdrawTxSuccess, withdrawTxResult, withdrawError, resetWithdrawContract, onTxSuccess, refetchBalance, networkChainId, isTestnet]);
 
   // Network switching
   const handleNetworkSwitch = useCallback(async () => {
@@ -506,6 +574,52 @@ export const useStakingContractInteractions = ({
     }
   }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, tokenBalance, networkChainId, isTestnet, tokenSymbol, writeStake, getChainById, lockPeriodInSeconds]);
 
+  // Handle withdraw
+  const handleWithdraw = useCallback(async (amount: string) => {
+    if (!connectedAddress || !isCorrectNetwork()) {
+      toast.error("Cannot withdraw: Wallet or network issue.");
+      return false;
+    }
+    
+    if (!contractAddress) {
+      toast.error("Builder contract address not found.");
+      return false;
+    }
+
+    if (!subnetId) {
+      toast.error("Subnet ID is required for withdrawing.");
+      return false;
+    }
+
+    try {
+      const parsedAmount = parseEther(amount);
+      
+      console.log("Withdrawal transaction parameters:", {
+        subnetId,
+        amount: parsedAmount.toString(),
+        formattedAmount: formatEther(parsedAmount),
+        contractAddress,
+        chainId: networkChainId
+      });
+      
+      // Both testnet (V2) and mainnet contracts use the same withdraw interface
+      // withdraw(bytes32 subnetId_, uint256 amount_)
+      writeWithdraw({
+        address: contractAddress,
+        abi: isTestnet ? BuilderSubnetsV2Abi : BuilderSubnetsAbi,
+        functionName: 'withdraw',
+        args: [subnetId, parsedAmount],
+        chainId: networkChainId,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error in handleWithdraw:", error);
+      toast.error(`Failed to withdraw: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return false;
+    }
+  }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, networkChainId, isTestnet, writeWithdraw]);
+
   return {
     // State
     isCorrectNetwork,
@@ -516,6 +630,7 @@ export const useStakingContractInteractions = ({
     isLoadingData,
     isApproving,
     isStaking,
+    isWithdrawing,
     isAnyTxPending,
     isSubmitting,
     allowance,
@@ -526,6 +641,7 @@ export const useStakingContractInteractions = ({
     handleNetworkSwitch,
     handleApprove,
     handleStake,
+    handleWithdraw,
     checkAndUpdateApprovalNeeded,
   };
 };

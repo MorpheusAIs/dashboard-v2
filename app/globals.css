@@ -252,7 +252,7 @@
   }
 
   .copy-button-secondary {
-    @apply bg-transparent hover:bg-transparent text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50;
+    @apply bg-transparent hover:bg-transparent text-emerald-400 rounded-lg border border-emerald-500/30 hover:border-emerald-500/50;
   }
 
   /* Table styles */
