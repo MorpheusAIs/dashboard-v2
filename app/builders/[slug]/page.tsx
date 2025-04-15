@@ -194,15 +194,33 @@ export default function BuilderPage() {
     }
   }, [slug, builders, buildersProjects, isTestnet]);
 
-  // Use the networks from the builder data
+  // Use the networks from the builder data, or default based on current chainId
   const networksToDisplay = useMemo(() => {
-    return builder?.networks || (isTestnet ? ['Arbitrum Sepolia'] : ['Base']);
-  }, [builder, isTestnet]);
+    if (builder?.networks && builder.networks.length > 0) {
+      return builder.networks;
+    }
+    
+    if (isTestnet) {
+      return ['Arbitrum Sepolia'];
+    } else if (chainId === 42161) {
+      return ['Arbitrum'];
+    } else {
+      return ['Base'];
+    }
+  }, [builder, isTestnet, chainId]);
   
-  // Get contract address from configuration
-  const contractAddress = isTestnet 
-    ? testnetChains.arbitrumSepolia.contracts?.builders?.address as `0x${string}` | undefined
-    : mainnetChains.base.contracts?.builders?.address as `0x${string}` | undefined;
+  // Get contract address from configuration based on current chain ID
+  const contractAddress = useMemo(() => {
+    if (isTestnet) {
+      return testnetChains.arbitrumSepolia.contracts?.builders?.address as `0x${string}` | undefined;
+    } else if (chainId === 42161) {
+      // Arbitrum mainnet
+      return mainnetChains.arbitrum.contracts?.builders?.address as `0x${string}` | undefined;
+    } else {
+      // Default to Base mainnet
+      return mainnetChains.base.contracts?.builders?.address as `0x${string}` | undefined;
+    }
+  }, [isTestnet, chainId]);
   
   // Log the addresses for debugging
   useEffect(() => {
@@ -357,19 +375,58 @@ export default function BuilderPage() {
     }
   }, [stakeAmount, checkAndUpdateApprovalNeeded]);
 
+  // Debug useEffect for token approval states
+  useEffect(() => {
+    if (stakeAmount && parseFloat(stakeAmount) > 0) {
+      console.log("Approval state debug:", {
+        needsApproval,
+        stakeAmount,
+        parsedAmount: parseFloat(stakeAmount),
+        isCorrectNetwork: isCorrectNetwork(),
+        isStaking,
+        isApproving,
+        chainId,
+        networksToDisplay,
+        buttonText: needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
+          ? `Approve ${tokenSymbol}`
+          : `Stake ${tokenSymbol}`
+      });
+    }
+  }, [needsApproval, stakeAmount, isCorrectNetwork, isStaking, isApproving, chainId, networksToDisplay, tokenSymbol]);
+  
   // Handlers for staking actions
   const onStakeSubmit = async () => {
+    console.log("onStakeSubmit called with:", {
+      needsApproval,
+      stakeAmount,
+      isCorrectNetwork: isCorrectNetwork(),
+      tokenSymbol
+    });
+    
     // If not on the correct network, switch first
     if (!isCorrectNetwork()) {
       await handleNetworkSwitch();
       return; // Exit after network switch to prevent further action
     }
 
-    // Already on correct network, handle staking
-    if (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0) {
+    // Force a fresh check for approval before proceeding
+    const currentlyNeedsApproval = stakeAmount ? await checkAndUpdateApprovalNeeded(stakeAmount) : false;
+    console.log(`Fresh approval check: ${currentlyNeedsApproval ? 'Needs approval' : 'No approval needed'}`);
+
+    // Already on correct network, handle approval or staking
+    if ((currentlyNeedsApproval || needsApproval) && stakeAmount && parseFloat(stakeAmount) > 0) {
+      console.log(`Calling handleApprove with amount: ${stakeAmount}`);
       await handleApprove(stakeAmount);
     } else if (stakeAmount && parseFloat(stakeAmount) > 0) {
+      console.log(`Calling handleStake with amount: ${stakeAmount}`);
       await handleStake(stakeAmount);
+    } else {
+      console.warn("Neither approval nor staking conditions met:", {
+        needsApproval,
+        currentlyNeedsApproval,
+        stakeAmount,
+        parsed: parseFloat(stakeAmount || "0")
+      });
     }
   };
 
@@ -475,14 +532,14 @@ export default function BuilderPage() {
           <div className="relative">
             <StakingFormCard
               title="Stake MOR"
-              // description={isLoadingData 
-              //   ? "Loading staking data..." 
-              //   : allowance && allowance > BigInt(0)
-              //     ? `Available balance: ${tokenBalance ? parseFloat(formatEther(tokenBalance)).toFixed(2) : '0'} ${tokenSymbol} (Approved: ${formatEther(allowance)} ${tokenSymbol})` 
-              //     : `Available balance: ${tokenBalance ? parseFloat(formatEther(tokenBalance)).toFixed(2) : '0'} ${tokenSymbol}`
-              // }
               onStake={onStakeSubmit}
-              onAmountChange={(value) => setStakeAmount(value)}
+              onAmountChange={(value) => {
+                setStakeAmount(value);
+                // Force approval check every time amount changes
+                if (value && parseFloat(value) > 0) {
+                  checkAndUpdateApprovalNeeded(value);
+                }
+              }}
               maxAmount={tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0}
               buttonText={
                 !isCorrectNetwork()
@@ -497,14 +554,16 @@ export default function BuilderPage() {
               }
               disableStaking={isSubmitting}
               showWarning={
-                !isCorrectNetwork() 
-                  ? true 
-                  : needsApproval && !!stakeAmount && parseFloat(stakeAmount) > 0
+                !isCorrectNetwork() || 
+                (needsApproval && !!stakeAmount && parseFloat(stakeAmount) > 0) ||
+                (!!stakeAmount && parseFloat(stakeAmount) > (tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0))
               }
               warningMessage={
                 !isCorrectNetwork() 
                   ? `Please switch to ${networksToDisplay[0]} network to stake` 
-                  : `You need to approve ${tokenSymbol} spending first`
+                  : needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
+                  ? `You need to approve ${tokenSymbol} spending first`
+                  : `Warning: You don't have enough ${tokenSymbol}`
               }
             />
             <GlowingEffect 

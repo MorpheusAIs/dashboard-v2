@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -60,7 +60,27 @@ export function StakingFormCard({
     parseFloat(stakeAmount) > maxAmount
   );
 
+  // Log props for debugging
+  useEffect(() => {
+    if (showWarning && buttonText) {
+      console.log("StakingFormCard state:", {
+        buttonText,
+        showWarning,
+        warningMessage,
+        isApprovalButton: buttonText.toLowerCase().includes('approve'),
+        hasPositiveAmount: hasPositiveAmount(),
+        isAmountValid: isAmountValid()
+      });
+    }
+  }, [buttonText, showWarning, warningMessage]);
+
   const handleStake = () => {
+    // Add explicit logging for button click
+    console.log("Button clicked:", { 
+      buttonText, 
+      isApproval: buttonText?.toLowerCase().includes('approve')
+    });
+    
     // Allow approval with any positive amount
     if (buttonText?.toLowerCase().includes('approve') && hasPositiveAmount()) {
       console.log("Calling onStake for approval with amount:", stakeAmount);
