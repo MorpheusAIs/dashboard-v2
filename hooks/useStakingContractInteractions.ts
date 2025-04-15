@@ -138,6 +138,19 @@ export const useStakingContractInteractions = ({
     }
   });
 
+  // Fix: Log allowance data when it changes to debug mainnet approval issues
+  useEffect(() => {
+    if (allowanceData !== undefined && allowanceData !== null && !isTestnet) {
+      console.log(`Mainnet allowance data received (${networkChainId}):`, {
+        allowance: allowanceData.toString(),
+        formattedAllowance: formatEther(allowanceData as bigint),
+        tokenAddress,
+        contractAddress,
+        connectedAddress
+      });
+    }
+  }, [allowanceData, isTestnet, networkChainId, tokenAddress, contractAddress, connectedAddress]);
+
   // Contract Write Hooks
   const { data: stakeTxResult, writeContract: writeStake, isPending: isStakePending, error: stakeError, reset: resetStakeContract } = useWriteContract({
     mutation: {
@@ -363,9 +376,17 @@ export const useStakingContractInteractions = ({
     
     setIsNetworkSwitching(true);
     try {
-      toast.loading(`Switching to ${getNetworkName(networkChainId)}...`, { id: "network-switch" });
+      const targetNetwork = getNetworkName(networkChainId);
+      const networkType = isTestnet ? 'testnet' : 'mainnet';
+      
+      console.log(`Switching to ${targetNetwork} (${networkType}, chainId: ${networkChainId})...`);
+      toast.loading(`Switching to ${targetNetwork}...`, { id: "network-switch" });
+      
       await switchToChain(networkChainId);
-      toast.success(`Successfully switched to ${getNetworkName(networkChainId)}`, { id: "network-switch" });
+      
+      toast.success(`Successfully switched to ${targetNetwork}`, { id: "network-switch" });
+      console.log(`Successfully switched to ${targetNetwork} (${networkType}, chainId: ${networkChainId})`);
+      
       setIsNetworkSwitching(false);
       return true;
     } catch (error) {
@@ -374,7 +395,7 @@ export const useStakingContractInteractions = ({
       toast.error(`Failed to switch to ${getNetworkName(networkChainId)}. Please switch manually.`, { id: "network-switch" });
       return false;
     }
-  }, [isCorrectNetwork, switchToChain, networkChainId, getNetworkName]);
+  }, [isCorrectNetwork, switchToChain, networkChainId, getNetworkName, isTestnet]);
 
   // Check if approval is needed and update state
   const checkAndUpdateApprovalNeeded = useCallback((stakeAmount: string) => {
@@ -382,12 +403,26 @@ export const useStakingContractInteractions = ({
       // If no amount or zero amount, no approval needed
       if (!stakeAmount || stakeAmount === '0' || parseFloat(stakeAmount) <= 0) {
         setNeedsApproval(false);
+        console.log("Zero or invalid amount - no approval needed");
         return false;
       }
       
       // If no allowance data yet, wait for it
       if (allowance === undefined || !tokenAddress || !contractAddress) {
-        console.log("Waiting for allowance data or addresses...");
+        const missingData = [];
+        if (allowance === undefined) missingData.push("allowance");
+        if (!tokenAddress) missingData.push("tokenAddress");
+        if (!contractAddress) missingData.push("contractAddress");
+        
+        console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}`);
+        
+        // IMPORTANT: For mainnet, assume approval is needed when data is missing
+        if (!isTestnet) {
+          console.log("Mainnet with missing data - assuming approval needed");
+          setNeedsApproval(true);
+          return true;
+        }
+        
         return true; // Assume approval needed while loading
       }
       
@@ -397,7 +432,7 @@ export const useStakingContractInteractions = ({
       // Check if we have sufficient allowance for this stake
       const approvalNeeded = currentAllowance < parsedAmount;
       
-      console.log("Checking approval needs:", {
+      console.log(`Approval check on ${isTestnet ? 'testnet' : 'mainnet'} (chain ${networkChainId}):`, {
         parsedAmount: parsedAmount.toString(),
         currentAllowance: currentAllowance.toString(),
         formattedAmount: formatEther(parsedAmount),
@@ -407,13 +442,21 @@ export const useStakingContractInteractions = ({
         contractAddress
       });
       
+      // Special handling for Base mainnet - check if allowance is very low
+      if (!isTestnet && networkChainId === 8453 && 
+          currentAllowance < parsedAmount * BigInt(2)) {
+        console.log("Base mainnet detected with low allowance - approval needed");
+        setNeedsApproval(true);
+        return true;
+      }
+      
       setNeedsApproval(approvalNeeded);
       return approvalNeeded;
     } catch (error) {
       console.error("Error checking approval:", error);
       return true; // Assume approval needed on error
     }
-  }, [allowance, tokenAddress, contractAddress]);
+  }, [allowance, tokenAddress, contractAddress, networkChainId, isTestnet]);
 
   // Handle token approval
   const handleApprove = useCallback(async (amount: string) => {
@@ -550,11 +593,15 @@ export const useStakingContractInteractions = ({
         });
       } else {
         // For mainnet using BuilderSubnets
-        console.log("Mainnet staking transaction parameters:", {
+        // Get the network name for clearer logging
+        const networkName = networkChainId === 42161 ? 'Arbitrum' : 'Base';
+        
+        console.log(`Mainnet staking transaction parameters (${networkName}):`, {
           amount: parsedAmount.toString(),
           formattedAmount: formatEther(parsedAmount),
           contractAddress,
-          chainId: networkChainId
+          chainId: networkChainId,
+          networkName
         });
         
         writeStake({
@@ -594,12 +641,18 @@ export const useStakingContractInteractions = ({
     try {
       const parsedAmount = parseEther(amount);
       
-      console.log("Withdrawal transaction parameters:", {
+      // Get network name for better logging
+      const networkType = isTestnet ? 'testnet' : 'mainnet';
+      const networkName = isTestnet ? 'Arbitrum Sepolia' : 
+                         (networkChainId === 42161 ? 'Arbitrum' : 'Base');
+      
+      console.log(`${networkType.charAt(0).toUpperCase() + networkType.slice(1)} withdrawal transaction parameters (${networkName}):`, {
         subnetId,
         amount: parsedAmount.toString(),
         formattedAmount: formatEther(parsedAmount),
         contractAddress,
-        chainId: networkChainId
+        chainId: networkChainId,
+        networkName
       });
       
       // Both testnet (V2) and mainnet contracts use the same withdraw interface

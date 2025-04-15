@@ -163,7 +163,8 @@ export const mainnetChains: Record<string, ChainConfig> = {
       }
     },
     contracts: {
-      morToken: toContract('0x7431aDa8a591C955a994a21710752EF9b882b8e3')
+      morToken: toContract('0x7431aDa8a591C955a994a21710752EF9b882b8e3'),
+      builders: toContract('0x42BB446eAE6dca7723a9eBdb81EA88aFe77eF4B9')
     }
   }
 };

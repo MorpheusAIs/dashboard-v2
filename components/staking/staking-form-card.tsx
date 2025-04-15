@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -37,7 +37,7 @@ export function StakingFormCard({
   const [stakeAmount, setStakeAmount] = useState("");
   
   // Check if entered amount is above minimum and below maximum
-  const isAmountValid = () => {
+  const isAmountValid = useCallback(() => {
     const amount = parseFloat(stakeAmount);
     if (isNaN(amount) || amount <= 0) return false;
     
@@ -46,13 +46,13 @@ export function StakingFormCard({
     if (maxAmount !== undefined && amount > maxAmount) return false;
     
     return true;
-  };
+  }, [stakeAmount, minAmount, maxAmount]);
   
   // New: Check if the amount is just positive for approval
-  const hasPositiveAmount = () => {
+  const hasPositiveAmount = useCallback(() => {
     const amount = parseFloat(stakeAmount);
     return !isNaN(amount) && amount > 0;
-  };
+  }, [stakeAmount]);
   
   // Show warning based on logic or explicit flag
   const displayWarning = showWarning || (
@@ -72,7 +72,7 @@ export function StakingFormCard({
         isAmountValid: isAmountValid()
       });
     }
-  }, [buttonText, showWarning, warningMessage]);
+  }, [buttonText, showWarning, warningMessage, hasPositiveAmount, isAmountValid]);
 
   const handleStake = () => {
     // Add explicit logging for button click
@@ -120,7 +120,7 @@ export function StakingFormCard({
   };
 
   // Determine button class
-  const getButtonClass = () => {
+  const getButtonClass = useCallback(() => {
     const baseClass = "w-full copy-button-base";
     
     // If button text contains "approve", use white background with black text
@@ -130,7 +130,7 @@ export function StakingFormCard({
     
     // For stake actions, use primary style
     return `${baseClass} copy-button`;
-  };
+  }, [buttonText]);
 
   return (
     <Card>
