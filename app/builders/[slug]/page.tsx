@@ -594,6 +594,7 @@ export default function BuilderPage() {
               onWithdraw={onWithdrawSubmit}
               disableWithdraw={!userStakedAmount || timeLeft !== "Unlocked" || isWithdrawing}
               isWithdrawing={isWithdrawing}
+              tokenSymbol={tokenSymbol}
               withdrawButtonText={
                 !isCorrectNetwork()
                   ? "Switch Network"
@@ -605,8 +606,8 @@ export default function BuilderPage() {
                 timeLeft !== "Unlocked"
                   ? `Your funds are locked until ${timeLeft} from now.`
                   : userStakedAmount
-                  ? `You can withdraw up to ${userStakedAmount} MOR.`
-                  : "You have no staked tokens to withdraw."
+                  ? `You can withdraw up to ${userStakedAmount} ${tokenSymbol}.`
+                  : `You have no staked tokens to withdraw.`
               }
             />
             <GlowingEffect 
