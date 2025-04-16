@@ -534,13 +534,22 @@ export default function BuilderPage() {
               title="Stake MOR"
               onStake={onStakeSubmit}
               onAmountChange={(value) => {
-                setStakeAmount(value);
+                // Format value to one decimal place if possible
+                let formattedValue = value;
+                const parsed = parseFloat(value);
+                if (!isNaN(parsed)) {
+                  // Round to 1 decimal place
+                  formattedValue = (Math.floor(parsed * 10) / 10).toString();
+                }
+                
+                setStakeAmount(formattedValue);
                 // Force approval check every time amount changes
-                if (value && parseFloat(value) > 0) {
-                  checkAndUpdateApprovalNeeded(value);
+                if (formattedValue && parseFloat(formattedValue) > 0) {
+                  checkAndUpdateApprovalNeeded(formattedValue);
                 }
               }}
               maxAmount={tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0}
+              tokenSymbol={tokenSymbol}
               buttonText={
                 !isCorrectNetwork()
                   ? "Switch Network"
