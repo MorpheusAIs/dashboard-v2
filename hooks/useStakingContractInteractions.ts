@@ -483,8 +483,8 @@ export const useStakingContractInteractions = ({
       // Parse the amount to approve
       const parsedAmount = parseEther(amount);
       
-      // Use a larger approval amount to avoid needing multiple approvals
-      const approvalAmount = parsedAmount * BigInt(10); // Approve 10x the requested amount
+      // Use exact amount requested by user
+      const approvalAmount = parsedAmount;
       
       console.log(`Requesting approval for ${formatEther(approvalAmount)} ${tokenSymbol} to ${contractAddress}`);
       console.log("Using token contract:", tokenAddress);
