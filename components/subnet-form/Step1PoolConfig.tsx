@@ -41,7 +41,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
 
   return (
     <fieldset disabled={isSubmitting} className="space-y-4 p-6 border border-gray-100/30 rounded-lg">
-      <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">Pool Configuration</legend>
+      <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">Subnet Configuration</legend>
 
       {/* Name */}
       <FormField
@@ -49,9 +49,9 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
         name="subnet.name"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Builder Pool Name</FormLabel>
+            <FormLabel>Builder Subnet Name</FormLabel>
             <FormControl>
-              <Input placeholder="Unique pool name (cannot be changed)" {...field} />
+              <Input placeholder="Unique subnet name (cannot be changed)" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -101,7 +101,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
             <FormItem>
               <FormLabel>Minimum Deposit ({tokenSymbol})</FormLabel>
               <FormControl><NumberInput min={0} value={field.value} onValueChange={field.onChange} /></FormControl>
-              <FormDescription>Min {tokenSymbol} required to deposit in this pool.</FormDescription>
+              <FormDescription>Min {tokenSymbol} required to deposit in this subnet.</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -213,7 +213,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
           name="subnet.startsAt"
           render={({ field }) => (
             <FormItem className="flex flex-col">
-              <FormLabel>Pool Start Time</FormLabel>
+              <FormLabel>Stake Start Time</FormLabel>
               <Popover open={startTimePopoverOpen} onOpenChange={setStartTimePopoverOpen}>
                 <PopoverTrigger asChild>
                   <FormControl>
