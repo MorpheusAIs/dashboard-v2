@@ -8,7 +8,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 import { ExternalLink } from "lucide-react";
-import { BecomeBuilderModal } from "@/components/become-builder-modal";
 import { BulkRegistrationModal } from "@/components/bulk-registration-modal";
 import { useBuilders } from "@/context/builders-context";
 import { useAuth } from "@/context/auth-context";
@@ -82,7 +81,6 @@ function checkSimpleImageExtension(url: string): boolean {
 
 // Separate component for the modal to ensure it works independently
 function BuilderModalWrapper() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const { isAdmin } = useAuth();
   
@@ -104,11 +102,6 @@ function BuilderModalWrapper() {
           Become a Builder
         </button>
       </Link>
-      
-      <BecomeBuilderModal 
-        open={isModalOpen} 
-        onOpenChange={setIsModalOpen} 
-      />
       
       {isAdmin && (
         <BulkRegistrationModal
