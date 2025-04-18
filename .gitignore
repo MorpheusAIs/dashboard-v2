@@ -35,3 +35,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# reference docs
+/DashBoard/
+docs/appkit-installation.md
+docs/compute_subnet_staking_process.md
+docs/create_subnet_form_explanation.md
+docs/uniswap-widget.md
+docs/widget and wallet integration.md
+docs/subnets_staking_process_mainnet.md
+docs/cowswap-widget-docs.md
+scripts/migrate-builders-to-supabase.ts
+scripts/upload-missing-images.ts
+scripts/migrate-images-to-supabase.ts
+hooks/.useSubnetContractInteractions.ts.swp
+package-lock.json
