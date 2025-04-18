@@ -50,3 +50,5 @@ scripts/upload-missing-images.ts
 scripts/migrate-images-to-supabase.ts
 hooks/.useSubnetContractInteractions.ts.swp
 package-lock.json
+.vercelignore
+package-lock.json
