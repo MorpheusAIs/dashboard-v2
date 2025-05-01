@@ -38,24 +38,24 @@ const navigation = [
     url: "/builders",
     icon: Users,
   },
-  {
-    title: "MOR20",
-    url: "/mor20",
-    icon: Wrench,
-    disabled: true,
-  },
-  {
-    title: "Referrals",
-    url: "/referrals",
-    icon: Share2,
-    disabled: true,
-  },
-  {
-    title: "Metrics",
-    url: "/metrics",
-    icon: BarChart,
-    disabled: true,
-  },
+  // {
+  //   title: "MOR20",
+  //   url: "/mor20",
+  //   icon: Wrench,
+  //   disabled: true,
+  // },
+  // {
+  //   title: "Referrals",
+  //   url: "/referrals",
+  //   icon: Share2,
+  //   disabled: true,
+  // },
+  // {
+  //   title: "Metrics",
+  //   url: "/metrics",
+  //   icon: BarChart,
+  //   disabled: true,
+  // },
 ]
 
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -131,7 +131,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                     </span>
                   </Link>
                 ) : (
-                  <>
+                  <Link href={item.url} className="flex items-center w-full cursor-pointer">
                     <item.icon className="sidebar-nav-icon" />
                     <span className={cn(
                       "sidebar-nav-text-base sidebar-nav-text-inactive",
@@ -139,7 +139,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                     )}>
                       {item.title}
                     </span>
-                  </>
+                  </Link>
                 )}
               </div>
             )
