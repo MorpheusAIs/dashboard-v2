@@ -5,9 +5,6 @@ import {
   CircleDollarSign,
   Cpu,
   Users,
-  Wrench,
-  Share2,
-  BarChart,
 } from "lucide-react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -115,30 +112,19 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                 key={item.title}
                 className={cn(
                   "sidebar-nav-link-base",
-                  item.disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : "sidebar-nav-link-hover",
-                  isActive && !item.disabled && "sidebar-nav-link-active"
+                  "sidebar-nav-link-hover",
+                  isActive && "sidebar-nav-link-active"
                 )}
               >
-                {!item.disabled ? (
-                  <Link href={item.url} className="flex items-center w-full">
-                    <item.icon className="sidebar-nav-icon" />
-                    <span className={cn(
-                      "sidebar-nav-text-base",
-                      isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive"
-                    )}>
-                      {item.title}
-                    </span>
-                  </Link>
-                ) : (
-                  <Link href={item.url} className="flex items-center w-full cursor-pointer">
-                    <item.icon className="sidebar-nav-icon" />
-                    <span className={cn(
-                      "sidebar-nav-text-base sidebar-nav-text-inactive"
-                    )}>
-                      {item.title}
-                    </span>
-                  </Link>
-                )}
+                <Link href={item.url} className="flex items-center w-full">
+                  <item.icon className="sidebar-nav-icon" />
+                  <span className={cn(
+                    "sidebar-nav-text-base",
+                    isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive"
+                  )}>
+                    {item.title}
+                  </span>
+                </Link>
               </div>
             )
           })}
