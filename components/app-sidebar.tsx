@@ -124,8 +124,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                     <item.icon className="sidebar-nav-icon" />
                     <span className={cn(
                       "sidebar-nav-text-base",
-                      isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
-                      collapsed && "hidden"
+                      isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive"
                     )}>
                       {item.title}
                     </span>
@@ -134,8 +133,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                   <Link href={item.url} className="flex items-center w-full cursor-pointer">
                     <item.icon className="sidebar-nav-icon" />
                     <span className={cn(
-                      "sidebar-nav-text-base sidebar-nav-text-inactive",
-                      collapsed && "hidden"
+                      "sidebar-nav-text-base sidebar-nav-text-inactive"
                     )}>
                       {item.title}
                     </span>
