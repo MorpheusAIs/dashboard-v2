@@ -120,7 +120,8 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                   <item.icon className="sidebar-nav-icon" />
                   <span className={cn(
                     "sidebar-nav-text-base",
-                    isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive"
+                    isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
+                    collapsed && "hidden"
                   )}>
                     {item.title}
                   </span>
