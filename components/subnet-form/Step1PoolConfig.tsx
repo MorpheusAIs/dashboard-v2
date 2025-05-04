@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { SUPPORTED_CHAINS, ArbitrumSepoliaIcon } from './constants';
 import { zeroAddress } from 'viem';
 import { useAccount } from 'wagmi';
+import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
 
 import {
   FormField,
@@ -27,6 +28,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 
 interface Step1PoolConfigProps {
   isSubmitting: boolean;
@@ -39,19 +41,24 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   const form = useFormContext();
   const { address } = useAccount();
 
+  const selectedChainId = form.watch("subnet.networkChainId");
+  const isTestnet = selectedChainId === arbitrumSepolia.id;
+
   return (
     <fieldset disabled={isSubmitting} className="space-y-4 p-6 border border-gray-100/30 rounded-lg">
-      <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">Subnet Configuration</legend>
+      <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">
+        {isTestnet ? "Subnet Configuration" : "Builder Pool Configuration"}
+      </legend>
 
       {/* Name */}
       <FormField
         control={form.control}
-        name="subnet.name"
+        name={isTestnet ? "subnet.name" : "builderPool.name"}
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Builder Subnet Name</FormLabel>
+            <FormLabel>{isTestnet ? "Subnet Name" : "Pool Name"}</FormLabel>
             <FormControl>
-              <Input placeholder="Unique subnet name (cannot be changed)" {...field} />
+              <Input placeholder="Unique name (cannot be changed)" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -67,24 +74,44 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
             <FormLabel>Network</FormLabel>
             <Select
               value={field.value?.toString()}
-              onValueChange={(value) => field.onChange(Number(value))}
+              onValueChange={(value) => {
+                const chainId = Number(value);
+                field.onChange(chainId);
+                
+                if (chainId === arbitrumSepolia.id) {
+                  form.setValue("subnet.fee", 0);
+                  form.setValue("subnet.feeTreasury", "");
+                } else {
+                  form.unregister("subnet.fee");
+                  form.unregister("subnet.feeTreasury");
+                }
+              }}
               disabled={isSubmitting}
             >
-              <FormControl><SelectTrigger><SelectValue placeholder="Select network" /></SelectTrigger></FormControl>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select network" />
+                </SelectTrigger>
+              </FormControl>
               <SelectContent>
-                {Object.values(SUPPORTED_CHAINS).map((chain) => {
-                  let IconComponent = null;
-                  if (chain.id === 421614) IconComponent = ArbitrumSepoliaIcon;
-                  // Add other icons as needed
-                  return (
-                    <SelectItem key={chain.id} value={chain.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        {IconComponent && <IconComponent className="text-current" />}
-                        <span>{chain.name}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
+                <SelectItem value={arbitrumSepolia.id.toString()}>
+                  <div className="flex items-center gap-2">
+                    <ArbitrumSepoliaIcon className="text-current" />
+                    <span>Arbitrum Sepolia</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value={arbitrum.id.toString()}>
+                  <div className="flex items-center gap-2">
+                    <ArbitrumIcon size={19} className="text-current" />
+                    <span>Arbitrum</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value={base.id.toString()}>
+                  <div className="flex items-center gap-2">
+                    <BaseIcon size={19} className="text-current" />
+                    <span>Base</span>
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
             <FormMessage />
@@ -96,73 +123,78 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField
           control={form.control}
-          name="subnet.minStake"
+          name={isTestnet ? "subnet.minStake" : "builderPool.minimalDeposit"}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Minimum Deposit ({tokenSymbol})</FormLabel>
+              <FormLabel>Minimum {isTestnet ? "Stake" : "Deposit"} ({tokenSymbol})</FormLabel>
               <FormControl><NumberInput min={0} value={field.value} onValueChange={field.onChange} /></FormControl>
-              <FormDescription>Min {tokenSymbol} required to deposit in this subnet.</FormDescription>
+              <FormDescription>Min {tokenSymbol} required for this {isTestnet ? "subnet" : "pool"}.</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="subnet.fee"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>% Emission Rate</FormLabel>
-              <FormControl>
-                <NumberInput
-                  min={0} max={100} step={0.01}
-                  value={field.value / 100}
-                  onValueChange={(value) => field.onChange(Math.round(value * 100))}
-                />
-              </FormControl>
-              <FormDescription>Note: This value is stored but not used by this contract directly.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+
+        {isTestnet && (
+          <FormField
+            control={form.control}
+            name="subnet.fee"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>% Emission Rate</FormLabel>
+                <FormControl>
+                  <NumberInput
+                    min={0} max={100} step={0.01}
+                    value={field.value / 100}
+                    onValueChange={(value) => field.onChange(Math.round(value * 100))}
+                  />
+                </FormControl>
+                <FormDescription>Note: This value is stored but not used by this contract directly.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
       </div>
 
       {/* Fee Treasury */}
-      <FormField
-        control={form.control}
-        name="subnet.feeTreasury"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Treasury Address</FormLabel>
-            <FormControl>
-              <div className="relative">
-                <Input
-                  placeholder="0x..."
-                  {...field}
-                  value={field.value === zeroAddress ? '' : field.value}
-                  className="pr-32" // Add padding for the button
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center text-xs h-8 px-2"
-                  onClick={() => {
-                    if (address) {
-                      field.onChange(address);
-                    }
-                  }}
-                  disabled={!address || isSubmitting}
-                >
-                  <Wallet className="mr-1 h-3 w-3" />
-                  Use your address
-                </Button>
-              </div>
-            </FormControl>
-            <FormDescription>Note: This address is stored but not used by this contract directly.</FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {isTestnet && (
+        <FormField
+          control={form.control}
+          name="subnet.feeTreasury"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Treasury Address</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input
+                    placeholder="0x..."
+                    {...field}
+                    value={field.value === zeroAddress ? '' : field.value}
+                    className="pr-32"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center text-xs h-8 px-2"
+                    onClick={() => {
+                      if (address) {
+                        field.onChange(address);
+                      }
+                    }}
+                    disabled={!address || isSubmitting}
+                  >
+                    <Wallet className="mr-1 h-3 w-3" />
+                    Use your address
+                  </Button>
+                </div>
+              </FormControl>
+              <FormDescription>Note: This address is stored but not used by this contract directly.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
 
       {/* Withdraw Lock */}
       <div className="flex gap-4 items-end">
