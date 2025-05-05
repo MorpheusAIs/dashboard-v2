@@ -423,7 +423,7 @@ export const useSubnetContractInteractions = ({
 
   const handleCreateSubnet = useCallback(async (data: FormData) => {
     if (!connectedAddress || !isCorrectNetwork()) {
-      toast.error("Cannot create builder pool: Wallet or network issue.");
+      toast.error("Cannot create builder subnet: Wallet or network issue.");
       return;
     }
     
