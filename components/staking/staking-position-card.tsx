@@ -106,16 +106,14 @@ export function StakingPositionCard({
                 className="pr-16" // Reduced padding since we're removing the balance display
               />
               <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs bg-gray-800"
+                  className="h-8 px-2 text-xs copy-button-secondary"
                   onClick={setMaxAmount}
                   disabled={disableWithdraw || userStakedAmount <= 0}
                 >
                   Max
-                </Button>
+                </button>
               </div>
             </div>
           </div>

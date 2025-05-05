@@ -46,6 +46,14 @@ export function MetricCard({
     return formatNumber(numValue);
   }
 
+  // Helper to check if a string looks numeric (allows commas, decimals)
+  const isNumericString = (value: string | number): boolean => {
+    if (typeof value === 'number') return true;
+    if (typeof value !== 'string') return false;
+    // Remove commas, check if it's a valid number (potentially with decimals)
+    return !isNaN(parseFloat(value.replace(/,/g, '')));
+  }
+
   return (
     <div className={`card-container group relative ${className}`}>
       <div className="card-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent" />
@@ -70,7 +78,11 @@ export function MetricCard({
             {metrics.map((metric, index) => (
               <div key={index} className="metric-container">
                 <span className="metric-value">
-                  <NumberFlow value={getNumericValue(formatValue(metric.value))} />
+                  {isNumericString(metric.value) ? (
+                    <NumberFlow value={getNumericValue(formatValue(metric.value))} />
+                  ) : (
+                    formatValue(metric.value) // Display non-numeric strings directly
+                  )}
                 </span>
                 <span className="metric-label">{metric.label}</span>
                 {metric.change && <span className="metric-change">{metric.change}</span>}
@@ -80,7 +92,11 @@ export function MetricCard({
         ) : (
           <div className="metric-container">
             <span className="metric-value">
-              <NumberFlow value={getNumericValue(formatValue(metrics[0].value))} />
+              {isNumericString(metrics[0].value) ? (
+                <NumberFlow value={getNumericValue(formatValue(metrics[0].value))} />
+              ) : (
+                formatValue(metrics[0].value) // Display non-numeric strings directly
+              )}
             </span>
             <span className="metric-label">{metrics[0].label}</span>
             {metrics[0].change && <span className="metric-change">{metrics[0].change}</span>}

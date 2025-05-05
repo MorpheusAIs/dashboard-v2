@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 
 export interface StakingFormCardProps {
   title?: string;
@@ -186,16 +185,14 @@ export function StakingFormCard({
                     {maxAmount >= 1 ? Math.floor(maxAmount) : maxAmount.toFixed(1)} {tokenSymbol}
                   </span>
                 )}
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs bg-gray-800"
+                  className="h-8 px-2 text-xs copy-button-secondary"
                   onClick={handleMaxClick}
                   disabled={maxAmount === undefined || maxAmount <= 0 || disableStaking}
                 >
                   Max
-                </Button>
+                </button>
               </div>
             </div>
           </div>
