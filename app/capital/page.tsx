@@ -67,6 +67,7 @@ const buildDepositsQuery = (/* poolId: string, - No longer needed */ timestamps:
 // --- Capital Page Content Component ---
 
 function CapitalPageContent() {
+  console.log("Capital page content rendering"); // <-- ADD BASIC LOG
   const {
     userAddress,
     setActiveModal, // Get setActiveModal from context
@@ -371,7 +372,9 @@ function CapitalPageContent() {
                   variant="outline"
                   size="sm"
                   className="mt-4 w-full md:w-auto"
-                  onClick={() => setActiveModal('changeLock')}
+                  onClick={() => {
+                    setActiveModal('changeLock'); // Restore original action
+                  }}
                   disabled={!userAddress || isUserSectionLoading}
                 >
                   Stake MOR Rewards
@@ -386,7 +389,8 @@ function CapitalPageContent() {
               </p>
             </div>
           </div>
-          <GlowingEffect 
+          {/* Temporarily comment out GlowingEffect to test button clicks */}
+          {/* <GlowingEffect 
             spread={40}
             glow={true}
             disabled={false}
@@ -394,7 +398,7 @@ function CapitalPageContent() {
             inactiveZone={0.01}
             borderWidth={2}
             borderRadius="rounded-xl"
-          />
+          /> */}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { Area, CartesianGrid, XAxis, YAxis, ComposedChart, ReferenceArea, ResponsiveContainer } from "recharts"
 import {
     Card,
@@ -230,17 +230,20 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     };
 
     // Basic Wheel Zoom (adjust factor and logic as needed)
-    const handleWheelZoom = (e: React.WheelEvent<HTMLDivElement>) => {
-        e.preventDefault();
+    // Moved the core logic into a useCallback for stable reference in useEffect
+    const handleWheelZoomLogic = useCallback((e: WheelEvent) => {
         if (!originalData.length || !chartRef.current || !startTime || !endTime) return;
-    
+
+        // Prevent default page scroll
+        e.preventDefault();
+
         const zoomFactor = 0.1; // How much to zoom in/out per wheel step
         const direction = e.deltaY < 0 ? 1 : -1; // 1 for zoom in, -1 for zoom out
-    
+
         const currentStartTime = new Date(startTime).getTime();
         const currentEndTime = new Date(endTime).getTime();
         const currentRange = currentEndTime - currentStartTime;
-    
+
         // Prevent zooming in too far (e.g., less than 1 minute range)
         if (direction === 1 && currentRange < 60 * 1000) {
             console.log("Zoom limit reached (min)");
@@ -296,10 +299,25 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
 
         setStartTime(new Date(newStartTimeMs).toISOString());
         setEndTime(new Date(newEndTimeMs).toISOString());
-    };
+    }, [originalData, startTime, endTime, handleReset]); // Added handleReset dependency
+
+    // Effect to manually attach the wheel listener with passive: false
+    useEffect(() => {
+        const chartElement = chartRef.current;
+        if (!chartElement) return;
+
+        // Type assertion for listener compatibility
+        const listener = handleWheelZoomLogic as EventListener;
+
+        chartElement.addEventListener('wheel', listener, { passive: false });
+
+        // Cleanup function to remove the listener
+        return () => {
+            chartElement.removeEventListener('wheel', listener);
+        };
+    }, [handleWheelZoomLogic]); // Re-attach if the logic function changes
 
     const formatXAxis = (tickItem: string) => {
-        console.log("formatXAxis input:", tickItem); // Log input
         try {
             const date = new Date(tickItem);
             if (isNaN(date.getTime())) { 
@@ -325,8 +343,6 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                  }
              }
 
-            console.log("formatXAxis rangeMs:", rangeMs); // Log calculated range
-
             const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000;
            
             let formattedTick: string;
@@ -335,7 +351,6 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
             } else {
                 formattedTick = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
             }
-            console.log("formatXAxis output:", formattedTick); // Log output
             return formattedTick;
         } catch (e) {
              console.error("Error formatting X axis tick:", tickItem, e);
@@ -376,7 +391,6 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                     <div 
                         className="h-full flex flex-col" 
                         ref={chartRef} 
-                        onWheel={handleWheelZoom} 
                         style={{ touchAction: 'pan-y' }} 
                     >
                          <div className="flex justify-end mb-2 sm:mb-4">
