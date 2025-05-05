@@ -167,7 +167,12 @@ export default function BuilderPage() {
     
     if (foundBuilder) {
       console.log("Found builder:", foundBuilder.name);
-      setBuilder(foundBuilder);
+      // Ensure admin is a string (or empty string if null) before setting state
+      const builderToSet = {
+        ...foundBuilder,
+        admin: foundBuilder.admin || '' // Provide empty string if admin is null
+      };
+      setBuilder(builderToSet);
       
       // Compute the subnet ID from the builder name
       if (isTestnet) {
