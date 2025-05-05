@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { MetricCard } from "@/components/metric-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -26,16 +26,16 @@ import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 
 // Interfaces
-interface UserSubnet {
-  id: string;
-  name: string;
-  description: string;
-  network: string;
-  status: string;
-  stakeAmount: number;
-  createdAt: string;
-  image?: string;
-}
+// interface UserSubnet {
+//   id: string;
+//   name: string;
+//   description: string;
+//   network: string;
+//   status: string;
+//   stakeAmount: number;
+//   createdAt: string;
+//   image?: string;
+// }
 
 // Add this function near the top of the file, before the component definition
 /**
@@ -113,54 +113,9 @@ function BuilderModalWrapper() {
   );
 }
 
-// Sample subnets data for the "Your Subnets" tab
-const sampleSubnets: UserSubnet[] = [
-  {
-    id: "6bd0895b-0baf-47d8-b39a-768d3550f826",
-    name: "GenAscend",
-    description: "GenAscend on Arbitrum",
-    network: "Arbitrum",
-    status: "Active",
-    stakeAmount: 5000,
-    createdAt: "2023-10-15",
-  },
-  {
-    id: "6e330560-23d3-4939-b3a1-f1af3a5c1649",
-    name: "Titan.io",
-    description: "Titan.io on Arbitrum",
-    network: "Arbitrum",
-    status: "Active",
-    stakeAmount: 7500,
-    createdAt: "2023-11-22",
-  },
-  {
-    id: "a1b2c3d4-e5f6-4a5b-9c8d-7e6f5a4b3c2d",
-    name: "4kGpL8",
-    description: "4kGpL8 subnet for ML computation",
-    network: "Base",
-    status: "Pending",
-    stakeAmount: 3000,
-    createdAt: "2024-01-05",
-  },
-  {
-    id: "b2c3d4e5-f6a7-5b6c-0d1e-8f7g6h5j4k3",
-    name: "aB3dH7",
-    description: "High-performance AI subnet",
-    network: "Arbitrum",
-    status: "Active",
-    stakeAmount: 10000,
-    createdAt: "2023-09-10",
-  },
-  {
-    id: "c3d4e5f6-a7b8-6c7d-1e2f-9g8h7j6k5l4",
-    name: "9nRt5e",
-    description: "Storage subnet on Base",
-    network: "Base",
-    status: "Inactive",
-    stakeAmount: 2500,
-    createdAt: "2024-02-20",
-  },
-];
+// Sample subnets data for the "Your Subnets" tab - REMOVED
+// const sampleSubnets: UserSubnet[] = [ ... ];
+
 
 // Sample data for Participating tab - Projects where the user has staked tokens
 const participatingBuilders: Builder[] = [
@@ -188,7 +143,9 @@ const participatingBuilders: Builder[] = [
     github_stars: 0,
     reward_types_detail: [],
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    startsAt: new Date().toISOString(),
+    admin: null // Added admin field
   },
   {
     id: "2",
@@ -214,7 +171,9 @@ const participatingBuilders: Builder[] = [
     github_stars: 0,
     reward_types_detail: [],
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    startsAt: new Date().toISOString(),
+    admin: null // Added admin field
   },
   {
     id: "3",
@@ -240,7 +199,9 @@ const participatingBuilders: Builder[] = [
     github_stars: 0,
     reward_types_detail: [],
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    startsAt: new Date(Date.now() + 86400000 * 5).toISOString(),
+    admin: null // Added admin field
   }
 ];
 
@@ -250,7 +211,7 @@ export default function BuildersPage() {
 
   // Use the builders context
   const {
-    // Filtering
+    // Filtering for 'Builders' tab
     nameFilter,
     setNameFilter,
     rewardTypeFilter,
@@ -258,18 +219,24 @@ export default function BuildersPage() {
     networkFilter,
     setNetworkFilter,
     
-    // Sorting
+    // Sorting for 'Builders' tab
     sortColumn,
     sortDirection,
     setSorting,
     
-    // Data
+    // Data for 'Builders' tab
     filteredBuilders,
     rewardTypes,
     isLoading,
     
     // Total metrics (independent of filters)
-    totalMetrics
+    totalMetrics,
+
+    // --- NEW: Data for 'Your Subnets' tab ---
+    userAdminSubnets, // Assuming this will be provided by the context
+    isLoadingUserAdminSubnets, // Assuming this loading state will be provided
+    // --- END NEW ---
+
   } = useBuilders();
 
   // Initialize tab state from URL or use default
@@ -277,7 +244,7 @@ export default function BuildersPage() {
     return getParam('tab') || 'builders';
   });
 
-  // Convert context sorting to the format expected by the UI
+  // Convert context sorting to the format expected by the UI (for Builders tab)
   const sorting = useMemo(() => {
     if (!sortColumn) return null;
     return {
@@ -441,17 +408,18 @@ export default function BuildersPage() {
   );
 
   // Define columns for the subnets table
-  const subnetsColumns: Column<UserSubnet>[] = useMemo(
+  // --- MODIFY subnetsColumns ---
+  const subnetsColumns: Column<Builder>[] = useMemo( // Changed type to Builder
     () => [
       {
         id: "name",
         header: "Name",
-        cell: (subnet) => {
-          // Try to safely determine if the image can be rendered
+        cell: (subnet) => { // subnet is now of type Builder
           const hasValidImage = (() => {
             try {
-              if (!subnet.image) return false;
-              return isValidImageUrl(subnet.image);
+              // Use image_src or image from Builder type
+              const url = subnet.image_src || subnet.image || '';
+              return isValidImageUrl(url);
             } catch {
               return false;
             }
@@ -463,13 +431,12 @@ export default function BuildersPage() {
                 {hasValidImage ? (
                   <div className="relative size-8">
                     <Image
-                      src={subnet.image || ''}
+                      src={subnet.image_src || subnet.image || ''} // Use Builder fields
                       alt={subnet.name}
                       fill
                       sizes="32px"
                       className="object-cover"
                       onError={() => {
-                        // Force a re-render with invalid image
                         const img = document.querySelector(`[alt="${subnet.name}"]`) as HTMLImageElement;
                         if (img) img.style.display = 'none';
                       }}
@@ -483,7 +450,8 @@ export default function BuildersPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Link 
-                  href={`/subnets/${subnet.id}`}
+                  // Assuming subnets might have a different detail page or use slug like builders
+                  href={`/builders/${builderNameToSlug(subnet.name)}`} // Or potentially /subnets/<id> if that page exists
                   className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                 >
                   {subnet.name}
@@ -496,15 +464,17 @@ export default function BuildersPage() {
       {
         id: "network",
         header: "Network",
-        cell: (subnet) => (
+        cell: (subnet) => ( // Use networks array from Builder
           <div className="flex items-center gap-1">
-            <div className="relative">
-              {subnet.network === "Arbitrum" ? (
-                <ArbitrumIcon size={19} className="text-current" />
-              ) : (
-                <BaseIcon size={19} className="text-current" />
-              )}
-            </div>
+             {(subnet.networks || []).map((network: string) => (
+              <div key={network} className="relative">
+                {network === "Arbitrum" || network === "Arbitrum Sepolia" ? (
+                  <ArbitrumIcon size={19} className="text-current" />
+                ) : (
+                  <BaseIcon size={19} className="text-current" />
+                )}
+              </div>
+            ))}
           </div>
         ),
       },
@@ -512,67 +482,115 @@ export default function BuildersPage() {
         id: "description",
         header: "Description",
         accessorKey: "description",
-        cell: (subnet) => (
+        cell: (subnet) => ( // Use description from Builder
           <span className="text-gray-300">{subnet.description}</span>
         ),
       },
       {
         id: "status",
         header: "Status",
-        accessorKey: "status",
-        cell: (subnet) => (
-          <span className={cn(
-            "px-2 py-1 rounded-full text-xs",
-            subnet.status === "Active" ? "bg-emerald-900/30 text-emerald-400" :
-            subnet.status === "Pending" ? "bg-yellow-900/30 text-yellow-400" :
-            "bg-red-900/30 text-red-400"
-          )}>
-            {subnet.status}
+        cell: (subnet) => { // Use startsAt from Builder (needs to be added to type/data)
+          // Assuming subnet.startsAt exists and is a valid date string or Date object
+          let status = "Pending";
+          let statusClass = "bg-yellow-900/30 text-yellow-400";
+
+          if (subnet.startsAt) {
+              try {
+                  const startsDate = new Date(subnet.startsAt);
+                  if (!isNaN(startsDate.getTime()) && startsDate <= new Date()) {
+                      status = "Active";
+                      statusClass = "bg-emerald-900/30 text-emerald-400";
+                  }
+              } catch (e) {
+                  console.error("Error parsing startsAt date:", e);
+                  // Keep default pending status if date is invalid
+              }
+          } else {
+             // If no startsAt date, maybe default to Active or handle as needed
+             // For now, let's assume Active if startsAt is missing or invalid after fetch
+             status = "Active"; 
+             statusClass = "bg-emerald-900/30 text-emerald-400"; 
+          }
+           
+          // We might need a separate 'Inactive' status based on other criteria later
+          // For now, just Active/Pending based on startsAt
+
+          return (
+            <span className={cn("px-2 py-1 rounded-full text-xs", statusClass)}>
+              {status}
+            </span>
+          );
+        },
+      },
+      {
+        id: "totalStaked", // Changed id and accessorKey
+        header: "MOR Staked", // Renamed header
+        accessorKey: "totalStaked", // Use totalStaked from Builder
+        cell: (subnet) => ( // Use totalStaked from Builder
+          <span className="text-gray-200">
+            {subnet.totalStaked !== undefined ? 
+              formatNumber(subnet.totalStaked) // Use formatNumber
+              : "—"}
           </span>
         ),
       },
       {
-        id: "stakeAmount",
-        header: "Stake Amount",
-        accessorKey: "stakeAmount",
-        cell: (subnet) => (
-          <span className="text-gray-200">{subnet.stakeAmount.toLocaleString()} MOR</span>
-        ),
-      },
-      {
-        id: "createdAt",
+        id: "createdAt", // Assuming Builder type has created_at
         header: "Created At",
-        accessorKey: "createdAt",
-        cell: (subnet) => (
-          <span className="text-gray-300">{subnet.createdAt}</span>
+        accessorKey: "created_at", // Use created_at from Builder
+        cell: (subnet) => ( // Format the date
+           <span className="text-gray-300">
+            {subnet.created_at ? new Date(subnet.created_at).toLocaleDateString() : '—'}
+          </span>
         ),
       },
     ],
-    []
+    [] // Removed dependency on sampleSubnets
   );
+  // --- END MODIFY subnetsColumns ---
+
 
   // Define state for your subnets tab filters
   const [yourSubnetsNameFilter, setYourSubnetsNameFilter] = useState("");
   const [yourSubnetsNetworkFilter, setYourSubnetsNetworkFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all"); // Note: This filters the calculated 'Active'/'Pending' status
 
-  // Filter the sampleSubnets based on the filters
-  const filteredSampleSubnets = useMemo(() => {
-    return sampleSubnets.filter((subnet) => {
+  // --- MODIFY Filter logic ---
+  // Filter the userAdminSubnets based on the filters
+  const filteredUserAdminSubnets = useMemo(() => {
+    // Use userAdminSubnets from context
+    return (userAdminSubnets || []).filter((subnet) => { 
       const matchesName = yourSubnetsNameFilter === '' || 
         subnet.name.toLowerCase().includes(yourSubnetsNameFilter.toLowerCase());
       
+      // Check against the 'networks' array in Builder type
       const matchesNetwork =
         yourSubnetsNetworkFilter === "all" || yourSubnetsNetworkFilter === "" || 
-        subnet.network === yourSubnetsNetworkFilter;
+        (subnet.networks && subnet.networks.some(network => 
+           network.toLowerCase() === yourSubnetsNetworkFilter.toLowerCase()
+        ));
       
+      // Calculate status on the fly for filtering
+       let currentStatus = "Pending";
+       if (subnet.startsAt) {
+          try {
+              const startsDate = new Date(subnet.startsAt);
+              if (!isNaN(startsDate.getTime()) && startsDate <= new Date()) {
+                  currentStatus = "Active";
+              }
+          } catch {} // Ignore errors for filtering
+       } else {
+           currentStatus = "Active"; // Default if no date
+       }
+
       const matchesStatus =
         statusFilter === "all" || statusFilter === "" || 
-        subnet.status.toLowerCase() === statusFilter.toLowerCase();
+        currentStatus.toLowerCase() === statusFilter.toLowerCase();
 
       return matchesName && matchesNetwork && matchesStatus;
     });
-  }, [yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter]);
+  }, [userAdminSubnets, yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter]); // Added userAdminSubnets dependency
+  // --- END MODIFY Filter logic ---
 
   // For your subnets filters, initialize from URL only if values exist
   useInitStateFromUrl(
@@ -606,6 +624,7 @@ export default function BuildersPage() {
 
   // Filter the participatingBuilders based on the filters
   const filteredParticipatingBuilders = useMemo(() => {
+    // Keep using sample data for now
     return participatingBuilders.filter((builder) => {
       const matchesName = participatingNameFilter === '' || 
         builder.name.toLowerCase().includes(participatingNameFilter.toLowerCase());
@@ -791,6 +810,20 @@ export default function BuildersPage() {
     []
   );
 
+  // Fetch user admin subnets when address is available or data reloads
+  const { userAddress } = useAuth();
+  const { fetchUserAdminSubnets } = useBuilders(); // Get the fetch function
+  useEffect(() => {
+     // Ensure we have an address and the fetch function exists
+     if (userAddress && fetchUserAdminSubnets) { 
+       console.log("useEffect in BuildersPage triggering fetchUserAdminSubnets for:", userAddress);
+       fetchUserAdminSubnets(userAddress);
+     }
+     // Note: The context itself handles re-fetching when its internal data reloads,
+     // so we only need to depend on the userAddress and the function reference here.
+  }, [userAddress, fetchUserAdminSubnets]);
+
+
   return (
     <div className="page-container">
       <div className="page-grid">
@@ -938,7 +971,7 @@ export default function BuildersPage() {
               </div>
             </TabsContent>
             
-            {/* Your Subnets Tab Content */}
+            {/* --- MODIFY Your Subnets Tab Content --- */}
             <TabsContent value="subnets">
               <div className="section-body p-2">
                 {/* Filters for your subnets */}
@@ -965,28 +998,31 @@ export default function BuildersPage() {
                   }}
                   selectFilterLabel="Status"
                   selectFilterPlaceholder="Select status"
-                  selectFilterOptions={[
+                  selectFilterOptions={[ // Filters based on calculated Active/Pending
                     { value: "active", label: "Active" },
                     { value: "pending", label: "Pending" },
-                    { value: "inactive", label: "Inactive" },
+                    // { value: "inactive", label: "Inactive" }, // Add if needed later
                   ]}
                   showSelectFilter={true}
                 />
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
                   <DataTable
-                    columns={subnetsColumns}
-                    data={filteredSampleSubnets}
-                    isLoading={false}
+                    columns={subnetsColumns} // Use updated columns
+                    data={filteredUserAdminSubnets} // Use filtered real data
+                    isLoading={isLoadingUserAdminSubnets} // Use loading state from context
                     loadingRows={6}
-                    noResultsMessage="No subnets found."
+                    noResultsMessage="No subnets administered by you were found." // Updated message
                     onRowClick={(subnet) => {
-                      window.location.href = `/subnets/${subnet.id}`;
+                       // Link to builder/subnet detail page
+                       window.location.href = `/builders/${builderNameToSlug(subnet.name)}`; // Or /subnets/<id>
                     }}
                   />
                 </div>
               </div>
             </TabsContent>
+            {/* --- END MODIFY Your Subnets Tab Content --- */}
+
 
             {/* Participating Tab Content */}
             <TabsContent value="participating">
@@ -1015,15 +1051,15 @@ export default function BuildersPage() {
                   }}
                   selectFilterLabel="Reward Type"
                   selectFilterPlaceholder="Select type"
-                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))}
+                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))} // Use rewardTypes from context if needed here too
                   showSelectFilter={true}
                 />
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
                   <DataTable
-                    columns={participatingColumns as unknown as Column<Builder>[]}
-                    data={filteredParticipatingBuilders}
-                    isLoading={isLoading}
+                    columns={participatingColumns as unknown as Column<Builder>[]} // Keep using sample data columns for now
+                    data={filteredParticipatingBuilders} // Keep using sample data for now
+                    isLoading={false} // Assuming sample data isn't loading
                     loadingRows={6}
                     noResultsMessage="No participating builders found."
                     onRowClick={(builder) => {
