@@ -12,6 +12,7 @@ import {
     ChartTooltipContent
 } from "@/components/ui/chart"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { NetworkEnvironment } from "@/config/networks"
 
 // Interface for chart data points
 export type DataPoint = {
@@ -22,6 +23,7 @@ export type DataPoint = {
 // Props for the chart component
 type DepositStethChartProps = {
     data?: DataPoint[];
+    networkEnv?: NetworkEnvironment; // <-- Add networkEnv prop
 };
 
 // Chart configuration
@@ -123,7 +125,10 @@ const getMonthlyTicks = (data: DataPoint[]): string[] => {
 };
 
 // The Chart Component
-export function DepositStethChart({ data: initialData }: DepositStethChartProps) {
+export function DepositStethChart({ 
+    data: initialData, 
+    networkEnv // <-- Destructure networkEnv
+}: DepositStethChartProps) {
     const [data, setData] = useState<DataPoint[]>(initialData || []);
     const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
     const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
@@ -134,7 +139,8 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     const chartRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null); // Ref for the direct parent div
     const [chartHeight, setChartHeight] = useState(410); // Default height
-    const [selectedRange, setSelectedRange] = useState<'7d' | '3m' | 'max'>('max'); // State for selected range
+    const [selectedRange, setSelectedRange] = useState<'7d' | '1m' | '3m' | 'max'>('1m'); // Set default to '1m'
+    const [isSimulating, setIsSimulating] = useState(false); // State for simulation
 
     // Threshold for switching height (adjust as needed)
     const SIDEBAR_COLLAPSE_WIDTH_THRESHOLD = 800;
@@ -225,18 +231,19 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     };
 
     const handleReset = () => {
-        if (originalData.length > 0) {
-            setStartTime(originalData[0].date);
-            setEndTime(originalData[originalData.length - 1].date);
-        } else {
-            setStartTime(null);
-            setEndTime(null);
-        }
+        // Remove direct setting of startTime and endTime
+        // if (originalData.length > 0) {
+        //     setStartTime(originalData[0].date);
+        //     setEndTime(originalData[originalData.length - 1].date);
+        // } else {
+        //     setStartTime(null);
+        //     setEndTime(null);
+        // }
          // Ensure selection refs are cleared on reset
         setRefAreaLeft(null);
         setRefAreaRight(null);
         setIsSelecting(false);
-        setSelectedRange('max'); // Reset selected range as well
+        setSelectedRange('1m'); // Set selected range back to default ('1m')
     };
 
     // Effect to update startTime and endTime based on selectedRange and originalData
@@ -250,6 +257,9 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
         if (selectedRange === '7d') {
             startDate = new Date(endDate);
             startDate.setDate(endDate.getDate() - 7);
+        } else if (selectedRange === '1m') {
+            startDate = new Date(endDate);
+            startDate.setMonth(endDate.getMonth() - 1);
         } else if (selectedRange === '3m') {
             startDate = new Date(endDate);
             startDate.setMonth(endDate.getMonth() - 3);
@@ -379,6 +389,26 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
         };
     }, []); // Empty dependency array to run only once for setup/cleanup
 
+    // Effect to generate simulated data on testnet
+    useEffect(() => {
+        if (networkEnv === 'testnet') {
+            console.log("Detected testnet, generating simulated chart data.");
+            setIsSimulating(true);
+            const simulated = simulateDepositData(); // Generate data
+            setData(simulated); // Set chart data state
+            setOriginalData(simulated); // Set original data state
+            setIsSimulating(false);
+            // Ensure loading/error states are reset for testnet
+            // We might not need the parent component's chartLoading/chartError here
+            // setChartLoading(false); // Assuming parent handles this based on skipped query
+            // setChartError(null);
+        } else {
+            // Reset data if switching back from testnet to mainnet (will be repopulated by prop)
+            setData(initialData || []);
+            setOriginalData(initialData || []);
+        }
+    }, [networkEnv, initialData]); // Rerun if networkEnv changes or initialData changes (for mainnet)
+
     const formatXAxis = (tickItem: string) => {
         try {
             const date = new Date(tickItem);
@@ -438,8 +468,10 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     // Determine if reset button should be enabled
      const isZoomed = useMemo(() => {
          if (!originalData.length || !startTime || !endTime) return false;
+         // Also consider range selection for reset enablement
+         if (selectedRange !== 'max') return true; 
          return startTime !== originalData[0].date || endTime !== originalData[originalData.length - 1].date;
-     }, [startTime, endTime, originalData]);
+     }, [startTime, endTime, originalData, selectedRange]);
 
     return (
         // Remove fixed height from Card, allow flex parent to control height
@@ -465,18 +497,19 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                                 <ToggleGroup 
                                     type="single"
                                     value={selectedRange}
-                                    onValueChange={(value: '7d' | '3m' | 'max') => {
+                                    onValueChange={(value: '7d' | '1m' | '3m' | 'max') => {
                                         if (value) setSelectedRange(value); // Only set if a value is selected
                                     }}
                                 >
                                     <ToggleGroupItem value="7d" className="text-xs px-2" aria-label="7 days">7d</ToggleGroupItem>
+                                    <ToggleGroupItem value="1m" className="text-xs px-2" aria-label="1 month">1m</ToggleGroupItem>
                                     <ToggleGroupItem value="3m" className="text-xs px-2" aria-label="3 months">3m</ToggleGroupItem>
                                     <ToggleGroupItem value="max" className="text-xs px-2" aria-label="Maximum">Max</ToggleGroupItem>
                                 </ToggleGroup>
                                 {/* Reset Button */}
                                 <button 
                                     onClick={handleReset} 
-                                    disabled={!isZoomed && selectedRange === 'max'} // Disable if not zoomed AND range is already max
+                                    disabled={!isZoomed && selectedRange === '1m'} // Disable if not zoomed AND range is already max
                                     className="text-xs sm:text-sm px-3 py-1 h-auto copy-button-secondary" 
                                 >
                                     Reset
