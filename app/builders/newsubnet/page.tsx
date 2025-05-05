@@ -123,8 +123,8 @@ export default function NewSubnetPage() {
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-emerald-400 mb-2">Create Builder Pool</h1>
-        <p className="text-gray-400">Configure your builder pool and project details.</p>
+        <h1 className="text-3xl font-bold text-emerald-400 mb-2">Create Builder Subnet</h1>
+        <p className="text-gray-400">Configure your builder subnet and project details.</p>
         {!connectedAddress && <p className="text-yellow-500 mt-2">Please connect your wallet.</p>}
       </div>
 

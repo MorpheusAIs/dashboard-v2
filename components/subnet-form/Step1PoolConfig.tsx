@@ -47,7 +47,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   return (
     <fieldset disabled={isSubmitting} className="space-y-4 p-6 border border-gray-100/30 rounded-lg">
       <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">
-        {isTestnet ? "Subnet Configuration" : "Builder Pool Configuration"}
+        Subnet Configuration
       </legend>
 
       {/* Name */}
