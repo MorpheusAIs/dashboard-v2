@@ -3,14 +3,11 @@ import { formatUnits } from "viem";
 // --- Formatting Helpers ---
 
 export function formatTimestamp(timestamp: bigint | number | undefined): string {
-  console.log("[formatTimestamp] Input:", timestamp);
   if (timestamp === undefined || timestamp === null) {
-    console.log("[formatTimestamp] Returning '---' due to undefined/null input.");
     return "--- --, ----";
   }
   try {
     const tsNumber = Number(timestamp);
-    console.log("[formatTimestamp] Converted to Number:", tsNumber);
 
     if (isNaN(tsNumber)) {
         console.log("[formatTimestamp] Returning 'Invalid Number' due to NaN.");
@@ -25,7 +22,6 @@ export function formatTimestamp(timestamp: bigint | number | undefined): string 
     // Assuming timestamps are generally > year 2000 (approx 946,684,800 seconds)
     if (tsNumber > 946684800) { 
         const date = new Date(tsNumber * 1000);
-        console.log("[formatTimestamp] Treating as timestamp. Date object:", date);
         if (isNaN(date.getTime())) {
             console.error("[formatTimestamp] Invalid Date object created from timestamp:", tsNumber);
             return "Invalid Date";
@@ -33,11 +29,9 @@ export function formatTimestamp(timestamp: bigint | number | undefined): string 
         const formattedDate = date.toLocaleString(undefined, { 
             year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' 
         });
-        console.log("[formatTimestamp] Formatted timestamp:", formattedDate);
         return formattedDate;
     } else {
         // Treat as duration or unexpected small number
-        console.log("[formatTimestamp] Treating as duration/small number:", tsNumber);
         // Heuristic check for duration vs timestamp
         const days = Math.floor(tsNumber / 86400);
         if (days > 0) return `${days} day${days > 1 ? 's' : ''}`;
