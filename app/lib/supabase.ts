@@ -29,6 +29,7 @@ export interface BuilderDB {
   reward_types_detail: string[];
   website: string | null;
   networks: string[];
+  admin: string | null;
   created_at: string;
   updated_at: string;
 } 

@@ -5,6 +5,7 @@ import { parseEther, formatEther, Address, isAddress } from 'viem';
 import { toast } from "sonner";
 import { useNetwork } from "@/context/network-context";
 import { getUnixTime } from "date-fns";
+import { arbitrum, base } from 'wagmi/chains'; // Import mainnet chains
 
 // Import the ABIs
 import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
@@ -13,6 +14,8 @@ import ERC20Abi from '@/app/abi/ERC20.json';
 // Import constants
 import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/constants';
 import { FormData } from '@/components/subnet-form/schemas';
+import { BuildersService } from '@/app/services/builders.service'; // Import BuildersService
+import { BuilderDB } from '@/app/lib/supabase'; // Import BuilderDB type
 
 export interface UseSubnetContractInteractionsProps {
   selectedChainId: number;
@@ -163,6 +166,9 @@ export const useSubnetContractInteractions = ({
   const { isLoading: isWriteTxLoading, isSuccess: isWriteTxSuccess } = useWaitForTransactionReceipt({ hash: writeTxResult });
   const { isLoading: isApproveTxLoading, isSuccess: isApproveTxSuccess } = useWaitForTransactionReceipt({ hash: approveTxResult });
 
+  // Store form data temporarily when submit is called
+  const [submittedFormData, setSubmittedFormData] = useState<FormData | null>(null);
+
   // Combined Loading States
   const isApproving = isApprovePending || isApproveTxLoading;
   const isCreating = isWritePending || isWriteTxLoading;
@@ -287,6 +293,7 @@ export const useSubnetContractInteractions = ({
         }
       });
       resetWriteContract();
+      setSubmittedFormData(null); // Clear form data on success
       if (onTxSuccess) {
         setTimeout(() => onTxSuccess(), 3000);
       }
@@ -298,8 +305,69 @@ export const useSubnetContractInteractions = ({
       if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
       toast.error("Subnet Creation Failed", { id: "subnet-tx", description: displayError });
       resetWriteContract();
+      setSubmittedFormData(null); // Clear form data on error
     }
   }, [isWritePending, isWriteTxSuccess, writeTxResult, writeError, selectedChainId, resetWriteContract, onTxSuccess]);
+
+  // Effect to handle Supabase insertion after successful transaction
+  useEffect(() => {
+    const insertIntoSupabase = async () => {
+      if (isWriteTxSuccess && submittedFormData && writeTxResult) {
+        const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
+        console.log(`Transaction successful (Tx: ${writeTxResult}). Checking if mainnet for Supabase insert...`, { selectedChainId, isMainnet });
+
+        if (isMainnet) {
+          const networkName = getNetworkName(selectedChainId);
+          console.log(`Mainnet detected (${networkName}). Preparing data for Supabase...`);
+
+          const newBuilderData: Partial<BuilderDB> = {
+            name: submittedFormData.subnet.name,
+            networks: [networkName], // Set network based on selectedChainId
+            description: submittedFormData.metadata.description || null,
+            long_description: submittedFormData.metadata.description || null, // Use description as long description for now
+            image_src: submittedFormData.metadata.image || null,
+            website: submittedFormData.metadata.website || null,
+            discord_url: submittedFormData.projectOffChain.discordLink || null,
+            twitter_url: submittedFormData.projectOffChain.twitterLink || null,
+            // Assuming 'rewards' in projectOffChain maps to reward_types
+            reward_types: submittedFormData.projectOffChain.rewards?.map(r => r.value) || [], 
+            // Default other fields as they are not in the form
+            tags: [],
+            github_url: null,
+            contributors: 0,
+            github_stars: 0,
+            reward_types_detail: [],
+          };
+
+          console.log("Data to insert into Supabase:", newBuilderData);
+
+          try {
+            toast.info("Syncing project details with database...", { id: "supabase-sync" });
+            await BuildersService.addBuilder(newBuilderData);
+            toast.success("Project details synced successfully!", { id: "supabase-sync" });
+          } catch (dbError) {
+            console.error("Failed to insert builder data into Supabase:", dbError);
+            toast.error("Database Sync Failed", {
+              id: "supabase-sync",
+              description: dbError instanceof Error ? dbError.message : "Could not save project details."
+            });
+            // Don't block navigation if DB insert fails, but log error
+          }
+        } else {
+          console.log("Not a mainnet chain, skipping Supabase insertion.");
+        }
+
+        // Clear submitted data and trigger original success callback (navigation)
+        setSubmittedFormData(null);
+        if (onTxSuccess) {
+           setTimeout(() => onTxSuccess(), 1000); // Short delay after toasts
+        }
+      }
+    };
+
+    insertIntoSupabase();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWriteTxSuccess, submittedFormData, selectedChainId, writeTxResult, getNetworkName, onTxSuccess]); // Add dependencies
 
   // Update loading state for token data and allowance
   useEffect(() => {
@@ -420,6 +488,9 @@ export const useSubnetContractInteractions = ({
         chainId: selectedChainId,
         // Let the wallet handle gas estimation
       });
+
+      // Store form data upon successful initiation
+      setSubmittedFormData(data);
       
     } catch (error) {
       console.error("Error preparing createSubnet transaction:", error);
