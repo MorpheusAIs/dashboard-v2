@@ -22,6 +22,8 @@ import { DepositStethChart, type DataPoint } from "@/components/capital/DepositS
 // Import Context and Config
 import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext";
 import { getGraphQLApiUrl, NetworkEnvironment } from "@/config/networks"; // Import config helper
+import { useNetwork } from "@/context/network-context"; // <-- Import useNetwork
+import { mainnet } from "wagmi/chains"; // <-- Import mainnet
 
 // --- Helper Functions for GraphQL Query ---
 
@@ -131,7 +133,7 @@ function CapitalPageContent() {
   // Fetch data using Apollo useQuery
   const { loading: apolloLoading, error: apolloError, data: apolloData } = useQuery(DEPOSITS_QUERY, {
      client: apolloClient ?? undefined, 
-     skip: !apolloClient || endOfDayTimestamps.length === 0, 
+     skip: !apolloClient || endOfDayTimestamps.length === 0 || networkEnv === 'testnet', // <-- Skip on testnet
      fetchPolicy: "cache-and-network", 
   });
 
@@ -195,7 +197,7 @@ function CapitalPageContent() {
        // Handle case where data is null/undefined but not loading/error
        setChartData([]); 
     }
-  }, [apolloData, apolloLoading, apolloError, endOfDayTimestamps]);
+  }, [apolloData, apolloLoading, apolloError, endOfDayTimestamps, networkEnv]);
 
   // Handle case where client couldn't be created (e.g., bad URL)
   useEffect(() => {
@@ -212,6 +214,8 @@ function CapitalPageContent() {
     if (value === "---" || value === undefined) return 0; // Return 0 for non-numeric/loading states for NumberFlow
     return parseFloat(value.replace(/,/g, ''));
   }
+
+  const { switchToChain, isNetworkSwitching } = useNetwork();
 
   return (
     <div className="page-container">
@@ -236,7 +240,7 @@ function CapitalPageContent() {
               <div className="mb-6"> 
                 <h1 className="text-3xl font-bold text-white">Capital</h1>
                 <p className="text-gray-400 mt-1">
-                  Contribute stETH/wstETH to the public liquidity pool and get MOR rewards.
+                  Contribute stETH to the public liquidity pool and get MOR rewards.
                 </p>
               </div>
 
@@ -247,7 +251,7 @@ function CapitalPageContent() {
                    className="copy-button flex-shrink-0" // Removed ml-4 
                    disabled={!userAddress}
                  >
-                   Deposit stETH/wstETH
+                   Deposit stETH
                  </button>
               </div>
 
@@ -281,10 +285,28 @@ function CapitalPageContent() {
              {chartLoading && <div className="flex justify-center items-center h-[400px] lg:h-full"><p>Loading Chart...</p></div>}
              {chartError && <div className="flex justify-center items-center h-[400px] lg:h-full text-red-500"><p>{chartError}</p></div>}
              {!chartLoading && !chartError && chartData.length > 0 && (
-               <DepositStethChart data={chartData} />
+               <DepositStethChart 
+                  data={chartData} 
+                  networkEnv={networkEnv} // <-- Pass networkEnv
+               />
              )}
              {!chartLoading && !chartError && chartData.length === 0 && (
-                <div className="flex justify-center items-center h-[400px] lg:h-full"><p>No deposit data available.</p></div>
+                <div className="flex flex-col justify-center items-center h-[400px] lg:h-full text-center"> {/* Use flex-col and text-center */} 
+                  <p className="text-gray-400 mb-4"> {/* Add margin-bottom */} 
+                    {networkEnv === 'testnet' 
+                       ? "You are viewing testnet. No historical deposit data available." 
+                       : "No deposit data available."} 
+                  </p>
+                  {networkEnv === 'testnet' && (
+                     <button 
+                       className="copy-button-secondary px-4 py-2 rounded-lg"
+                       onClick={() => switchToChain(mainnet.id)}
+                       disabled={isNetworkSwitching}
+                     >
+                       {isNetworkSwitching ? "Switching..." : "Switch to Mainnet"}
+                     </button>
+                  )}
+                </div>
              )}
            </div>
            {/* Optional Glowing effect for chart column */} 
@@ -323,7 +345,7 @@ function CapitalPageContent() {
                   onClick={() => setActiveModal('withdraw')}
                   disabled={!userAddress || isUserSectionLoading || !canWithdraw}
                 >
-                  Withdraw stETH/wstETH
+                  Withdraw stETH
                 </Button>
                 <p className="text-xs text-gray-500 mt-1">
                   {canWithdraw ? "Withdrawal available" : `Unlock: ${isLoadingGlobalData || isLoadingUserData ? "--- " : withdrawUnlockTimestampFormatted}`}
