@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
 import { getClientForNetwork } from '@/lib/apollo-client';
 import { 
   COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
@@ -19,8 +19,8 @@ import { useChainId } from 'wagmi';
 import { BuilderDB } from '@/app/lib/supabase';
 import { BuildersService } from '@/app/services/builders.service';
 import { formatTimePeriod } from "@/app/utils/time-utils";
+import { useAuth } from './auth-context';
 
-// Remove the NetworkEnvironment type and BuildersProviderProps interface
 interface BuildersContextType {
   // Raw data from API
   buildersProjects: BuilderProject[];
@@ -30,9 +30,11 @@ interface BuildersContextType {
   // UI-ready data
   builders: Builder[];
   userBuilders: Builder[];
+  userAdminSubnets: Builder[] | null;
   
   // State
   isLoading: boolean;
+  isLoadingUserAdminSubnets: boolean;
   error: Error | null;
   
   // Sorting
@@ -61,6 +63,7 @@ interface BuildersContextType {
   
   // Refresh data
   refreshData: () => Promise<void>;
+  fetchUserAdminSubnets: (address: string) => Promise<void>;
 }
 
 const BuildersContext = createContext<BuildersContextType | undefined>(undefined);
@@ -79,6 +82,7 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [isLoadingUserAdminSubnets, setIsLoadingUserAdminSubnets] = useState(true);
   
   // Sorting state
   const [sortColumn, setSortColumn] = useState<string | null>('totalStaked');
@@ -91,12 +95,14 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   
   // Handle async adaptation of builder projects
   const [adaptedBuilders, setAdaptedBuilders] = useState<Builder[]>([]);
+  const [userAdminSubnets, setUserAdminSubnets] = useState<Builder[] | null>(null);
   
   // Handle async adaptation of user builder projects - keeping for type compatibility
   const [adaptedUserBuilders, /*setAdaptedUserBuilders*/] = useState<Builder[]>([]);
   
   // Get chain ID directly from wagmi
   const chainId = useChainId();
+  const { userAddress } = useAuth();
   
   // Determine if we're on Arbitrum Sepolia
   const isArbitrumSepolia = chainId === arbitrumSepolia.id;
@@ -654,12 +660,110 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     };
   }, [adaptedBuilders]);
   
+  // --- REVISED: Function to fetch subnets administered by the user ---
+  const fetchUserAdminSubnets = useCallback(async (address: string) => {
+    if (!address) return;
+    setIsLoadingUserAdminSubnets(true); // Dependency: setIsLoadingUserAdminSubnets
+    console.log(`fetchUserAdminSubnets useCallback called for address: ${address}, isTestnet: ${isTestnet}`); // Dependency: isTestnet
+
+    // Read current state directly inside the callback to avoid adding them as dependencies
+    const currentBuildersProjects = buildersProjects; 
+    const currentAdaptedBuilders = adaptedBuilders;
+
+    try {
+      let adminSubnets: Builder[] = [];
+      
+      if (isTestnet) { // Dependency: isTestnet
+        // Testnet: Filter and map the current projects
+        console.log(`[Testnet Admin Filter] Filtering and mapping ${currentBuildersProjects.length} projects for admin ${address}`);
+        adminSubnets = currentBuildersProjects
+          .filter(project => project.admin?.toLowerCase() === address.toLowerCase())
+          .map(subnet => { /* ... (mapping logic remains the same) ... */ 
+              const totalStaked = subnet.totalStakedFormatted !== undefined 
+                ? subnet.totalStakedFormatted 
+                : Number(subnet.totalStaked || '0') / 1e18;
+              const safeTotal = isNaN(totalStaked) ? 0 : totalStaked;
+              const safeStakingCount = subnet.stakingCount || 0;
+              const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
+              const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+
+              return {
+                id: subnet.id,
+                name: subnet.name,
+                description: subnet.description || '',
+                long_description: subnet.description || '',
+                admin: subnet.admin,
+                networks: subnet.networks || ['Arbitrum Sepolia'],
+                network: subnet.network || 'Arbitrum Sepolia',
+                totalStaked: safeTotal,
+                minDeposit: subnet.minDeposit || 0,
+                lockPeriod: lockPeriodFormatted,
+                withdrawLockPeriodRaw: lockPeriodSeconds,
+                stakingCount: safeStakingCount,
+                website: subnet.website || '',
+                image_src: subnet.image || '',
+                image: subnet.image || '',
+                tags: [],
+                github_url: '',
+                twitter_url: '',
+                discord_url: '',
+                telegram_url: '',
+                contributors: 0,
+                github_stars: 0,
+                reward_types: [],
+                reward_types_detail: [],
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                startsAt: subnet.startsAt
+              };
+          });
+        console.log(`[Testnet Admin Filter] Found and mapped ${adminSubnets.length} subnets administered by user.`);
+        
+      } else {
+        // Mainnet: Filter the current merged `adaptedBuilders` array
+        console.log(`[Mainnet Admin Filter] Filtering ${currentAdaptedBuilders.length} builders for admin ${address}`);
+        adminSubnets = currentAdaptedBuilders.filter(builder => 
+          builder.admin?.toLowerCase() === address.toLowerCase()
+        );
+        console.log(`[Mainnet Admin Filter] Found ${adminSubnets.length} builders administered by user.`);
+      }
+      
+      setUserAdminSubnets(adminSubnets); // Dependency: setUserAdminSubnets
+    } catch (e) {
+      console.error('Error fetching user admin subnets:', e);
+      setUserAdminSubnets([]); // Dependency: setUserAdminSubnets
+    } finally {
+      setIsLoadingUserAdminSubnets(false); // Dependency: setIsLoadingUserAdminSubnets
+    }
+  }, [isTestnet, setIsLoadingUserAdminSubnets, setUserAdminSubnets]); // useCallback Dependencies
+  // --- END REVISED --- 
+
+  // --- REVISED: Trigger fetchUserAdminSubnets ---
+  useEffect(() => {
+    if (userAddress) {
+      console.log("useEffect triggering fetchUserAdminSubnets based on userAddress/isTestnet change");
+      fetchUserAdminSubnets(userAddress);
+    } else {
+      // Clear admin subnets if user logs out or address becomes null
+      setUserAdminSubnets(null);
+      setIsLoadingUserAdminSubnets(false); // Set loading to false when clearing
+    }
+    // Only depends on userAddress, isTestnet and the stable fetchUserAdminSubnets callback
+  }, [userAddress, isTestnet, fetchUserAdminSubnets]); 
+  // --- END REVISED --- 
+  
+  // Modify refreshData to use the useCallback version
   const refreshData = async () => {
     // Refresh both on-chain data and Supabase data
     await Promise.all([
       fetchBuildersData(),
       BuildersService.getAllBuilders().then(setSupabaseBuilders)
     ]);
+    // After refreshing main data, re-filter admin subnets if user address is available
+    if (userAddress) {
+      // No need to await here unless subsequent logic depends on it immediately
+      fetchUserAdminSubnets(userAddress); 
+    }
   };
 
   return (
@@ -670,7 +774,9 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
         buildersCounters,
         builders: adaptedBuilders,
         userBuilders: adaptedUserBuilders,
+        userAdminSubnets,
         isLoading,
+        isLoadingUserAdminSubnets,
         error,
         sortColumn,
         sortDirection,
@@ -684,7 +790,8 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
         filteredBuilders,
         rewardTypes,
         totalMetrics,
-        refreshData
+        refreshData,
+        fetchUserAdminSubnets
       }}
     >
       {children}

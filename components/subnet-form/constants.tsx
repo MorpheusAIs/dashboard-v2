@@ -1,5 +1,5 @@
-import { arbitrumSepolia } from 'wagmi/chains';
-import { testnetChains, ChainConfig } from '@/config/networks';
+import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { testnetChains, mainnetChains, ChainConfig } from '@/config/networks';
 import { Address } from 'viem';
 import React from 'react';
 
@@ -12,9 +12,11 @@ export const ArbitrumSepoliaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (pro
   </svg>
 );
 
-// Define supported chains for this form
+// Update SUPPORTED_CHAINS to include all networks
 export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
-  [arbitrumSepolia.id]: testnetChains.arbitrumSepolia
+  [arbitrumSepolia.id]: testnetChains.arbitrumSepolia,
+  [arbitrum.id]: mainnetChains.arbitrum,
+  [base.id]: mainnetChains.base
 };
 
 // Fallback MOR token address on Arbitrum Sepolia

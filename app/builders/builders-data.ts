@@ -12,6 +12,7 @@ export interface Builder extends BuilderDB {
   minDeposit: number;
   network: string;
   networks: string[];
+  startsAt?: string | Date;
 }
 
 // This will be populated by the component using BuildersService
