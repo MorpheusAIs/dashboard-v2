@@ -96,6 +96,7 @@ export async function adaptBuilderProjectToUI(
     lockPeriod,
     withdrawLockPeriodRaw,
     website,
+    admin: project.admin || null, // Add the missing admin property
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     reward_types_detail: []
