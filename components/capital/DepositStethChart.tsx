@@ -131,6 +131,11 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     const [originalData, setOriginalData] = useState<DataPoint[]>(initialData || []);
     const [isSelecting, setIsSelecting] = useState(false);
     const chartRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null); // Ref for the direct parent div
+    const [chartHeight, setChartHeight] = useState(410); // Default height
+
+    // Threshold for switching height (adjust as needed)
+    const SIDEBAR_COLLAPSE_WIDTH_THRESHOLD = 800;
 
     useEffect(() => {
         if (initialData?.length) {
@@ -182,6 +187,7 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     const handleMouseDown = (e: { activeLabel?: string }) => {
         // Ensure interaction happens within the chart plot area
         if (e.activeLabel && chartRef.current) { 
+            console.log("handleMouseDown - setting refAreaLeft:", e.activeLabel);
             setRefAreaLeft(e.activeLabel);
             setIsSelecting(true);
         }
@@ -190,6 +196,7 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     const handleMouseMove = (e: { activeLabel?: string }) => {
         if (isSelecting && e.activeLabel && chartRef.current) {
              // Check boundaries if needed, but generally recharts handles this
+             console.log("handleMouseMove - setting refAreaRight:", e.activeLabel);
             setRefAreaRight(e.activeLabel);
         }
     };
@@ -317,6 +324,30 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
         };
     }, [handleWheelZoomLogic]); // Re-attach if the logic function changes
 
+    // Effect to observe parent container width and set chart height
+    useEffect(() => {
+        const containerElement = containerRef.current;
+        if (!containerElement) return;
+
+        const resizeObserver = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                const width = entry.contentRect.width;
+                // Set height based on width threshold
+                setChartHeight(width < SIDEBAR_COLLAPSE_WIDTH_THRESHOLD ? 460 : 410);
+            }
+        });
+
+        resizeObserver.observe(containerElement);
+
+        // Initial check
+        const initialWidth = containerElement.getBoundingClientRect().width;
+        setChartHeight(initialWidth < SIDEBAR_COLLAPSE_WIDTH_THRESHOLD ? 450 : 410);
+
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []); // Empty dependency array to run only once for setup/cleanup
+
     const formatXAxis = (tickItem: string) => {
         try {
             const date = new Date(tickItem);
@@ -393,19 +424,24 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                         ref={chartRef} 
                         style={{ touchAction: 'pan-y' }} 
                     >
-                         <div className="flex justify-end mb-2 sm:mb-4">
-                             <button 
-                                // variant="outline" 
+                         {/* Container for Title and Reset Button */}
+                         <div className="absolute top-2 left-5 right-0 z-10 px-1 sm:px-0 flex justify-between items-center">
+                            {/* Title */}
+                            <h3 className="text-lg font-semibold text-white">Total stETH Deposits</h3>
+                            {/* Reset Button */}
+                            <button 
                                 onClick={handleReset} 
                                 disabled={!isZoomed} 
-                                className="text-xs sm:text-sm px-3 py-1 h-auto copy-button-secondary" // Smaller button
-                             >
-                                 Reset
-                             </button>
+                                className="text-xs sm:text-sm px-3 py-1 h-auto copy-button-secondary mr-2 sm:mr-4" // Added margin right
+                            >
+                                Reset
+                            </button>
                          </div>
-                         {/* Ensure ResponsiveContainer takes remaining height */}
-                         <div className="flex-grow min-h-0"> 
-                            <ResponsiveContainer width="100%" height="100%">
+                         {/* Ensure ResponsiveContainer takes remaining height, add padding-top */}
+                         {/* Note: Adjust pt-10 if title/button height changes significantly */}
+                         <div ref={containerRef} className="flex-grow min-h-0 pt-10"> 
+                            {/* Pass calculated height to ResponsiveContainer */}
+                            <ResponsiveContainer width="100%" height={chartHeight}>
                                 <ComposedChart
                                     data={zoomedData}
                                     margin={{
@@ -488,16 +524,17 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                                         isAnimationActive={false}
                                         dot={false}
                                     />
-                                    {/* ReferenceArea for zoom selection */}
-                                    {refAreaLeft && refAreaRight && isSelecting && (
+                                    {/* ReferenceArea for zoom selection - Remove isSelecting from condition */}
+                                    {refAreaLeft && refAreaRight && (
                                         <ReferenceArea
                                             x1={refAreaLeft}
                                             x2={refAreaRight}
-                                            stroke="hsl(var(--foreground))"
-                                            strokeOpacity={0.5}
-                                            fill="hsl(var(--foreground))"
-                                            fillOpacity={0.1}
-                                            ifOverflow="visible" // Ensure selection area is visible
+                                            // Use a distinct temporary color and match example opacity
+                                            stroke="#FF0000" // Bright Red
+                                            strokeOpacity={0.3}
+                                            fill="#FF0000" // Bright Red
+                                            fillOpacity={0.05}
+                                            // Removed ifOverflow="visible"
                                         />
                                     )}
                                 </ComposedChart>
