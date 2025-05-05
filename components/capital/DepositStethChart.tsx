@@ -9,8 +9,9 @@ import {
     ChartConfig,
     ChartContainer,
     ChartTooltip,
-    ChartTooltipContent,
+    ChartTooltipContent
 } from "@/components/ui/chart"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 // Interface for chart data points
 export type DataPoint = {
@@ -133,6 +134,7 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
     const chartRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null); // Ref for the direct parent div
     const [chartHeight, setChartHeight] = useState(410); // Default height
+    const [selectedRange, setSelectedRange] = useState<'7d' | '3m' | 'max'>('max'); // State for selected range
 
     // Threshold for switching height (adjust as needed)
     const SIDEBAR_COLLAPSE_WIDTH_THRESHOLD = 800;
@@ -234,7 +236,36 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
         setRefAreaLeft(null);
         setRefAreaRight(null);
         setIsSelecting(false);
+        setSelectedRange('max'); // Reset selected range as well
     };
+
+    // Effect to update startTime and endTime based on selectedRange and originalData
+    useEffect(() => {
+        if (!originalData || originalData.length === 0) return;
+
+        const lastDataPoint = originalData[originalData.length - 1];
+        const endDate = new Date(lastDataPoint.date);
+        let startDate = new Date(originalData[0].date);
+
+        if (selectedRange === '7d') {
+            startDate = new Date(endDate);
+            startDate.setDate(endDate.getDate() - 7);
+        } else if (selectedRange === '3m') {
+            startDate = new Date(endDate);
+            startDate.setMonth(endDate.getMonth() - 3);
+        } 
+        // For 'max', startDate is already set to the beginning of originalData
+
+        // Ensure calculated startDate isn't before the actual start of data
+        const firstDataPointDate = new Date(originalData[0].date);
+        if (startDate < firstDataPointDate) {
+            startDate = firstDataPointDate;
+        }
+
+        setStartTime(startDate.toISOString());
+        setEndTime(endDate.toISOString());
+
+    }, [selectedRange, originalData]);
 
     // Basic Wheel Zoom (adjust factor and logic as needed)
     // Moved the core logic into a useCallback for stable reference in useEffect
@@ -425,17 +456,32 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                         style={{ touchAction: 'pan-y' }} 
                     >
                          {/* Container for Title and Reset Button */}
-                         <div className="absolute top-2 left-5 right-0 z-10 px-1 sm:px-0 flex justify-between items-center">
+                         <div className="absolute top-2 left-0 right-0 z-10 px-1 sm:px-0 flex justify-between items-center">
                             {/* Title */}
-                            <h3 className="text-lg font-semibold text-white">Total stETH Deposits</h3>
-                            {/* Reset Button */}
-                            <button 
-                                onClick={handleReset} 
-                                disabled={!isZoomed} 
-                                className="text-xs sm:text-sm px-3 py-1 h-auto copy-button-secondary mr-2 sm:mr-4" // Added margin right
-                            >
-                                Reset
-                            </button>
+                            <h3 className="text-lg font-semibold text-white ml-4">Total stETH Deposits</h3>{/* Added ml-4 for spacing*/}
+                            {/* Controls Container (Toggle Group + Reset Button) */}
+                            <div className="flex items-center space-x-2 mr-2 sm:mr-4"> {/* Added container and spacing */} 
+                                {/* Toggle Group */} 
+                                <ToggleGroup 
+                                    type="single"
+                                    value={selectedRange}
+                                    onValueChange={(value: '7d' | '3m' | 'max') => {
+                                        if (value) setSelectedRange(value); // Only set if a value is selected
+                                    }}
+                                >
+                                    <ToggleGroupItem value="7d" className="text-xs px-2" aria-label="7 days">7d</ToggleGroupItem>
+                                    <ToggleGroupItem value="3m" className="text-xs px-2" aria-label="3 months">3m</ToggleGroupItem>
+                                    <ToggleGroupItem value="max" className="text-xs px-2" aria-label="Maximum">Max</ToggleGroupItem>
+                                </ToggleGroup>
+                                {/* Reset Button */}
+                                <button 
+                                    onClick={handleReset} 
+                                    disabled={!isZoomed && selectedRange === 'max'} // Disable if not zoomed AND range is already max
+                                    className="text-xs sm:text-sm px-3 py-1 h-auto copy-button-secondary" 
+                                >
+                                    Reset
+                                </button>
+                            </div>
                          </div>
                          {/* Ensure ResponsiveContainer takes remaining height, add padding-top */}
                          {/* Note: Adjust pt-10 if title/button height changes significantly */}
