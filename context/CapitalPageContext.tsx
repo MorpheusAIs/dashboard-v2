@@ -405,9 +405,18 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const totalDepositedFormatted = formatBigInt(totalDepositedData, 18, 2);
   const userDepositFormatted = formatBigInt(userData?.deposited, 18, 2);
   const claimableAmountFormatted = formatBigInt(currentUserRewardData, 18, 2);
-  const userMultiplierFormatted = currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 18, 1)}x` : "---x";
+  const userMultiplierFormatted = currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 24, 1)}x` : "---x";
   const poolStartTimeFormatted = formatTimestamp(poolInfo?.payoutStart);
   const currentDailyRewardFormatted = formatBigInt(currentDailyReward, 18, 2);
+
+  // --- Log Raw Multiplier Data ---
+  useEffect(() => {
+    if (currentUserMultiplierData !== undefined) {
+      console.log("Raw currentUserMultiplierData:", currentUserMultiplierData);
+    }
+  }, [currentUserMultiplierData]);
+  // --------------------------------
+
   const withdrawUnlockTimestampFormatted = formatTimestamp(withdrawUnlockTimestamp);
   const claimUnlockTimestampFormatted = formatTimestamp(claimUnlockTimestamp);
   const minimalStakeFormatted = formatBigInt(poolInfo?.minimalStake, 18, 0);
@@ -618,7 +627,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       if (isSimulatingMultiplier) return "Loading...";
       if (simulateMultiplierError) return "Error";
       if (simulatedMultiplierResult?.result) {
-          return formatBigInt(simulatedMultiplierResult.result as bigint, 18, 1) + "x";
+          // --- Log Raw Simulated Multiplier Data ---
+          console.log("Raw simulatedMultiplierResult.result:", simulatedMultiplierResult.result);
+          // -----------------------------------------
+          return formatBigInt(simulatedMultiplierResult.result as bigint, 24, 1) + "x";
       }
       return "---x"; // Default or if no valid args set
   }, [simulatedMultiplierResult, simulateMultiplierError, isSimulatingMultiplier]);

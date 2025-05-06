@@ -56,7 +56,7 @@ export function ChangeLockModal({
 
   // Format existing data
   const currentLockEndFormatted = useMemo(() => formatTimestamp(userData?.claimLockEnd), [userData?.claimLockEnd]);
-  const currentMultiplierFormatted = useMemo(() => currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 18, 1)}x` : "---x", [currentUserMultiplierData]);
+  const currentMultiplierFormatted = useMemo(() => currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 24, 1)}x` : "---x", [currentUserMultiplierData]);
 
   // Effect to trigger multiplier estimation when duration changes
   useEffect(() => {
