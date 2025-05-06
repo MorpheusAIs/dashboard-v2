@@ -228,21 +228,12 @@ export function DepositStethChart({
         setRefAreaRight(null);
     };
 
-    const handleReset = () => {
-        // Remove direct setting of startTime and endTime
-        // if (originalData.length > 0) {
-        //     setStartTime(originalData[0].date);
-        //     setEndTime(originalData[originalData.length - 1].date);
-        // } else {
-        //     setStartTime(null);
-        //     setEndTime(null);
-        // }
-         // Ensure selection refs are cleared on reset
+    const handleReset = useCallback(() => {
         setRefAreaLeft(null);
         setRefAreaRight(null);
         setIsSelecting(false);
-        setSelectedRange('1m'); // Set selected range back to default ('1m')
-    };
+        setSelectedRange('1m');
+    }, [setRefAreaLeft, setRefAreaRight, setIsSelecting, setSelectedRange]);
 
     // Effect to update startTime and endTime based on selectedRange and originalData
     useEffect(() => {
