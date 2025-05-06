@@ -287,7 +287,6 @@ function CapitalPageContent() {
              {!chartLoading && !chartError && chartData.length > 0 && (
                <DepositStethChart 
                   data={chartData} 
-                  networkEnv={networkEnv} // <-- Pass networkEnv
                />
              )}
              {!chartLoading && !chartError && chartData.length === 0 && (

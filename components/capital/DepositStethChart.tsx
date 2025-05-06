@@ -12,7 +12,6 @@ import {
     ChartTooltipContent
 } from "@/components/ui/chart"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { NetworkEnvironment } from "@/config/networks"
 
 // Interface for chart data points
 export type DataPoint = {
@@ -23,7 +22,7 @@ export type DataPoint = {
 // Props for the chart component
 type DepositStethChartProps = {
     data?: DataPoint[];
-    networkEnv?: NetworkEnvironment; // <-- Add networkEnv prop
+    // networkEnv?: NetworkEnvironment; // <-- Add networkEnv prop
 };
 
 // Chart configuration
@@ -127,7 +126,7 @@ const getMonthlyTicks = (data: DataPoint[]): string[] => {
 // The Chart Component
 export function DepositStethChart({ 
     data: initialData, 
-    networkEnv // <-- Destructure networkEnv
+    // networkEnv // <-- Destructure networkEnv
 }: DepositStethChartProps) {
     const [data, setData] = useState<DataPoint[]>(initialData || []);
     const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
@@ -140,7 +139,6 @@ export function DepositStethChart({
     const containerRef = useRef<HTMLDivElement>(null); // Ref for the direct parent div
     const [chartHeight, setChartHeight] = useState(410); // Default height
     const [selectedRange, setSelectedRange] = useState<'7d' | '1m' | '3m' | 'max'>('1m'); // Set default to '1m'
-    const [isSimulating, setIsSimulating] = useState(false); // State for simulation
 
     // Threshold for switching height (adjust as needed)
     const SIDEBAR_COLLAPSE_WIDTH_THRESHOLD = 800;
@@ -388,26 +386,6 @@ export function DepositStethChart({
             resizeObserver.disconnect();
         };
     }, []); // Empty dependency array to run only once for setup/cleanup
-
-    // Effect to generate simulated data on testnet
-    useEffect(() => {
-        if (networkEnv === 'testnet') {
-            console.log("Detected testnet, generating simulated chart data.");
-            setIsSimulating(true);
-            const simulated = simulateDepositData(); // Generate data
-            setData(simulated); // Set chart data state
-            setOriginalData(simulated); // Set original data state
-            setIsSimulating(false);
-            // Ensure loading/error states are reset for testnet
-            // We might not need the parent component's chartLoading/chartError here
-            // setChartLoading(false); // Assuming parent handles this based on skipped query
-            // setChartError(null);
-        } else {
-            // Reset data if switching back from testnet to mainnet (will be repopulated by prop)
-            setData(initialData || []);
-            setOriginalData(initialData || []);
-        }
-    }, [networkEnv, initialData]); // Rerun if networkEnv changes or initialData changes (for mainnet)
 
     const formatXAxis = (tickItem: string) => {
         try {
