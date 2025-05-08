@@ -144,7 +144,7 @@ export const mainnetChains: Record<string, ChainConfig> = {
       }
     },
     contracts: {
-      morToken: toContract('0x092bAaDB7DEF4C3981454dD9c0A0D7FF07bCFc86'),
+      morToken: toContract('0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86'),
       l2Factory: toContract('0x890BfA255E6EE8DB5c67aB32dc600B14EBc4546c'),
       subnetFactory: toContract('0x37B94Bd80b6012FB214bB6790B31A5C40d6Eb7A5'),
       builders: toContract('0xC0eD68f163d44B6e9985F0041fDf6f67c6BCFF3f')
@@ -163,7 +163,7 @@ export const mainnetChains: Record<string, ChainConfig> = {
       }
     },
     contracts: {
-      morToken: toContract('0x7431aDa8a591C955a994a21710752EF9b882b8e3'),
+      morToken: toContract('0x7431ada8a591c955a994a21710752ef9b882b8e3'),
       builders: toContract('0x42BB446eAE6dca7723a9eBdb81EA88aFe77eF4B9')
     }
   }

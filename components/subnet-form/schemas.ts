@@ -24,13 +24,14 @@ const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 export const subnetContractSchema = z.object({
   name: z.string().min(1, "Subnet name is required"),
   minStake: z.number().min(0, "Minimum stake must be a non-negative number"),
-  fee: z.number().min(0, "Fee must be non-negative").max(10000, "Fee cannot exceed 100% (10000 basis points)"),
-  // Refined address validation: Must be a valid address AND not the zero address
+  // Fee and Treasury are optional, only relevant/validated when present (i.e., on testnet)
+  fee: z.number().min(0, "Fee must be non-negative").max(10000, "Fee cannot exceed 100% (10000 basis points)").optional(),
   feeTreasury: z.string()
-    .min(1, "Fee Treasury address is required") // Basic required check
+    // .min(1, "Fee Treasury address is required") // Optional, so min(1) doesn't make sense here
     .regex(ETH_ADDRESS_REGEX, "Invalid Ethereum address format")
     .refine((val) => val !== zeroAddress, "Fee Treasury cannot be the zero address")
-    .refine((val) => isAddress(val), "Invalid Ethereum address checksum"), // isAddress checks checksum
+    .refine((val) => isAddress(val), "Invalid Ethereum address checksum")
+    .optional(), 
   startsAt: z.date({ required_error: "Stake start date is required" }),
   withdrawLockPeriod: z.number().min(1, "Withdraw lock period must be at least 1"),
   withdrawLockUnit: z.enum(["hours", "days"]),
@@ -43,29 +44,42 @@ export const metadataContractSchema = z.object({
   slug: z.string()
     .min(3, "Slug must be at least 3 characters")
     .max(120, "Slug must be 120 characters or less")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens"),
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens")
+    .optional(), 
   description: z.string()
-    .min(10, "Description must be at least 10 characters")
-    .max(800, "Description must be 800 characters or less"),
-  website: z.string().url("Please enter a valid URL").min(1, "Project URL is required"),
+    // .min(10, "Description must be at least 10 characters") // Temp remove min
+    .max(800, "Description must be 800 characters or less")
+    .optional(), // Temp make optional
+  website: z.string().url("Please enter a valid URL")
+    // .min(1, "Project URL is required") // Temp remove min
+    .optional(), // Temp make optional
   image: z.union([z.literal(''), z.string().url("Please enter a valid URL for the logo")]).optional(),
 });
 
 // Step 2: Project Off-Chain Schema
 export const projectOffChainSchema = z.object({
-   email: z.string().email("Please enter a valid email").optional().or(z.literal('')),
-   discordLink: z.string().url("Please enter a valid Discord invite URL")
-    .refine(url => url.startsWith('https://discord.gg/') || url.startsWith('https://discord.com/invite/'), {
-       message: "URL must start with https://discord.gg/ or https://discord.com/invite/",
-     })
-     .optional().or(z.literal('')),
-   twitterLink: z.string().url("Please enter a valid X/Twitter profile URL")
-     .refine(url => url.startsWith('https://x.com/') || url.startsWith('https://twitter.com/'), {
-       message: "URL must start with https://x.com/ or https://twitter.com/",
-     })
-     .optional().or(z.literal('')),
+   // email: z.string().email("Please enter a valid email").optional().or(z.literal('')),
+   email: z.string().optional(), // Temp simplify
+   discordLink: z.string().optional(), // Temp simplify
+   twitterLink: z.string().optional(), // Temp simplify
+   /* // Original complex validation using union
+   discordLink: z.union([
+     z.literal(''), 
+     z.string().url("Please enter a valid Discord invite URL")
+       .startsWith('https://discord.gg/', { message: "URL must start with https://discord.gg/" })
+       .or(z.string().url().startsWith('https://discord.com/invite/', { message: "URL must start with https://discord.com/invite/"}))
+   ]).optional(),
+   twitterLink: z.union([
+     z.literal(''), 
+     z.string().url("Please enter a valid X/Twitter profile URL")
+       .startsWith('https://x.com/', { message: "URL must start with https://x.com/" })
+       .or(z.string().url().startsWith('https://twitter.com/', { message: "URL must start with https://twitter.com/"}))
+   ]).optional(),
+   */
    rewards: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
- }).superRefine((data, ctx) => {
+ })
+ /* // Temp remove superRefine
+ .superRefine((data, ctx) => {
    if (!data.email && !data.discordLink && !data.twitterLink) {
      ctx.addIssue({
        code: z.ZodIssueCode.custom,
@@ -74,6 +88,7 @@ export const projectOffChainSchema = z.object({
      });
    }
  });
+*/
 
 // Combined Form Schema
 export const formSchema = z.object({

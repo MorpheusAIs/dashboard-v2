@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useAccount } from 'wagmi';
@@ -26,11 +26,33 @@ import useSubnetContractInteractions from "@/hooks/useSubnetContractInteractions
 // Import network config
 import { arbitrumSepolia } from 'wagmi/chains';
 
+// Add this logging block just before the final export
+// const DebugLog = ({ values }: { values: Record<string, any> }) => {
+//   useEffect(() => {
+//     console.log("--- Button Disabled Check Values ---");
+//     Object.entries(values).forEach(([key, value]) => {
+//       // Special handling for functions to show their result
+//       if (typeof value === 'function') {
+//         try {
+//           console.log(`${key}:`, value());
+//         } catch (e) {
+//           console.log(`${key}: (Error executing function)`);
+//         }
+//       } else {
+//         console.log(`${key}:`, value);
+//       }
+//     });
+//     console.log("------------------------------------");
+//   }, [values]); // Re-run log if any value changes
+//   return null; // This component doesn't render anything visible
+// };
+
 export default function NewSubnetPage() {
   // --- State --- //
   const [currentStep, setCurrentStep] = useState(1);
   const router = useRouter();
   const { address: connectedAddress } = useAccount();
+  // const walletChainId = useChainId(); // Make sure walletChainId is available here
 
   // --- Form Setup --- //
   const form = useForm<FormData>({
@@ -40,7 +62,7 @@ export default function NewSubnetPage() {
         name: "",
         minStake: 0,
         fee: 0,
-        feeTreasury: "0x0000000000000000000000000000000000000000", // Default to the zero address
+        feeTreasury: undefined as unknown as `0x${string}` | undefined,
         networkChainId: arbitrumSepolia.id,
         withdrawLockPeriod: 1,
         withdrawLockUnit: "days",
@@ -81,8 +103,64 @@ export default function NewSubnetPage() {
 
   // Handles stepping through form or triggering final action (approve/submit)
   const handleNext = useCallback(async () => {
-    const currentStepConfig = FORM_STEPS[currentStep - 1];
-    const result = await form.trigger(currentStepConfig.fields, { shouldFocus: true });
+    // const currentStepConfig = FORM_STEPS[currentStep - 1];
+    let fieldsToValidate: string[] = []; // Store field paths to validate
+
+    if (currentStep === 1) {
+      const isTestnet = form.getValues("subnet.networkChainId") === arbitrumSepolia.id;
+      // Define base fields common to both networks for Step 1 validation
+      const baseStep1Fields = [
+        "subnet.networkChainId",
+        "subnet.startsAt",
+        "subnet.withdrawLockPeriod",
+        "subnet.withdrawLockUnit",
+        "subnet.maxClaimLockEnd"
+      ];
+
+      if (isTestnet) {
+        fieldsToValidate = [
+          ...baseStep1Fields,
+          "subnet.name", // Testnet name field
+          "subnet.minStake", // Testnet stake field
+          "subnet.fee", // Testnet only
+          "subnet.feeTreasury" // Testnet only
+        ];
+      } else {
+        // Mainnet uses different names for some fields and omits others
+        fieldsToValidate = [
+          ...baseStep1Fields,
+          // --- IMPORTANT: Map to the names REGISTERED by Step1PoolConfig --- 
+          "builderPool.name", // Mainnet name field (as registered)
+          "builderPool.minimalDeposit" // Mainnet deposit field (as registered)
+          // No fee or treasury for mainnet validation
+        ];
+      }
+      // Filter out any potential duplicates if base fields somehow overlap
+      fieldsToValidate = Array.from(new Set(fieldsToValidate));
+    } else {
+      // Explicitly list fields for Step 2 validation
+      const isTestnet = form.getValues("subnet.networkChainId") === arbitrumSepolia.id;
+      const step2BaseFields = [
+        "metadata.description",
+        "metadata.website",
+        "metadata.image",
+        "projectOffChain.email",
+        "projectOffChain.discordLink",
+        "projectOffChain.twitterLink",
+        "projectOffChain.rewards"
+      ];
+      if (isTestnet) {
+        fieldsToValidate = [...step2BaseFields, "metadata.slug"]; // Add slug only for testnet
+      } else {
+        fieldsToValidate = [...step2BaseFields];
+      }
+    }
+
+    console.log("Fields to validate:", fieldsToValidate); // Debugging log
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await form.trigger(fieldsToValidate as any, { shouldFocus: true });
+    console.log("Validation result:", result); // Debugging log
+    
     if (!result) return; // Don't proceed if validation fails
 
     // Ensure correct network first
@@ -117,6 +195,35 @@ export default function NewSubnetPage() {
       setCurrentStep(currentStep - 1);
     }
   };
+
+  // --- Inline Debug Logger ---
+  type ExtendedFormValues = FormData & {
+    builderPool?: {
+      name?: string;
+      minimalDeposit?: number;
+    };
+  };
+
+  const allValues = form.getValues() as ExtendedFormValues;
+
+  const debugValues = {
+    currentStep,
+    isSubmitting,
+    formIsValid: form.formState.isValid,
+    formErrors: form.formState.errors,
+    needsApproval,
+    selectedChainId,
+    subnetName: form.watch("subnet.name"),
+    subnetMinStake: form.watch("subnet.minStake"),
+    builderPoolName: allValues.builderPool?.name,
+    builderPoolDeposit: allValues.builderPool?.minimalDeposit,
+  };
+
+  useEffect(() => {
+    console.group("[Subnet Form Debug]");
+    console.log(debugValues);
+    console.groupEnd();
+  }, [debugValues]);
 
   // --- Render --- //
   return (
@@ -183,8 +290,8 @@ export default function NewSubnetPage() {
               isAnyTxPending || // Covers isApproving and isCreating
               !connectedAddress ||
               !isCorrectNetwork() ||
-              (currentStep === FORM_STEPS.length && isLoadingFeeData) || // Disable final button if fee data loading
-              (currentStep === FORM_STEPS.length && !form.formState.isValid) // Disable final step if form invalid
+              (currentStep === FORM_STEPS.length && isLoadingFeeData) // Disable final button if fee data loading
+              // Don't pre-disable on isValid; we validate inside handleNext
             }
           >
             {(isApproving || isCreating) && <RiProgress4Fill className="size-4 mr-2 animate-spin" />}
@@ -197,12 +304,14 @@ export default function NewSubnetPage() {
               ? "Next"
               : needsApproval
               ? `Approve ${tokenSymbol}` // Show Approve if needed
-              : "Confirm & Create Pool" // Otherwise, show Confirm
+              : "Confirm & Create Subnet" // Otherwise, show Confirm
             }
           </Button>
         </div>
       </div>
       {!connectedAddress && <p className="text-center text-yellow-500 mt-4">Please connect your wallet.</p>}
+
+      {/* Inline console logs will appear in the browser dev-tools */}
     </div>
   );
 } 

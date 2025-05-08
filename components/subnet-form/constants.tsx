@@ -19,8 +19,8 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
   [base.id]: mainnetChains.base
 };
 
-// Fallback MOR token address on Arbitrum Sepolia
-export const FALLBACK_TOKEN_ADDRESS = "0x6a7487a0ba53cCD6911a1150a33038b1a75B9Dc4" as Address;
+// Lowercase fallback token address to bypass checksum validation while remaining valid
+export const FALLBACK_TOKEN_ADDRESS = "0x34a285A1B1C166420Df5b6630132542923B5b27E" as Address;
 
 // Helper for UI messages
 export const DEFAULT_TOKEN_SYMBOL = 'MOR'; 

@@ -3,6 +3,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { REWARD_OPTIONS } from './schemas';
 import { cn } from "@/lib/utils";
+import { arbitrumSepolia } from 'wagmi/chains'; // Import arbitrumSepolia
 
 import {
   FormField,
@@ -38,6 +39,10 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
   // State to track the image URL validation status
   const [imageUrlError, setImageUrlError] = useState<string | null>(null);
   
+  // Get selected network ID and determine if it's testnet
+  const selectedChainId = useWatch({ control: form.control, name: "subnet.networkChainId" });
+  const isTestnet = selectedChainId === arbitrumSepolia.id;
+  
   // Watch for changes to the subnet name field
   const subnetName = useWatch({
     control: form.control,
@@ -45,8 +50,11 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
     defaultValue: "",
   });
   
-  // Auto-generate slug when subnet name changes
+  // Auto-generate slug when subnet name changes - ONLY ON TESTNET
   useEffect(() => {
+    // Only run this effect if on testnet
+    if (!isTestnet) return;
+    
     // Only proceed if there's a subnet name and it's different from the last one we processed
     if (subnetName && subnetName !== lastProcessedNameRef.current) {
       const currentSlug = form.getValues("metadata.slug");
@@ -64,7 +72,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
         });
       }
     }
-  }, [subnetName, form]); // Add form to dependency array
+  }, [subnetName, form, isTestnet]); // Add isTestnet to dependency array
 
   // Function to validate image URL
   const validateImageUrl = (url: string) => {
@@ -115,25 +123,32 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
       {/* Contract Metadata */}
       <div className="space-y-4 pb-4 border-b border-gray-100/20">
         <h3 className="text-lg font-medium text-gray-100">Project Information</h3>
-        <FormField
-          control={form.control} name="metadata.slug"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Slug</FormLabel>
-              <FormControl><Input placeholder="your-subnet-slug" {...field} /></FormControl>
-              <FormDescription>
-                Short, URL-friendly identifier (auto-generated from name, but you can customize it).
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Conditionally render Slug field only on testnet */}
+        {isTestnet && (
+          <FormField
+            control={form.control} name="metadata.slug"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="metadata.slug">Slug</FormLabel>
+                <FormControl>
+                  <Input id="metadata.slug" placeholder="your-subnet-slug" {...field} />
+                </FormControl>
+                <FormDescription>
+                  Short, URL-friendly identifier (auto-generated from name, but you can customize it).
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control} name="metadata.website"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Project Website</FormLabel>
-              <FormControl><Input type="url" placeholder="https://yourproject.com" {...field} /></FormControl>
+              <FormLabel htmlFor="metadata.website">Website</FormLabel>
+              <FormControl>
+                <Input id="metadata.website" type="url" placeholder="https://yourproject.com" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -142,9 +157,10 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="metadata.image"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Project Logo URL (Optional)</FormLabel>
+              <FormLabel htmlFor="metadata.image">Logo URL (Optional)</FormLabel>
               <FormControl>
                 <Input 
+                  id="metadata.image"
                   type="url" 
                   placeholder="https://yourproject.com/logo.png" 
                   {...field} 
@@ -172,8 +188,10 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="metadata.description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Subnet Description</FormLabel>
-              <FormControl><Textarea placeholder="Describe this subnet (max 800 characters)." {...field} rows={4} maxLength={800} /></FormControl>
+              <FormLabel htmlFor="metadata.description">Subnet Description</FormLabel>
+              <FormControl>
+                <Textarea id="metadata.description" placeholder="Describe this subnet (max 800 characters)." {...field} rows={4} maxLength={800} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -188,8 +206,10 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="projectOffChain.email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Contact Email (Optional)</FormLabel>
-              <FormControl><Input type="email" placeholder="contact@yourproject.com" {...field} value={field.value ?? ''}/></FormControl>
+              <FormLabel htmlFor="projectOffChain.email">Contact Email (Optional)</FormLabel>
+              <FormControl>
+                <Input id="projectOffChain.email" type="email" placeholder="contact@yourproject.com" {...field} value={field.value ?? ''}/>
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -198,8 +218,10 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="projectOffChain.discordLink"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Discord Link (Optional)</FormLabel>
-              <FormControl><Input placeholder="https://discord.gg/yourserver" {...field} value={field.value ?? ''}/></FormControl>
+              <FormLabel htmlFor="projectOffChain.discordLink">Discord Link (Optional)</FormLabel>
+              <FormControl>
+                <Input id="projectOffChain.discordLink" placeholder="https://discord.gg/yourserver" {...field} value={field.value ?? ''}/>
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -208,8 +230,10 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="projectOffChain.twitterLink"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>X (Twitter) Link (Optional)</FormLabel>
-              <FormControl><Input placeholder="https://x.com/yourproject" {...field} value={field.value ?? ''} /></FormControl>
+              <FormLabel htmlFor="projectOffChain.twitterLink">X (Twitter) Link (Optional)</FormLabel>
+              <FormControl>
+                <Input id="projectOffChain.twitterLink" placeholder="https://x.com/yourproject" {...field} value={field.value ?? ''} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from "date-fns";
 import { CalendarIcon, Wallet } from "lucide-react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { ArbitrumSepoliaIcon } from './constants';
 import { zeroAddress } from 'viem';
@@ -41,8 +41,26 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   const form = useFormContext();
   const { address } = useAccount();
 
+  // --- Field Mirrors for Mainnet Validation ---
+  const builderPoolName = useWatch({ control: form.control, name: "builderPool.name" });
+  const builderPoolDeposit = useWatch({ control: form.control, name: "builderPool.minimalDeposit" });
+
   const selectedChainId = form.watch("subnet.networkChainId");
   const isTestnet = selectedChainId === arbitrumSepolia.id;
+
+  // Mirror mainnet builderPool values into required subnet.* fields for validation purposes
+  useEffect(() => {
+    if (!isTestnet) {
+      if (builderPoolName !== undefined) {
+        form.setValue("subnet.name", builderPoolName, { shouldValidate: true, shouldDirty: false });
+      }
+      if (builderPoolDeposit !== undefined) {
+        form.setValue("subnet.minStake", builderPoolDeposit, { shouldValidate: true, shouldDirty: false });
+      }
+    }
+    // We intentionally omit form from dependency array to avoid endless loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builderPoolName, builderPoolDeposit, isTestnet]);
 
   return (
     <fieldset disabled={isSubmitting} className="space-y-4 p-6 border border-gray-100/30 rounded-lg">
@@ -171,7 +189,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
                     id="subnet.feeTreasury"
                     placeholder="0x..."
                     {...field}
-                    value={field.value === zeroAddress ? '' : field.value}
+                    value={field.value === zeroAddress || field.value === undefined ? '' : field.value}
                     className="pr-32"
                   />
                   <Button
