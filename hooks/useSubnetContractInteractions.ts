@@ -5,7 +5,7 @@ import { parseEther, formatEther, Address, isAddress } from 'viem';
 import { toast } from "sonner";
 import { useNetwork } from "@/context/network-context";
 import { getUnixTime } from "date-fns";
-import { arbitrum, base } from 'wagmi/chains'; // Import mainnet chains
+import { arbitrum, base, arbitrumSepolia } from 'wagmi/chains'; // Import chains
 
 // Import the ABIs
 import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
@@ -190,15 +190,18 @@ export const useSubnetContractInteractions = ({
       else {
         const chainConfig = SUPPORTED_CHAINS[selectedChainId];
         const configuredTokenAddress = chainConfig?.contracts?.morToken?.address;
-        
-        if (configuredTokenAddress && isAddress(configuredTokenAddress)) {
+
+        if (configuredTokenAddress) {
           console.log("Using token address from config:", configuredTokenAddress);
-          setTokenAddress(configuredTokenAddress);
-        } 
-        // Fallback to hardcoded address 
-        else {
-          console.log("Using fallback token address:", FALLBACK_TOKEN_ADDRESS);
+          // Skip checksum validation by lowercasing
+          setTokenAddress(configuredTokenAddress.toLowerCase() as Address);
+        } else if (selectedChainId === arbitrumSepolia.id) {
+          // Only use fallback on Arbitrum Sepolia testnet
+          console.log("Using fallback token address (Sepolia testnet):", FALLBACK_TOKEN_ADDRESS);
           setTokenAddress(FALLBACK_TOKEN_ADDRESS);
+        } else {
+          console.error("Token address not configured for chain", selectedChainId);
+          toast.error("Token address missing for this network. Please update configuration.");
         }
       }
     }
@@ -451,7 +454,7 @@ export const useSubnetContractInteractions = ({
         name: data.subnet.name,
         owner: connectedAddress as `0x${string}`,
         minStake: parseEther(data.subnet.minStake.toString()),
-        fee: BigInt(data.subnet.fee),
+        fee: BigInt(data.subnet.fee ?? 0),
         feeTreasury: (data.subnet.feeTreasury || connectedAddress) as `0x${string}`,
         startsAt: startsAtTimestamp,
         withdrawLockPeriodAfterStake: calculateSecondsForLockPeriod(
