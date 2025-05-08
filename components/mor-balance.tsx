@@ -17,6 +17,10 @@ const MOR_ABI = [{
 export function MORBalance() {
   const { address } = useAccount()
   const chainId = useChainId()
+  
+  console.log('MORBalance - Connected chainId:', chainId)
+  console.log('MORBalance - User address:', address)
+  console.log('MORBalance - MOR contract addresses:', morTokenContracts)
 
   const { data: arbitrumBalance } = useReadContract({
     address: morTokenContracts[42161] as `0x${string}`,
@@ -26,6 +30,8 @@ export function MORBalance() {
     chainId: 42161, // Arbitrum One
     account: address
   })
+  
+  console.log('MORBalance - Arbitrum One raw balance:', arbitrumBalance)
 
   const { data: baseBalance } = useReadContract({
     address: morTokenContracts[8453] as `0x${string}`,
@@ -35,6 +41,8 @@ export function MORBalance() {
     chainId: 8453, // Base
     account: address
   })
+  
+  console.log('MORBalance - Base raw balance:', baseBalance)
 
   const { data: arbitrumSepoliaBalance } = useReadContract({
     address: morTokenContracts[421614] as `0x${string}`,
@@ -44,6 +52,8 @@ export function MORBalance() {
     chainId: 421614, // Arbitrum Sepolia
     account: address
   })
+  
+  console.log('MORBalance - Arbitrum Sepolia raw balance:', arbitrumSepoliaBalance)
 
   if (!address || !chainId) return null
 
@@ -54,7 +64,18 @@ export function MORBalance() {
     return Number(fullNumber.toFixed(1));
   }
 
+  const arbitrumFormattedBalance = formatBalance(arbitrumBalance);
+  const baseFormattedBalance = formatBalance(baseBalance);
+  const sepoliaFormattedBalance = formatBalance(arbitrumSepoliaBalance);
+  
+  console.log('MORBalance - Formatted balances:', {
+    arbitrum: arbitrumFormattedBalance,
+    base: baseFormattedBalance,
+    sepolia: sepoliaFormattedBalance
+  });
+
   const isTestnet = chainId === 421614; // Arbitrum Sepolia
+  console.log('MORBalance - Is testnet:', isTestnet);
 
   if (isTestnet) {
     return (
