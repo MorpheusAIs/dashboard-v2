@@ -204,26 +204,26 @@ export default function NewSubnetPage() {
     };
   };
 
-  const allValues = form.getValues() as ExtendedFormValues;
-
-  const debugValues = {
-    currentStep,
-    isSubmitting,
-    formIsValid: form.formState.isValid,
-    formErrors: form.formState.errors,
-    needsApproval,
-    selectedChainId,
-    subnetName: form.watch("subnet.name"),
-    subnetMinStake: form.watch("subnet.minStake"),
-    builderPoolName: allValues.builderPool?.name,
-    builderPoolDeposit: allValues.builderPool?.minimalDeposit,
-  };
-
   useEffect(() => {
-    console.group("[Subnet Form Debug]");
-    console.log(debugValues);
-    console.groupEnd();
-  }, [debugValues]);
+    const dbgValues = {
+      currentStep,
+      isSubmitting,
+      formIsValid: form.formState.isValid,
+      formErrors: form.formState.errors,
+      needsApproval,
+      selectedChainId,
+      subnetName: form.getValues("subnet.name"),
+      subnetMinStake: form.getValues("subnet.minStake"),
+      builderPoolName: (form.getValues() as ExtendedFormValues).builderPool?.name,
+      builderPoolDeposit: (form.getValues() as ExtendedFormValues).builderPool?.minimalDeposit,
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.group("[Subnet Form Debug]");
+      console.log(dbgValues);
+      console.groupEnd();
+    }
+  }, [currentStep, isSubmitting, form.formState.isValid, form.formState.errors, needsApproval, selectedChainId, form]);
 
   // --- Render --- //
   return (
