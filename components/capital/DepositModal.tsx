@@ -107,7 +107,7 @@ export function DepositModal({
       <DialogPortal>
         <DialogContent className="sm:max-w-[425px] bg-background border-gray-800">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-emerald-400">Deposit stETH/wstETH</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-emerald-400">Deposit stETH</DialogTitle>
             <DialogDescription className="text-gray-400">
               Contribute capital to the public pool.
             </DialogDescription>

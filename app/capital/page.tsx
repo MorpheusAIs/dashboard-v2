@@ -69,7 +69,6 @@ const buildDepositsQuery = (/* poolId: string, - No longer needed */ timestamps:
 // --- Capital Page Content Component ---
 
 function CapitalPageContent() {
-  console.log("Capital page content rendering"); // <-- ADD BASIC LOG
   const {
     userAddress,
     setActiveModal, // Get setActiveModal from context
