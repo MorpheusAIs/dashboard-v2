@@ -56,9 +56,9 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
         name={isTestnet ? "subnet.name" : "builderPool.name"}
         render={({ field }) => (
           <FormItem>
-            <FormLabel>{isTestnet ? "Subnet Name" : "Pool Name"}</FormLabel>
+            <FormLabel htmlFor={isTestnet ? "subnet.name" : "builderPool.name"}>Subnet Name</FormLabel>
             <FormControl>
-              <Input placeholder="Unique name (cannot be changed)" {...field} />
+              <Input id={isTestnet ? "subnet.name" : "builderPool.name"} placeholder="Unique name (cannot be changed)" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -71,7 +71,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
         name="subnet.networkChainId"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Network</FormLabel>
+            <FormLabel htmlFor="subnet.networkChainId">Network</FormLabel>
             <Select
               value={field.value?.toString()}
               onValueChange={(value) => {
@@ -89,7 +89,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
               disabled={isSubmitting}
             >
               <FormControl>
-                <SelectTrigger>
+                <SelectTrigger id="subnet.networkChainId">
                   <SelectValue placeholder="Select network" />
                 </SelectTrigger>
               </FormControl>
@@ -126,8 +126,8 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
           name={isTestnet ? "subnet.minStake" : "builderPool.minimalDeposit"}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Minimum {isTestnet ? "Stake" : "Deposit"} ({tokenSymbol})</FormLabel>
-              <FormControl><NumberInput min={0} value={field.value} onValueChange={field.onChange} /></FormControl>
+              <FormLabel htmlFor={isTestnet ? "subnet.minStake" : "builderPool.minimalDeposit"}>Minimum {isTestnet ? "Stake" : "Deposit"} ({tokenSymbol})</FormLabel>
+              <FormControl><NumberInput id={isTestnet ? "subnet.minStake" : "builderPool.minimalDeposit"} min={0} value={field.value} onValueChange={field.onChange} /></FormControl>
               <FormDescription>Min {tokenSymbol} required for this {isTestnet ? "subnet" : "pool"}.</FormDescription>
               <FormMessage />
             </FormItem>
@@ -140,9 +140,10 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
             name="subnet.fee"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>% Emission Rate</FormLabel>
+                <FormLabel htmlFor="subnet.fee">% Emission Rate</FormLabel>
                 <FormControl>
                   <NumberInput
+                    id="subnet.fee"
                     min={0} max={100} step={0.01}
                     value={field.value / 100}
                     onValueChange={(value) => field.onChange(Math.round(value * 100))}
@@ -163,10 +164,11 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
           name="subnet.feeTreasury"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Treasury Address</FormLabel>
+              <FormLabel htmlFor="subnet.feeTreasury">Treasury Address</FormLabel>
               <FormControl>
                 <div className="relative">
                   <Input
+                    id="subnet.feeTreasury"
                     placeholder="0x..."
                     {...field}
                     value={field.value === zeroAddress ? '' : field.value}
@@ -203,8 +205,8 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
           name="subnet.withdrawLockPeriod"
           render={({ field }) => (
             <FormItem className="flex-grow">
-              <FormLabel>Withdraw Lock Period</FormLabel>
-              <FormControl><NumberInput min={1} value={field.value} onValueChange={field.onChange} /></FormControl>
+              <FormLabel htmlFor="subnet.withdrawLockPeriod">Withdraw Lock Period</FormLabel>
+              <FormControl><NumberInput id="subnet.withdrawLockPeriod" min={1} value={field.value} onValueChange={field.onChange} /></FormControl>
               <FormMessage />
             </FormItem>
           )}
