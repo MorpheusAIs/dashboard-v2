@@ -125,6 +125,7 @@ export function DataTable<T>({
                   onRowClick && "cursor-pointer hover:bg-white/[0.05]"
                 )}
                 onClick={() => onRowClick && onRowClick(item)}
+                style={onRowClick ? { cursor: 'pointer' } : undefined}
               >
                 {columns.map((column) => (
                   <TableCell key={`cell-${column.id}-${itemIndex}`}>

@@ -18,7 +18,7 @@ import { formSchema, FormData, FORM_STEPS } from "@/components/subnet-form/schem
 import Step1PoolConfig from "@/components/subnet-form/Step1PoolConfig";
 import Step2ProjectMetadata from "@/components/subnet-form/Step2ProjectMetadata";
 import ProgressStepper from "@/components/subnet-form/ProgressStepper";
-import FeeDisplayCard from "@/components/subnet-form/FeeDisplayCard";
+// import FeeDisplayCard from "@/components/subnet-form/FeeDisplayCard";
 
 // Import custom hooks
 import useSubnetContractInteractions from "@/hooks/useSubnetContractInteractions";
@@ -236,14 +236,14 @@ export default function NewSubnetPage() {
       </div>
 
       {/* Fee Card - Only show if connected */}
-      {connectedAddress && (
+      {/* {connectedAddress && (
         <FeeDisplayCard 
           formattedFee={formatCreationFee()}
           needsApproval={needsApproval}
           isLoading={isLoadingFeeData}
           tokenSymbol={tokenSymbol}
         />
-      )}
+      )} */}
 
       {/* Progress Steps */}
       <ProgressStepper currentStep={currentStep} isSubmitting={isSubmitting} />
