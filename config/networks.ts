@@ -105,7 +105,7 @@ export const testnetChains: Record<string, ChainConfig> = {
       morToken: toContract('0x34a285A1B1C166420Df5b6630132542923B5b27E'),
       l2Factory: toContract('0x3199555a4552848D522cf3D04bb1fE4C512a5d3B'),
       subnetFactory: toContract('0xa41178368f393a224b990779baa9b5855759d45d'),
-      builders: toContract('0x5271B2FE76303ca7DDCB8Fb6fA77906E2B4f03C7')
+      builders: toContract('0x5271b2fe76303ca7ddcb8fb6fa77906e2b4f03c7')
     },
     isL2: true,
     layerZeroEndpointId: 10231,
@@ -145,9 +145,9 @@ export const mainnetChains: Record<string, ChainConfig> = {
     },
     contracts: {
       morToken: toContract('0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86'),
-      l2Factory: toContract('0x890BfA255E6EE8DB5c67aB32dc600B14EBc4546c'),
-      subnetFactory: toContract('0x37B94Bd80b6012FB214bB6790B31A5C40d6Eb7A5'),
-      builders: toContract('0xC0eD68f163d44B6e9985F0041fDf6f67c6BCFF3f')
+      l2Factory: toContract('0x890bfa255e6ee8db5c67ab32dc600b14ebc4546c'),
+      subnetFactory: toContract('0x37b94bd80b6012fb214bb6790b31a5c40d6eb7a5'),
+      builders: toContract('0xc0ed68f163d44b6e9985f0041fdf6f67c6bcff3f')
     },
     isL2: true,
     layerZeroEndpointId: 110,
@@ -164,7 +164,7 @@ export const mainnetChains: Record<string, ChainConfig> = {
     },
     contracts: {
       morToken: toContract('0x7431ada8a591c955a994a21710752ef9b882b8e3'),
-      builders: toContract('0x42BB446eAE6dca7723a9eBdb81EA88aFe77eF4B9')
+      builders: toContract('0x42bb446eae6dca7723a9ebdb81ea88afe77ef4b9')
     }
   }
 };

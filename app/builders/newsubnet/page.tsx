@@ -7,9 +7,11 @@ import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { RiProgress4Fill } from "@remixicon/react";
+import { AlertCircle } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
+import { Badge } from "@/components/ui/badge";
 
 // Import the form schemas
 import { formSchema, FormData, FORM_STEPS } from "@/components/subnet-form/schemas";
@@ -18,7 +20,6 @@ import { formSchema, FormData, FORM_STEPS } from "@/components/subnet-form/schem
 import Step1PoolConfig from "@/components/subnet-form/Step1PoolConfig";
 import Step2ProjectMetadata from "@/components/subnet-form/Step2ProjectMetadata";
 import ProgressStepper from "@/components/subnet-form/ProgressStepper";
-// import FeeDisplayCard from "@/components/subnet-form/FeeDisplayCard";
 
 // Import custom hooks
 import useSubnetContractInteractions from "@/hooks/useSubnetContractInteractions";
@@ -26,26 +27,9 @@ import useSubnetContractInteractions from "@/hooks/useSubnetContractInteractions
 // Import network config
 import { arbitrumSepolia } from 'wagmi/chains';
 
-// Add this logging block just before the final export
-// const DebugLog = ({ values }: { values: Record<string, any> }) => {
-//   useEffect(() => {
-//     console.log("--- Button Disabled Check Values ---");
-//     Object.entries(values).forEach(([key, value]) => {
-//       // Special handling for functions to show their result
-//       if (typeof value === 'function') {
-//         try {
-//           console.log(`${key}:`, value());
-//         } catch (e) {
-//           console.log(`${key}: (Error executing function)`);
-//         }
-//       } else {
-//         console.log(`${key}:`, value);
-//       }
-//     });
-//     console.log("------------------------------------");
-//   }, [values]); // Re-run log if any value changes
-//   return null; // This component doesn't render anything visible
-// };
+// Import useBalance hook
+import { useBalance } from 'wagmi';
+
 
 export default function NewSubnetPage() {
   // --- State --- //
@@ -78,6 +62,16 @@ export default function NewSubnetPage() {
   // Get the selected chain ID from the form
   const selectedChainId = form.watch("subnet.networkChainId");
 
+  // --- Balance Check --- //
+  const { data: balanceData, isLoading: isLoadingBalance } = useBalance({
+    address: connectedAddress,
+    chainId: selectedChainId,
+    query: {
+      enabled: !!connectedAddress && !!selectedChainId,
+    }
+  });
+  const hasNoEth = balanceData && balanceData.value === BigInt(0);
+
   // --- Contract Interactions Hook --- //
   const {
     isCorrectNetwork,
@@ -89,7 +83,6 @@ export default function NewSubnetPage() {
     isCreating,
     isAnyTxPending,
     isSubmitting,
-    formatCreationFee,
     getNetworkName,
     handleNetworkSwitch,
     handleApprove,
@@ -233,17 +226,14 @@ export default function NewSubnetPage() {
         <h1 className="text-3xl font-bold text-emerald-400 mb-2">Create Builder Subnet</h1>
         <p className="text-gray-400">Configure your builder subnet and project details.</p>
         {!connectedAddress && <p className="text-yellow-500 mt-2">Please connect your wallet.</p>}
+        {/* Display ETH warning badge if needed */}      
+        {connectedAddress && selectedChainId && !isLoadingBalance && hasNoEth && isCorrectNetwork() && (
+          <Badge variant="destructive" className="mt-4 inline-flex items-center">
+            <AlertCircle className="h-4 w-4 mr-1.5" />
+            No ETH detected on {getNetworkName(selectedChainId)} for network fees.
+          </Badge>
+        )}
       </div>
-
-      {/* Fee Card - Only show if connected */}
-      {/* {connectedAddress && (
-        <FeeDisplayCard 
-          formattedFee={formatCreationFee()}
-          needsApproval={needsApproval}
-          isLoading={isLoadingFeeData}
-          tokenSymbol={tokenSymbol}
-        />
-      )} */}
 
       {/* Progress Steps */}
       <ProgressStepper currentStep={currentStep} isSubmitting={isSubmitting} />
@@ -290,7 +280,8 @@ export default function NewSubnetPage() {
               isAnyTxPending || // Covers isApproving and isCreating
               !connectedAddress ||
               !isCorrectNetwork() ||
-              (currentStep === FORM_STEPS.length && isLoadingFeeData) // Disable final button if fee data loading
+              (currentStep === FORM_STEPS.length && isLoadingFeeData) || // Disable final button if fee data loading
+              (currentStep === FORM_STEPS.length && hasNoEth && isCorrectNetwork()) // Disable final button if no ETH on correct network
               // Don't pre-disable on isValid; we validate inside handleNext
             }
           >
