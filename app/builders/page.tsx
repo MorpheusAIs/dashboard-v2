@@ -25,6 +25,8 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 
+import { StakeModal } from "@/components/staking/stake-modal";
+
 // Interfaces
 // interface UserSubnet {
 //   id: string;
@@ -206,6 +208,16 @@ const participatingBuilders: Builder[] = [
 ];
 
 export default function BuildersPage() {
+  // Add state for stake modal
+  const [stakeModalOpen, setStakeModalOpen] = useState(false);
+  const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
+  
+  // Handler for opening the stake modal
+  const handleOpenStakeModal = (builder: Builder) => {
+    setSelectedBuilder(builder);
+    setStakeModalOpen(true);
+  };
+
   // Use the URL params hook
   const { getParam, setParam } = useUrlParams();
 
@@ -348,16 +360,16 @@ export default function BuildersPage() {
           </div>
         ),
       },
-      {
-        id: "rewardType",
-        header: "Reward Type",
-        accessorKey: "reward_types",
-        cell: (builder) => (
-          <div className="flex items-center gap-2 text-gray-300">
-            {builder.reward_types || "TBA"}
-          </div>
-        ),
-      },
+      // {
+      //   id: "rewardType",
+      //   header: "Reward Type",
+      //   accessorKey: "reward_types",
+      //   cell: (builder) => (
+      //     <div className="flex items-center gap-2 text-gray-300">
+      //       {builder.reward_types || "TBA"}
+      //     </div>
+      //   ),
+      // },
       {
         id: "totalStaked",
         header: "MOR Staked",
@@ -403,8 +415,25 @@ export default function BuildersPage() {
           </span>
         ),
       },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: (builder) => (
+          <div className="w-24 flex justify-center">
+            <button 
+              className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click from triggering
+                handleOpenStakeModal(builder);
+              }}
+            >
+              Stake
+            </button>
+          </div>
+        ),
+      },
     ],
-    []
+    [handleOpenStakeModal]
   );
 
   // Define columns for the subnets table
@@ -544,8 +573,25 @@ export default function BuildersPage() {
           </span>
         ),
       },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: (subnet) => (
+          <div className="w-24 flex justify-center">
+            <button 
+              className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click from triggering
+                handleOpenStakeModal(subnet);
+              }}
+            >
+              Stake
+            </button>
+          </div>
+        ),
+      },
     ],
-    [] // Removed dependency on sampleSubnets
+    [handleOpenStakeModal]
   );
   // --- END MODIFY subnetsColumns ---
 
@@ -806,8 +852,25 @@ export default function BuildersPage() {
           <span className="text-gray-300">{builder.lockPeriod}</span>
         ),
       },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: (builder) => (
+          <div className="w-24 flex justify-center">
+            <button 
+              className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click from triggering
+                handleOpenStakeModal(builder);
+              }}
+            >
+              Stake
+            </button>
+          </div>
+        ),
+      },
     ],
-    []
+    [handleOpenStakeModal]
   );
 
   // Fetch user admin subnets when address is available or data reloads
@@ -1072,6 +1135,13 @@ export default function BuildersPage() {
           </div>
         </Tabs>
       </div>
+      
+      {/* Stake Modal */}
+      <StakeModal 
+        isOpen={stakeModalOpen} 
+        onClose={() => setStakeModalOpen(false)} 
+        selectedBuilder={selectedBuilder}
+      />
     </div>
   );
 }
