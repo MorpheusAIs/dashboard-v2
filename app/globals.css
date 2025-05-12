@@ -61,7 +61,9 @@ input[type=number] {
   details, summary,
   .select-item, /* For shadcn dropdown items */
   [cmdk-item], /* For command palette items */
-  .cursor-pointer {
+  .cursor-pointer,
+  .table-row[onclick], /* Ensure table rows with onclick handlers show pointer */
+  .table-row:has([onClick]) /* Target table rows with onClick handlers */ {
     cursor: pointer;
   }
 
@@ -320,6 +322,11 @@ input[type=number] {
   .table-row {
     @apply border-b border-white/[0.08] hover:bg-emerald-400/10 transition-colors;
   }
+
+  /* Explicitly ensure clickable table rows have pointer cursor */
+  tr[class*="cursor-pointer"] {
+    cursor: pointer !important;
+  }
 }
 
 body {
@@ -358,6 +365,11 @@ body {
   /* For Firefox */
   .custom-scrollbar:hover {
     scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
+  }
+
+  /* Show elements on table row hover */
+  tr.table-row:hover .action-button {
+    opacity: 1 !important;
   }
 
   /* Sidebar collapsible states */

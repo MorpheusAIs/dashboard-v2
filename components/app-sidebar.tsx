@@ -26,14 +26,14 @@ const navigation = [
     icon: CircleDollarSign,
   },
   {
-    title: "Compute",
-    url: "/compute",
-    icon: Cpu,
-  },
-  {
     title: "Builders",
     url: "/builders",
     icon: Users,
+  },
+  {
+    title: "Compute",
+    url: "/compute",
+    icon: Cpu,
   },
   // {
   //   title: "MOR20",
