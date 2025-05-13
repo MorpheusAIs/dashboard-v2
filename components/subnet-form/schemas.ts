@@ -41,11 +41,13 @@ export const subnetContractSchema = z.object({
 
 // Step 2: Project Metadata Schema
 export const metadataContractSchema = z.object({
-  slug: z.string()
-    .min(3, "Slug must be at least 3 characters")
-    .max(120, "Slug must be 120 characters or less")
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens")
-    .optional(), 
+  slug: z.union([
+    z.literal(''),
+    z.string()
+      .min(3, "Slug must be at least 3 characters")
+      .max(120, "Slug must be 120 characters or less")
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens")
+  ]).optional(), 
   description: z.string()
     // .min(10, "Description must be at least 10 characters") // Temp remove min
     .max(800, "Description must be 800 characters or less")
