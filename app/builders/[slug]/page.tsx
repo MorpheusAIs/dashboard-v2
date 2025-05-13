@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Builder } from "../builders-data";
@@ -50,10 +50,12 @@ const getExplorerUrl = (address: string, network?: string): string => {
 
 export default function BuilderPage() {
   const { slug } = useParams();
+  const router = useRouter();
   const { builders, isLoading, error: buildersError } = useBuilders();
   const chainId = useChainId();
   const { address: userAddress } = useAccount();
   const isTestnet = chainId === arbitrumSepolia.id;
+  const previousIsTestnetRef = useRef<boolean>();
   
   const [userStakedAmount, setUserStakedAmount] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
@@ -63,7 +65,31 @@ export default function BuilderPage() {
   const [subnetId, setSubnetId] = useState<Address | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>("");
   
-  // CORRECTED: useEffect to find builder and set subnetId
+  // useEffect for redirecting on network change (mainnet <-> testnet)
+  useEffect(() => {
+    // On the very first render, previousIsTestnetRef.current will be undefined.
+    // Store the initial isTestnet status and do nothing to prevent redirect on initial load.
+    if (previousIsTestnetRef.current === undefined) {
+      previousIsTestnetRef.current = isTestnet;
+      return;
+    }
+
+    // If isTestnet status has changed since the last render.
+    if (previousIsTestnetRef.current !== isTestnet) {
+      console.log(
+        `Network type changed. Previous: \${previousIsTestnetRef.current ? 'Testnet' : 'Mainnet'}, Current: \${isTestnet ? 'Testnet' : 'Mainnet'}. Redirecting to /builders.`
+      );
+      router.push('/builders');
+    }
+
+    // Always update the ref to the current isTestnet status for the next check.
+    // This ensures that if the effect runs (e.g. due to chainId change) but isTestnet type didn't flip,
+    // the ref is still correctly set for the *next actual* flip.
+    previousIsTestnetRef.current = isTestnet;
+
+  }, [isTestnet, router]); // Re-run this effect if isTestnet or router instance changes.
+
+  // useEffect to find builder and set its details
   useEffect(() => {
     if (typeof slug !== 'string') return;
     
@@ -81,20 +107,35 @@ export default function BuilderPage() {
         ...foundBuilder,
         admin: foundBuilder.admin || null, 
       };
-      setBuilder(builderToSet);
+      setBuilder(builderToSet); // This sets the local builder state
       
+      // Set subnetId (UUID for testnet identification if needed elsewhere, or builder.id)
+      // Note: builder.id from BuilderDB is the UUID.
       if (foundBuilder.id) { 
         setSubnetId(foundBuilder.id as Address); 
       }
     } else {
-      // Optional: log if builder not found or if there was an error fetching builders
-      // if (buildersError) {
-      //   console.error(`Error fetching builders: ${buildersError.message}`);
-      // } else if (!isLoading) {
-      //   console.warn(`Builder not found for slug: "${slug}" (resolved to name: "${name}")`);
-      // }
+      setBuilder(null); // Clear builder if not found
+      setSubnetId(null);
     }
-  }, [slug, builders, isTestnet, buildersError, isLoading]); // Added isLoading to deps
+  }, [slug, builders, isTestnet, buildersError, isLoading]);
+
+  // Derive the projectId for useStakingData once builder is loaded
+  const hookProjectId = useMemo(() => {
+    if (!builder) {
+      console.log("[BuilderPage] hookProjectId: builder not yet available.");
+      return undefined;
+    }
+    if (isTestnet) {
+      // For testnet, use builder.id (which should be the UUID / subnetId)
+      console.log("[BuilderPage] hookProjectId (Testnet): using builder.id:", builder.id);
+      return builder.id || undefined; 
+    } else {
+      // For mainnet, use builder.mainnetProjectId (which should be the ETH address like ID)
+      console.log("[BuilderPage] hookProjectId (Mainnet): using builder.mainnetProjectId:", builder.mainnetProjectId);
+      return builder.mainnetProjectId || undefined;
+    }
+  }, [builder, isTestnet]);
 
   // Use the networks from the builder data, or default based on current chainId
   const networksToDisplay = useMemo(() => {
@@ -196,41 +237,46 @@ export default function BuilderPage() {
 
   const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
     queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
-    projectId: subnetId || undefined, // Pass subnetId as projectId
+    projectId: hookProjectId, // Use the derived and stable hookProjectId
     isTestnet: isTestnet,
     formatEntryFunc: formatStakingEntry,
-    network: networksToDisplay[0], // Pass the network string
-    // initialPageSize, initialSort can be added if defaults are not suitable
-  }), [isTestnet, subnetId, formatStakingEntry, networksToDisplay]);
+    network: networksToDisplay[0],
+  }), [isTestnet, hookProjectId, formatStakingEntry, networksToDisplay]);
+
+  // Log the props just before calling the hook
+  console.log("[BuilderPage] Props for useStakingData:", stakingDataHookProps);
 
   const {
     entries: stakingEntries,
     isLoading: isLoadingStakingEntries,
     error: stakingEntriesError,
-    pagination, // Contains: currentPage, totalPages, nextPage, prevPage
-    sorting,    // Contains: column, direction, setSort function
-    refresh: refreshStakingEntries, // The refresh function from the hook
+    pagination,
+    sorting,
+    refresh: refreshStakingEntries,
   } = useStakingData(stakingDataHookProps);
   
   // useEffect for triggering refresh based on refreshStakingDataRef
   useEffect(() => {
     if (refreshStakingDataRef.current) {
-      console.log("Calling refreshStakingEntries due to ref");
+      console.log("[BuilderPage] Calling refreshStakingEntries due to ref. hookProjectId:", hookProjectId);
       refreshStakingEntries();
       refreshStakingDataRef.current = false; 
     }
-  }, [refreshStakingEntries]); // Dependency on refreshStakingEntries
+  }, [refreshStakingEntries, hookProjectId]); // Added hookProjectId as a dep, though refreshStakingEntries is main trigger
 
-  // useEffect to refresh staking data when the builder (and thus subnetId) changes
+  // useEffect to signal staking data refresh when hookProjectId is ready and changes
   useEffect(() => {
-    if (builder?.name) { // If a builder is set
-      console.log(`Builder changed to: ${builder.name}. SubnetId: ${subnetId}. Triggering staking data refresh.`);
-      refreshStakingDataRef.current = true; // Signal refresh
-      // Resetting to page 1 is implicitly handled by useStakingData when projectId (subnetId) changes or refresh is called.
-      // If not, we might need a direct pagination.setPage(1) if the hook exposed it.
-      // For now, relying on refresh to reset appropriately.
+    if (hookProjectId) { 
+      console.log(`[BuilderPage] hookProjectId is now ready: ${hookProjectId}. Triggering staking data refresh signal.`);
+      refreshStakingDataRef.current = true;
+    } else {
+      console.log(`[BuilderPage] hookProjectId is not ready or became undefined. Builder:`, builder, `isTestnet:`, isTestnet);
+      // Optionally, if hookProjectId becomes undefined after being set, clear existing staking data
+      // This might require exposing a 'clear' function from useStakingData or handling it via refresh logic.
+      // For now, just log.
     }
-  }, [builder?.name, subnetId]); // React to changes in builder name or subnetId
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hookProjectId]); // React to changes in the finalized hookProjectId (refreshStakingEntries is not needed here)
   
   // Staking hook
   const stakingContractHookProps: UseStakingContractInteractionsProps = useMemo(() => ({
@@ -525,13 +571,13 @@ export default function BuilderPage() {
             <CardTitle className="text-lg font-bold">All staking addresses ({builder.stakingCount || 0})</CardTitle>
           </CardHeader>
           <CardContent>
-            {stakingEntriesError ? ( // Correct error variable for staking table
+            {stakingEntriesError ? (
               <div className="text-red-500">Error loading staking data: {stakingEntriesError.message}</div>
             ) : (
               <StakingTable
                 entries={stakingEntries}
                 isLoading={isLoadingStakingEntries}
-                error={null}
+                error={stakingEntriesError}
                 sortColumn={sorting.column}
                 sortDirection={sorting.direction}
                 onSort={(columnId) => sorting.setSort(columnId)}
