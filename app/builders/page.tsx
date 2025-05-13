@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { MetricCard } from "@/components/metric-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -238,18 +238,26 @@ export default function BuildersPage() {
     
     // Data for 'Builders' tab
     filteredBuilders,
+    builders,
     rewardTypes,
     isLoading,
     
     // Total metrics (independent of filters)
     totalMetrics,
 
-    // --- NEW: Data for 'Your Subnets' tab ---
-    userAdminSubnets, // Assuming this will be provided by the context
-    isLoadingUserAdminSubnets, // Assuming this loading state will be provided
-    // --- END NEW ---
-
   } = useBuilders();
+
+  // Get auth state
+  const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
+
+  // --- NEW: Derive userAdminSubnets and its loading state locally ---
+  const userAdminSubnets = useMemo<Builder[] | null>(() => {
+    if (!isAuthenticated || !userAddress || !builders) return null;
+    return builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
+  }, [isAuthenticated, userAddress, builders]);
+
+  const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
+  // --- END NEW ---
 
   // Initialize tab state from URL or use default
   const [activeTab, setActiveTab] = useState(() => {
@@ -872,19 +880,6 @@ export default function BuildersPage() {
     ],
     [handleOpenStakeModal]
   );
-
-  // Fetch user admin subnets when address is available or data reloads
-  const { userAddress } = useAuth();
-  const { fetchUserAdminSubnets } = useBuilders(); // Get the fetch function
-  useEffect(() => {
-     // Ensure we have an address and the fetch function exists
-     if (userAddress && fetchUserAdminSubnets) { 
-       console.log("useEffect in BuildersPage triggering fetchUserAdminSubnets for:", userAddress);
-       fetchUserAdminSubnets(userAddress);
-     }
-     // Note: The context itself handles re-fetching when its internal data reloads,
-     // so we only need to depend on the userAddress and the function reference here.
-  }, [userAddress, fetchUserAdminSubnets]);
 
   // Calculate Avg MOR Staked for Community Stats
   const avgMorStakedPerUser = useMemo(() => {
