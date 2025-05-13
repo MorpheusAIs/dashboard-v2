@@ -886,6 +886,15 @@ export default function BuildersPage() {
      // so we only need to depend on the userAddress and the function reference here.
   }, [userAddress, fetchUserAdminSubnets]);
 
+  // Calculate Avg MOR Staked for Community Stats
+  const avgMorStakedPerUser = useMemo(() => {
+    if (totalMetrics.totalStaking > 0) {
+      const avg = totalMetrics.totalStaked / totalMetrics.totalStaking;
+      // Format to 2 decimal places if it's a float, otherwise show as integer
+      return parseFloat(avg.toFixed(2)).toLocaleString();
+    }
+    return "0"; // Or 'N/A' or some other placeholder
+  }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
 
   return (
     <div className="page-container">
@@ -931,7 +940,7 @@ export default function BuildersPage() {
             title="Community Stats"
             metrics={[
               { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
-              { value: "12.5k", label: "Commits" }
+              { value: avgMorStakedPerUser, label: "Avg MOR / Staker" }
             ]}
             disableGlow={true}
           />
