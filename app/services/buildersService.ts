@@ -42,8 +42,9 @@ interface TestnetSubnet {
 
 export const fetchBuildersAPI = async (
   isTestnet: boolean, 
-  supabaseBuilders: BuilderDB[] | null, // Supabase data, can be null if not loaded
-  supabaseBuildersLoaded: boolean      // Flag to indicate if Supabase data has been attempted to load
+  supabaseBuilders: BuilderDB[] | null, 
+  supabaseBuildersLoaded: boolean, 
+  userAddress?: string | null // Added userAddress as an optional parameter
 ): Promise<Builder[]> => {
   console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
   console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
@@ -113,10 +114,9 @@ export const fetchBuildersAPI = async (
           claimLockEnd: subnet.maxClaimLockEnd,
           withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake, 
           totalClaimed: subnet.totalClaimed || '0',
+          builderUsers: subnet.builderUsers,
         };
-        // Store lockPeriodSeconds separately for the final Builder mapping, not on BuilderProject
-        // (project as any).withdrawLockPeriodRaw = lockPeriodSeconds; 
-        return project; // project is returned, lockPeriodSeconds needs to be passed differently or recalculated
+        return project;
       });
       
       // To correctly pass lockPeriodSeconds for each project to the final mapping stage,
@@ -126,10 +126,44 @@ export const fetchBuildersAPI = async (
 
       console.log(`[API Testnet] Processed ${combinedProjects.length} subnets for BuilderProject format`);
 
+      // Return mapped Builder array for testnet
+      return combinedProjects.map((project): Builder => {
+        const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterStake || project.withdrawLockPeriodAfterDeposit || '0', 10);
+        const startsAtString = project.startsAt;
+        return {
+          id: project.id,
+          name: project.name,
+          description: project.description || '',
+          long_description: project.description || '',
+          admin: project.admin as string, 
+          networks: project.networks || ['Arbitrum Sepolia'],
+          network: project.network || 'Arbitrum Sepolia',
+          totalStaked: project.totalStakedFormatted !== undefined ? project.totalStakedFormatted : parseFloat(project.totalStaked || '0'),
+          minDeposit: project.minDeposit !== undefined ? project.minDeposit : parseFloat(project.minimalDeposit || '0') / 1e18,
+          lockPeriod: project.lockPeriod || formatTimePeriod(lockPeriodSeconds),
+          withdrawLockPeriodRaw: lockPeriodSeconds,
+          stakingCount: project.stakingCount || 0,
+          website: project.website || '',
+          image_src: project.image || '', 
+          image: project.image || '', 
+          tags: [], 
+          github_url: '', 
+          twitter_url: '', 
+          discord_url: '', 
+          contributors: 0, 
+          github_stars: 0, 
+          reward_types: [], 
+          reward_types_detail: [], 
+          created_at: ' ', // Placeholder
+          updated_at: ' ', // Placeholder
+          startsAt: startsAtString,
+          builderUsers: project.builderUsers,
+        };
+      });
     } else { // Mainnet logic
       if (!supabaseBuildersLoaded || !supabaseBuilders || supabaseBuilders.length === 0) {
         console.log('[API] Mainnet: Supabase builders not ready or empty. Returning empty array.');
-        return []; // Return empty if Supabase data isn't there for mainnet
+        return [];
       }
       
       const builderNames = supabaseBuilders.map(b => b.name);
@@ -141,7 +175,7 @@ export const fetchBuildersAPI = async (
         usersOrderBy: "buildersProject__totalStaked",
         usersDirection: OrderDirection.Asc,
         name_in: builderNames,
-        address: ""
+        address: userAddress || ""
       };
 
       const baseClient = getClientForNetwork('Base');
@@ -153,20 +187,23 @@ export const fetchBuildersAPI = async (
       
       console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum.');
       
-      console.log(`[API Mainnet Query] Variables for Base:`, commonVariables);
       const [baseResponse, arbitrumResponse] = await Promise.all([
         baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
           query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
           variables: commonVariables,
           fetchPolicy: 'no-cache',
         }),
-        (console.log(`[API Mainnet Query] Variables for Arbitrum:`, commonVariables), 
         arbitrumClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
           query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
           variables: commonVariables,
           fetchPolicy: 'no-cache',
-        }))
+        })
       ]);
+
+      // DEBUGGING LOGS FOR MAINNET PARTICIPATION
+      console.log("[Mainnet Participation Check] userAddress:", userAddress);
+      console.log("[Mainnet Participation Check] Base buildersUsers from GQL:", JSON.stringify(baseResponse.data?.buildersUsers, null, 2));
+      console.log("[Mainnet Participation Check] Arbitrum buildersUsers from GQL:", JSON.stringify(arbitrumResponse.data?.buildersUsers, null, 2));
 
       const baseProjects = (baseResponse.data?.buildersProjects || []).map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
@@ -217,70 +254,14 @@ export const fetchBuildersAPI = async (
       
       combinedProjects = [...baseProjects, ...arbitrumProjects];
       console.log('[API] Mainnet: Combined projects:', combinedProjects.length);
-    }
-    
-    // Final transformation from BuilderProject[] to Builder[]
-    // This step might need adjustment based on how `mergeBuilderData` and Supabase data are used.
-    // For now, assuming direct transformation for testnet or merging for mainnet.
 
-    if (isTestnet) {
-      // For testnet, directly map BuilderProject to Builder
-      return combinedProjects.map((project): Builder => {
-        const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
-        const startsAtString = project.startsAt; // Assumed string
-        return {
-          id: project.id,
-          name: project.name,
-          description: project.description || '',
-          long_description: project.description || '',
-          admin: project.admin as string, 
-          networks: project.networks || ['Arbitrum Sepolia'],
-          network: project.network || 'Arbitrum Sepolia',
-          totalStaked: project.totalStakedFormatted !== undefined ? project.totalStakedFormatted : parseFloat(project.totalStaked || '0'),
-          minDeposit: project.minDeposit !== undefined ? project.minDeposit : parseFloat(project.minimalDeposit || '0') / 1e18,
-          lockPeriod: project.lockPeriod || formatTimePeriod(lockPeriodSeconds),
-          withdrawLockPeriodRaw: lockPeriodSeconds,
-          stakingCount: project.stakingCount || 0,
-          website: project.website || '',
-          image_src: project.image || '', 
-          image: project.image || '', 
-          tags: [], 
-          github_url: '', 
-          twitter_url: '', 
-          discord_url: '', 
-          contributors: 0, 
-          github_stars: 0, 
-          reward_types: [], 
-          reward_types_detail: [], 
-          created_at: startsAtString || new Date().toISOString(), 
-          updated_at: startsAtString || new Date().toISOString(), 
-          startsAt: startsAtString,
-        };
-      });
-    } else {
-      // For mainnet, merge BuilderDB with on-chain BuilderProject data
       if (!supabaseBuilders) {
-        console.warn("[API] Mainnet: supabaseBuilders is null, cannot merge. Returning empty Builder array.");
+        console.warn("[API] Mainnet: supabaseBuilders is null at merging stage. Returning empty Builder array.");
         return [];
       }
-      console.log("[fetchBuildersAPI Mainnet] Starting to map supabaseBuilders...");
-      const mappedBuilders = supabaseBuilders.map((builderDB, index): Builder => {
-        // console.log(`[fetchBuildersAPI Mainnet Map] Processing index: ${index}, builderDB.name: ${builderDB.name}`);
+      const mappedBuilders = supabaseBuilders.map((builderDB): Builder => {
         const onChainProject = combinedProjects.find(p => p.name === builderDB.name);
-        if (!onChainProject) {
-          // console.warn(`[fetchBuildersAPI Mainnet Map] No onChainProject found for ${builderDB.name}`);
-        }
         const mainnetLockPeriodSeconds = onChainProject ? parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10) : 0;
-        
-        // Log the inputs to mergeBuilderData for the first item, or if onChainProject is missing
-        if (index < 2 || !onChainProject) {
-            console.log(`[fetchBuildersAPI Mainnet Map - DEBUG ${index}] For builderDB: ${builderDB.name}`);
-            console.log(`[fetchBuildersAPI Mainnet Map - DEBUG ${index}] onChainProject found: ${!!onChainProject}`);
-            if(onChainProject) {
-                console.log(`[fetchBuildersAPI Mainnet Map - DEBUG ${index}] onChainProject.startsAt type: ${typeof onChainProject.startsAt}, value: ${onChainProject.startsAt}`);
-            }
-        }
-
         return mergeBuilderData(builderDB, {
           totalStaked: onChainProject?.totalStakedFormatted !== undefined 
             ? onChainProject.totalStakedFormatted 
@@ -295,10 +276,35 @@ export const fetchBuildersAPI = async (
           admin: onChainProject?.admin,
           image: onChainProject?.image, 
           website: onChainProject?.website,
-          startsAt: onChainProject?.startsAt, // Assumed string, problem might be here if it's Date at runtime
+          startsAt: onChainProject?.startsAt,
         });
       });
       console.log("[fetchBuildersAPI Mainnet] Finished mapping supabaseBuilders. Count:", mappedBuilders.length);
+
+      // Populate builderUsers for mainnet if userAddress was provided
+      if (userAddress && (baseResponse.data?.buildersUsers || arbitrumResponse.data?.buildersUsers)) {
+        const allUserStakes = [
+          ...(baseResponse.data?.buildersUsers || []),
+          ...(arbitrumResponse.data?.buildersUsers || [])
+        ];
+
+        mappedBuilders.forEach(builder => {
+          const userStakesForThisBuilder = allUserStakes.filter(
+            stake => stake.buildersProject?.id === builder.id || stake.buildersProject?.name === builder.name
+          );
+
+          if (userStakesForThisBuilder.length > 0) {
+            builder.builderUsers = userStakesForThisBuilder.map(stake => ({
+              id: stake.id,
+              address: stake.address,
+              staked: stake.staked,
+              claimed: "0",
+              claimLockEnd: "0",
+              lastStake: stake.lastStake,
+            }));
+          }
+        });
+      }
       return mappedBuilders;
     }
 

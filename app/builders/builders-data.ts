@@ -13,6 +13,16 @@ export interface Builder extends BuilderDB {
   network: string;
   networks: string[];
   startsAt?: string;
+  builderUsers?: BuilderUser[];
+}
+
+export interface BuilderUser {
+  id: string;
+  address: string;
+  staked: string;
+  claimed: string;
+  claimLockEnd: string;
+  lastStake: string;
 }
 
 // This will be populated by the component using BuildersService

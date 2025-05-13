@@ -55,6 +55,7 @@ export interface BuilderProject {
   description?: string;
   website?: string;
   totalStakedFormatted?: number;
+  builderUsers?: BuilderUser[];
 }
 
 export interface BuilderUser {
@@ -64,7 +65,8 @@ export interface BuilderUser {
   claimed: string;
   claimLockEnd: string;
   lastStake: string;
-  builderSubnet?: BuilderSubnet;
+  builderSubnet?: BuilderSubnet; // For testnet
+  buildersProject?: BuilderProject; // For mainnet
 }
 
 export interface BuildersCounter {
