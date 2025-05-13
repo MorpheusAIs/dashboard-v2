@@ -39,6 +39,12 @@ export const subnetContractSchema = z.object({
   networkChainId: z.number({ required_error: "Please select a network" }),
 });
 
+// Optional Step 1 extension for Mainnet: Builder Pool Configuration
+export const builderPoolSchema = z.object({
+  name: z.string().min(1, "Pool name is required").optional(), // Optional if subnet.name is used as fallback
+  minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // Optional if subnet.minStake is used
+});
+
 // Step 2: Project Metadata Schema
 export const metadataContractSchema = z.object({
   slug: z.union([
@@ -97,6 +103,7 @@ export const formSchema = z.object({
   subnet: subnetContractSchema,
   metadata: metadataContractSchema,
   projectOffChain: projectOffChainSchema,
+  builderPool: builderPoolSchema.optional(), // Add optional builderPool
 });
 
 // Type for form data
