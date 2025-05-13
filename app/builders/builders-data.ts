@@ -14,6 +14,7 @@ export interface Builder extends BuilderDB {
   networks: string[];
   startsAt?: string;
   builderUsers?: BuilderUser[];
+  mainnetProjectId: string | null;
 }
 
 export interface BuilderUser {
@@ -32,6 +33,7 @@ export const builders: Builder[] = [];
 export const mergeBuilderData = (
   builderDB: BuilderDB,
   onChainData: {
+    id?: string;
     totalStaked?: number;
     minimalDeposit?: number;
     withdrawLockPeriodAfterDeposit?: number;
@@ -57,6 +59,7 @@ export const mergeBuilderData = (
 
   return {
     ...builderDB,
+    mainnetProjectId: onChainData.id || null,
     totalStaked: onChainData.totalStaked || 0,
     minDeposit: onChainData.minimalDeposit || 0,
     minimalDeposit: onChainData.minimalDeposit?.toString(),
