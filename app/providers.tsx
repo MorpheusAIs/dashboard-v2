@@ -8,6 +8,7 @@ import { BuildersProvider } from '@/context/builders-context';
 import { AuthProvider } from '@/context/auth-context';
 import { ComputeProvider } from '@/context/compute-context';
 import { Toaster } from "@/components/ui/sonner";
+import { type State } from 'wagmi'; // Import the State type
 // RootLayoutContent is not used here, it's used in app/layout.tsx
 // import { RootLayoutContent } from "@/components/root-layout"; 
 
@@ -26,7 +27,7 @@ export function Providers({
   initialState // For Web3Providers
 }: { 
   children: React.ReactNode;
-  initialState?: any; // Adjust type as needed for initialState
+  initialState?: State | undefined; // Changed from any to State | undefined
 }) {
   return (
     <QueryClientProvider client={queryClient}>

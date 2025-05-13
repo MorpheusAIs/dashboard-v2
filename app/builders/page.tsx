@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { MetricCard } from "@/components/metric-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -214,10 +214,10 @@ export default function BuildersPage() {
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
   
   // Handler for opening the stake modal
-  const handleOpenStakeModal = (builder: Builder) => {
+  const handleOpenStakeModal = useCallback((builder: Builder) => {
     setSelectedBuilder(builder);
     setStakeModalOpen(true);
-  };
+  }, []);
 
   // Use the URL params hook
   const { getParam, setParam } = useUrlParams();
