@@ -32,8 +32,8 @@ export function StakeVsTotalChart({ userStake, totalStaked, className = "" }: St
         <div className="absolute h-[calc(100%-6px)] w-[calc(100%-6px)] rounded-full bg-[#111111]"></div>
         
         {/* Percentage text in the middle */}
-        <div className="z-10 text-[8px] sm:text-11px] font-semibold text-white rotate-90">
-          {percentage}%
+        <div className="z-10 text-[8px] sm:text-[11px] font-semibold text-white rotate-90">
+          {percentage}<span className="text-[8px] sm:text-[10px]">%</span>
         </div>
       </div>
       
