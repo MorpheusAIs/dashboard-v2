@@ -69,6 +69,10 @@ interface BuildersContextType {
 const BuildersContext = createContext<BuildersContextType | undefined>(undefined);
 
 export function BuildersProvider({ children }: { children: ReactNode }) {
+  const { userAddress, isAuthenticated } = useAuth();
+
+  console.log('[BuildersProvider Render] userAddress:', userAddress, 'isAuthenticated:', isAuthenticated);
+
   // Raw data state
   const [buildersProjects, setBuildersProjects] = useState<BuilderProject[]>([]);
   // We keep these declarations for type compatibility, even if not actively used
@@ -102,7 +106,6 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   
   // Get chain ID directly from wagmi
   const chainId = useChainId();
-  const { userAddress } = useAuth();
   
   // Determine if we're on Arbitrum Sepolia
   const isArbitrumSepolia = chainId === arbitrumSepolia.id;
@@ -660,98 +663,98 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     };
   }, [adaptedBuilders]);
   
-  // --- REVISED: Function to fetch subnets administered by the user ---
+  // --- REVISED V2: Function to fetch subnets administered by the user ---
+  // This function now *always* filters the `adaptedBuilders` array.
   const fetchUserAdminSubnets = useCallback(async (address: string) => {
-    if (!address) return;
-    setIsLoadingUserAdminSubnets(true); // Dependency: setIsLoadingUserAdminSubnets
-    console.log(`fetchUserAdminSubnets useCallback called for address: ${address}, isTestnet: ${isTestnet}`); // Dependency: isTestnet
+    if (!address) {
+        console.log("fetchUserAdminSubnets: Aborting, no address provided.");
+        setUserAdminSubnets(null); // Clear if no address
+        setIsLoadingUserAdminSubnets(false);
+        return;
+    }
+    setIsLoadingUserAdminSubnets(true);
+    console.log(`fetchUserAdminSubnets useCallback called for address: ${address}. Filtering 'adaptedBuilders'.`);
 
-    // Read current state directly inside the callback to avoid adding them as dependencies
-    const currentBuildersProjects = buildersProjects; 
-    const currentAdaptedBuilders = adaptedBuilders;
+    // Read the definitive 'adaptedBuilders' array directly
+    const currentAdaptedBuilders = adaptedBuilders; // Dependency: adaptedBuilders
 
     try {
-      let adminSubnets: Builder[] = [];
-      
-      if (isTestnet) { // Dependency: isTestnet
-        // Testnet: Filter and map the current projects
-        console.log(`[Testnet Admin Filter] Filtering and mapping ${currentBuildersProjects.length} projects for admin ${address}`);
-        adminSubnets = currentBuildersProjects
-          .filter(project => project.admin?.toLowerCase() === address.toLowerCase())
-          .map(subnet => { /* ... (mapping logic remains the same) ... */ 
-              const totalStaked = subnet.totalStakedFormatted !== undefined 
-                ? subnet.totalStakedFormatted 
-                : Number(subnet.totalStaked || '0') / 1e18;
-              const safeTotal = isNaN(totalStaked) ? 0 : totalStaked;
-              const safeStakingCount = subnet.stakingCount || 0;
-              const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
-              const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+      // Filter the unified 'adaptedBuilders' array based on the 'admin' field
+      console.log(`[Admin Filter] Filtering ${currentAdaptedBuilders.length} builders from 'adaptedBuilders'. Source (first 5):`, currentAdaptedBuilders.slice(0, 5));
 
-              return {
-                id: subnet.id,
-                name: subnet.name,
-                description: subnet.description || '',
-                long_description: subnet.description || '',
-                admin: subnet.admin,
-                networks: subnet.networks || ['Arbitrum Sepolia'],
-                network: subnet.network || 'Arbitrum Sepolia',
-                totalStaked: safeTotal,
-                minDeposit: subnet.minDeposit || 0,
-                lockPeriod: lockPeriodFormatted,
-                withdrawLockPeriodRaw: lockPeriodSeconds,
-                stakingCount: safeStakingCount,
-                website: subnet.website || '',
-                image_src: subnet.image || '',
-                image: subnet.image || '',
-                tags: [],
-                github_url: '',
-                twitter_url: '',
-                discord_url: '',
-                telegram_url: '',
-                contributors: 0,
-                github_stars: 0,
-                reward_types: [],
-                reward_types_detail: [],
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                startsAt: subnet.startsAt
-              };
-          });
-        console.log(`[Testnet Admin Filter] Found and mapped ${adminSubnets.length} subnets administered by user.`);
-        
-      } else {
-        // Mainnet: Filter the current merged `adaptedBuilders` array
-        console.log(`[Mainnet Admin Filter] Filtering ${currentAdaptedBuilders.length} builders for admin ${address}`);
-        adminSubnets = currentAdaptedBuilders.filter(builder => 
-          builder.admin?.toLowerCase() === address.toLowerCase()
-        );
-        console.log(`[Mainnet Admin Filter] Found ${adminSubnets.length} builders administered by user.`);
-      }
-      
+      const adminSubnets = currentAdaptedBuilders.filter(builder => {
+          const isAdminMatch = builder.admin?.toLowerCase() === address.toLowerCase();
+           // console.log(`[Admin Check] Builder: ${builder.name}, Admin: ${builder.admin}, Match: ${isAdminMatch}`); // Keep commented unless needed
+          return isAdminMatch;
+      });
+
+      console.log(`[Admin Filter] Found ${adminSubnets.length} matching builders after filtering 'adaptedBuilders'.`);
+      console.log(`Setting userAdminSubnets state with ${adminSubnets.length} items.`);
       setUserAdminSubnets(adminSubnets); // Dependency: setUserAdminSubnets
+
     } catch (e) {
-      console.error('Error fetching user admin subnets:', e);
-      setUserAdminSubnets([]); // Dependency: setUserAdminSubnets
+      console.error('Error filtering adaptedBuilders for user admin subnets:', e);
+      setUserAdminSubnets([]); // Set to empty on error
     } finally {
       setIsLoadingUserAdminSubnets(false); // Dependency: setIsLoadingUserAdminSubnets
     }
-  }, [isTestnet, setIsLoadingUserAdminSubnets, setUserAdminSubnets]); // useCallback Dependencies
-  // --- END REVISED --- 
+  // Now only depends on the source array 'adaptedBuilders' and state setters
+  }, [adaptedBuilders, setIsLoadingUserAdminSubnets, setUserAdminSubnets]);
+  // --- END REVISED V2 ---
 
   // --- REVISED: Trigger fetchUserAdminSubnets ---
   useEffect(() => {
-    if (userAddress) {
-      console.log("useEffect triggering fetchUserAdminSubnets based on userAddress/isTestnet change");
-      fetchUserAdminSubnets(userAddress);
+    const effectTriggerTime = new Date().toISOString();
+    console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Entry. isAuthenticated:`, isAuthenticated, `userAddress:`, userAddress, `adaptedBuilders.length:`, adaptedBuilders.length, `userAdminSubnets currently:`, userAdminSubnets);
+
+    if (isAuthenticated) {
+      // --- User is considered Authenticated ---
+      if (userAddress) {
+        // Authenticated AND Address is present
+        if (adaptedBuilders.length > 0) {
+          // Builders are loaded -> Fetch/Filter
+          console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth OK, Address PRESENT, Builders POPULATED. Calling fetchUserAdminSubnets for:`, userAddress);
+          fetchUserAdminSubnets(userAddress);
+        } else {
+          // Builders not loaded -> Wait
+          console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth OK, Address PRESENT, Builders EMPTY. Waiting for builders. userAddress:`, userAddress);
+          // Optional: setIsLoadingUserAdminSubnets(true); // Show loading for user subnets
+        }
+      } else {
+        // Authenticated BUT Address is (temporarily?) null/undefined
+        // DO NOTHING - Hold the existing state, assuming address will reappear shortly.
+        // This is the key change to prevent clearing during flicker.
+        console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth OK but Address ABSENT. DOING NOTHING - Holding state.`);
+        // We might still be loading the userAdminSubnets if builders aren't loaded yet.
+        // Ensure loading state is consistent if needed, but avoid clearing.
+         if (adaptedBuilders.length === 0 && !isLoadingUserAdminSubnets) {
+             // If builders aren't loaded, maybe set loading true? Depends on desired UX.
+             // setIsLoadingUserAdminSubnets(true);
+         }
+      }
     } else {
-      // Clear admin subnets if user logs out or address becomes null
-      setUserAdminSubnets(null);
-      setIsLoadingUserAdminSubnets(false); // Set loading to false when clearing
+      // --- User is NOT Authenticated ---
+      console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth NOT OK (isAuthenticated: false). Clearing userAdminSubnets.`);
+      if (userAdminSubnets !== null) { // Only clear if it's not already null
+         setUserAdminSubnets(null);
+      }
+      // Ensure loading is false if user is not authenticated
+      if (isLoadingUserAdminSubnets) {
+        setIsLoadingUserAdminSubnets(false);
+      }
     }
-    // Only depends on userAddress, isTestnet and the stable fetchUserAdminSubnets callback
-  }, [userAddress, isTestnet, fetchUserAdminSubnets]); 
-  // --- END REVISED --- 
+
+    // Dependencies remain the same, reaction logic is changed.
+  }, [isAuthenticated, userAddress, adaptedBuilders, fetchUserAdminSubnets, userAdminSubnets, isLoadingUserAdminSubnets]);
+  // --- END REVISED ---
   
+  // --- NEW: Log userAdminSubnets state when it changes ---
+  useEffect(() => {
+    // Log the state whenever it's updated. Check if it's null, empty array, or contains data.
+    console.log('[BuildersContext] Final userAdminSubnets state after update:', userAdminSubnets);
+  }, [userAdminSubnets]); // Run this effect whenever userAdminSubnets changes
+  // --- END NEW ---
+
   // Modify refreshData to use the useCallback version
   const refreshData = async () => {
     // Refresh both on-chain data and Supabase data
