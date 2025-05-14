@@ -1090,6 +1090,12 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No builders found."
                     onRowClick={(builder) => {
+                      // Log the entire builder object to verify the presence of mainnetProjectId
+                      console.log("[BuildersPage] Builder object:", builder);
+
+                      // Log the projectId to verify its presence
+                      console.log("[BuildersPage] Navigating to builder with projectId:", builder.mainnetProjectId);
+
                       // Construct query string using URLSearchParams
                       const queryParams = new URLSearchParams({
                         name: builder.name,
@@ -1196,6 +1202,12 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
                     onRowClick={(builder) => {
+                      // Log the entire builder object to verify the presence of mainnetProjectId
+                      console.log("[BuildersPage] Builder object:", builder);
+
+                      // Log the projectId to verify its presence
+                      console.log("[BuildersPage] Navigating to builder with projectId:", builder.mainnetProjectId);
+
                       // Construct query string using URLSearchParams
                       const queryParams = new URLSearchParams({
                         name: builder.name,

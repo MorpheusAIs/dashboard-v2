@@ -13,7 +13,6 @@ import { StakingPositionCard } from "@/components/staking/staking-position-card"
 import { StakingTable } from "@/components/staking-table";
 import { useStakingData, type UseStakingDataProps, type BuilderSubnetUser as StakingBuilderSubnetUser } from "@/hooks/use-staking-data";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { slugToBuilderName } from "@/app/utils/supabase-utils";
 import { useBuilders } from "@/context/builders-context";
 import { useChainId, useAccount, useReadContract } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
@@ -54,8 +53,9 @@ export default function BuilderPage() {
   // Extract name and projectId from query parameters
   const builderName = searchParams.get('name') || '';
   const projectId = searchParams.get('projectId') || '';
+  console.log("[BuilderPage] Extracted projectId:", projectId);
 
-  const { slug } = useParams();
+  // const { slug } = useParams();
   const router = useRouter();
   const { builders, isLoading, error: buildersError } = useBuilders();
   const chainId = useChainId();
@@ -386,6 +386,31 @@ export default function BuilderPage() {
       await handleWithdraw(amount);
     }
   };
+
+  // Use projectId to fetch staker data
+  useEffect(() => {
+    if (!projectId) {
+      console.log("[BuilderPage] projectId is not available.");
+      return;
+    }
+
+    // Fetch staker data using projectId
+    const fetchStakerData = async () => {
+      try {
+        // Assuming useStakingData or similar hook is used
+        const stakingData = await useStakingData({
+          projectId,
+          isTestnet,
+          // other necessary parameters
+        });
+        console.log("[BuilderPage] Staker data fetched:", stakingData);
+      } catch (error) {
+        console.error("Error fetching staker data:", error);
+      }
+    };
+
+    fetchStakerData();
+  }, [projectId, isTestnet]);
 
   // Loading state for the page should consider builder loading first
   if (isLoading) { // This isLoading is from useBuilders()
