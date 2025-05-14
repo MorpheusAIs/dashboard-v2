@@ -132,6 +132,7 @@ export const fetchBuildersAPI = async (
         const startsAtString = project.startsAt;
         return {
           id: project.id,
+          mainnetProjectId: project.id,
           name: project.name,
           description: project.description || '',
           long_description: project.description || '',

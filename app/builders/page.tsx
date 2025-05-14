@@ -148,7 +148,8 @@ const participatingBuildersSample: Builder[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     startsAt: new Date().toISOString(),
-    admin: null // Added admin field
+    admin: null, // Added admin field
+    mainnetProjectId: null
   },
   {
     id: "2",
@@ -176,7 +177,8 @@ const participatingBuildersSample: Builder[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     startsAt: new Date().toISOString(),
-    admin: null // Added admin field
+    admin: null, // Added admin field
+    mainnetProjectId: null
   },
   {
     id: "3",
@@ -204,7 +206,8 @@ const participatingBuildersSample: Builder[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     startsAt: new Date(Date.now() + 86400000 * 5).toISOString(),
-    admin: null // Added admin field
+    admin: null, // Added admin field
+    mainnetProjectId: null
   }
 ];
 
