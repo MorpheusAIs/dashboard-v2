@@ -10,7 +10,7 @@ export interface BuilderWithOnChainData extends BuilderDB {
   image?: string;
   lockPeriod?: string;
 }
-
+// Add comment for testing
 export class BuildersService {
   private static subscriptionChannel: RealtimeChannel | null = null;
 
