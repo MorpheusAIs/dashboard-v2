@@ -264,6 +264,8 @@ export const fetchBuildersAPI = async (
         const onChainProject = combinedProjects.find(p => p.name === builderDB.name);
         const mainnetLockPeriodSeconds = onChainProject ? parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10) : 0;
         return mergeBuilderData(builderDB, {
+          id: onChainProject?.id,
+          mainnetProjectId: onChainProject?.id || null,
           totalStaked: onChainProject?.totalStakedFormatted !== undefined 
             ? onChainProject.totalStakedFormatted 
             : parseFloat(onChainProject?.totalStaked || '0') / 1e18 || 0, 
