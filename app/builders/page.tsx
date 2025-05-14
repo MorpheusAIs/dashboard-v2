@@ -27,6 +27,7 @@ import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { formatUnits } from "ethers/lib/utils";
 
 import { StakeModal } from "@/components/staking/stake-modal";
+import { useRouter } from "next/navigation";
 
 // Interfaces
 // interface UserSubnet {
@@ -947,6 +948,8 @@ export default function BuildersPage() {
     return "0"; // Or 'N/A' or some other placeholder
   }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
 
+  const router = useRouter();
+
   return (
     <div className="page-container">
       <div className="page-grid">
@@ -1087,7 +1090,14 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                      // Construct query string using URLSearchParams
+                      const queryParams = new URLSearchParams({
+                        name: builder.name,
+                        projectId: builder.mainnetProjectId || '',
+                      });
+
+                      // Use the router's push method to navigate with query string
+                      router.push(`/builders/${builderNameToSlug(builder.name)}?${queryParams.toString()}`);
                     }}
                   />
                 </div>
@@ -1136,9 +1146,9 @@ export default function BuildersPage() {
                     isLoading={isLoadingUserAdminSubnets} // Use loading state from context
                     loadingRows={6}
                     noResultsMessage="No subnets administered by you were found." // Updated message
-                    onRowClick={(subnet) => {
+                    onRowClick={(builder) => {
                        // Link to builder/subnet detail page
-                       window.location.href = `/builders/${builderNameToSlug(subnet.name)}`; // Or /subnets/<id>
+                       window.location.href = `/builders/${builderNameToSlug(builder.name)}`; // Or /subnets/<id>
                     }}
                   />
                 </div>
@@ -1186,7 +1196,14 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                      // Construct query string using URLSearchParams
+                      const queryParams = new URLSearchParams({
+                        name: builder.name,
+                        projectId: builder.mainnetProjectId || '',
+                      });
+
+                      // Use the router's push method to navigate with query string
+                      router.push(`/builders/${builderNameToSlug(builder.name)}?${queryParams.toString()}`);
                     }}
                   />
                 </div>

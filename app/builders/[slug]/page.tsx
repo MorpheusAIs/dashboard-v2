@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Builder } from "../builders-data";
@@ -49,6 +49,12 @@ const getExplorerUrl = (address: string, network?: string): string => {
 };
 
 export default function BuilderPage() {
+  const searchParams = useSearchParams();
+
+  // Extract name and projectId from query parameters
+  const builderName = searchParams.get('name') || '';
+  const projectId = searchParams.get('projectId') || '';
+
   const { slug } = useParams();
   const router = useRouter();
   const { builders, isLoading, error: buildersError } = useBuilders();
@@ -91,14 +97,13 @@ export default function BuilderPage() {
 
   // useEffect to find builder and set its details
   useEffect(() => {
-    if (typeof slug !== 'string') return;
+    if (typeof builderName !== 'string') return;
     
-    const name = slugToBuilderName(slug);
     let foundBuilder: Builder | null | undefined = null;
     
     if (builders && builders.length > 0) {
       foundBuilder = builders.find(b => 
-        b.name.toLowerCase() === name.toLowerCase()
+        b.name.toLowerCase() === builderName.toLowerCase()
       );
     }
 
@@ -118,7 +123,7 @@ export default function BuilderPage() {
       setBuilder(null); // Clear builder if not found
       setSubnetId(null);
     }
-  }, [slug, builders, isTestnet, buildersError, isLoading]);
+  }, [builderName, builders, isTestnet, buildersError, isLoading]);
 
   // Derive the projectId for useStakingData once builder is loaded
   const hookProjectId = useMemo(() => {
