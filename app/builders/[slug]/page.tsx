@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Builder } from "../builders-data";
@@ -46,6 +46,37 @@ const getExplorerUrl = (address: string, network?: string): string => {
     ? `https://arbiscan.io/address/${address}`
     : `https://basescan.org/address/${address}`;
 };
+
+// Define a type for sorting
+// interface Sorting {
+//   column: string;
+//   direction: 'asc' | 'desc';
+//   setSort: (columnId: string) => void;
+// }
+
+// Replace 'any' with a specific type
+interface StakingEntry {
+  address: string;
+  displayAddress: string;
+  amount: number;
+  timestamp?: number;
+  unlockDate?: number;
+  claimed?: number;
+  fee?: number;
+}
+
+// Ensure hooks are called unconditionally
+function useFetchStakerData(projectId: string | undefined, isTestnet: boolean, formatStakingEntry: (user: StakingUser) => StakingEntry, networksToDisplay: string[]) {
+  const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
+    queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
+    projectId: projectId || '', // Ensure projectId is a string
+    isTestnet: isTestnet,
+    formatEntryFunc: formatStakingEntry,
+    network: networksToDisplay[0],
+  }), [isTestnet, projectId, formatStakingEntry, networksToDisplay]);
+
+  return useStakingData(stakingDataHookProps);
+}
 
 export default function BuilderPage() {
   const searchParams = useSearchParams();
@@ -240,17 +271,7 @@ export default function BuilderPage() {
     unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
   }), [withdrawLockPeriod, builder]);
 
-  const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
-    queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
-    projectId: hookProjectId, // Use the derived and stable hookProjectId
-    isTestnet: isTestnet,
-    formatEntryFunc: formatStakingEntry,
-    network: networksToDisplay[0],
-  }), [isTestnet, hookProjectId, formatStakingEntry, networksToDisplay]);
-
-  // Log the props just before calling the hook
-  console.log("[BuilderPage] Props for useStakingData:", stakingDataHookProps);
-
+  // Use the custom hook to fetch staker data
   const {
     entries: stakingEntries,
     isLoading: isLoadingStakingEntries,
@@ -258,7 +279,7 @@ export default function BuilderPage() {
     pagination,
     sorting,
     refresh: refreshStakingEntries,
-  } = useStakingData(stakingDataHookProps);
+  } = useFetchStakerData(hookProjectId, isTestnet, formatStakingEntry, networksToDisplay);
   
   // useEffect for triggering refresh based on refreshStakingDataRef
   useEffect(() => {
@@ -386,31 +407,6 @@ export default function BuilderPage() {
       await handleWithdraw(amount);
     }
   };
-
-  // Use projectId to fetch staker data
-  useEffect(() => {
-    if (!projectId) {
-      console.log("[BuilderPage] projectId is not available.");
-      return;
-    }
-
-    // Fetch staker data using projectId
-    const fetchStakerData = async () => {
-      try {
-        // Assuming useStakingData or similar hook is used
-        const stakingData = await useStakingData({
-          projectId,
-          isTestnet,
-          // other necessary parameters
-        });
-        console.log("[BuilderPage] Staker data fetched:", stakingData);
-      } catch (error) {
-        console.error("Error fetching staker data:", error);
-      }
-    };
-
-    fetchStakerData();
-  }, [projectId, isTestnet]);
 
   // Loading state for the page should consider builder loading first
   if (isLoading) { // This isLoading is from useBuilders()
