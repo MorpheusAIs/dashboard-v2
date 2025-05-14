@@ -77,6 +77,7 @@ export async function adaptBuilderProjectToUI(
 
   return {
     id: project.id,
+    mainnetProjectId: project.id,
     name,
     description,
     long_description: '', // Changed from longDescription to match Builder type
