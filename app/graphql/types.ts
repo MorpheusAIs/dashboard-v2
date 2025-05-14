@@ -15,7 +15,6 @@ export interface BuildersProject {
   totalUsers: string;
   withdrawLockPeriodAfterDeposit: string;
   minimalDeposit?: string;
-  mainnetProjectId?: string;
 }
 
 // This interface defines the structure inside the data field of the GraphQL response
@@ -67,4 +66,4 @@ export interface StakingEntry {
   unlockDate?: number;
   claimed?: number;
   fee?: number;
-}
+} 

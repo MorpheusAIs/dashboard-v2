@@ -86,7 +86,6 @@ export const GET_ALL_BUILDERS_PROJECTS = `
       totalStaked
       totalUsers
       withdrawLockPeriodAfterDeposit
-      mainnetProjectId
     }
   }
 `; 
