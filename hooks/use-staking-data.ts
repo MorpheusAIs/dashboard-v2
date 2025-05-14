@@ -225,7 +225,6 @@ export function useStakingData({
 
   // Fetch data
   const fetchData = useCallback(async () => {
-    console.log('[useStakingData] fetchData CALLED. Internal id before any checks:', id, 'projectName:', projectName, 'currentPage:', pagination.currentPage);
     // We should set loading to true on initial load, even if we're already loading
     // This fixes the issue where tables are stuck in loading state
     setIsLoading(true);
@@ -249,7 +248,7 @@ export function useStakingData({
       
       // Check cache first
       if (cachedPages[pagination.currentPage]?.length > 0) {
-        console.log('[useStakingData] Using cached data for page', pagination.currentPage, cachedPages[pagination.currentPage]);
+        console.log('Using cached data for page', pagination.currentPage);
         setEntries(cachedPages[pagination.currentPage]);
         setIsLoading(false);
         return;
@@ -257,7 +256,6 @@ export function useStakingData({
       
       // Get project ID 
       let projectIdToUse = id;
-      console.log('[useStakingData] Initial projectIdToUse:', projectIdToUse);
       
       // For builder projects, look up by name if needed
       if (!isComputeProject && !projectIdToUse && projectName) {
@@ -270,13 +268,8 @@ export function useStakingData({
       }
       
       if (!projectIdToUse) {
-        console.warn('[useStakingData] No projectIdToUse available for fetching data, returning.');
-        // setError(new Error("No project ID available for fetching data")); // Maybe set error here too
-        setIsLoading(false);
-        setEntries([]); // Ensure entries are empty if no ID
-        return; // Early return if no ID
+        throw new Error("No project ID available for fetching data");
       }
-      console.log('[useStakingData] Final projectIdToUse for query:', projectIdToUse);
       
       // Calculate pagination skip
       const skip = (pagination.currentPage - 1) * pagination.pageSize;
@@ -310,7 +303,7 @@ export function useStakingData({
           throw new Error("No data returned from API");
         }
         
-        console.log('[useStakingData] Compute data received:', response);
+        console.log('Compute data received:', response);
         
         // Get total users count if available
         const project = response.data.subnets?.[0];
@@ -337,7 +330,7 @@ export function useStakingData({
           };
         });
         
-        console.log('[useStakingData] Formatted compute entries:', formattedEntries);
+        console.log('Formatted entries:', formattedEntries);
         
         // Only update cache and state if we have data and we're still on the same page
         setCachedPages(prev => ({
@@ -363,7 +356,7 @@ export function useStakingData({
           throw new Error("No data returned from API");
         }
         
-        console.log('[useStakingData] [Testnet] Builder subnet users data raw response:', response);
+        console.log('[Testnet] Builder subnet users data received:', response);
         
         // Format the data using provided formatter or default
         const formattedEntries = (response.data?.builderUsers || []).map((user: BuilderSubnetUser) => {
@@ -380,7 +373,7 @@ export function useStakingData({
           };
         });
         
-        console.log('[useStakingData] [Testnet] Formatted entries:', formattedEntries);
+        console.log('[Testnet] Formatted entries:', formattedEntries);
         
         // Update cache and state
         setCachedPages(prev => ({
@@ -391,8 +384,6 @@ export function useStakingData({
         setEntries(formattedEntries);
       } else {
         // Mainnet builders project query
-        console.log(`[useStakingData] Mainnet projectId (expected to be an ETH address): ${projectIdToUse}`);
-
         const response = await fetchGraphQL<BuildersGraphQLResponse>(
           endpoint,
           queryFunction || "getBuildersProjectUsers",
@@ -400,7 +391,7 @@ export function useStakingData({
           {
             first: pagination.pageSize,
             skip,
-            buildersProjectId: projectIdToUse, // Use projectIdToUse directly
+            buildersProjectId: projectIdToUse,
             orderBy: 'staked',
             orderDirection: 'desc'
           }
@@ -410,7 +401,7 @@ export function useStakingData({
           throw new Error("No data returned from API");
         }
         
-        console.log('[useStakingData] Mainnet Builders data raw response:', response);
+        console.log('Builders data received:', response);
         
         // Format the data using provided formatter or default
         const formattedEntries = (response.data.buildersUsers || []).map(user => {
@@ -427,7 +418,7 @@ export function useStakingData({
           };
         });
         
-        console.log('[useStakingData] Mainnet Formatted entries:', formattedEntries);
+        console.log('Formatted entries:', formattedEntries);
         
         // Update cache and state
         setCachedPages(prev => ({
@@ -457,66 +448,45 @@ export function useStakingData({
     formatAddress,
     isComputeProject,
     isTestnet,
-    fetchProjectIdByName
+    fetchProjectIdByName,
+    cachedPages
   ]);
 
   // Define the refresh function to explicitly trigger data fetching
   const refresh = useCallback(() => {
-    console.log('[useStakingData] refresh CALLED. Current isLoading state:', isLoading, 'Clearing cache and calling fetchData unconditionally.');
+    // Clear cached pages when refreshing to ensure we get fresh data
     setCachedPages({});
-    // isLoading check removed: A manual refresh should always attempt to fetch.
-    // This also helps break potential loops if isLoading got stuck as true.
-    fetchData(); 
-  }, [fetchData]); // Removed isLoading from deps as it's no longer used in condition
-
-  // useEffect to fetch data when the internal ID or critical pagination/sorting changes.
-  // This replaces the old initial data fetching and the pagination/sorting effect.
-  useEffect(() => {
-    console.log('[useStakingData] Effect to run fetchData. Current internal id:', id, 'currentPage:', pagination.currentPage, 'sortingCol:', sorting.column);
-    // Only fetch if we have an ID to fetch for.
-    if (id) {
-      console.log('[useStakingData] Condition (id is truthy) MET for calling fetchData. ID:', id);
+    // Only fetch if we're not already loading
+    if (!isLoading) {
       fetchData();
-    } else {
-      console.log('[useStakingData] Condition (id is truthy) NOT MET for calling fetchData. ID:', id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, pagination.currentPage, pagination.pageSize, sorting.column, sorting.direction]); // REMOVED fetchData from deps
+  }, [fetchData, isLoading]);
 
-  // useEffect to handle changes in the projectId prop from the parent component.
+  // Initial data fetching - only run once on mount
   useEffect(() => {
-    console.log('[useStakingData] projectIdEffect triggered. Raw projectId prop value:', projectId, 'Current internal id state:', id, 'Is prop undefined?:', projectId === undefined);
-    if (projectId !== undefined && projectId !== id) {
-      console.log('[useStakingData] projectId prop is DEFINED (', projectId, ') and DIFFERENT from internal id (', id, '). Updating internal id and resetting.');
-      // Set the internal ID, clear caches, and reset pagination.
-      // The actual fetchData call will be triggered by the useEffect above, which depends on `id`.
-      setId(projectId);
-      setCachedPages({});
-      setPagination(prev => ({ 
-        ...prev, 
-        currentPage: 1, 
-        totalItems: 0, 
-        totalPages: 1  
-      }));
-      setError(null);
-      setIsLoading(true); // Set loading true, fetchData will manage it further
-    } else if (projectId === undefined && id !== null) {
-      console.log('[useStakingData] projectId prop became UNDEFINED. Clearing data. Previous internal id:', id);
-      setId(null);
-      setEntries([]); 
-      setCachedPages({});
-      setPagination(prev => ({ 
-        ...prev, 
-        currentPage: 1, 
-        totalItems: 0, 
-        totalPages: 1 
-      }));
-      setError(null);
-      setIsLoading(false); 
-    } else {
-      console.log('[useStakingData] projectIdEffect: projectId prop (', projectId, ') is either undefined or already matches internal id (', id, '). No primary state update in this effect.');
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array to run only once
+
+  // Handle pagination and sorting changes
+  useEffect(() => {
+    // Don't fetch on initial mount since we already do that in the effect above
+    const shouldFetch = (id !== null || projectName !== undefined) && 
+                        (pagination.currentPage > 1 || // Only if not first page
+                        sorting.column !== initialSort.column || // Or if sort changed
+                        sorting.direction !== initialSort.direction); // Or if direction changed
+    
+    if (shouldFetch) {
+      fetchData();
     }
-  }, [projectId]); // Only depends on projectId prop to react to its changes
+  }, [
+    pagination.currentPage,
+    pagination.pageSize,
+    sorting.column,
+    sorting.direction
+    // Remove fetchData from dependencies to prevent re-fetching
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ]);
 
   // Sorting handler
   const setSort = useCallback((column: string) => {
@@ -562,7 +532,19 @@ export function useStakingData({
     });
   }, [entries, sorting]);
 
-  console.log('[useStakingData] Returning state:', { isLoading, error: error?.message, entriesLength: entries.length, currentPage: pagination.currentPage, totalPages: pagination.totalPages, id });
+  // Update the useEffect to prevent unnecessary data clearing
+  // Fix the issue with project ID changes
+  useEffect(() => {
+    // Only reset when ID changes AND we actually have a previous ID to avoid clearing on mount
+    if (projectId && projectId !== id) {
+      setId(projectId);
+      setCachedPages({});
+      setError(null);
+      // Don't immediately clear entries to prevent layout flickering
+      // Instead, we'll wait until new data is loaded
+    }
+  }, [projectId, id]);
+
   return {
     entries: sortedEntries,
     isLoading,

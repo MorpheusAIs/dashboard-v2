@@ -39,21 +39,13 @@ export const subnetContractSchema = z.object({
   networkChainId: z.number({ required_error: "Please select a network" }),
 });
 
-// Optional Step 1 extension for Mainnet: Builder Pool Configuration
-export const builderPoolSchema = z.object({
-  name: z.string().min(1, "Pool name is required").optional(), // Optional if subnet.name is used as fallback
-  minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // Optional if subnet.minStake is used
-});
-
 // Step 2: Project Metadata Schema
 export const metadataContractSchema = z.object({
-  slug: z.union([
-    z.literal(''),
-    z.string()
-      .min(3, "Slug must be at least 3 characters")
-      .max(120, "Slug must be 120 characters or less")
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens")
-  ]).optional(), 
+  slug: z.string()
+    .min(3, "Slug must be at least 3 characters")
+    .max(120, "Slug must be 120 characters or less")
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens")
+    .optional(), 
   description: z.string()
     // .min(10, "Description must be at least 10 characters") // Temp remove min
     .max(800, "Description must be 800 characters or less")
@@ -103,7 +95,6 @@ export const formSchema = z.object({
   subnet: subnetContractSchema,
   metadata: metadataContractSchema,
   projectOffChain: projectOffChainSchema,
-  builderPool: builderPoolSchema.optional(), // Add optional builderPool
 });
 
 // Type for form data

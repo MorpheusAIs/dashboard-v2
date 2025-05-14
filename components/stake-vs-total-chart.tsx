@@ -19,21 +19,21 @@ export function StakeVsTotalChart({ userStake, totalStaked, className = "" }: St
   // Create the conic gradient style for the progress circle
   const conicGradient = `conic-gradient(
     rgb(52, 211, 153) 0% ${percentage}%, 
-    rgba(11, 11, 11, 0.05) ${percentage}% 100%
+    rgba(16, 185, 129, 0.15) ${percentage}% 100%
   )`;
 
   return (
     <div className={`flex items-center ${className}`}>
       <div 
-        className="relative flex h-10 w-10 items-center justify-center rounded-full rotate-[-90deg] aspect-square"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full rotate-[-90deg]"
         style={{ background: conicGradient }}
       >
         {/* Inner circle to create donut effect */}
-        <div className="absolute h-[calc(100%-6px)] w-[calc(100%-6px)] rounded-full bg-[#111111]"></div>
+        <div className="absolute h-[calc(100%-8px)] w-[calc(100%-8px)] rounded-full bg-[#111827]"></div>
         
         {/* Percentage text in the middle */}
-        <div className="z-10 text-[8px] sm:text-[11px] font-semibold text-white rotate-90">
-          {percentage}<span className="text-[8px] sm:text-[10px]">%</span>
+        <div className="z-10 text-[10px] font-semibold text-white rotate-90">
+          {percentage}%
         </div>
       </div>
       
