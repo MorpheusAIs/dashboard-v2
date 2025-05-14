@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 'wagmi';
-import { parseEther, formatEther, Address, isAddress } from 'viem';
+import { parseEther, formatEther, Address, isAddress, zeroAddress, Abi } from 'viem';
 import { toast } from "sonner";
 import { useNetwork } from "@/context/network-context";
 import { getUnixTime } from "date-fns";
@@ -10,6 +10,7 @@ import { arbitrum, base, arbitrumSepolia } from 'wagmi/chains'; // Import chains
 // Import the ABIs
 import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
 import ERC20Abi from '@/app/abi/ERC20.json';
+import BuildersAbi from '@/app/abi/Builders.json';
 
 // Import constants
 import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/constants';
@@ -177,8 +178,10 @@ export const useSubnetContractInteractions = ({
 
   // Effects
   useEffect(() => {
-    console.log("Setting hardcoded creation fee and token values for fallback");
-    setCreationFee(parseEther("0.1")); // Reduced to a small amount for testing
+    // Set a default creation fee depending on network (0 on mainnets)
+    const defaultFee = (selectedChainId === arbitrum.id || selectedChainId === base.id) ? BigInt(0) : parseEther("0.1");
+    console.log("Setting default creation fee:", defaultFee.toString());
+    setCreationFee(defaultFee);
     
     if (isCorrectNetwork()) {
       // Try to get token address from contract first
@@ -425,11 +428,13 @@ export const useSubnetContractInteractions = ({
   }, [tokenAddress, builderContractAddress, selectedChainId, writeApprove, tokenSymbol]);
 
   const handleCreateSubnet = useCallback(async (data: FormData) => {
+    const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
+
     if (!connectedAddress || !isCorrectNetwork()) {
       toast.error("Cannot create builder subnet: Wallet or network issue.");
       return;
     }
-    
+
     if (!builderContractAddress) {
       toast.error("Builder contract address not found. Please check network configuration.");
       return;
@@ -449,48 +454,64 @@ export const useSubnetContractInteractions = ({
       
       console.log(`Setting startsAt to 5 minutes in the future: ${new Date(Number(startsAtTimestamp) * 1000).toISOString()}`);
 
-      // Format subnet struct with explicit types to avoid encoding issues
-      const subnet = {
-        name: data.subnet.name,
-        owner: connectedAddress as `0x${string}`,
-        minStake: parseEther(data.subnet.minStake.toString()),
-        fee: BigInt(data.subnet.fee ?? 0),
-        feeTreasury: (data.subnet.feeTreasury || connectedAddress) as `0x${string}`,
-        startsAt: startsAtTimestamp,
-        withdrawLockPeriodAfterStake: calculateSecondsForLockPeriod(
-          data.subnet.withdrawLockPeriod,
-          data.subnet.withdrawLockUnit
-        ),
-        maxClaimLockEnd: BigInt(getUnixTime(data.subnet.maxClaimLockEnd ?? new Date())),
-      };
+      if (isMainnet) {
+        // --- MAINNET createBuilderPool --- //
+        const builderPool = {
+          name: data.builderPool?.name || data.subnet.name,
+          admin: connectedAddress as `0x${string}`,
+          poolStart: startsAtTimestamp,
+          withdrawLockPeriodAfterDeposit: calculateSecondsForLockPeriod(
+            data.subnet.withdrawLockPeriod,
+            data.subnet.withdrawLockUnit
+          ),
+          claimLockEnd: BigInt(getUnixTime(data.subnet.maxClaimLockEnd ?? new Date())),
+          minimalDeposit: parseEther((data.builderPool?.minimalDeposit ?? data.subnet.minStake).toString()),
+        };
 
-      // Format metadata struct with explicit types
-      const metadata = {
-        slug: data.metadata.slug || data.subnet.name.toLowerCase().replace(/\s+/g, '-'),
-        description: data.metadata.description || '',
-        website: data.metadata.website || '',
-        image: data.metadata.image || '',
-      };
+        console.log("Creating builder pool with parameters:", builderPool);
 
-      console.log("Creating subnet with parameters:", {
-        subnet,
-        metadata
-      });
+        writeContract({
+          address: builderContractAddress,
+          abi: BuildersAbi as Abi,
+          functionName: 'createBuilderPool',
+          args: [builderPool],
+          chainId: selectedChainId,
+        });
 
-      toast.info("Please confirm in wallet & approve reasonable gas cost", {
-        id: "gas-notice", 
-        description: "This contract operation may require significant gas. Only approve if the cost seems reasonable."
-      });
+      } else {
+        // --- TESTNET createSubnet --- //
+        const subnet = {
+          name: data.subnet.name,
+          owner: connectedAddress as `0x${string}`,
+          minStake: parseEther(data.subnet.minStake.toString()),
+          fee: BigInt(data.subnet.fee ?? 0),
+          feeTreasury: (data.subnet.fee && data.subnet.fee > 0 ?
+            (data.subnet.feeTreasury || connectedAddress) : zeroAddress) as `0x${string}`,
+          startsAt: startsAtTimestamp,
+          withdrawLockPeriodAfterStake: calculateSecondsForLockPeriod(
+            data.subnet.withdrawLockPeriod,
+            data.subnet.withdrawLockUnit
+          ),
+          maxClaimLockEnd: BigInt(getUnixTime(data.subnet.maxClaimLockEnd ?? new Date())),
+        };
 
-      // Try the transaction without specifying gas to let the estimator work
-      writeContract({
-        address: builderContractAddress,
-        abi: BuilderSubnetsV2Abi,
-        functionName: 'createSubnet',
-        args: [subnet, metadata],
-        chainId: selectedChainId,
-        // Let the wallet handle gas estimation
-      });
+        const metadata = {
+          slug: data.metadata.slug || data.subnet.name.toLowerCase().replace(/\s+/g, '-'),
+          description: data.metadata.description || '',
+          website: data.metadata.website || '',
+          image: data.metadata.image || '',
+        };
+
+        console.log("Creating subnet (testnet) with:", { subnet, metadata });
+
+        writeContract({
+          address: builderContractAddress,
+          abi: BuilderSubnetsV2Abi,
+          functionName: 'createSubnet',
+          args: [subnet, metadata],
+          chainId: selectedChainId,
+        });
+      }
 
       // Store form data upon successful initiation
       setSubmittedFormData(data);
@@ -505,7 +526,9 @@ export const useSubnetContractInteractions = ({
     builderContractAddress,
     writeContract,
     selectedChainId,
-    calculateSecondsForLockPeriod
+    calculateSecondsForLockPeriod,
+    arbitrum.id,
+    base.id
   ]);
 
   return {
