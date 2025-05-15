@@ -60,6 +60,22 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   
+  // Effect to read initial state from localStorage on client-side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedState = localStorage.getItem('sidebar-collapsed');
+      if (savedState !== null) {
+        try {
+          setCollapsed(JSON.parse(savedState));
+        } catch (error) {
+          console.error("Error parsing sidebar state from localStorage:", error);
+          // Fallback to default if parsing fails
+          setCollapsed(false);
+        }
+      }
+    }
+  }, []);
+  
   // Check for visual width of the sidebar to determine if it's collapsed
   useEffect(() => {
     if (!sidebarRef.current) return;
@@ -69,6 +85,10 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
         // Assuming sidebar width less than 100px means it's collapsed
         const isCollapsed = entry.contentRect.width < 100;
         setCollapsed(isCollapsed);
+        // Save the state to localStorage, ensuring this also runs client-side
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+        }
       }
     });
     

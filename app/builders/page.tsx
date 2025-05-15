@@ -24,6 +24,7 @@ import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
+import { useRouter } from 'next/navigation';
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -208,6 +209,7 @@ const participatingBuilders: Builder[] = [
 ];
 
 export default function BuildersPage() {
+  const router = useRouter();
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
@@ -323,19 +325,6 @@ export default function BuildersPage() {
                     <p className="text-sm text-gray-300">
                       {builder.description || "No description available."}
                     </p>
-                    {builder.website && (
-                      <div className="flex items-center pt-2">
-                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
-                        <a 
-                          href={builder.website} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                        >
-                          Visit Project
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -423,8 +412,8 @@ export default function BuildersPage() {
             <button 
               className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent row click from triggering
-                handleOpenStakeModal(builder);
+                e.stopPropagation(); // Prevent row click from triggering navigation
+                handleOpenStakeModal(builder); // Open the stake modal
               }}
             >
               Stake
@@ -581,8 +570,8 @@ export default function BuildersPage() {
             <button 
               className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent row click from triggering
-                handleOpenStakeModal(subnet);
+                e.stopPropagation(); // Prevent row click from triggering navigation
+                handleOpenStakeModal(subnet); // Open the stake modal
               }}
             >
               Stake
@@ -778,19 +767,6 @@ export default function BuildersPage() {
                     <p className="text-sm text-gray-300">
                       {builder.description || "No description available."}
                     </p>
-                    {builder.website && (
-                      <div className="flex items-center pt-2">
-                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
-                        <a 
-                          href={builder.website} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                        >
-                          Visit Project
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -860,8 +836,8 @@ export default function BuildersPage() {
             <button 
               className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent row click from triggering
-                handleOpenStakeModal(builder);
+                e.stopPropagation(); // Prevent row click from triggering navigation
+                handleOpenStakeModal(builder); // Open the stake modal
               }}
             >
               Stake
@@ -1026,9 +1002,9 @@ export default function BuildersPage() {
                     }}
                     loadingRows={6}
                     noResultsMessage="No builders found."
-                    onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
-                    }}
+                    onRowClick={(subnet) => {
+                      router.push(`/builders/${builderNameToSlug(subnet.name)}`); // Or /subnets/<id>
+                   }}
                   />
                 </div>
               </div>
@@ -1077,8 +1053,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No subnets administered by you were found." // Updated message
                     onRowClick={(subnet) => {
-                       // Link to builder/subnet detail page
-                       window.location.href = `/builders/${builderNameToSlug(subnet.name)}`; // Or /subnets/<id>
+                       router.push(`/builders/${builderNameToSlug(subnet.name)}`); // Or /subnets/<id>
                     }}
                   />
                 </div>
@@ -1126,7 +1101,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No participating builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                      router.push(`/builders/${builderNameToSlug(builder.name)}`);
                     }}
                   />
                 </div>
