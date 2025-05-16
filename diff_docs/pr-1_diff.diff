@@ -1,0 +1,2606 @@
+Description:
+```
+Refactoring of the data fetching mechanism for the Builders feature to use TanStack Query, addressing race conditions and excessive API calls previously experienced with useEffect and React Context. This change simplifies state management and improves data handling robustness.
+
+Additionally, this PR introduces two new tables/tabs on the Builders page:
+"Your Subnets": Displays subnets administered by the connected user.
+"Participating": Shows subnets where the connected user has staked tokens.
+Goal: provide a more stable, performant, and feature-rich experience for users interacting with the Builders section.
+```
+
+diff --git a/app/builders/[slug]/page.tsx b/app/builders/[slug]/page.tsx
+index 5e31201..6e37e39 100644
+--- a/app/builders/[slug]/page.tsx
++++ b/app/builders/[slug]/page.tsx
+@@ -1,38 +1,30 @@
+ "use client";
+ 
+-import { useParams } from "next/navigation";
++import { useParams, useRouter } from "next/navigation";
+ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ import { Builder } from "../builders-data";
+ import { formatUnits } from "viem";
+ import { GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
+-import { BuildersUser, SubnetUser } from "@/app/graphql/types";
++import { type BuildersUser, type SubnetUser } from "@/app/graphql/types";
+ import { ProjectHeader } from "@/components/staking/project-header";
+ import { StakingFormCard } from "@/components/staking/staking-form-card";
+ import { StakingPositionCard } from "@/components/staking/staking-position-card";
+ import { StakingTable } from "@/components/staking-table";
+-import { useStakingData } from "@/hooks/use-staking-data";
++import { useStakingData, type UseStakingDataProps, type BuilderSubnetUser as StakingBuilderSubnetUser } from "@/hooks/use-staking-data";
+ import { GlowingEffect } from "@/components/ui/glowing-effect";
+ import { slugToBuilderName } from "@/app/utils/supabase-utils";
+ import { useBuilders } from "@/context/builders-context";
+ import { useChainId, useAccount, useReadContract } from 'wagmi';
+ import { arbitrumSepolia } from 'wagmi/chains';
+ import { MetricCard } from "@/components/metric-card";
+-import { formatTimePeriod } from "@/app/utils/time-utils";
+ import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
+-import { useStakingContractInteractions } from "@/hooks/useStakingContractInteractions";
+-import { formatEther } from "viem";
++import { useStakingContractInteractions, type UseStakingContractInteractionsProps } from "@/hooks/useStakingContractInteractions";
++import { formatEther, type Address } from "viem";
+ import { testnetChains, mainnetChains } from '@/config/networks';
+ 
+-// Define the type here instead of importing it
+-interface BuilderSubnetUser {
+-  id: string;
+-  address: string;
+-  staked: string;
+-  claimed: string;
+-  claimLockEnd: string;
+-  lastStake: string;
+-}
++// Type for user in formatStakingEntry
++type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
+ 
+ // Function to format a timestamp to date
+ const formatDate = (timestamp: number): string => {
+@@ -42,7 +34,6 @@ const formatDate = (timestamp: number): string => {
+ // Function to format wei to MOR tokens (without decimals)
+ const formatMOR = (weiAmount: string): number => {
+   try {
+-    // Parse the amount and round to the nearest integer
+     return Math.round(parseFloat(formatUnits(BigInt(weiAmount), 18)));
+   } catch (error) {
+     console.error("Error formatting MOR:", error);
+@@ -57,147 +48,94 @@ const getExplorerUrl = (address: string, network?: string): string => {
+     : `https://basescan.org/address/${address}`;
+ };
+ 
+-// // Get correct contract addresses from configuration
+-// const getContractAddress = (isTestnet: boolean, networkName: string): string | undefined => {
+-//   const configs = isTestnet ? testnetChains : mainnetChains;
+-//   const config = configs[networkName.toLowerCase().replace(' ', '')];
+-//   return config?.contracts?.builders?.address;
+-// };
+-
+ export default function BuilderPage() {
+   const { slug } = useParams();
+-  const { builders, buildersProjects, isLoading: isLoadingBuilders } = useBuilders();
++  const router = useRouter();
++  const { builders, isLoading, error: buildersError } = useBuilders();
+   const chainId = useChainId();
+   const { address: userAddress } = useAccount();
+   const isTestnet = chainId === arbitrumSepolia.id;
++  const previousIsTestnetRef = useRef<boolean>();
+   
+   const [userStakedAmount, setUserStakedAmount] = useState<number | null>(null);
+   const [timeLeft, setTimeLeft] = useState<string>("");
+   const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
+-  const refreshRef = useRef(false); // Add a ref to track if refresh has been called
++  const refreshStakingDataRef = useRef(false); // Add a ref to track if refresh has been called
+   const [builder, setBuilder] = useState<Builder | null>(null);
+-  const [subnetId, setSubnetId] = useState<`0x${string}` | null>(null);
++  const [subnetId, setSubnetId] = useState<Address | null>(null);
+   const [stakeAmount, setStakeAmount] = useState<string>("");
+   
+-  // Find the builder from the context using the slug
++  // useEffect for redirecting on network change (mainnet <-> testnet)
++  useEffect(() => {
++    // On the very first render, previousIsTestnetRef.current will be undefined.
++    // Store the initial isTestnet status and do nothing to prevent redirect on initial load.
++    if (previousIsTestnetRef.current === undefined) {
++      previousIsTestnetRef.current = isTestnet;
++      return;
++    }
++
++    // If isTestnet status has changed since the last render.
++    if (previousIsTestnetRef.current !== isTestnet) {
++      console.log(
++        `Network type changed. Previous: \${previousIsTestnetRef.current ? 'Testnet' : 'Mainnet'}, Current: \${isTestnet ? 'Testnet' : 'Mainnet'}. Redirecting to /builders.`
++      );
++      router.push('/builders');
++    }
++
++    // Always update the ref to the current isTestnet status for the next check.
++    // This ensures that if the effect runs (e.g. due to chainId change) but isTestnet type didn't flip,
++    // the ref is still correctly set for the *next actual* flip.
++    previousIsTestnetRef.current = isTestnet;
++
++  }, [isTestnet, router]); // Re-run this effect if isTestnet or router instance changes.
++
++  // useEffect to find builder and set its details
+   useEffect(() => {
+     if (typeof slug !== 'string') return;
+     
+-    console.log(`Trying to find builder for slug: ${slug}, isTestnet: ${isTestnet}`);
+-    console.log(`Available builders: ${builders.length}, available projects: ${buildersProjects.length}`);
+-    
+-    // Convert slug back to name by replacing hyphens with spaces and capitalizing words
+     const name = slugToBuilderName(slug);
+-    console.log(`Converted slug "${slug}" to name "${name}"`);
++    let foundBuilder: Builder | null | undefined = null;
+     
+-    let foundBuilder = null;
+-    
+-    // Case-insensitive match for the builder name
+     if (builders && builders.length > 0) {
+       foundBuilder = builders.find(b => 
+         b.name.toLowerCase() === name.toLowerCase()
+       );
+-      
+-      if (foundBuilder) {
+-        console.log(`Found builder in builders array: ${foundBuilder.name}`);
+-      }
+     }
+-    
+-    // If in testnet and builder not found, try to find it directly in buildersProjects
+-    if (!foundBuilder && isTestnet && buildersProjects && buildersProjects.length > 0) {
+-      console.log(`Searching in buildersProjects for: ${name}`);
+-      console.log(`Available projects in testnet:`, buildersProjects.map(b => b.name));
+-      
+-      // Try exact match first
+-      let testnetBuilder = buildersProjects.find(b => 
+-        b.name.toLowerCase() === name.toLowerCase()
+-      );
+-      
+-      // If not found, try a more flexible match (for cases where slugification might not be perfect)
+-      if (!testnetBuilder) {
+-        // Try removing special characters from both sides for comparison
+-        const normalizedName = name.replace(/[^\w\s]/g, '').toLowerCase();
+-        testnetBuilder = buildersProjects.find(b => {
+-          const normalizedBuilderName = b.name.replace(/[^\w\s]/g, '').toLowerCase();
+-          return normalizedBuilderName === normalizedName;
+-        });
+-        
+-        if (testnetBuilder) {
+-          console.log(`Found builder with normalized name match: ${testnetBuilder.name}`);
+-        }
+-      } else {
+-        console.log(`Found builder with exact name match: ${testnetBuilder.name}`);
+-      }
+-      
+-      if (testnetBuilder) {
+-        // Convert testnet project to Builder format if found
+-        
+-        // Get lock period in seconds - extracted from testnetBuilder
+-        const lockPeriodSeconds = parseInt(testnetBuilder.withdrawLockPeriodAfterStake || '0', 10);
+-        
+-        foundBuilder = {
+-          id: testnetBuilder.id,
+-          name: testnetBuilder.name,
+-          description: testnetBuilder.description || "",
+-          long_description: testnetBuilder.description || "",
+-          networks: testnetBuilder.networks || ["Arbitrum Sepolia"],
+-          network: "Arbitrum Sepolia",
+-          totalStaked: testnetBuilder.totalStakedFormatted || 0,
+-          minDeposit: testnetBuilder.minDeposit || 0,
+-          // Store raw seconds in a new property for formatting later
+-          withdrawLockPeriodRaw: lockPeriodSeconds,
+-          lockPeriod: formatTimePeriod(lockPeriodSeconds),
+-          stakingCount: testnetBuilder.stakingCount || 0,
+-          website: testnetBuilder.website || "",
+-          image_src: testnetBuilder.image || "",
+-          image: testnetBuilder.image || "",
+-          tags: [],
+-          github_url: "",
+-          twitter_url: "",
+-          discord_url: "",
+-          contributors: 0,
+-          github_stars: 0,
+-          reward_types: [],
+-          reward_types_detail: [],
+-          created_at: new Date().toISOString(),
+-          updated_at: new Date().toISOString()
+-        };
+-      }
+-    }
+-    
++
+     if (foundBuilder) {
+-      console.log("Found builder:", foundBuilder.name);
+-      // Ensure admin is a string (or empty string if null) before setting state
+-      const builderToSet = {
++      const builderToSet: Builder = {
+         ...foundBuilder,
+-        admin: foundBuilder.admin || '' // Provide empty string if admin is null
++        admin: foundBuilder.admin || null, 
+       };
+-      setBuilder(builderToSet);
++      setBuilder(builderToSet); // This sets the local builder state
+       
+-      // Compute the subnet ID from the builder name
+-      if (isTestnet) {
+-        try {
+-          // Set the subnet ID from the builder object or a computed value
+-          const testnetBuilder = buildersProjects.find(b => 
+-            b.name.toLowerCase() === foundBuilder.name.toLowerCase()
+-          );
+-          
+-          if (testnetBuilder && testnetBuilder.id) {
+-            console.log("Setting subnet ID from testnetBuilder:", testnetBuilder.id);
+-            setSubnetId(testnetBuilder.id as `0x${string}`);
+-          }
+-        } catch (error) {
+-          console.error("Error computing subnet ID:", error);
+-        }
++      // Set subnetId (UUID for testnet identification if needed elsewhere, or builder.id)
++      // Note: builder.id from BuilderDB is the UUID.
++      if (foundBuilder.id) { 
++        setSubnetId(foundBuilder.id as Address); 
+       }
+     } else {
+-      console.error(`Builder not found: ${name}. Available builders:`, 
+-        builders.map(b => b.name), 
+-        "Available projects:", 
+-        buildersProjects.map(b => b.name)
+-      );
++      setBuilder(null); // Clear builder if not found
++      setSubnetId(null);
+     }
+-  }, [slug, builders, buildersProjects, isTestnet]);
++  }, [slug, builders, isTestnet, buildersError, isLoading]);
++
++  // Derive the projectId for useStakingData once builder is loaded
++  const hookProjectId = useMemo(() => {
++    if (!builder) {
++      console.log("[BuilderPage] hookProjectId: builder not yet available.");
++      return undefined;
++    }
++    if (isTestnet) {
++      // For testnet, use builder.id (which should be the UUID / subnetId)
++      console.log("[BuilderPage] hookProjectId (Testnet): using builder.id:", builder.id);
++      return builder.id || undefined; 
++    } else {
++      // For mainnet, use builder.mainnetProjectId (which should be the ETH address like ID)
++      console.log("[BuilderPage] hookProjectId (Mainnet): using builder.mainnetProjectId:", builder.mainnetProjectId);
++      return builder.mainnetProjectId || undefined;
++    }
++  }, [builder, isTestnet]);
+ 
+   // Use the networks from the builder data, or default based on current chainId
+   const networksToDisplay = useMemo(() => {
+@@ -215,16 +153,9 @@ export default function BuilderPage() {
+   }, [builder, isTestnet, chainId]);
+   
+   // Get contract address from configuration based on current chain ID
+-  const contractAddress = useMemo(() => {
+-    if (isTestnet) {
+-      return testnetChains.arbitrumSepolia.contracts?.builders?.address as `0x${string}` | undefined;
+-    } else if (chainId === 42161) {
+-      // Arbitrum mainnet
+-      return mainnetChains.arbitrum.contracts?.builders?.address as `0x${string}` | undefined;
+-    } else {
+-      // Default to Base mainnet
+-      return mainnetChains.base.contracts?.builders?.address as `0x${string}` | undefined;
+-    }
++  const contractAddress = useMemo<Address | undefined>(() => {
++    const selectedChain = isTestnet ? testnetChains.arbitrumSepolia : (chainId === 42161 ? mainnetChains.arbitrum : mainnetChains.base);
++    return selectedChain.contracts?.builders?.address as Address | undefined;
+   }, [isTestnet, chainId]);
+   
+   // Log the addresses for debugging
+@@ -243,13 +174,14 @@ export default function BuilderPage() {
+   
+   // Get staker information from the contract
+   const { data: stakerData } = useReadContract({
+-    address: contractAddress as `0x${string}`,
++    address: contractAddress,
+     abi: BuilderSubnetsV2Abi,
+     functionName: 'stakers',
+     args: subnetId && userAddress ? [subnetId, userAddress] : undefined,
+     query: {
+-      enabled: !!subnetId && !!userAddress && !!contractAddress
+-    }
++      enabled: !!subnetId && !!userAddress && !!contractAddress, // Only enable if all args are present
++      staleTime: 5 * 60 * 1000, // 5 minutes
++    },
+   });
+   
+   // Update user staked amount and time until unlock when data is loaded
+@@ -295,60 +227,69 @@ export default function BuilderPage() {
+   }, [stakerData, timeLeft]);
+   
+   // Custom formatter function to handle timestamp and unlock date
+-  const formatStakingEntry = useCallback((user: BuildersUser | BuilderSubnetUser | SubnetUser) => {
+-    // Safely access properties that might not exist on all user types
+-    const address = user.address;
+-    const staked = user.staked || '0';
+-    
+-    // Get lastStake timestamp - might exist on different properties depending on user type
+-    let lastStakeTimestamp = 0;
+-    if ('lastStake' in user) {
+-      lastStakeTimestamp = typeof user.lastStake === 'string' ? parseInt(user.lastStake) : 0;
+-    }
+-    
+-    // Use the raw seconds from the builder object when available, otherwise use the default
+-    const builderLockPeriod = builder?.withdrawLockPeriodRaw || withdrawLockPeriod;
+-    const unlockDateTimestamp = lastStakeTimestamp + builderLockPeriod;
+-    
+-    return {
+-      address: address,
+-      displayAddress: `${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+-      amount: formatMOR(staked),
+-      timestamp: lastStakeTimestamp,
+-      unlockDate: unlockDateTimestamp
+-    };
+-  }, [withdrawLockPeriod, builder]);
+-  
+-  // Use our custom hook for data fetching, with appropriate query for testnet/mainnet
+-  const { 
+-    entries: stakingEntries, 
+-    isLoading, 
+-    error,
+-    pagination,
+-    sorting,
+-    refresh
+-  } = useStakingData({
+-    projectName: builder?.name,
+-    network: networksToDisplay[0],
++  const formatStakingEntry = useCallback((user: StakingUser) => ({
++    address: user.address,
++    displayAddress: `${user.address.substring(0, 6)}...${user.address.substring(user.address.length - 4)}`,
++    amount: formatMOR(user.staked || '0'),
++    timestamp: ('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0,
++    unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
++  }), [withdrawLockPeriod, builder]);
++
++  const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
+     queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
++    projectId: hookProjectId, // Use the derived and stable hookProjectId
++    isTestnet: isTestnet,
+     formatEntryFunc: formatStakingEntry,
+-    initialSort: { column: 'amount', direction: 'desc' },
+-    initialPageSize: 5,
+-    isTestnet, // Pass isTestnet flag to the hook
+-  });
++    network: networksToDisplay[0],
++  }), [isTestnet, hookProjectId, formatStakingEntry, networksToDisplay]);
++
++  // Log the props just before calling the hook
++  console.log("[BuilderPage] Props for useStakingData:", stakingDataHookProps);
++
++  const {
++    entries: stakingEntries,
++    isLoading: isLoadingStakingEntries,
++    error: stakingEntriesError,
++    pagination,
++    sorting,
++    refresh: refreshStakingEntries,
++  } = useStakingData(stakingDataHookProps);
+   
+-  // Add useEffect to trigger data refresh when builder changes
++  // useEffect for triggering refresh based on refreshStakingDataRef
+   useEffect(() => {
+-    if (builder?.name && !refreshRef.current) {
+-      console.log('Builder found, refreshing data:', builder.name);
+-      refreshRef.current = true; // Mark as refreshed
+-      refresh();
+-    } else if (!builder?.name) {
+-      console.log('No builder found for slug:', slug);
++    if (refreshStakingDataRef.current) {
++      console.log("[BuilderPage] Calling refreshStakingEntries due to ref. hookProjectId:", hookProjectId);
++      refreshStakingEntries();
++      refreshStakingDataRef.current = false; 
+     }
+-  }, [builder?.name, refresh, slug]);
++  }, [refreshStakingEntries, hookProjectId]); // Added hookProjectId as a dep, though refreshStakingEntries is main trigger
++
++  // useEffect to signal staking data refresh when hookProjectId is ready and changes
++  useEffect(() => {
++    if (hookProjectId) { 
++      console.log(`[BuilderPage] hookProjectId is now ready: ${hookProjectId}. Triggering staking data refresh signal.`);
++      refreshStakingDataRef.current = true;
++    } else {
++      console.log(`[BuilderPage] hookProjectId is not ready or became undefined. Builder:`, builder, `isTestnet:`, isTestnet);
++      // Optionally, if hookProjectId becomes undefined after being set, clear existing staking data
++      // This might require exposing a 'clear' function from useStakingData or handling it via refresh logic.
++      // For now, just log.
++    }
++  // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [hookProjectId]); // React to changes in the finalized hookProjectId (refreshStakingEntries is not needed here)
+   
+   // Staking hook
++  const stakingContractHookProps: UseStakingContractInteractionsProps = useMemo(() => ({
++    subnetId: subnetId || undefined,
++    networkChainId: chainId,
++    onTxSuccess: () => {
++      console.log("Transaction successful, setting refreshStakingDataRef to true.");
++      refreshStakingDataRef.current = true; 
++      setStakeAmount("");
++    },
++    lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
++  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw]);
++
+   const {
+     isCorrectNetwork,
+     tokenSymbol,
+@@ -363,15 +304,7 @@ export default function BuilderPage() {
+     handleStake,
+     handleWithdraw,
+     checkAndUpdateApprovalNeeded
+-  } = useStakingContractInteractions({
+-    subnetId: subnetId || undefined,
+-    networkChainId: chainId,
+-    lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
+-    onTxSuccess: () => {
+-      // Refresh data after successful transaction
+-      setStakeAmount("");
+-    }
+-  });
++  } = useStakingContractInteractions(stakingContractHookProps);
+ 
+   // Check if approval is needed when stake amount changes
+   useEffect(() => {
+@@ -449,8 +382,13 @@ export default function BuilderPage() {
+     }
+   };
+ 
+-  if (isLoadingBuilders) {
+-    return <div className="p-8">Loading builder...</div>;
++  // Loading state for the page should consider builder loading first
++  if (isLoading) { // This isLoading is from useBuilders()
++    return <div className="p-8">Loading builder details...</div>;
++  }
++
++  if (buildersError) {
++    return <div className="p-8 text-red-500">Error loading builder: {buildersError.message}</div>;
+   }
+ 
+   if (!builder) {
+@@ -633,16 +571,16 @@ export default function BuilderPage() {
+             <CardTitle className="text-lg font-bold">All staking addresses ({builder.stakingCount || 0})</CardTitle>
+           </CardHeader>
+           <CardContent>
+-            {error ? (
+-              <div className="text-red-500">Error loading staking data: {error.message}</div>
++            {stakingEntriesError ? (
++              <div className="text-red-500">Error loading staking data: {stakingEntriesError.message}</div>
+             ) : (
+               <StakingTable
+                 entries={stakingEntries}
+-                isLoading={isLoading}
+-                error={error}
++                isLoading={isLoadingStakingEntries}
++                error={stakingEntriesError}
+                 sortColumn={sorting.column}
+                 sortDirection={sorting.direction}
+-                onSort={sorting.setSort}
++                onSort={(columnId) => sorting.setSort(columnId)}
+                 currentPage={pagination.currentPage}
+                 totalPages={pagination.totalPages}
+                 onPreviousPage={pagination.prevPage}
+diff --git a/app/builders/builders-data.ts b/app/builders/builders-data.ts
+index 5d257b5..d9d2935 100644
+--- a/app/builders/builders-data.ts
++++ b/app/builders/builders-data.ts
+@@ -12,7 +12,18 @@ export interface Builder extends BuilderDB {
+   minDeposit: number;
+   network: string;
+   networks: string[];
+-  startsAt?: string | Date;
++  startsAt?: string;
++  builderUsers?: BuilderUser[];
++  mainnetProjectId: string | null;
++}
++
++export interface BuilderUser {
++  id: string;
++  address: string;
++  staked: string;
++  claimed: string;
++  claimLockEnd: string;
++  lastStake: string;
+ }
+ 
+ // This will be populated by the component using BuildersService
+@@ -22,6 +33,7 @@ export const builders: Builder[] = [];
+ export const mergeBuilderData = (
+   builderDB: BuilderDB,
+   onChainData: {
++    id?: string;
+     totalStaked?: number;
+     minimalDeposit?: number;
+     withdrawLockPeriodAfterDeposit?: number;
+@@ -31,19 +43,37 @@ export const mergeBuilderData = (
+     lockPeriod?: string;
+     network?: string;
+     networks?: string[];
++    admin?: string | undefined;
++    image?: string;
++    website?: string;
++    startsAt?: string;
+   }
+ ): Builder => {
++  let finalAdmin: string | null;
++
++  if (typeof onChainData.admin === 'string') {
++    finalAdmin = onChainData.admin;
++  } else {
++    finalAdmin = builderDB.admin;
++  }
++
+   return {
+     ...builderDB,
++    mainnetProjectId: onChainData.id || null,
+     totalStaked: onChainData.totalStaked || 0,
+-    minimalDeposit: onChainData.minimalDeposit?.toString(),
+     minDeposit: onChainData.minimalDeposit || 0,
++    minimalDeposit: onChainData.minimalDeposit?.toString(),
+     withdrawLockPeriodAfterDeposit: onChainData.withdrawLockPeriodAfterDeposit?.toString(),
+     withdrawLockPeriodRaw: onChainData.withdrawLockPeriodRaw,
+     stakingCount: onChainData.stakingCount,
+     userStake: onChainData.userStake,
+     lockPeriod: onChainData.lockPeriod || '',
+     network: onChainData.network || '',
+-    networks: onChainData.networks || builderDB.networks || []
++    networks: onChainData.networks || builderDB.networks || [],
++    admin: finalAdmin,
++    image: typeof onChainData.image === 'string' ? onChainData.image : (builderDB.image_src || undefined),
++    image_src: builderDB.image_src,
++    website: typeof onChainData.website === 'string' ? onChainData.website : builderDB.website,
++    startsAt: onChainData.startsAt,
+   };
+ }; 
+\ No newline at end of file
+diff --git a/app/builders/page.tsx b/app/builders/page.tsx
+index 9433fca..f478850 100644
+--- a/app/builders/page.tsx
++++ b/app/builders/page.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useState, useMemo, useEffect } from "react";
++import { useState, useMemo, useCallback } from "react";
+ import { MetricCard } from "@/components/metric-card";
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+ import { cn } from "@/lib/utils";
+@@ -24,6 +24,7 @@ import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
+ import { GlowingEffect } from "@/components/ui/glowing-effect";
+ import { formatNumber } from "@/lib/utils";
+ import { builderNameToSlug } from "@/app/utils/supabase-utils";
++import { formatUnits } from "ethers/lib/utils";
+ 
+ import { StakeModal } from "@/components/staking/stake-modal";
+ 
+@@ -120,7 +121,7 @@ function BuilderModalWrapper() {
+ 
+ 
+ // Sample data for Participating tab - Projects where the user has staked tokens
+-const participatingBuilders: Builder[] = [
++const participatingBuildersSample: Builder[] = [
+   {
+     id: "1",
+     name: "Neptune AI",
+@@ -147,7 +148,8 @@ const participatingBuilders: Builder[] = [
+     created_at: new Date().toISOString(),
+     updated_at: new Date().toISOString(),
+     startsAt: new Date().toISOString(),
+-    admin: null // Added admin field
++    admin: null, // Added admin field
++    mainnetProjectId: null
+   },
+   {
+     id: "2",
+@@ -175,7 +177,8 @@ const participatingBuilders: Builder[] = [
+     created_at: new Date().toISOString(),
+     updated_at: new Date().toISOString(),
+     startsAt: new Date().toISOString(),
+-    admin: null // Added admin field
++    admin: null, // Added admin field
++    mainnetProjectId: null
+   },
+   {
+     id: "3",
+@@ -203,7 +206,8 @@ const participatingBuilders: Builder[] = [
+     created_at: new Date().toISOString(),
+     updated_at: new Date().toISOString(),
+     startsAt: new Date(Date.now() + 86400000 * 5).toISOString(),
+-    admin: null // Added admin field
++    admin: null, // Added admin field
++    mainnetProjectId: null
+   }
+ ];
+ 
+@@ -213,10 +217,10 @@ export default function BuildersPage() {
+   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
+   
+   // Handler for opening the stake modal
+-  const handleOpenStakeModal = (builder: Builder) => {
++  const handleOpenStakeModal = useCallback((builder: Builder) => {
+     setSelectedBuilder(builder);
+     setStakeModalOpen(true);
+-  };
++  }, []);
+ 
+   // Use the URL params hook
+   const { getParam, setParam } = useUrlParams();
+@@ -238,19 +242,27 @@ export default function BuildersPage() {
+     
+     // Data for 'Builders' tab
+     filteredBuilders,
++    builders,
+     rewardTypes,
+     isLoading,
+     
+     // Total metrics (independent of filters)
+     totalMetrics,
+ 
+-    // --- NEW: Data for 'Your Subnets' tab ---
+-    userAdminSubnets, // Assuming this will be provided by the context
+-    isLoadingUserAdminSubnets, // Assuming this loading state will be provided
+-    // --- END NEW ---
+-
+   } = useBuilders();
+ 
++  // Get auth state
++  const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
++
++  // --- NEW: Derive userAdminSubnets and its loading state locally ---
++  const userAdminSubnets = useMemo<Builder[] | null>(() => {
++    if (!isAuthenticated || !userAddress || !builders) return null;
++    return builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
++  }, [isAuthenticated, userAddress, builders]);
++
++  const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
++  // --- END NEW ---
++
+   // Initialize tab state from URL or use default
+   const [activeTab, setActiveTab] = useState(() => {
+     return getParam('tab') || 'builders';
+@@ -518,27 +530,33 @@ export default function BuildersPage() {
+       {
+         id: "status",
+         header: "Status",
+-        cell: (subnet) => { // Use startsAt from Builder (needs to be added to type/data)
+-          // Assuming subnet.startsAt exists and is a valid date string or Date object
++        cell: (subnet) => {
+           let status = "Pending";
+-          let statusClass = "bg-yellow-900/30 text-yellow-400";
++          let statusClass = "bg-yellow-900/30 text-yellow-400"; // Default for Pending
+ 
+           if (subnet.startsAt) {
+               try {
+-                  const startsDate = new Date(subnet.startsAt);
+-                  if (!isNaN(startsDate.getTime()) && startsDate <= new Date()) {
+-                      status = "Active";
+-                      statusClass = "bg-emerald-900/30 text-emerald-400";
++                  // Ensure startsAt is treated as a Unix timestamp in seconds
++                  const startsDate = new Date(Number(subnet.startsAt) * 1000);
++                  const currentDate = new Date();
++
++                  if (!isNaN(startsDate.getTime())) { // Check if date is valid
++                      if (startsDate <= currentDate) { // startsAt is past or present
++                          status = "Active";
++                          statusClass = "bg-emerald-900/30 text-emerald-400";
++                      } else { // startsAt is in the future
++                          // Status remains "Pending", class remains yellow
++                      }
++                  } else {
++                      // Invalid date, status remains "Pending", class remains yellow
++                      console.warn("Invalid startsAt date encountered:", subnet.startsAt);
+                   }
+               } catch (e) {
+                   console.error("Error parsing startsAt date:", e);
+-                  // Keep default pending status if date is invalid
++                  // Error during parsing, status remains "Pending", class remains yellow
+               }
+           } else {
+-             // If no startsAt date, maybe default to Active or handle as needed
+-             // For now, let's assume Active if startsAt is missing or invalid after fetch
+-             status = "Active"; 
+-             statusClass = "bg-emerald-900/30 text-emerald-400"; 
++              // No startsAt date, status remains "Pending", class remains yellow
+           }
+            
+           // We might need a separate 'Inactive' status based on other criteria later
+@@ -569,7 +587,9 @@ export default function BuildersPage() {
+         accessorKey: "created_at", // Use created_at from Builder
+         cell: (subnet) => ( // Format the date
+            <span className="text-gray-300">
+-            {subnet.created_at ? new Date(subnet.created_at).toLocaleDateString() : '—'}
++            {subnet.created_at 
++              ? new Date(Number(subnet.created_at) * 1000).toLocaleDateString() 
++              : '—'}
+           </span>
+         ),
+       },
+@@ -604,29 +624,28 @@ export default function BuildersPage() {
+   // --- MODIFY Filter logic ---
+   // Filter the userAdminSubnets based on the filters
+   const filteredUserAdminSubnets = useMemo(() => {
+-    // Use userAdminSubnets from context
+     return (userAdminSubnets || []).filter((subnet) => { 
+       const matchesName = yourSubnetsNameFilter === '' || 
+         subnet.name.toLowerCase().includes(yourSubnetsNameFilter.toLowerCase());
+       
+-      // Check against the 'networks' array in Builder type
+       const matchesNetwork =
+         yourSubnetsNetworkFilter === "all" || yourSubnetsNetworkFilter === "" || 
+         (subnet.networks && subnet.networks.some(network => 
+            network.toLowerCase() === yourSubnetsNetworkFilter.toLowerCase()
+         ));
+       
+-      // Calculate status on the fly for filtering
+        let currentStatus = "Pending";
+        if (subnet.startsAt) {
+           try {
+-              const startsDate = new Date(subnet.startsAt);
+-              if (!isNaN(startsDate.getTime()) && startsDate <= new Date()) {
++              // Ensure startsAt is treated as a Unix timestamp in seconds for filtering
++              const startsDate = new Date(Number(subnet.startsAt) * 1000);
++              const currentDate = new Date();
++              if (!isNaN(startsDate.getTime()) && startsDate <= currentDate) {
+                   currentStatus = "Active";
+               }
+-          } catch {} // Ignore errors for filtering
++          } catch {} // Ignore errors for filtering, will default to Pending
+        } else {
+-           currentStatus = "Active"; // Default if no date
++           currentStatus = "Pending"; // Default if no date, or if date was invalid
+        }
+ 
+       const matchesStatus =
+@@ -670,8 +689,53 @@ export default function BuildersPage() {
+ 
+   // Filter the participatingBuilders based on the filters
+   const filteredParticipatingBuilders = useMemo(() => {
+-    // Keep using sample data for now
+-    return participatingBuilders.filter((builder) => {
++    let sourceData: (Builder & { userStake?: number })[] = []; // Default to empty, not sample
++    let useSampleData = true; // Assume sample data initially
++
++    if (isAuthenticated && userAddress && builders && builders.length > 0) {
++      const realParticipatingBuilders: (Builder & { userStake: number })[] = [];
++      let networkSupportsBuilderUsers = false;
++
++      builders.forEach(builder => {
++        if (builder.hasOwnProperty('builderUsers')) { // Check if the field exists, even if undefined/null/empty
++          networkSupportsBuilderUsers = true;
++          if (builder.builderUsers && builder.builderUsers.length > 0) {
++            builder.builderUsers.forEach(user => {
++              if (user.address.toLowerCase() === userAddress.toLowerCase()) {
++                const stakedAmount = parseFloat(formatUnits(user.staked, 18));
++                if (stakedAmount > 0) {
++                  realParticipatingBuilders.push({
++                    ...builder,
++                    userStake: stakedAmount,
++                  });
++                }
++              }
++            });
++          }
++        }
++      });
++
++      if (networkSupportsBuilderUsers) {
++        sourceData = realParticipatingBuilders; // Use real data (even if empty)
++        useSampleData = false; // Do not use sample data
++      } else {
++        // Network doesn't support builderUsers (e.g., older mainnet data structure before potential GQL changes)
++        // or builders array doesn't have this structure from context.
++        // In this specific case, falling back to sample might be okay if that was the old behavior
++        // but ideally, we want to move away from sample if data is loaded.
++        // For now, let's stick to the logic: if network *could* have builderUsers, don't show sample.
++        sourceData = []; // Show empty if structure implies builderUsers could exist but none for this user
++        useSampleData = false; // Explicitly don't use sample if we determined network type
++      }
++    }
++    
++    // If, after all checks, we still decided to use sample data (e.g., user not authenticated)
++    if (useSampleData || (!isAuthenticated || !userAddress)) {
++      sourceData = participatingBuildersSample;
++    }
++
++    // Apply text filters to whatever sourceData was determined
++    return sourceData.filter((builder) => {
+       const matchesName = participatingNameFilter === '' || 
+         builder.name.toLowerCase().includes(participatingNameFilter.toLowerCase());
+       
+@@ -687,7 +751,7 @@ export default function BuildersPage() {
+ 
+       return matchesName && matchesNetwork && matchesType;
+     });
+-  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter]);
++  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter, isAuthenticated, userAddress, builders]);
+ 
+   // For participating filters, initialize from URL if values exist
+   useInitStateFromUrl(
+@@ -873,19 +937,6 @@ export default function BuildersPage() {
+     [handleOpenStakeModal]
+   );
+ 
+-  // Fetch user admin subnets when address is available or data reloads
+-  const { userAddress } = useAuth();
+-  const { fetchUserAdminSubnets } = useBuilders(); // Get the fetch function
+-  useEffect(() => {
+-     // Ensure we have an address and the fetch function exists
+-     if (userAddress && fetchUserAdminSubnets) { 
+-       console.log("useEffect in BuildersPage triggering fetchUserAdminSubnets for:", userAddress);
+-       fetchUserAdminSubnets(userAddress);
+-     }
+-     // Note: The context itself handles re-fetching when its internal data reloads,
+-     // so we only need to depend on the userAddress and the function reference here.
+-  }, [userAddress, fetchUserAdminSubnets]);
+-
+   // Calculate Avg MOR Staked for Community Stats
+   const avgMorStakedPerUser = useMemo(() => {
+     if (totalMetrics.totalStaking > 0) {
+@@ -1129,11 +1180,11 @@ export default function BuildersPage() {
+ 
+                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
+                   <DataTable
+-                    columns={participatingColumns as unknown as Column<Builder>[]} // Keep using sample data columns for now
+-                    data={filteredParticipatingBuilders} // Keep using sample data for now
+-                    isLoading={false} // Assuming sample data isn't loading
++                    columns={participatingColumns as unknown as Column<Builder>[]} 
++                    data={filteredParticipatingBuilders} // Use the new dynamic list
++                    isLoading={isLoadingAuth || isLoading} // Reflect loading state of auth and builders data
+                     loadingRows={6}
+-                    noResultsMessage="No participating builders found."
++                    noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
+                     onRowClick={(builder) => {
+                       window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                     }}
+diff --git a/app/hooks/useAllBuildersQuery.ts b/app/hooks/useAllBuildersQuery.ts
+new file mode 100644
+index 0000000..7dbcf7f
+--- /dev/null
++++ b/app/hooks/useAllBuildersQuery.ts
+@@ -0,0 +1,40 @@
++import { useQuery, QueryKey } from '@tanstack/react-query';
++import { fetchBuildersAPI } from '@/app/services/buildersService';
++import { useNetworkInfo } from './useNetworkInfo';
++import { useSupabaseBuilders } from './useSupabaseBuilders';
++import { Builder } from '@/app/builders/builders-data'; // For return type
++import { useAuth } from '@/context/auth-context'; // Added to get userAddress
++
++export const useAllBuildersQuery = () => {
++  const { isTestnet } = useNetworkInfo();
++  const { supabaseBuilders, supabaseBuildersLoaded, error: supabaseError } = useSupabaseBuilders();
++  const { userAddress, isAuthenticated } = useAuth(); // Get userAddress and isAuthenticated
++
++  // Include userAddress in the queryKey if the user is authenticated, to refetch if user changes.
++  // If not authenticated, userAddress might be null/undefined, an empty string for the query is fine.
++  const queryKey: QueryKey = ['builders', { isTestnet, supabaseBuildersLoaded, userAddress: isAuthenticated ? userAddress : null }];
++
++  // The query is enabled if:
++  // 1. It's testnet (doesn't need supabase data pre-loaded for its core fetch)
++  // 2. It's mainnet AND supabase builders have been loaded (or attempted to load)
++  const isEnabled = isTestnet ? true : supabaseBuildersLoaded;
++
++  return useQuery<Builder[], Error>({ 
++    queryKey: queryKey,
++    queryFn: async () => {
++      if (!isTestnet && supabaseError) {
++        // If Supabase had an error on mainnet, fetchBuildersAPI might still proceed if supabaseBuildersLoaded is true
++        // but supabaseBuilders is empty. fetchBuildersAPI handles this by returning [].
++        // If supabaseError itself should halt the query, we could throw here.
++        // For now, logging and letting fetchBuildersAPI run its course based on its params.
++        console.warn('Supabase error detected by useAllBuildersQuery on mainnet, fetch will proceed based on loaded data:', supabaseError);
++      }
++      // Pass userAddress (or empty string if not authenticated/available) to fetchBuildersAPI
++      return fetchBuildersAPI(isTestnet, supabaseBuilders, supabaseBuildersLoaded, isAuthenticated ? userAddress : "");
++    },
++    enabled: isEnabled,
++    // Default staleTime/cacheTime will be used from QueryClientProvider setup.
++    // Add specific options here if needed for this query.
++    // Example: staleTime: 1000 * 60 * 1, // 1 minute for this specific query
++  });
++}; 
+\ No newline at end of file
+diff --git a/app/hooks/useNetworkInfo.ts b/app/hooks/useNetworkInfo.ts
+new file mode 100644
+index 0000000..fde50d9
+--- /dev/null
++++ b/app/hooks/useNetworkInfo.ts
+@@ -0,0 +1,20 @@
++import { useChainId } from 'wagmi';
++import { arbitrumSepolia } from 'wagmi/chains';
++
++export interface NetworkInfo {
++  chainId: number | undefined;
++  isTestnet: boolean;
++  isArbitrumSepolia: boolean;
++}
++
++export const useNetworkInfo = (): NetworkInfo => {
++  const chainId = useChainId();
++  const isArbitrumSepolia = chainId === arbitrumSepolia.id;
++  const isTestnet = isArbitrumSepolia; // Currently, testnet is only Arbitrum Sepolia
++
++  return {
++    chainId,
++    isTestnet,
++    isArbitrumSepolia,
++  };
++}; 
+\ No newline at end of file
+diff --git a/app/hooks/useSupabaseBuilders.ts b/app/hooks/useSupabaseBuilders.ts
+new file mode 100644
+index 0000000..6a7ad03
+--- /dev/null
++++ b/app/hooks/useSupabaseBuilders.ts
+@@ -0,0 +1,67 @@
++import { useState, useEffect } from 'react';
++import { useQueryClient } from '@tanstack/react-query';
++import { BuildersService } from '@/app/services/builders.service';
++import { BuilderDB } from '@/app/lib/supabase';
++
++export interface SupabaseBuildersData {
++  supabaseBuilders: BuilderDB[];
++  supabaseBuildersLoaded: boolean;
++  error: Error | null;
++}
++
++export const useSupabaseBuilders = (): SupabaseBuildersData => {
++  const queryClient = useQueryClient();
++  const [supabaseBuilders, setSupabaseBuilders] = useState<BuilderDB[]>([]);
++  const [supabaseBuildersLoaded, setSupabaseBuildersLoaded] = useState(false);
++  const [error, setError] = useState<Error | null>(null);
++
++  // Effect for initial load from Supabase
++  useEffect(() => {
++    let isMounted = true;
++    const loadBuilders = async () => {
++      try {
++        const builders = await BuildersService.getAllBuilders();
++        if (isMounted) {
++          setSupabaseBuilders(builders);
++          setSupabaseBuildersLoaded(true);
++          setError(null);
++        }
++      } catch (err) {
++        if (isMounted) {
++          console.error('Error loading builders from Supabase:', err);
++          setSupabaseBuilders([]);
++          setSupabaseBuildersLoaded(true); // Still true, as the attempt was made
++          setError(err instanceof Error ? err : new Error('Failed to load builders from Supabase'));
++        }
++      }
++    };
++    
++    loadBuilders();
++    return () => {
++      isMounted = false;
++    };
++  }, []); // Empty dependency array for initial load
++
++  // Effect for real-time subscription
++  useEffect(() => {
++    if (!supabaseBuildersLoaded) {
++      return;
++    }
++
++    // BuildersService.subscribeToBuilders returns the unsubscribe function directly
++    const unsubscribe = BuildersService.subscribeToBuilders((updatedBuilders) => {
++      console.log('Real-time builder update received via useSupabaseBuilders hook:', updatedBuilders);
++      setSupabaseBuilders(updatedBuilders);
++      queryClient.invalidateQueries({ queryKey: ['builders'] });
++    });
++
++    return () => {
++      // unsubscribe is a function, call it directly if it exists
++      if (typeof unsubscribe === 'function') {
++        unsubscribe();
++      }
++    };
++  }, [supabaseBuildersLoaded, queryClient]);
++
++  return { supabaseBuilders, supabaseBuildersLoaded, error };
++}; 
+\ No newline at end of file
+diff --git a/app/layout.tsx b/app/layout.tsx
+index a2a3dd6..fd52e73 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -5,12 +5,8 @@ import { RootLayoutContent } from "@/components/root-layout"
+ import { headers } from "next/headers"
+ import { cookieToInitialState } from "wagmi"
+ import { config } from "@/config"
+-import { Web3Providers } from "@/components/web3-providers"
+-import { BuildersProvider } from '@/context/builders-context';
+-import { AuthProvider } from '@/context/auth-context';
+-import { ComputeProvider } from '@/context/compute-context';
+-import { cn } from "@/lib/utils";
+-import { Toaster } from "@/components/ui/sonner";
++import { cn } from "@/lib/utils"
++import { Providers } from './providers'
+ 
+ const geistSans = localFont({
+   src: "./fonts/GeistVF.woff",
+@@ -51,16 +47,9 @@ export default function RootLayout({
+   return (
+     <html lang="en" suppressHydrationWarning>
+       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
+-        <Web3Providers initialState={initialState}>
+-          <ComputeProvider>
+-            <BuildersProvider>
+-              <AuthProvider>
+-                <RootLayoutContent>{children}</RootLayoutContent>
+-                <Toaster />
+-              </AuthProvider>
+-            </BuildersProvider>
+-          </ComputeProvider>
+-        </Web3Providers>
++        <Providers initialState={initialState}>
++          <RootLayoutContent>{children}</RootLayoutContent>
++        </Providers>
+       </body>
+     </html>
+   );
+diff --git a/app/providers.tsx b/app/providers.tsx
+new file mode 100644
+index 0000000..9a6ccc6
+--- /dev/null
++++ b/app/providers.tsx
+@@ -0,0 +1,54 @@
++"use client";
++
++import React from 'react';
++import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
++import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
++import { Web3Providers } from "@/components/web3-providers";
++import { BuildersProvider } from '@/context/builders-context';
++import { AuthProvider } from '@/context/auth-context';
++import { ComputeProvider } from '@/context/compute-context';
++import { Toaster } from "@/components/ui/sonner";
++import { type State } from 'wagmi'; // Import the State type
++// RootLayoutContent is not used here, it's used in app/layout.tsx
++// import { RootLayoutContent } from "@/components/root-layout"; 
++
++// Create a new QueryClient instance here, within the client component module.
++// This ensures it's created once per client session.
++const queryClient = new QueryClient({
++  defaultOptions: {
++    queries: {
++      staleTime: 1000 * 60 * 5, // 5 minutes
++    },
++  },
++});
++
++export function Providers({ 
++  children,
++  initialState // For Web3Providers
++}: { 
++  children: React.ReactNode;
++  initialState?: State | undefined; // Changed from any to State | undefined
++}) {
++  return (
++    <QueryClientProvider client={queryClient}>
++      <Web3Providers initialState={initialState}>
++        <ComputeProvider>
++          <BuildersProvider>
++            <AuthProvider>
++              {/* 
++                If RootLayoutContent itself has server-only dependencies or is complex,
++                it might be better to keep it in layout.tsx and pass {children} directly.
++                For now, let's assume it's primarily client-side UI structure.
++                If issues persist, we might pass {children} directly to AuthProvider
++                and keep RootLayoutContent in layout.tsx.
++              */}
++              {children} 
++              <Toaster />
++            </AuthProvider>
++          </BuildersProvider>
++        </ComputeProvider>
++      </Web3Providers>
++      <ReactQueryDevtools initialIsOpen={false} />
++    </QueryClientProvider>
++  );
++} 
+\ No newline at end of file
+diff --git a/app/services/buildersService.ts b/app/services/buildersService.ts
+new file mode 100644
+index 0000000..7b19ca2
+--- /dev/null
++++ b/app/services/buildersService.ts
+@@ -0,0 +1,319 @@
++import { getClientForNetwork } from '@/lib/apollo-client';
++import { 
++  COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
++  COMBINED_BUILDER_SUBNETS
++} from '@/lib/graphql/builders-queries';
++import { 
++  BuilderProject, 
++  CombinedBuildersListFilteredByPredefinedBuildersResponse, // Ensure this type is correctly defined/imported
++  OrderDirection
++} from '@/lib/types/graphql';
++import { Builder, mergeBuilderData } from '@/app/builders/builders-data'; // Assuming mergeBuilderData is needed and correctly typed
++import { BuilderDB } from '@/app/lib/supabase'; // Assuming BuilderDB type is correctly defined/imported
++import { formatTimePeriod } from "@/app/utils/time-utils";
++
++// Interface for the structure of subnet data from the testnet query
++interface TestnetSubnet {
++  id: string;
++  name: string;
++  owner: string;
++  minStake: string;
++  fee: string;
++  feeTreasury: string;
++  startsAt: string;
++  totalClaimed: string;
++  totalStaked: string;
++  totalUsers: string;
++  withdrawLockPeriodAfterStake: string;
++  maxClaimLockEnd: string;
++  description: string;
++  website: string;
++  slug?: string; // Was noted as potentially incorrect, marked optional
++  image?: string;
++  builderUsers?: { 
++    id: string; 
++    address: string; 
++    staked: string; 
++    claimed: string;
++    claimLockEnd: string;
++    lastStake: string;
++  }[];
++}
++
++export const fetchBuildersAPI = async (
++  isTestnet: boolean, 
++  supabaseBuilders: BuilderDB[] | null, 
++  supabaseBuildersLoaded: boolean, 
++  userAddress?: string | null // Added userAddress as an optional parameter
++): Promise<Builder[]> => {
++  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
++  console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
++  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
++  console.log('fetchBuildersAPI called. isTestnet:', isTestnet, 'supabaseBuildersLoaded:', supabaseBuildersLoaded, 'supabaseBuilders count:', supabaseBuilders?.length);
++  
++  try {
++    let combinedProjects: BuilderProject[] = [];
++
++    if (isTestnet) {
++      const networkString = 'ArbitrumSepolia';
++      console.log(`[API] Fetching all subnet data from ${networkString} network.`);
++      const client = getClientForNetwork(networkString);
++      if (!client) {
++        throw new Error(`[API] Could not get Apollo client for network: ${networkString}`);
++      }
++      
++      const testnetVariables = {
++        first: 100, // Consider making this configurable or fetching all
++        skip: 0,
++        orderBy: 'totalStaked',
++        orderDirection: OrderDirection.Desc, // Make sure OrderDirection is correctly imported or defined
++        usersOrderBy: 'builderSubnet__totalStaked',
++        usersDirection: OrderDirection.Asc,
++        builderSubnetName: "", 
++        address: "" 
++      };
++      
++      console.log(`[API Testnet Query] Variables for ${networkString}:`, testnetVariables);
++      const response = await client.query<{ builderSubnets?: TestnetSubnet[] }>({ // Typed response
++        query: COMBINED_BUILDER_SUBNETS,
++        variables: testnetVariables,
++        fetchPolicy: 'no-cache',
++      });
++      
++      console.log(`[API Testnet] Received response with ${response.data?.builderSubnets?.length || 0} subnets`);
++      
++      combinedProjects = (response.data?.builderSubnets || []).map((subnet: TestnetSubnet): BuilderProject => {
++        const totalStakedRaw = subnet.totalStaked || '0';
++        const totalStakedInMor = Number(totalStakedRaw) / 1e18;
++        const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
++        
++        const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
++          ? subnet.builderUsers.length 
++          : parseInt(subnet.totalUsers || '0', 10);
++        
++        const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
++        const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
++        
++        const project: BuilderProject = {
++          id: subnet.id,
++          name: subnet.name,
++          description: subnet.description || '',
++          admin: subnet.owner, 
++          networks: ['Arbitrum Sepolia'],
++          network: 'Arbitrum Sepolia',
++          totalStaked: totalStakedInMor.toString(), 
++          minDeposit: minStakeInMor, 
++          minimalDeposit: subnet.minStake, 
++          lockPeriod: lockPeriodFormatted,
++          stakingCount: stakingCount,
++          totalUsers: subnet.totalUsers,
++          website: subnet.website || '',
++          image: subnet.image || '',
++          totalStakedFormatted: totalStakedInMor,
++          startsAt: subnet.startsAt,
++          claimLockEnd: subnet.maxClaimLockEnd,
++          withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake, 
++          totalClaimed: subnet.totalClaimed || '0',
++          builderUsers: subnet.builderUsers,
++        };
++        return project;
++      });
++      
++      // To correctly pass lockPeriodSeconds for each project to the final mapping stage,
++      // we need to associate it with the project. We can return an array of [project, lockPeriodSeconds] tuples.
++      // Or, more simply, recalculate it where needed if project has withdrawLockPeriodAfterStake.
++      // For now, the final mapping for testnet will re-calculate it from project.withdrawLockPeriodAfterDeposit.
++
++      console.log(`[API Testnet] Processed ${combinedProjects.length} subnets for BuilderProject format`);
++
++      // Return mapped Builder array for testnet
++      return combinedProjects.map((project): Builder => {
++        const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterStake || project.withdrawLockPeriodAfterDeposit || '0', 10);
++        const startsAtString = project.startsAt;
++        return {
++          id: project.id,
++          mainnetProjectId: project.id,
++          name: project.name,
++          description: project.description || '',
++          long_description: project.description || '',
++          admin: project.admin as string, 
++          networks: project.networks || ['Arbitrum Sepolia'],
++          network: project.network || 'Arbitrum Sepolia',
++          totalStaked: project.totalStakedFormatted !== undefined ? project.totalStakedFormatted : parseFloat(project.totalStaked || '0'),
++          minDeposit: project.minDeposit !== undefined ? project.minDeposit : parseFloat(project.minimalDeposit || '0') / 1e18,
++          lockPeriod: project.lockPeriod || formatTimePeriod(lockPeriodSeconds),
++          withdrawLockPeriodRaw: lockPeriodSeconds,
++          stakingCount: project.stakingCount || 0,
++          website: project.website || '',
++          image_src: project.image || '', 
++          image: project.image || '', 
++          tags: [], 
++          github_url: '', 
++          twitter_url: '', 
++          discord_url: '', 
++          contributors: 0, 
++          github_stars: 0, 
++          reward_types: [], 
++          reward_types_detail: [], 
++          created_at: ' ', // Placeholder
++          updated_at: ' ', // Placeholder
++          startsAt: startsAtString,
++          builderUsers: project.builderUsers,
++        };
++      });
++    } else { // Mainnet logic
++      if (!supabaseBuildersLoaded || !supabaseBuilders || supabaseBuilders.length === 0) {
++        console.log('[API] Mainnet: Supabase builders not ready or empty. Returning empty array.');
++        return [];
++      }
++      
++      const builderNames = supabaseBuilders.map(b => b.name);
++      console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering from Supabase.`);
++      
++      const commonVariables = {
++        orderBy: "totalStaked",
++        orderDirection: OrderDirection.Desc,
++        usersOrderBy: "buildersProject__totalStaked",
++        usersDirection: OrderDirection.Asc,
++        name_in: builderNames,
++        address: userAddress || ""
++      };
++
++      const baseClient = getClientForNetwork('Base');
++      const arbitrumClient = getClientForNetwork('Arbitrum');
++      
++      if (!baseClient || !arbitrumClient) {
++        throw new Error(`[API] Could not get Apollo clients for Base or Arbitrum`);
++      }
++      
++      console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum.');
++      
++      const [baseResponse, arbitrumResponse] = await Promise.all([
++        baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
++          query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
++          variables: commonVariables,
++          fetchPolicy: 'no-cache',
++        }),
++        arbitrumClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
++          query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
++          variables: commonVariables,
++          fetchPolicy: 'no-cache',
++        })
++      ]);
++
++      // DEBUGGING LOGS FOR MAINNET PARTICIPATION
++      console.log("[Mainnet Participation Check] userAddress:", userAddress);
++      console.log("[Mainnet Participation Check] Base buildersUsers from GQL:", JSON.stringify(baseResponse.data?.buildersUsers, null, 2));
++      console.log("[Mainnet Participation Check] Arbitrum buildersUsers from GQL:", JSON.stringify(arbitrumResponse.data?.buildersUsers, null, 2));
++
++      const baseProjects = (baseResponse.data?.buildersProjects || []).map((project): BuilderProject => {
++        const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
++        const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
++        const lockPeriodFormatted = formatTimePeriod(parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10));
++        
++        // Explicitly convert potential Date objects to ISO strings, defaulting to empty string if null/undefined
++        const pStartsAt = project.startsAt;
++        const pClaimLockEnd = project.claimLockEnd;
++
++        return {
++          ...project,
++          startsAt: typeof pStartsAt === 'string' ? pStartsAt : (pStartsAt ? new Date(pStartsAt).toISOString() : ''),
++          claimLockEnd: typeof pClaimLockEnd === 'string' ? pClaimLockEnd : (pClaimLockEnd ? new Date(pClaimLockEnd).toISOString() : ''),
++          networks: ['Base'],
++          network: 'Base',
++          stakingCount: parseInt(project.totalUsers || '0', 10),
++          lockPeriod: lockPeriodFormatted,
++          minDeposit: minDepositInMor,
++          totalStakedFormatted: totalStakedInMor,
++        };
++      });
++      
++      const arbitrumProjects = (arbitrumResponse.data?.buildersProjects || []).map((project): BuilderProject => {
++        const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
++        const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
++        const lockPeriodFormatted = formatTimePeriod(parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10));
++
++        // Explicitly convert potential Date objects to ISO strings, defaulting to empty string if null/undefined
++        const pStartsAt = project.startsAt;
++        const pClaimLockEnd = project.claimLockEnd;
++
++        return {
++          ...project,
++          startsAt: typeof pStartsAt === 'string' ? pStartsAt : (pStartsAt ? new Date(pStartsAt).toISOString() : ''),
++          claimLockEnd: typeof pClaimLockEnd === 'string' ? pClaimLockEnd : (pClaimLockEnd ? new Date(pClaimLockEnd).toISOString() : ''),
++          networks: ['Arbitrum'],
++          network: 'Arbitrum',
++          stakingCount: parseInt(project.totalUsers || '0', 10),
++          lockPeriod: lockPeriodFormatted,
++          minDeposit: minDepositInMor,
++          totalStakedFormatted: totalStakedInMor,
++        };
++      });
++
++      console.log('[API] Mainnet: Fetched from Base:', baseProjects.length, 'projects');
++      console.log('[API] Mainnet: Fetched from Arbitrum:', arbitrumProjects.length, 'projects');
++      
++      combinedProjects = [...baseProjects, ...arbitrumProjects];
++      console.log('[API] Mainnet: Combined projects:', combinedProjects.length);
++
++      if (!supabaseBuilders) {
++        console.warn("[API] Mainnet: supabaseBuilders is null at merging stage. Returning empty Builder array.");
++        return [];
++      }
++      const mappedBuilders = supabaseBuilders.map((builderDB): Builder => {
++        const onChainProject = combinedProjects.find(p => p.name === builderDB.name);
++        const mainnetLockPeriodSeconds = onChainProject ? parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10) : 0;
++        return mergeBuilderData(builderDB, {
++          totalStaked: onChainProject?.totalStakedFormatted !== undefined 
++            ? onChainProject.totalStakedFormatted 
++            : parseFloat(onChainProject?.totalStaked || '0') / 1e18 || 0, 
++          minimalDeposit: parseFloat(onChainProject?.minimalDeposit || '0') / 1e18 || 0, 
++          withdrawLockPeriodAfterDeposit: mainnetLockPeriodSeconds,
++          withdrawLockPeriodRaw: mainnetLockPeriodSeconds,
++          stakingCount: onChainProject?.stakingCount || 0,
++          lockPeriod: onChainProject?.lockPeriod || '',
++          network: onChainProject?.network || 'Unknown',
++          networks: onChainProject?.networks || ['Unknown'],
++          admin: onChainProject?.admin,
++          image: onChainProject?.image, 
++          website: onChainProject?.website,
++          startsAt: onChainProject?.startsAt,
++        });
++      });
++      console.log("[fetchBuildersAPI Mainnet] Finished mapping supabaseBuilders. Count:", mappedBuilders.length);
++
++      // Populate builderUsers for mainnet if userAddress was provided
++      if (userAddress && (baseResponse.data?.buildersUsers || arbitrumResponse.data?.buildersUsers)) {
++        const allUserStakes = [
++          ...(baseResponse.data?.buildersUsers || []),
++          ...(arbitrumResponse.data?.buildersUsers || [])
++        ];
++
++        mappedBuilders.forEach(builder => {
++          const userStakesForThisBuilder = allUserStakes.filter(
++            stake => stake.buildersProject?.id === builder.id || stake.buildersProject?.name === builder.name
++          );
++
++          if (userStakesForThisBuilder.length > 0) {
++            builder.builderUsers = userStakesForThisBuilder.map(stake => ({
++              id: stake.id,
++              address: stake.address,
++              staked: stake.staked,
++              claimed: "0",
++              claimLockEnd: "0",
++              lastStake: stake.lastStake,
++            }));
++          }
++        });
++      }
++      return mappedBuilders;
++    }
++
++  } catch (e) {
++    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
++    console.error('!!!!!!!!!! fetchBuildersAPI ENCOUNTERED AN ERROR !!!!!!!!!!');
++    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
++    console.error('[API] Error fetching builder data inside fetchBuildersAPI catch block:', e);
++    throw e instanceof Error ? e : new Error('An unknown error occurred while fetching builder data via API service');
++  }
++}; 
+\ No newline at end of file
+diff --git a/components/stake-vs-total-chart.tsx b/components/stake-vs-total-chart.tsx
+index 62ece1f..9b12304 100644
+--- a/components/stake-vs-total-chart.tsx
++++ b/components/stake-vs-total-chart.tsx
+@@ -19,21 +19,21 @@ export function StakeVsTotalChart({ userStake, totalStaked, className = "" }: St
+   // Create the conic gradient style for the progress circle
+   const conicGradient = `conic-gradient(
+     rgb(52, 211, 153) 0% ${percentage}%, 
+-    rgba(16, 185, 129, 0.15) ${percentage}% 100%
++    rgba(11, 11, 11, 0.05) ${percentage}% 100%
+   )`;
+ 
+   return (
+     <div className={`flex items-center ${className}`}>
+       <div 
+-        className="relative flex h-10 w-10 items-center justify-center rounded-full rotate-[-90deg]"
++        className="relative flex h-10 w-10 items-center justify-center rounded-full rotate-[-90deg] aspect-square"
+         style={{ background: conicGradient }}
+       >
+         {/* Inner circle to create donut effect */}
+-        <div className="absolute h-[calc(100%-8px)] w-[calc(100%-8px)] rounded-full bg-[#111827]"></div>
++        <div className="absolute h-[calc(100%-6px)] w-[calc(100%-6px)] rounded-full bg-[#111111]"></div>
+         
+         {/* Percentage text in the middle */}
+-        <div className="z-10 text-[10px] font-semibold text-white rotate-90">
+-          {percentage}%
++        <div className="z-10 text-[8px] sm:text-[11px] font-semibold text-white rotate-90">
++          {percentage}<span className="text-[8px] sm:text-[10px]">%</span>
+         </div>
+       </div>
+       
+diff --git a/context/builders-context.tsx b/context/builders-context.tsx
+index 363065c..c5621c4 100644
+--- a/context/builders-context.tsx
++++ b/context/builders-context.tsx
+@@ -1,786 +1,132 @@
+ "use client";
+ 
+ import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
+-import { getClientForNetwork } from '@/lib/apollo-client';
+-import { 
+-  COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
+-  COMBINED_BUILDER_SUBNETS
+-} from '@/lib/graphql/builders-queries';
+-import { 
+-  BuilderProject, 
+-  BuildersCounter, 
+-  CombinedBuildersListFilteredByPredefinedBuildersResponse,
+-  OrderDirection
+-} from '@/lib/types/graphql';
+-import { Builder, mergeBuilderData } from '@/app/builders/builders-data';
++import { Builder } from '@/app/builders/builders-data';
+ import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
+-import { arbitrumSepolia } from 'wagmi/chains';
+-import { useChainId } from 'wagmi';
+-import { BuilderDB } from '@/app/lib/supabase';
+-import { BuildersService } from '@/app/services/builders.service';
+-import { formatTimePeriod } from "@/app/utils/time-utils";
+-import { useAuth } from './auth-context';
++import { useAllBuildersQuery } from '@/app/hooks/useAllBuildersQuery';
++import { useQueryClient } from '@tanstack/react-query';
+ 
+ interface BuildersContextType {
+-  // Raw data from API
+-  buildersProjects: BuilderProject[];
+-  userAccountBuildersProjects: BuilderProject[];
+-  buildersCounters?: BuildersCounter;
+-  
+-  // UI-ready data
+   builders: Builder[];
+-  userBuilders: Builder[];
+-  userAdminSubnets: Builder[] | null;
+-  
+-  // State
+   isLoading: boolean;
+-  isLoadingUserAdminSubnets: boolean;
+   error: Error | null;
+-  
+-  // Sorting
+   sortColumn: string | null;
+   sortDirection: 'asc' | 'desc' | null;
+   setSorting: (column: string) => void;
+-  
+-  // Filtering
+   nameFilter: string;
+   setNameFilter: (filter: string) => void;
+   rewardTypeFilter: string;
+   setRewardTypeFilter: (filter: string) => void;
+   networkFilter: string;
+   setNetworkFilter: (filter: string) => void;
+-  
+-  // Computed data
+   filteredBuilders: Builder[];
+   rewardTypes: string[];
+-  
+-  // Total metrics (independent of filters)
+   totalMetrics: {
+     totalBuilders: number;
+     totalStaked: number;
+     totalStaking: number;
+   };
+-  
+-  // Refresh data
+   refreshData: () => Promise<void>;
+-  fetchUserAdminSubnets: (address: string) => Promise<void>;
+ }
+ 
+ const BuildersContext = createContext<BuildersContextType | undefined>(undefined);
+ 
+ export function BuildersProvider({ children }: { children: ReactNode }) {
+-  const { userAddress, isAuthenticated } = useAuth();
++  const queryClient = useQueryClient();
+ 
+-  console.log('[BuildersProvider Render] userAddress:', userAddress, 'isAuthenticated:', isAuthenticated);
++  const { 
++    data: allBuildersData,
++    isLoading: isLoadingBuilders,
++    error: buildersError,
++  } = useAllBuildersQuery();
++
++  const builders = useMemo(() => allBuildersData || [], [allBuildersData]);
+ 
+-  // Raw data state
+-  const [buildersProjects, setBuildersProjects] = useState<BuilderProject[]>([]);
+-  // We keep these declarations for type compatibility, even if not actively used
+-  const [userAccountBuildersProjects, /*setUserAccountBuildersProjects*/] = useState<BuilderProject[]>([]);
+-  const [buildersCounters, /*setBuildersCounters*/] = useState<BuildersCounter | undefined>(undefined);
+-  
+-  // Supabase builders state
+-  const [supabaseBuilders, setSupabaseBuilders] = useState<BuilderDB[]>([]);
+-  const [supabaseBuildersLoaded, setSupabaseBuildersLoaded] = useState(false);
+-  
+-  // UI state
+-  const [isLoading, setIsLoading] = useState(true);
+-  const [error, setError] = useState<Error | null>(null);
+-  const [isLoadingUserAdminSubnets, setIsLoadingUserAdminSubnets] = useState(true);
+-  
+-  // Sorting state
+   const [sortColumn, setSortColumn] = useState<string | null>('totalStaked');
+   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>('desc');
+-  
+-  // Filter state
+   const [nameFilter, setNameFilter] = useState('');
+   const [rewardTypeFilter, setRewardTypeFilter] = useState('all');
+   const [networkFilter, setNetworkFilter] = useState('all');
+-  
+-  // Handle async adaptation of builder projects
+-  const [adaptedBuilders, setAdaptedBuilders] = useState<Builder[]>([]);
+-  const [userAdminSubnets, setUserAdminSubnets] = useState<Builder[] | null>(null);
+-  
+-  // Handle async adaptation of user builder projects - keeping for type compatibility
+-  const [adaptedUserBuilders, /*setAdaptedUserBuilders*/] = useState<Builder[]>([]);
+-  
+-  // Get chain ID directly from wagmi
+-  const chainId = useChainId();
+-  
+-  // Determine if we're on Arbitrum Sepolia
+-  const isArbitrumSepolia = chainId === arbitrumSepolia.id;
+-  
+-  // If we're on Arbitrum Sepolia, we're in testnet mode
+-  const isTestnet = isArbitrumSepolia;
+-  
+-  // Log detected network information for debugging
+-  useEffect(() => {
+-    console.log('Network detection in BuildersProvider:', {
+-      chainId,
+-      isArbitrumSepolia,
+-      isTestnet,
+-      arbitrumSepoliaId: arbitrumSepolia.id
+-    });
+-  }, [chainId, isArbitrumSepolia, isTestnet]);
+-  
+-  // Initialize state from URL params
+-  useInitStateFromUrl(
+-    'name',
+-    (value) => {
+-      if (value !== '') setNameFilter(value);
+-    },
+-    ParamConverters.string.deserialize
+-  );
+-
+-  useInitStateFromUrl(
+-    'rewardType',
+-    (value) => {
+-      if (value !== '') setRewardTypeFilter(value);
+-    },
+-    ParamConverters.string.deserialize
+-  );
+-
+-  useInitStateFromUrl(
+-    'network',
+-    (value) => {
+-      if (value !== '') setNetworkFilter(value);
+-    },
+-    ParamConverters.string.deserialize
+-  );
+ 
+-  // Initialize sorting from URL
+-  useInitStateFromUrl(
+-    'sort',
+-    (sorting) => {
+-      if (sorting.column) setSortColumn(sorting.column);
+-      if (sorting.direction) setSortDirection(sorting.direction);
+-    },
+-    ParamConverters.sorting.deserialize
+-  );
+-  
+-  // Load builders from Supabase on mount
+-  useEffect(() => {
+-    const loadBuilders = async () => {
+-      try {
+-        const builders = await BuildersService.getAllBuilders();
+-        console.log('Loaded builders from Supabase:', builders);
+-        setSupabaseBuilders(builders);
+-        setSupabaseBuildersLoaded(true);
+-      } catch (error) {
+-        console.error('Error loading builders from Supabase:', error);
+-        setSupabaseBuilders([]);
+-        setSupabaseBuildersLoaded(true);
+-        setError(error instanceof Error ? error : new Error('Failed to load builders from Supabase'));
+-      }
+-    };
+-    
+-    loadBuilders();
+-  }, []);
+-  
+-  // Set up real-time subscription for Supabase
+-  useEffect(() => {
+-    // Only set up the subscription if we've loaded the initial data
+-    if (!supabaseBuildersLoaded) return;
+-    
+-    const unsubscribe = BuildersService.subscribeToBuilders((updatedBuilders) => {
+-      console.log('Real-time builder update received:', updatedBuilders);
+-      setSupabaseBuilders(updatedBuilders);
+-    });
+-    
+-    // Clean up subscription when component unmounts
+-    return () => {
+-      unsubscribe();
+-    };
+-  }, [supabaseBuildersLoaded]);
+-  
+-  // Convert raw data to UI format, merging Supabase data with on-chain data
+-  const builders = useMemo((): Builder[] => {
+-    console.log('Computing builders from Supabase and on-chain data');
+-    
+-    // When in testnet mode, directly use the on-chain data without Supabase dependency
+-    if (isTestnet) {
+-      console.log('Testnet mode: Using on-chain data directly without Supabase merging');
+-      return buildersProjects.map(subnet => {
+-        // Use the formatted values that we prepared
+-        const totalStaked = subnet.totalStakedFormatted !== undefined 
+-          ? subnet.totalStakedFormatted 
+-          : Number(subnet.totalStaked || '0') / 1e18;
+-        
+-        // Ensure we have a valid number
+-        const safeTotal = isNaN(totalStaked) ? 0 : totalStaked;
+-        const safeStakingCount = subnet.stakingCount || 0;
+-        
+-        // Format lock period from seconds to minutes/hours/days
+-        const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
+-        const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+-        
+-        return {
+-          id: subnet.id,
+-          name: subnet.name,
+-          description: subnet.description || '',
+-          long_description: subnet.description || '',
+-          admin: subnet.admin,
+-          networks: subnet.networks || ['Arbitrum Sepolia'],
+-          network: subnet.network || 'Arbitrum Sepolia',
+-          totalStaked: safeTotal, // Use the safe value
+-          minDeposit: subnet.minDeposit || 0,
+-          lockPeriod: lockPeriodFormatted,
+-          withdrawLockPeriodRaw: lockPeriodSeconds,
+-          stakingCount: safeStakingCount,
+-          website: subnet.website || '',
+-          // Use the direct image URL for testnet subnets if available
+-          image_src: subnet.image || '', 
+-          // For compatibility with components that might use 'image' directly
+-          image: subnet.image || '',
+-          tags: [],
+-          github_url: '',
+-          twitter_url: '',
+-          discord_url: '',
+-          telegram_url: '',
+-          contributors: 0,
+-          github_stars: 0,
+-          reward_types: [],
+-          reward_types_detail: [],
+-          created_at: new Date().toISOString(),
+-          updated_at: new Date().toISOString()
+-        };
+-      });
+-    }
+-    
+-    // In mainnet mode, use the existing Supabase merging logic
+-    if (!supabaseBuildersLoaded) {
+-        return [];
+-    }
+-    
+-    // Convert Supabase builders to UI builders by merging with on-chain data
+-    return supabaseBuilders.map(builderDB => {
+-      // Find corresponding on-chain data if it exists
+-      const onChainBuilder = buildersProjects.find(
+-        bp => bp.name === builderDB.name
+-      );
+-      
+-      // Merge DB data with on-chain data (or default values)
+-      // Use formatted values if available, otherwise fall back to original parsing
+-      return mergeBuilderData(builderDB, {
+-        totalStaked: onChainBuilder?.totalStakedFormatted !== undefined
+-          ? onChainBuilder.totalStakedFormatted
+-          : parseFloat(onChainBuilder?.totalStaked || '0') || 0,
+-        minimalDeposit: parseFloat(onChainBuilder?.minimalDeposit || '0') / 1e18 || 0,
+-        withdrawLockPeriodAfterDeposit: parseFloat(onChainBuilder?.withdrawLockPeriodAfterDeposit || '0') || 0,
+-        stakingCount: onChainBuilder?.stakingCount || 0,
+-        lockPeriod: onChainBuilder?.lockPeriod || '',
+-        // Pass the network information from the on-chain data source
+-        network: onChainBuilder?.network || 'Unknown',
+-        networks: onChainBuilder?.networks || ['Unknown']
+-      });
+-    });
+-  }, [supabaseBuilders, supabaseBuildersLoaded, buildersProjects, isTestnet]);
+-  
+-  // Set adapted builders whenever the computed builders change
+-  useEffect(() => {
+-    setAdaptedBuilders(builders);
+-    setIsLoading(false);
+-  }, [builders]);
++  useInitStateFromUrl('name', (value) => { if (value !== '') setNameFilter(value); }, ParamConverters.string.deserialize);
++  useInitStateFromUrl('rewardType', (value) => { if (value !== '') setRewardTypeFilter(value); }, ParamConverters.string.deserialize);
++  useInitStateFromUrl('network', (value) => { if (value !== '') setNetworkFilter(value); }, ParamConverters.string.deserialize);
++  useInitStateFromUrl('sort', (sorting) => { if (sorting.column) setSortColumn(sorting.column); if (sorting.direction) setSortDirection(sorting.direction); }, ParamConverters.sorting.deserialize);
+ 
+-  // Update URL params when filters change
+   const { setParam } = useUrlParams();
+-  
+-  useEffect(() => {
+-    if (nameFilter) {
+-      setParam('name', nameFilter);
+-    } else {
+-      setParam('name', null);
+-    }
+-  }, [nameFilter, setParam]);
+-
+-  useEffect(() => {
+-    if (rewardTypeFilter && rewardTypeFilter !== 'all') {
+-      setParam('rewardType', rewardTypeFilter);
+-    } else {
+-      setParam('rewardType', null);
+-    }
+-  }, [rewardTypeFilter, setParam]);
+-
+-  useEffect(() => {
+-    if (networkFilter && networkFilter !== 'all') {
+-      setParam('network', networkFilter);
+-    } else {
+-      setParam('network', null);
+-    }
+-  }, [networkFilter, setParam]);
+-
+-  // Update URL when sorting changes
+-  useEffect(() => {
+-    if (sortColumn) {
+-      // Use the serializer to convert the sorting object to a string
+-      setParam('sort', ParamConverters.sorting.serialize({ column: sortColumn, direction: sortDirection }));
+-    } else {
+-      setParam('sort', null);
+-    }
+-  }, [sortColumn, sortDirection, setParam]);
++  useEffect(() => { setParam('name', nameFilter || null); }, [nameFilter, setParam]);
++  useEffect(() => { setParam('rewardType', (rewardTypeFilter && rewardTypeFilter !== 'all') ? rewardTypeFilter : null); }, [rewardTypeFilter, setParam]);
++  useEffect(() => { setParam('network', (networkFilter && networkFilter !== 'all') ? networkFilter : null); }, [networkFilter, setParam]);
++  useEffect(() => { setParam('sort', sortColumn ? ParamConverters.sorting.serialize({ column: sortColumn, direction: sortDirection }) : null); }, [sortColumn, sortDirection, setParam]);
+ 
+   const setSorting = (column: string) => {
+     if (sortColumn === column) {
+-      if (sortDirection === 'asc') {
+-        setSortDirection('desc');
+-      } else if (sortDirection === 'desc') {
+-        setSortColumn(null);
+-        setSortDirection(null);
+-      } else {
+-        setSortDirection('asc');
+-      }
++      if (sortDirection === 'asc') setSortDirection('desc');
++      else if (sortDirection === 'desc') { setSortColumn(null); setSortDirection(null); } 
++      else setSortDirection('asc');
+     } else {
+-      setSortColumn(column);
+-      setSortDirection('asc');
++      setSortColumn(column); setSortDirection('asc');
+     }
+   };
+ 
+-  const fetchBuildersData = async () => {
+-    setIsLoading(true);
+-    setError(null);
+-    console.log('fetchBuildersData called. isTestnet:', isTestnet);
+-    
+-    try {
+-      let combinedProjects: BuilderProject[] = [];
+-
+-      if (isTestnet) {
+-        // For testnet, fetch all subnets directly from Arbitrum Sepolia
+-        const networkString = 'ArbitrumSepolia';
+-        console.log(`Fetching all subnet data from ${networkString} network.`);
+-        const client = getClientForNetwork(networkString);
+-        if (!client) {
+-          throw new Error(`Could not get Apollo client for network: ${networkString}`);
+-        }
+-        
+-        // Use the COMBINED_BUILDER_SUBNETS query with its expected variable format
+-        const testnetVariables = {
+-          first: 100,
+-          skip: 0,
+-          orderBy: 'totalStaked',
+-          orderDirection: OrderDirection.Desc,
+-          usersOrderBy: 'builderSubnet__totalStaked',
+-          usersDirection: OrderDirection.Asc,
+-          builderSubnetName: "", // Empty string to get all subnets
+-          address: "" // Can be updated if we need to filter by user
+-        };
+-        
+-        console.log(`[Testnet Query] Variables for ${networkString}:`, testnetVariables);
+-        const response = await client.query({
+-          query: COMBINED_BUILDER_SUBNETS,
+-          variables: testnetVariables,
+-          fetchPolicy: 'no-cache',
+-        });
+-        
+-        console.log(`[Testnet] Received response with ${response.data.builderSubnets?.length || 0} subnets`);
+-        
+-        // Map subnet data to project format
+-        combinedProjects = (response.data.builderSubnets || []).map((subnet: {
+-          id: string;
+-          name: string;
+-          owner: string;
+-          minStake: string;
+-          fee: string;
+-          feeTreasury: string;
+-          startsAt: string;
+-          totalClaimed: string;
+-          totalStaked: string;
+-          totalUsers: string;
+-          withdrawLockPeriodAfterStake: string;
+-          maxClaimLockEnd: string;
+-          description: string;
+-          website: string;
+-          slug: string; // May contain incorrect data, not using
+-          image?: string;
+-          builderUsers?: { 
+-            id: string; 
+-            address: string; 
+-            staked: string; 
+-            claimed: string;
+-            claimLockEnd: string;
+-            lastStake: string;
+-          }[];
+-        }) => {
+-          // Convert Wei to ETH (divide by 10^18) - ensure it's a valid number
+-          const totalStakedRaw = subnet.totalStaked || '0';
+-          const totalStakedInMor = Number(totalStakedRaw) / 1e18;
+-          const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
+-          
+-          // Get the correct staking count - from builderUsers array length or totalUsers
+-          const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
+-            ? subnet.builderUsers.length 
+-            : parseInt(subnet.totalUsers || '0', 10);
+-          
+-          // Format lock period from seconds to minutes/hours/days
+-          const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
+-          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+-          
+-          // Map the testnet data structure to match what's expected by the rest of the app
+-          return {
+-            id: subnet.id,
+-            name: subnet.name, // Important - keep original name format with special chars
+-            description: subnet.description || '',
+-            // Add owner as admin for testnet subnets
+-            admin: subnet.owner,
+-            networks: ['Arbitrum Sepolia'],
+-            network: 'Arbitrum Sepolia',
+-            // Numeric values in the expected format
+-            totalStaked: totalStakedInMor,
+-            minDeposit: minStakeInMor,
+-            minimalDeposit: subnet.minStake,
+-            lockPeriod: lockPeriodFormatted,
+-            withdrawLockPeriodRaw: lockPeriodSeconds,
+-            stakingCount: stakingCount,
+-            totalUsers: subnet.totalUsers,
+-            // Other metadata
+-            website: subnet.website || '',
+-            image: subnet.image || '',
+-            // For direct access consistency
+-            totalStakedFormatted: totalStakedInMor,
+-            // Include original fields for reference if needed
+-            startsAt: subnet.startsAt,
+-            withdrawLockPeriodAfterStake: subnet.withdrawLockPeriodAfterStake,
+-            maxClaimLockEnd: subnet.maxClaimLockEnd,
+-            // Convert builderUsers to the expected format
+-            users: subnet.builderUsers?.map(user => ({
+-              id: user.id,
+-              address: user.address,
+-              staked: user.staked,
+-              claimed: user.claimed,
+-              lastStake: user.lastStake,
+-              claimLockEnd: user.claimLockEnd
+-            })) || []
+-          };
+-        });
+-        
+-        console.log(`[Testnet] Processed ${combinedProjects.length} subnets for display`);
+-      } else {
+-        // For mainnet, use existing logic with Supabase filtering
+-        if (!supabaseBuildersLoaded || supabaseBuilders.length === 0) {
+-          console.log('fetchBuildersData: Aborting mainnet query, Supabase builders not ready.');
+-          setBuildersProjects([]); 
+-          setIsLoading(false);
+-          return;
+-        }
+-        
+-        // Extract names from Supabase builders
+-        const builderNames = supabaseBuilders.map(b => b.name);
+-        console.log(`fetchBuildersData: Using ${builderNames.length} builder names for filtering.`);
+-        
+-        // Use string values instead of enums to match the expected schema
+-        const commonVariables = {
+-          orderBy: "totalStaked", // String instead of enum
+-          orderDirection: "desc", // String instead of enum
+-          usersOrderBy: "buildersProject__totalStaked", // Correct field name
+-          usersDirection: "asc", // String instead of enum
+-          name_in: builderNames,
+-          address: "" // Include address parameter (empty for now)
+-        };
+-
+-        // Fetch from both Base and Arbitrum mainnet
+-        const baseClient = getClientForNetwork('Base');
+-        const arbitrumClient = getClientForNetwork('Arbitrum');
+-        
+-        if (!baseClient || !arbitrumClient) {
+-          throw new Error(`Could not get Apollo clients for Base or Arbitrum`);
+-        }
+-        
+-        console.log('Fetching on-chain data from Base and Arbitrum mainnet.');
+-        
+-        console.log(`[Mainnet Query] Variables for Base:`, commonVariables);
+-        const [baseResponse, arbitrumResponse] = await Promise.all([
+-          baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
+-            query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
+-            variables: commonVariables,
+-            fetchPolicy: 'no-cache',
+-          }),
+-          (console.log(`[Mainnet Query] Variables for Arbitrum:`, commonVariables), 
+-          arbitrumClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
+-            query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
+-            variables: commonVariables,
+-            fetchPolicy: 'no-cache',
+-          }))
+-        ]);
+-
+-        const baseProjects = (baseResponse.data?.buildersProjects || []).map(project => {
+-          // Convert Wei to ETH (divide by 10^18) - ensure it's a valid number
+-          const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
+-          const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
+-          
+-          // Format lock period from seconds to minutes/hours/days
+-          const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
+-          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+-          
+-          return {
+-            ...project,
+-            networks: ['Base'],
+-            network: 'Base',
+-            stakingCount: parseInt(project.totalUsers || '0', 10),
+-            lockPeriod: lockPeriodFormatted,
+-            minDeposit: minDepositInMor,
+-            minimalDeposit: project.minimalDeposit,
+-            totalStakedFormatted: totalStakedInMor,
+-            withdrawLockPeriodFormatted: lockPeriodFormatted
+-          };
+-        });
+-        
+-        const arbitrumProjects = (arbitrumResponse.data?.buildersProjects || []).map(project => {
+-          // Convert Wei to ETH (divide by 10^18) - ensure it's a valid number
+-          const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
+-          const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
+-          
+-          // Format lock period from seconds to minutes/hours/days
+-          const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
+-          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+-          
+-          return {
+-            ...project,
+-            networks: ['Arbitrum'],
+-            network: 'Arbitrum',
+-            stakingCount: parseInt(project.totalUsers || '0', 10),
+-            lockPeriod: lockPeriodFormatted,
+-            minDeposit: minDepositInMor,
+-            minimalDeposit: project.minimalDeposit,
+-            totalStakedFormatted: totalStakedInMor,
+-            withdrawLockPeriodFormatted: lockPeriodFormatted
+-          };
+-        });
+-
+-        console.log('Fetched from Base:', baseProjects.length, 'projects');
+-        console.log('Fetched from Arbitrum:', arbitrumProjects.length, 'projects');
+-        
+-        // Combine results
+-        combinedProjects = [...baseProjects, ...arbitrumProjects];
+-        console.log('Combined mainnet projects:', combinedProjects.length);
+-      }
+-      
+-      // Set the combined state
+-      setBuildersProjects(combinedProjects);
+-      
+-      setIsLoading(false);
+-    } catch (e) {
+-      console.error('Error fetching on-chain builder data:', e);
+-      setError(e instanceof Error ? e : new Error('An unknown error occurred while fetching on-chain data'));
+-      setIsLoading(false);
+-    }
+-  };
+-
+-  // Fetch on-chain data initially and whenever the network OR supabase builders change
+-  useEffect(() => {
+-    // In testnet mode, fetch regardless of Supabase state
+-    if (isTestnet) {
+-      console.log("Testnet detected, fetching data without Supabase dependency");
+-      fetchBuildersData();
+-    } 
+-    // In mainnet mode, only fetch if Supabase builders are loaded
+-    else if (supabaseBuildersLoaded && supabaseBuilders.length > 0) {
+-      console.log("Mainnet with loaded Supabase data, fetching from mainnet networks");
+-      fetchBuildersData();
+-    } else if (supabaseBuildersLoaded && supabaseBuilders.length === 0) {
+-      console.log("Supabase builders loaded but empty, clearing on-chain data.");
+-      setBuildersProjects([]); // Clear potentially stale on-chain data
+-    } else {
+-      console.log("Skipping fetchBuildersData, Supabase builders not loaded yet for mainnet mode.");
+-    }
+-  }, [isTestnet, supabaseBuildersLoaded, supabaseBuilders]); // Add supabase state dependencies
+-  
+-  // Compute filtered builders
+   const filteredBuilders = useMemo(() => {
+-    // Start with all builders
+-    let result = [...adaptedBuilders];
+-    
+-    // Filter by name if nameFilter is provided
++    let result = [...builders];
+     if (nameFilter && nameFilter.trim() !== '') {
+-      const normalizedFilter = nameFilter.toLowerCase().trim();
+-      result = result.filter(builder => 
+-        builder.name.toLowerCase().includes(normalizedFilter)
+-      );
++      result = result.filter(builder => builder.name.toLowerCase().includes(nameFilter.toLowerCase().trim()));
+     }
+-    
+-    // Filter by reward type if rewardTypeFilter is provided and not 'all'
+     if (rewardTypeFilter && rewardTypeFilter !== 'all') {
+-      result = result.filter(builder => 
+-        builder.reward_types && builder.reward_types.includes(rewardTypeFilter)
+-      );
++      result = result.filter(builder => builder.reward_types && builder.reward_types.includes(rewardTypeFilter));
+     }
+-    
+-    // Filter by network if networkFilter is provided and not 'all'
+     if (networkFilter && networkFilter !== 'all') {
+-      result = result.filter(builder => 
+-        builder.networks && builder.networks.includes(networkFilter)
+-      );
++      result = result.filter(builder => builder.networks && builder.networks.includes(networkFilter));
+     }
+-    
+-    // Sort the results
+     if (sortColumn) {
+-      result = [...result].sort((a, b) => {
+-        // We need to handle the case where the property might not exist
++      result.sort((a, b) => {
+         const aValue = a[sortColumn as keyof Builder];
+         const bValue = b[sortColumn as keyof Builder];
+-        
+-        // If either value is undefined, sort it to the end
+         if (aValue === undefined) return sortDirection === 'asc' ? 1 : -1;
+         if (bValue === undefined) return sortDirection === 'asc' ? -1 : 1;
+-        
+-        // Handle string comparison
+         if (typeof aValue === 'string' && typeof bValue === 'string') {
+-          return sortDirection === 'asc' 
+-            ? aValue.localeCompare(bValue) 
+-            : bValue.localeCompare(aValue);
++          return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+         }
+-        
+-        // Handle number comparison
+         if (typeof aValue === 'number' && typeof bValue === 'number') {
+           return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+         }
+-        
+-        // Default fallback
+         return 0;
+       });
+     }
+-    
+     return result;
+-  }, [adaptedBuilders, nameFilter, rewardTypeFilter, networkFilter, sortColumn, sortDirection]);
+-  
+-  // Extract all unique reward types for filtering
++  }, [builders, nameFilter, rewardTypeFilter, networkFilter, sortColumn, sortDirection]);
++
+   const rewardTypes = useMemo(() => {
+     const types = new Set<string>();
+-    
+-    adaptedBuilders.forEach(builder => {
++    builders.forEach(builder => {
+       if (builder.reward_types && Array.isArray(builder.reward_types)) {
+         builder.reward_types.forEach(type => types.add(type));
+       }
+     });
+-    
+     return Array.from(types);
+-  }, [adaptedBuilders]);
+-  
+-  // Compute total metrics independent of filters
++  }, [builders]);
++
+   const totalMetrics = useMemo(() => {
+     return {
+-      totalBuilders: adaptedBuilders.length,
+-      totalStaked: adaptedBuilders.reduce((acc, builder) => acc + (builder.totalStaked || 0), 0),
+-      totalStaking: adaptedBuilders.reduce((acc, builder) => acc + (builder.stakingCount || 0), 0),
++      totalBuilders: builders.length,
++      totalStaked: builders.reduce((acc, builder) => acc + (builder.totalStaked || 0), 0),
++      totalStaking: builders.reduce((acc, builder) => acc + (builder.stakingCount || 0), 0),
+     };
+-  }, [adaptedBuilders]);
+-  
+-  // --- REVISED V2: Function to fetch subnets administered by the user ---
+-  // This function now *always* filters the `adaptedBuilders` array.
+-  const fetchUserAdminSubnets = useCallback(async (address: string) => {
+-    if (!address) {
+-        console.log("fetchUserAdminSubnets: Aborting, no address provided.");
+-        setUserAdminSubnets(null); // Clear if no address
+-        setIsLoadingUserAdminSubnets(false);
+-        return;
+-    }
+-    setIsLoadingUserAdminSubnets(true);
+-    console.log(`fetchUserAdminSubnets useCallback called for address: ${address}. Filtering 'adaptedBuilders'.`);
+-
+-    // Read the definitive 'adaptedBuilders' array directly
+-    const currentAdaptedBuilders = adaptedBuilders; // Dependency: adaptedBuilders
+-
+-    try {
+-      // Filter the unified 'adaptedBuilders' array based on the 'admin' field
+-      console.log(`[Admin Filter] Filtering ${currentAdaptedBuilders.length} builders from 'adaptedBuilders'. Source (first 5):`, currentAdaptedBuilders.slice(0, 5));
+-
+-      const adminSubnets = currentAdaptedBuilders.filter(builder => {
+-          const isAdminMatch = builder.admin?.toLowerCase() === address.toLowerCase();
+-           // console.log(`[Admin Check] Builder: ${builder.name}, Admin: ${builder.admin}, Match: ${isAdminMatch}`); // Keep commented unless needed
+-          return isAdminMatch;
+-      });
+-
+-      console.log(`[Admin Filter] Found ${adminSubnets.length} matching builders after filtering 'adaptedBuilders'.`);
+-      console.log(`Setting userAdminSubnets state with ${adminSubnets.length} items.`);
+-      setUserAdminSubnets(adminSubnets); // Dependency: setUserAdminSubnets
+-
+-    } catch (e) {
+-      console.error('Error filtering adaptedBuilders for user admin subnets:', e);
+-      setUserAdminSubnets([]); // Set to empty on error
+-    } finally {
+-      setIsLoadingUserAdminSubnets(false); // Dependency: setIsLoadingUserAdminSubnets
+-    }
+-  // Now only depends on the source array 'adaptedBuilders' and state setters
+-  }, [adaptedBuilders, setIsLoadingUserAdminSubnets, setUserAdminSubnets]);
+-  // --- END REVISED V2 ---
+-
+-  // --- REVISED: Trigger fetchUserAdminSubnets ---
+-  useEffect(() => {
+-    const effectTriggerTime = new Date().toISOString();
+-    console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Entry. isAuthenticated:`, isAuthenticated, `userAddress:`, userAddress, `adaptedBuilders.length:`, adaptedBuilders.length, `userAdminSubnets currently:`, userAdminSubnets);
+-
+-    if (isAuthenticated) {
+-      // --- User is considered Authenticated ---
+-      if (userAddress) {
+-        // Authenticated AND Address is present
+-        if (adaptedBuilders.length > 0) {
+-          // Builders are loaded -> Fetch/Filter
+-          console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth OK, Address PRESENT, Builders POPULATED. Calling fetchUserAdminSubnets for:`, userAddress);
+-          fetchUserAdminSubnets(userAddress);
+-        } else {
+-          // Builders not loaded -> Wait
+-          console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth OK, Address PRESENT, Builders EMPTY. Waiting for builders. userAddress:`, userAddress);
+-          // Optional: setIsLoadingUserAdminSubnets(true); // Show loading for user subnets
+-        }
+-      } else {
+-        // Authenticated BUT Address is (temporarily?) null/undefined
+-        // DO NOTHING - Hold the existing state, assuming address will reappear shortly.
+-        // This is the key change to prevent clearing during flicker.
+-        console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth OK but Address ABSENT. DOING NOTHING - Holding state.`);
+-        // We might still be loading the userAdminSubnets if builders aren't loaded yet.
+-        // Ensure loading state is consistent if needed, but avoid clearing.
+-         if (adaptedBuilders.length === 0 && !isLoadingUserAdminSubnets) {
+-             // If builders aren't loaded, maybe set loading true? Depends on desired UX.
+-             // setIsLoadingUserAdminSubnets(true);
+-         }
+-      }
+-    } else {
+-      // --- User is NOT Authenticated ---
+-      console.log(`[BuildersContext Trigger useEffect ${effectTriggerTime}] Condition: Auth NOT OK (isAuthenticated: false). Clearing userAdminSubnets.`);
+-      if (userAdminSubnets !== null) { // Only clear if it's not already null
+-         setUserAdminSubnets(null);
+-      }
+-      // Ensure loading is false if user is not authenticated
+-      if (isLoadingUserAdminSubnets) {
+-        setIsLoadingUserAdminSubnets(false);
+-      }
+-    }
+-
+-    // Dependencies remain the same, reaction logic is changed.
+-  }, [isAuthenticated, userAddress, adaptedBuilders, fetchUserAdminSubnets, userAdminSubnets, isLoadingUserAdminSubnets]);
+-  // --- END REVISED ---
++  }, [builders]);
+   
+-  // --- NEW: Log userAdminSubnets state when it changes ---
+-  useEffect(() => {
+-    // Log the state whenever it's updated. Check if it's null, empty array, or contains data.
+-    console.log('[BuildersContext] Final userAdminSubnets state after update:', userAdminSubnets);
+-  }, [userAdminSubnets]); // Run this effect whenever userAdminSubnets changes
+-  // --- END NEW ---
+-
+-  // Modify refreshData to use the useCallback version
+-  const refreshData = async () => {
+-    // Refresh both on-chain data and Supabase data
+-    await Promise.all([
+-      fetchBuildersData(),
+-      BuildersService.getAllBuilders().then(setSupabaseBuilders)
+-    ]);
+-    // After refreshing main data, re-filter admin subnets if user address is available
+-    if (userAddress) {
+-      // No need to await here unless subsequent logic depends on it immediately
+-      fetchUserAdminSubnets(userAddress); 
+-    }
+-  };
++  const refreshData = useCallback(async () => {
++    console.log("[BuildersContext] refreshData called. Invalidating 'builders' query.");
++    await queryClient.invalidateQueries({ queryKey: ['builders'] });
++  }, [queryClient]);
+ 
+   return (
+     <BuildersContext.Provider
+       value={{
+-        buildersProjects,
+-        userAccountBuildersProjects,
+-        buildersCounters,
+-        builders: adaptedBuilders,
+-        userBuilders: adaptedUserBuilders,
+-        userAdminSubnets,
+-        isLoading,
+-        isLoadingUserAdminSubnets,
+-        error,
++        builders,
++        isLoading: isLoadingBuilders,
++        error: buildersError,
+         sortColumn,
+         sortDirection,
+         setSorting,
+@@ -794,7 +140,6 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
+         rewardTypes,
+         totalMetrics,
+         refreshData,
+-        fetchUserAdminSubnets
+       }}
+     >
+       {children}
+@@ -804,10 +149,8 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
+ 
+ export function useBuilders() {
+   const context = useContext(BuildersContext);
+-  
+   if (context === undefined) {
+     throw new Error('useBuilders must be used within a BuildersProvider');
+   }
+-  
+   return context;
+ } 
+\ No newline at end of file
+diff --git a/hooks/use-staking-data.ts b/hooks/use-staking-data.ts
+index 9f49a00..5ea1f84 100644
+--- a/hooks/use-staking-data.ts
++++ b/hooks/use-staking-data.ts
+@@ -225,6 +225,7 @@ export function useStakingData({
+ 
+   // Fetch data
+   const fetchData = useCallback(async () => {
++    console.log('[useStakingData] fetchData CALLED. Internal id before any checks:', id, 'projectName:', projectName, 'currentPage:', pagination.currentPage);
+     // We should set loading to true on initial load, even if we're already loading
+     // This fixes the issue where tables are stuck in loading state
+     setIsLoading(true);
+@@ -248,7 +249,7 @@ export function useStakingData({
+       
+       // Check cache first
+       if (cachedPages[pagination.currentPage]?.length > 0) {
+-        console.log('Using cached data for page', pagination.currentPage);
++        console.log('[useStakingData] Using cached data for page', pagination.currentPage, cachedPages[pagination.currentPage]);
+         setEntries(cachedPages[pagination.currentPage]);
+         setIsLoading(false);
+         return;
+@@ -256,6 +257,7 @@ export function useStakingData({
+       
+       // Get project ID 
+       let projectIdToUse = id;
++      console.log('[useStakingData] Initial projectIdToUse:', projectIdToUse);
+       
+       // For builder projects, look up by name if needed
+       if (!isComputeProject && !projectIdToUse && projectName) {
+@@ -268,8 +270,13 @@ export function useStakingData({
+       }
+       
+       if (!projectIdToUse) {
+-        throw new Error("No project ID available for fetching data");
++        console.warn('[useStakingData] No projectIdToUse available for fetching data, returning.');
++        // setError(new Error("No project ID available for fetching data")); // Maybe set error here too
++        setIsLoading(false);
++        setEntries([]); // Ensure entries are empty if no ID
++        return; // Early return if no ID
+       }
++      console.log('[useStakingData] Final projectIdToUse for query:', projectIdToUse);
+       
+       // Calculate pagination skip
+       const skip = (pagination.currentPage - 1) * pagination.pageSize;
+@@ -303,7 +310,7 @@ export function useStakingData({
+           throw new Error("No data returned from API");
+         }
+         
+-        console.log('Compute data received:', response);
++        console.log('[useStakingData] Compute data received:', response);
+         
+         // Get total users count if available
+         const project = response.data.subnets?.[0];
+@@ -330,7 +337,7 @@ export function useStakingData({
+           };
+         });
+         
+-        console.log('Formatted entries:', formattedEntries);
++        console.log('[useStakingData] Formatted compute entries:', formattedEntries);
+         
+         // Only update cache and state if we have data and we're still on the same page
+         setCachedPages(prev => ({
+@@ -356,7 +363,7 @@ export function useStakingData({
+           throw new Error("No data returned from API");
+         }
+         
+-        console.log('[Testnet] Builder subnet users data received:', response);
++        console.log('[useStakingData] [Testnet] Builder subnet users data raw response:', response);
+         
+         // Format the data using provided formatter or default
+         const formattedEntries = (response.data?.builderUsers || []).map((user: BuilderSubnetUser) => {
+@@ -373,7 +380,7 @@ export function useStakingData({
+           };
+         });
+         
+-        console.log('[Testnet] Formatted entries:', formattedEntries);
++        console.log('[useStakingData] [Testnet] Formatted entries:', formattedEntries);
+         
+         // Update cache and state
+         setCachedPages(prev => ({
+@@ -384,6 +391,8 @@ export function useStakingData({
+         setEntries(formattedEntries);
+       } else {
+         // Mainnet builders project query
++        console.log(`[useStakingData] Mainnet projectId (expected to be an ETH address): ${projectIdToUse}`);
++
+         const response = await fetchGraphQL<BuildersGraphQLResponse>(
+           endpoint,
+           queryFunction || "getBuildersProjectUsers",
+@@ -391,7 +400,7 @@ export function useStakingData({
+           {
+             first: pagination.pageSize,
+             skip,
+-            buildersProjectId: projectIdToUse,
++            buildersProjectId: projectIdToUse, // Use projectIdToUse directly
+             orderBy: 'staked',
+             orderDirection: 'desc'
+           }
+@@ -401,7 +410,7 @@ export function useStakingData({
+           throw new Error("No data returned from API");
+         }
+         
+-        console.log('Builders data received:', response);
++        console.log('[useStakingData] Mainnet Builders data raw response:', response);
+         
+         // Format the data using provided formatter or default
+         const formattedEntries = (response.data.buildersUsers || []).map(user => {
+@@ -418,7 +427,7 @@ export function useStakingData({
+           };
+         });
+         
+-        console.log('Formatted entries:', formattedEntries);
++        console.log('[useStakingData] Mainnet Formatted entries:', formattedEntries);
+         
+         // Update cache and state
+         setCachedPages(prev => ({
+@@ -448,45 +457,66 @@ export function useStakingData({
+     formatAddress,
+     isComputeProject,
+     isTestnet,
+-    fetchProjectIdByName,
+-    cachedPages
++    fetchProjectIdByName
+   ]);
+ 
+   // Define the refresh function to explicitly trigger data fetching
+   const refresh = useCallback(() => {
+-    // Clear cached pages when refreshing to ensure we get fresh data
++    console.log('[useStakingData] refresh CALLED. Current isLoading state:', isLoading, 'Clearing cache and calling fetchData unconditionally.');
+     setCachedPages({});
+-    // Only fetch if we're not already loading
+-    if (!isLoading) {
+-      fetchData();
+-    }
+-  }, [fetchData, isLoading]);
++    // isLoading check removed: A manual refresh should always attempt to fetch.
++    // This also helps break potential loops if isLoading got stuck as true.
++    fetchData(); 
++  }, [fetchData]); // Removed isLoading from deps as it's no longer used in condition
+ 
+-  // Initial data fetching - only run once on mount
++  // useEffect to fetch data when the internal ID or critical pagination/sorting changes.
++  // This replaces the old initial data fetching and the pagination/sorting effect.
+   useEffect(() => {
+-    fetchData();
++    console.log('[useStakingData] Effect to run fetchData. Current internal id:', id, 'currentPage:', pagination.currentPage, 'sortingCol:', sorting.column);
++    // Only fetch if we have an ID to fetch for.
++    if (id) {
++      console.log('[useStakingData] Condition (id is truthy) MET for calling fetchData. ID:', id);
++      fetchData();
++    } else {
++      console.log('[useStakingData] Condition (id is truthy) NOT MET for calling fetchData. ID:', id);
++    }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, []); // Empty dependency array to run only once
++  }, [id, pagination.currentPage, pagination.pageSize, sorting.column, sorting.direction]); // REMOVED fetchData from deps
+ 
+-  // Handle pagination and sorting changes
++  // useEffect to handle changes in the projectId prop from the parent component.
+   useEffect(() => {
+-    // Don't fetch on initial mount since we already do that in the effect above
+-    const shouldFetch = (id !== null || projectName !== undefined) && 
+-                        (pagination.currentPage > 1 || // Only if not first page
+-                        sorting.column !== initialSort.column || // Or if sort changed
+-                        sorting.direction !== initialSort.direction); // Or if direction changed
+-    
+-    if (shouldFetch) {
+-      fetchData();
++    console.log('[useStakingData] projectIdEffect triggered. Raw projectId prop value:', projectId, 'Current internal id state:', id, 'Is prop undefined?:', projectId === undefined);
++    if (projectId !== undefined && projectId !== id) {
++      console.log('[useStakingData] projectId prop is DEFINED (', projectId, ') and DIFFERENT from internal id (', id, '). Updating internal id and resetting.');
++      // Set the internal ID, clear caches, and reset pagination.
++      // The actual fetchData call will be triggered by the useEffect above, which depends on `id`.
++      setId(projectId);
++      setCachedPages({});
++      setPagination(prev => ({ 
++        ...prev, 
++        currentPage: 1, 
++        totalItems: 0, 
++        totalPages: 1  
++      }));
++      setError(null);
++      setIsLoading(true); // Set loading true, fetchData will manage it further
++    } else if (projectId === undefined && id !== null) {
++      console.log('[useStakingData] projectId prop became UNDEFINED. Clearing data. Previous internal id:', id);
++      setId(null);
++      setEntries([]); 
++      setCachedPages({});
++      setPagination(prev => ({ 
++        ...prev, 
++        currentPage: 1, 
++        totalItems: 0, 
++        totalPages: 1 
++      }));
++      setError(null);
++      setIsLoading(false); 
++    } else {
++      console.log('[useStakingData] projectIdEffect: projectId prop (', projectId, ') is either undefined or already matches internal id (', id, '). No primary state update in this effect.');
+     }
+-  }, [
+-    pagination.currentPage,
+-    pagination.pageSize,
+-    sorting.column,
+-    sorting.direction
+-    // Remove fetchData from dependencies to prevent re-fetching
+-    // eslint-disable-next-line react-hooks/exhaustive-deps
+-  ]);
++  }, [projectId]); // Only depends on projectId prop to react to its changes
+ 
+   // Sorting handler
+   const setSort = useCallback((column: string) => {
+@@ -532,19 +562,7 @@ export function useStakingData({
+     });
+   }, [entries, sorting]);
+ 
+-  // Update the useEffect to prevent unnecessary data clearing
+-  // Fix the issue with project ID changes
+-  useEffect(() => {
+-    // Only reset when ID changes AND we actually have a previous ID to avoid clearing on mount
+-    if (projectId && projectId !== id) {
+-      setId(projectId);
+-      setCachedPages({});
+-      setError(null);
+-      // Don't immediately clear entries to prevent layout flickering
+-      // Instead, we'll wait until new data is loaded
+-    }
+-  }, [projectId, id]);
+-
++  console.log('[useStakingData] Returning state:', { isLoading, error: error?.message, entriesLength: entries.length, currentPage: pagination.currentPage, totalPages: pagination.totalPages, id });
+   return {
+     entries: sortedEntries,
+     isLoading,
+diff --git a/lib/types/graphql.ts b/lib/types/graphql.ts
+index 2580c31..77f2fdd 100644
+--- a/lib/types/graphql.ts
++++ b/lib/types/graphql.ts
+@@ -55,6 +55,7 @@ export interface BuilderProject {
+   description?: string;
+   website?: string;
+   totalStakedFormatted?: number;
++  builderUsers?: BuilderUser[];
+ }
+ 
+ export interface BuilderUser {
+@@ -64,7 +65,8 @@ export interface BuilderUser {
+   claimed: string;
+   claimLockEnd: string;
+   lastStake: string;
+-  builderSubnet?: BuilderSubnet;
++  builderSubnet?: BuilderSubnet; // For testnet
++  buildersProject?: BuilderProject; // For mainnet
+ }
+ 
+ export interface BuildersCounter {
+diff --git a/lib/utils/builders-adapter.ts b/lib/utils/builders-adapter.ts
+index f68db1d..45611bf 100644
+--- a/lib/utils/builders-adapter.ts
++++ b/lib/utils/builders-adapter.ts
+@@ -77,6 +77,7 @@ export async function adaptBuilderProjectToUI(
+ 
+   return {
+     id: project.id,
++    mainnetProjectId: project.id,
+     name,
+     description,
+     long_description: '', // Changed from longDescription to match Builder type
+diff --git a/package.json b/package.json
+index 4489866..b09c3dc 100644
+--- a/package.json
++++ b/package.json
+@@ -38,7 +38,8 @@
+     "@reown/appkit-adapter-wagmi": "^1.6.1",
+     "@supabase/supabase-js": "^2.49.4",
+     "@tanstack/query-core": "^5.66.4",
+-    "@tanstack/react-query": "^5.66.9",
++    "@tanstack/react-query": "^5.76.0",
++    "@tanstack/react-query-devtools": "^5.76.0",
+     "@tanstack/react-table": "^8.21.2",
+     "@tremor/react": "^3.18.7",
+     "@types/mime-types": "^2.1.4",
+@@ -76,6 +77,7 @@
+     "zod": "^3.24.2"
+   },
+   "devDependencies": {
++    "@tanstack/eslint-plugin-query": "^5.74.7",
+     "@types/node": "^20",
+     "@types/react": "^18",
+     "@types/react-dom": "^18",

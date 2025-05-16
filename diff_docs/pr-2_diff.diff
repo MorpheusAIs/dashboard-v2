@@ -1,0 +1,3573 @@
+Description:
+```
+Update BuildersPage to use router for navigation with query parameters and refactor BuilderPage to extract parameters from URL
+```
+
+diff --git a/.cursorignore b/.cursorignore
+new file mode 100644
+index 0000000..6f9f00f
+--- /dev/null
++++ b/.cursorignore
+@@ -0,0 +1 @@
++# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+diff --git a/.env.example b/.env.example
+index a43a5f2..a7ff46c 100644
+--- a/.env.example
++++ b/.env.example
+@@ -2,4 +2,7 @@ NEXT_PUBLIC_PROJECT_ID="your_webkit_project_id"
+ NEXT_PUBLIC_PROJECT_SECRET="your_project_secret"
+ NEXT_PUBLIC_SUPABASE_URL="your_supabase_url"
+ NEXT_PUBLIC_SUPABASE_ANON_KEY="your_supabase_anon_key"
+-SUPABASE_SERVICE_KEY="your_supabase_service_key"
+\ No newline at end of file
++SUPABASE_SERVICE_KEY="your_supabase_service_key"
++
++COPILOTKIT_TELEMETRY_DISABLED=true
++MORPHEUS_API_KEY=your_api_key_here
+\ No newline at end of file
+diff --git a/.env.vercel b/.env.vercel
+new file mode 100644
+index 0000000..0f6f304
+--- /dev/null
++++ b/.env.vercel
+@@ -0,0 +1,2 @@
++# Created by Vercel CLI
++NEXT_PUBLIC_PROJECT_ID="199ccb26231f1e975cbc1729c54e2ad0"
+diff --git a/app/builders/[slug]/page.tsx b/app/builders/[slug]/page.tsx
+index 6e37e39..9ceacbc 100644
+--- a/app/builders/[slug]/page.tsx
++++ b/app/builders/[slug]/page.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useParams, useRouter } from "next/navigation";
++import { useRouter, useSearchParams } from "next/navigation";
+ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ import { Builder } from "../builders-data";
+@@ -13,7 +13,6 @@ import { StakingPositionCard } from "@/components/staking/staking-position-card"
+ import { StakingTable } from "@/components/staking-table";
+ import { useStakingData, type UseStakingDataProps, type BuilderSubnetUser as StakingBuilderSubnetUser } from "@/hooks/use-staking-data";
+ import { GlowingEffect } from "@/components/ui/glowing-effect";
+-import { slugToBuilderName } from "@/app/utils/supabase-utils";
+ import { useBuilders } from "@/context/builders-context";
+ import { useChainId, useAccount, useReadContract } from 'wagmi';
+ import { arbitrumSepolia } from 'wagmi/chains';
+@@ -48,8 +47,46 @@ const getExplorerUrl = (address: string, network?: string): string => {
+     : `https://basescan.org/address/${address}`;
+ };
+ 
++// Define a type for sorting
++// interface Sorting {
++//   column: string;
++//   direction: 'asc' | 'desc';
++//   setSort: (columnId: string) => void;
++// }
++
++// Replace 'any' with a specific type
++interface StakingEntry {
++  address: string;
++  displayAddress: string;
++  amount: number;
++  timestamp?: number;
++  unlockDate?: number;
++  claimed?: number;
++  fee?: number;
++}
++
++// Ensure hooks are called unconditionally
++function useFetchStakerData(projectId: string | undefined, isTestnet: boolean, formatStakingEntry: (user: StakingUser) => StakingEntry, networksToDisplay: string[]) {
++  const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
++    queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
++    projectId: projectId || '', // Ensure projectId is a string
++    isTestnet: isTestnet,
++    formatEntryFunc: formatStakingEntry,
++    network: networksToDisplay[0],
++  }), [isTestnet, projectId, formatStakingEntry, networksToDisplay]);
++
++  return useStakingData(stakingDataHookProps);
++}
++
+ export default function BuilderPage() {
+-  const { slug } = useParams();
++  const searchParams = useSearchParams();
++
++  // Extract name and projectId from query parameters
++  const builderName = searchParams.get('name') || '';
++  const projectId = searchParams.get('projectId') || '';
++  console.log("[BuilderPage] Extracted projectId:", projectId);
++
++  // const { slug } = useParams();
+   const router = useRouter();
+   const { builders, isLoading, error: buildersError } = useBuilders();
+   const chainId = useChainId();
+@@ -91,14 +128,13 @@ export default function BuilderPage() {
+ 
+   // useEffect to find builder and set its details
+   useEffect(() => {
+-    if (typeof slug !== 'string') return;
++    if (typeof builderName !== 'string') return;
+     
+-    const name = slugToBuilderName(slug);
+     let foundBuilder: Builder | null | undefined = null;
+     
+     if (builders && builders.length > 0) {
+       foundBuilder = builders.find(b => 
+-        b.name.toLowerCase() === name.toLowerCase()
++        b.name.toLowerCase() === builderName.toLowerCase()
+       );
+     }
+ 
+@@ -118,7 +154,7 @@ export default function BuilderPage() {
+       setBuilder(null); // Clear builder if not found
+       setSubnetId(null);
+     }
+-  }, [slug, builders, isTestnet, buildersError, isLoading]);
++  }, [builderName, builders, isTestnet, buildersError, isLoading]);
+ 
+   // Derive the projectId for useStakingData once builder is loaded
+   const hookProjectId = useMemo(() => {
+@@ -235,17 +271,7 @@ export default function BuilderPage() {
+     unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
+   }), [withdrawLockPeriod, builder]);
+ 
+-  const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
+-    queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
+-    projectId: hookProjectId, // Use the derived and stable hookProjectId
+-    isTestnet: isTestnet,
+-    formatEntryFunc: formatStakingEntry,
+-    network: networksToDisplay[0],
+-  }), [isTestnet, hookProjectId, formatStakingEntry, networksToDisplay]);
+-
+-  // Log the props just before calling the hook
+-  console.log("[BuilderPage] Props for useStakingData:", stakingDataHookProps);
+-
++  // Use the custom hook to fetch staker data
+   const {
+     entries: stakingEntries,
+     isLoading: isLoadingStakingEntries,
+@@ -253,7 +279,7 @@ export default function BuilderPage() {
+     pagination,
+     sorting,
+     refresh: refreshStakingEntries,
+-  } = useStakingData(stakingDataHookProps);
++  } = useFetchStakerData(hookProjectId, isTestnet, formatStakingEntry, networksToDisplay);
+   
+   // useEffect for triggering refresh based on refreshStakingDataRef
+   useEffect(() => {
+diff --git a/app/builders/builders-data.ts b/app/builders/builders-data.ts
+index d9d2935..4c765da 100644
+--- a/app/builders/builders-data.ts
++++ b/app/builders/builders-data.ts
+@@ -14,7 +14,7 @@ export interface Builder extends BuilderDB {
+   networks: string[];
+   startsAt?: string;
+   builderUsers?: BuilderUser[];
+-  mainnetProjectId: string | null;
++  mainnetProjectId?: string | null;
+ }
+ 
+ export interface BuilderUser {
+@@ -34,6 +34,7 @@ export const mergeBuilderData = (
+   builderDB: BuilderDB,
+   onChainData: {
+     id?: string;
++    mainnetProjectId?: string | null;
+     totalStaked?: number;
+     minimalDeposit?: number;
+     withdrawLockPeriodAfterDeposit?: number;
+diff --git a/app/builders/page.tsx b/app/builders/page.tsx
+index f478850..79b2a01 100644
+--- a/app/builders/page.tsx
++++ b/app/builders/page.tsx
+@@ -27,6 +27,7 @@ import { builderNameToSlug } from "@/app/utils/supabase-utils";
+ import { formatUnits } from "ethers/lib/utils";
+ 
+ import { StakeModal } from "@/components/staking/stake-modal";
++import { useRouter } from "next/navigation";
+ 
+ // Interfaces
+ // interface UserSubnet {
+@@ -947,6 +948,8 @@ export default function BuildersPage() {
+     return "0"; // Or 'N/A' or some other placeholder
+   }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
+ 
++  const router = useRouter();
++
+   return (
+     <div className="page-container">
+       <div className="page-grid">
+@@ -1087,7 +1090,20 @@ export default function BuildersPage() {
+                     loadingRows={6}
+                     noResultsMessage="No builders found."
+                     onRowClick={(builder) => {
+-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
++                      // Log the entire builder object to verify the presence of mainnetProjectId
++                      console.log("[BuildersPage] Builder object:", builder);
++
++                      // Log the projectId to verify its presence
++                      console.log("[BuildersPage] Navigating to builder with projectId:", builder.mainnetProjectId);
++
++                      // Construct query string using URLSearchParams
++                      const queryParams = new URLSearchParams({
++                        name: builder.name,
++                        projectId: builder.mainnetProjectId || '',
++                      });
++
++                      // Use the router's push method to navigate with query string
++                      router.push(`/builders/${builderNameToSlug(builder.name)}?${queryParams.toString()}`);
+                     }}
+                   />
+                 </div>
+@@ -1136,9 +1152,9 @@ export default function BuildersPage() {
+                     isLoading={isLoadingUserAdminSubnets} // Use loading state from context
+                     loadingRows={6}
+                     noResultsMessage="No subnets administered by you were found." // Updated message
+-                    onRowClick={(subnet) => {
++                    onRowClick={(builder) => {
+                        // Link to builder/subnet detail page
+-                       window.location.href = `/builders/${builderNameToSlug(subnet.name)}`; // Or /subnets/<id>
++                       window.location.href = `/builders/${builderNameToSlug(builder.name)}`; // Or /subnets/<id>
+                     }}
+                   />
+                 </div>
+@@ -1186,7 +1202,20 @@ export default function BuildersPage() {
+                     loadingRows={6}
+                     noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
+                     onRowClick={(builder) => {
+-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
++                      // Log the entire builder object to verify the presence of mainnetProjectId
++                      console.log("[BuildersPage] Builder object:", builder);
++
++                      // Log the projectId to verify its presence
++                      console.log("[BuildersPage] Navigating to builder with projectId:", builder.mainnetProjectId);
++
++                      // Construct query string using URLSearchParams
++                      const queryParams = new URLSearchParams({
++                        name: builder.name,
++                        projectId: builder.mainnetProjectId || '',
++                      });
++
++                      // Use the router's push method to navigate with query string
++                      router.push(`/builders/${builderNameToSlug(builder.name)}?${queryParams.toString()}`);
+                     }}
+                   />
+                 </div>
+diff --git a/app/graphql/queries/builders.ts b/app/graphql/queries/builders.ts
+index fd97c45..a3c229a 100644
+--- a/app/graphql/queries/builders.ts
++++ b/app/graphql/queries/builders.ts
+@@ -86,6 +86,7 @@ export const GET_ALL_BUILDERS_PROJECTS = `
+       totalStaked
+       totalUsers
+       withdrawLockPeriodAfterDeposit
++      mainnetProjectId
+     }
+   }
+ `; 
+\ No newline at end of file
+diff --git a/app/graphql/types.ts b/app/graphql/types.ts
+index 08b576f..28046b1 100644
+--- a/app/graphql/types.ts
++++ b/app/graphql/types.ts
+@@ -15,6 +15,7 @@ export interface BuildersProject {
+   totalUsers: string;
+   withdrawLockPeriodAfterDeposit: string;
+   minimalDeposit?: string;
++  mainnetProjectId?: string;
+ }
+ 
+ // This interface defines the structure inside the data field of the GraphQL response
+@@ -66,4 +67,4 @@ export interface StakingEntry {
+   unlockDate?: number;
+   claimed?: number;
+   fee?: number;
+-} 
+\ No newline at end of file
++}
+\ No newline at end of file
+diff --git a/app/services/buildersService.ts b/app/services/buildersService.ts
+index 7b19ca2..107b4c8 100644
+--- a/app/services/buildersService.ts
++++ b/app/services/buildersService.ts
+@@ -264,6 +264,8 @@ export const fetchBuildersAPI = async (
+         const onChainProject = combinedProjects.find(p => p.name === builderDB.name);
+         const mainnetLockPeriodSeconds = onChainProject ? parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10) : 0;
+         return mergeBuilderData(builderDB, {
++          id: onChainProject?.id,
++          mainnetProjectId: onChainProject?.id || null,
+           totalStaked: onChainProject?.totalStakedFormatted !== undefined 
+             ? onChainProject.totalStakedFormatted 
+             : parseFloat(onChainProject?.totalStaked || '0') / 1e18 || 0, 
+diff --git a/docs/capital_page_description.md b/docs/capital_page_description.md
+new file mode 100644
+index 0000000..3c0b357
+--- /dev/null
++++ b/docs/capital_page_description.md
+@@ -0,0 +1,247 @@
++# Morpheus Capital Page (/capital) Documentation
++
++This document describes the structure, functionality, and technical details of the `/capital` page in the Morpheus Dashboard.
++
++## Overview
++
++The `/capital` page serves as the primary interface for users to contribute capital (in the form of stETH or wstETH) to the Morpheus network's public liquidity pool and manage their position, including claiming MOR rewards.
++
++The main component responsible for this view is `src/pages/HomePage/views/PublicPoolView.vue`. It utilizes data and interaction logic primarily from the `src/composables/use-pool.ts` composable and the `src/store/modules/web3-providers.module.ts` store module.
++
++## Page Structure
++
++The page is broadly divided into two main sections:
++
++1.  **Info Bar (`<info-bar>`):** Displays global information about the public capital pool.
++    *   **Title:** "Capital"
++    *   **Description:** Provides context about the pool, potentially including details on lock periods via the `<zero-pool-description>` component.
++        *   *Note:* There's an identified inconsistency where the `withdrawAfterTime` prop passed to `<zero-pool-description>` incorrectly treats a duration (`withdrawLockPeriodAfterStake`) as a timestamp. The `claimAfterTime` prop correctly passes the calculated global initial claim lock end timestamp.
++    *   **Indicators:** Shows key metrics for the entire pool:
++        *   Total Deposits (stETH/wstETH): From `poolData.totalDeposited`.
++        *   Current Daily Reward (MOR): Calculated in the frontend (`use-pool.ts -> getDailyReward`) based on contract parameters (`initialReward`, `rewardDecrease`, `decreaseInterval`, `payoutStart`) fetched via the `pools` function. It represents the current reward rate per interval.
++        *   Pool Start Time: From `poolData.payoutStart` (timestamp).
++        *   Withdraw Lock Until: Displays the calculated absolute timestamp (`withdrawAtTime` computed property in `PublicPoolView.vue`) when the *user's* deposit is no longer locked, based on `payoutStart`, `withdrawLockPeriod`, `lastStake`, and `withdrawLockPeriodAfterStake`.
++        *   Claim Lock Until: Displays the calculated absolute timestamp (`claimLockTime` computed property in `PublicPoolView.vue`) when the *user's* rewards are claimable, based on `claimLockEnd`, `payoutStart`, `claimLockPeriod`, `lastClaim`, `lastStake`, `claimLockPeriodAfterClaim`, and `claimLockPeriodAfterStake`.
++    *   **Actions:**
++        *   "Deposit stETH/wstETH" Button: Opens the `DepositModal` for staking.
++        *   (Optional) Link to acquire stETH.
++
++2.  **Info Dashboard (`<info-dashboard>`):** Displays user-specific information and actions related to their position in the pool.
++    *   **Indicators:** Shows metrics relevant to the connected wallet:
++        *   Your Deposit (stETH/wstETH)
++        *   Available to Claim (MOR)
++        *   Your Power Factor (Reward Multiplier - only shown on `/capital`, not `/dashboard/capital`)
++    *   **Graphs:** This section, implemented within `src/common/InfoDashboard/index.vue`, shows historical data selectable by month and year. It uses an `<app-chart>` component and fetches data via GraphQL using the `useFirstApolloClient` composable. Data fetching is handled by helper functions located in `src/common/InfoDashboard/helpers.ts`.
++        *   **Subgraph Endpoint (Mainnet):** `https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest` (The Sepolia endpoint is different but configured similarly in `config.ts`).
++        *   **Amount of Deposited stETH Graph:**
++            *   Toggled via chart controls.
++            *   **Helper Function:** `getChartData(poolId, payoutStart, month, year, apolloClient)`.
++            *   **Purpose:** Queries the subgraph to get the total deposited stETH value at the end of each day for the selected period.
++            *   **Actual GraphQL Query Structure (sent via `getChartData` helper):** The frontend constructs a query with multiple aliases (`d1`, `d2`, ... up to `d31`), one for each day of the month. Each alias queries the `poolInteractions` entity to find the latest record on or before the end of that specific day.
++                ```graphql
++                # Example structure (variables like timestamps and pool ID are dynamic)
++                query GetEndOfDayDeposits {
++                  # Alias for Day 1
++                  d1: poolInteractions(
++                    first: 1
++                    orderDirection: desc
++                    where: {timestamp_lte: "<end_timestamp_day_1>", pool: "<pool_id>"}
++                    orderBy: timestamp
++                  ) {
++                    totalStaked
++                    __typename
++                  }
++                  # Alias for Day 2
++                  d2: poolInteractions(
++                    first: 1
++                    orderDirection: desc
++                    where: {timestamp_lte: "<end_timestamp_day_2>", pool: "<pool_id>"}
++                    orderBy: timestamp
++                  ) {
++                    totalStaked
++                    __typename
++                  }
++                  # ... continues for d3, d4, ... up to d31
++                }
++                ```
++            *   **Response Data Shape (TypeScript Type):**
++                ```typescript
++                interface PoolInteraction {
++                  totalStaked: string; // BigNumber represented as a string
++                  __typename: "PoolInteraction";
++                }
++
++                interface DailyDepositResponse {
++                  data: {
++                    [dayAlias: string]: PoolInteraction[]; // e.g., d1: [PoolInteraction], d2: [PoolInteraction]
++                  };
++                }
++                ```
++        *   **User Earned MOR Graph:**
++            *   Toggled via chart controls.
++            *   **Helper Function:** `getUserYieldPerDayChartData(poolId, userAddress, month, year, apolloClient)`.
++            *   **Purpose:** Queries the subgraph for the connected user's daily earned or claimed MOR for the selected period.
++            *   **Inferred GraphQL Query Logic (Option A - User Snapshots):**
++                ```graphql
++                query GetUserDailySnapshots($userId: ID!, $startDate: BigInt!, $endDate: BigInt!) {
++                  userDailySnapshots( # Assumes this entity exists
++                    where: {
++                      user: $userId,
++                      timestamp_gte: $startDate,
++                      timestamp_lt: $endDate
++                    },
++                    orderBy: timestamp,
++                    orderDirection: asc
++                  ) {
++                    id
++                    timestamp
++                    totalClaimed # Or calculated rewardsEarned
++                  }
++                }
++                ```
++            *   **Inferred GraphQL Query Logic (Option B - Aggregating Claims):**
++                ```graphql
++                query GetUserClaims($userId: ID!, $startDate: BigInt!, $endDate: BigInt!) {
++                  claims( # Assumes Claim event entity exists
++                    where: {
++                      user: $userId,
++                      timestamp_gte: $startDate,
++                      timestamp_lt: $endDate
++                    },
++                    orderBy: timestamp,
++                    orderDirection: asc
++                  ) {
++                    id
++                    timestamp
++                    amount
++                  }
++                }
++                ```
++    *   **Actions:**
++        *   "Withdraw stETH/wstETH" Button: Opens the `WithdrawModal`.
++        *   "Claim MOR" Button: Opens the `ClaimModal`.
++        *   "Stake MOR Rewards" Button: Opens the `ChangeLockModal` (only shown on `/capital`, not `/dashboard/capital`).
++    *   **Notes:** Displays informational text about withdrawal/claim processes (e.g., claims mint MOR on Arbitrum One) and lock period requirements.
++
++## Core Functionality
++
++### 1. Staking / Depositing (stETH/wstETH)
++
++*   **Trigger:** User clicks the "Deposit stETH/wstETH" button in the Info Bar.
++*   **UI:** The `DepositModal` appears, prompting the user for the amount to deposit. It may include steps for swapping other assets into stETH/wstETH if needed (`SwapStep.vue`). It also interacts with the `ChangeLockModal` logic to potentially set an initial claim lock period.
++*   **Contract Interaction:**
++    *   Calls a `deposit` or `stake` function on the main pool contract (`erc1967ProxyContract`).
++    *   Requires the user to approve the contract to spend their stETH/wstETH.
++    *   Sends the specified amount of stETH/wstETH to the contract.
++    *   May accept a `referrer` address.
++    *   The `usePool` composable reads `poolData.minimalStake` to enforce minimums.
++*   **Key Functions (Read):** `pools`, `usersData` (to check current deposit).
++
++### 2. Claiming Rewards (MOR)
++
++*   **Trigger:** User clicks the "Claim MOR" button in the Info Dashboard.
++*   **UI:** The `ClaimModal` appears, showing the amount of MOR available to claim.
++*   **Contract Interaction:**
++    *   Calls a `claim` or `claimReward` function on the main pool contract (`erc1967ProxyContract`).
++    *   The contract calculates the rewards based on the user's deposit, time staked, and multiplier.
++    *   The claimed MOR tokens are minted to the user's wallet on the **Arbitrum One** network.
++*   **Eligibility:** Determined by `usePool` composable (`isClaimDisabled` computed property). Checks various lock conditions (`claimLockEnd`, `payoutStart`, `claimLockPeriod`, `lastClaim`, `lastStake`, `claimLockPeriodAfterClaim`, `claimLockPeriodAfterStake`).
++*   **Key Functions (Read):** `getCurrentUserReward`, `usersData`, `pools`, `poolsLimits`.
++
++### 3. Withdrawing Deposit (stETH/wstETH)
++
++*   **Trigger:** User clicks the "Withdraw stETH/wstETH" button in the Info Dashboard.
++*   **UI:** The `WithdrawModal` appears, allowing the user to specify the amount to withdraw (up to their deposited total).
++*   **Contract Interaction:**
++    *   Calls a `withdraw` function on the main pool contract (`erc1967ProxyContract`).
++    *   The contract transfers the specified amount of stETH/wstETH back to the user's wallet on the **Ethereum** network (Mainnet/Sepolia).
++*   **Eligibility:** Determined by `usePool` composable (`isWithdrawDisabled` computed property). Checks lock conditions based on `payoutStart`, `withdrawLockPeriod`, `lastStake`, and `withdrawLockPeriodAfterStake`.
++*   **Key Functions (Read):** `usersData`, `pools`.
++
++### 4. Staking MOR Rewards / Changing Lock Period
++
++*   **Trigger:** User clicks the "Stake MOR Rewards" button in the Info Dashboard (only available on `/capital`).
++*   **UI:** The `ChangeLockModal` appears, allowing the user to select a new, potentially longer, lock period for their *next* claim. This increases their "Power Factor" (rewards multiplier).
++*   **Contract Interaction:**
++    *   Likely calls a function like `setClaimLockPeriod(poolId, lockEndTimestamp)` on the main pool contract (`erc1967ProxyContract`).
++    *   This updates the user's `claimLockEnd` for future reward calculations.
++    *   The modal uses `getClaimLockPeriodMultiplier` to show the expected multiplier increase before confirmation.
++*   **Key Functions (Read):** `usersData`, `getClaimLockPeriodMultiplier`.
++
++## Technical Details
++
++### Smart Contracts
++
++*   **Main Pool Contract:** An ERC1967 Proxy contract used for depositing/staking stETH/wstETH and managing rewards. Accessed via `web3ProvidersStore.erc1967ProxyContract`.
++    *   **Ethereum Mainnet Address:** `0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790`
++    *   **Sepolia Testnet Address:** `0x7c46d6bebf3dcd902eb431054e59908a02aba524`
++    *   Handles deposits, withdrawals, reward calculations, claims, and lock period management on Ethereum L1.
++    *   The implementation likely adheres to an interface defined by `Erc1967ProxyType` or `Mor1967ProxyType`.
++*   **Deposit Token (stETH/wstETH):** Standard ERC20 contract for Lido Staked Ether (or Wrapped stETH) on Ethereum L1. Accessed via `web3ProvidersStore.depositContract`.
++    *   **Ethereum Mainnet Address:** `0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84`
++    *   **Sepolia Testnet Address:** `0xa878Ad6FF38d6fAE81FBb048384cE91979d448DA`
++*   **Reward Token (MOR):** The Morpheus MOR token contract, an ERC20 token on Arbitrum L1. MOR rewards are claimed to this network. Accessed via `web3ProvidersStore.rewardsContract`.
++    *   **Arbitrum Mainnet Address:** `0x092bAaDB7DEf4C3981454dD9c0A0D7FF07bCFc86`
++    *   **Arbitrum Sepolia Testnet Address:** `0x34a285A1B1C166420Df5b6630132542923B5b27E`
++
++### ABIs
++
++The specific ABIs are defined as JSON files within the `app/abi` directory. The key ABI files used for the `/capital` page are:
++
++*   **`ERC1967Proxy.json`:** Defines the interface for the main pool contract, including functions for deposits, withdrawals, claims, and reading pool/user data.
++*   **`ERC20.json`:** The standard ERC20 token interface, used for both the deposit token (stETH/wstETH) and the reward token (MOR). It includes functions like `balanceOf`, `approve`, `transfer`, and `symbol`.
++
++Key elements defined within these ABIs for the pool contract (`ERC1967Proxy.json`) include:
++
++*   **Functions:**
++    *   `deposit(uint256 poolId, uint256 amount, address referrer)` (or similar `stake` function) - *Action*
++    *   `withdraw(uint256 poolId, uint256 amount)` - *Action*
++    *   `claim(uint256 poolId)` (or `claimReward`) - *Action*
++    *   `setClaimLockPeriod(uint256 poolId, uint256 lockEndTimestamp)` (or similar for managing locks/multiplier) - *Action*
++    *   `pools(uint256 poolId)` (returns `PoolData` struct) - *Read*
++    *   `poolsData(uint256 poolId)` (returns dynamic pool data struct) - *Read*
++    *   `usersData(address user, uint256 poolId)` (returns `UserData` struct) - *Read*
++    *   `getCurrentUserReward(uint256 poolId, address user)` (returns `uint256` reward amount) - *Read*
++    *   `getCurrentUserMultiplier(uint256 poolId, address user)` (returns `uint256` multiplier value) - *Read*
++    *   `getClaimLockPeriodMultiplier(uint256 poolId, uint256 lockStart, uint256 lockEnd)` (returns `uint256` multiplier value) - *Read*
++    *   `poolsLimits(uint256 poolId)` (optional, returns specific lock periods) - *Read*
++    *   `totalDepositedInPublicPools()` (returns `uint256` total) - *Read*
++*   **Structs & Key Fields (Distinguishing Timestamps vs. Durations):**
++    *   `PoolData` (from `pools` function):
++        *   `payoutStart`: Absolute Unix Timestamp when pool rewards start.
++        *   `minimalStake`: Minimum deposit amount (uint256).
++        *   `initialReward`: Initial reward rate (uint256).
++        *   `rewardDecrease`: Amount reward rate decreases per interval (uint256).
++        *   `decreaseInterval`: Duration in seconds for reward decrease interval.
++        *   `withdrawLockPeriod`: Global Duration in seconds for withdrawal lock after pool start.
++        *   `claimLockPeriod`: Global Duration in seconds for claim lock after pool start.
++        *   `withdrawLockPeriodAfterStake`: Duration in seconds for withdrawal lock after a user stakes.
++        *   `claimLockPeriodAfterStake`: Duration in seconds for claim lock after a user stakes (from `poolsLimits`).
++        *   `claimLockPeriodAfterClaim`: Duration in seconds for claim lock after a user claims (from `poolsLimits`).
++    *   `UserData` (from `usersData` function):
++        *   `deposited`: Amount user deposited (uint256).
++        *   `lastStake`: Absolute Unix Timestamp of user's last stake/deposit.
++        *   `lastClaim`: Absolute Unix Timestamp of user's last claim.
++        *   `pendingRewards`: Rewards accrued but not yet claimable (uint256).
++        *   `rate`: User specific reward rate factor (uint256).
++        *   `claimLockEnd`: Absolute Unix Timestamp when the user's *current* claim lock ends.
++        *   `claimLockStart`: Absolute Unix Timestamp when the user's *current* claim lock started.
++        *   `referrer`: Address of the user's referrer.
++*   **Events:** `Deposited`, `Withdrawn`, `Claimed`, `LockPeriodSet`, etc.
++
++### Key Function Calls (from `use-pool.ts`)
++
++*   `erc1967ProxyContract.pools(poolId)`
++*   `erc1967ProxyContract.poolsData(poolId)`
++*   `erc1967ProxyContract.poolsLimits(poolId)`
++*   `erc1967ProxyContract.usersData(userAddress, poolId)`
++*   `erc1967ProxyContract.getCurrentUserReward(poolId, userAddress)`
++*   `erc1967ProxyContract.getCurrentUserMultiplier(poolId, userAddress)`
++*   `erc1967ProxyContract.getClaimLockPeriodMultiplier(poolId, lockStart, lockEnd)`
++*   `erc1967ProxyContract.totalDepositedInPublicPools()`
++
++### Libraries Used
++
++*   `ethers.js`: For interacting with Ethereum-compatible blockchains and smart contracts.
++*   `@vueuse/core`: For composables like `useTimestamp`.
++*   `@distributedlab/tools`: For time/duration utilities (`Time`, `duration`). 
+\ No newline at end of file
+diff --git a/docs/capital_page_implementation_plan.md b/docs/capital_page_implementation_plan.md
+new file mode 100644
+index 0000000..f12105a
+--- /dev/null
++++ b/docs/capital_page_implementation_plan.md
+@@ -0,0 +1,151 @@
++# Morpheus Capital Page (/capital) Implementation Plan
++
++This document outlines the steps to implement the `/capital` page functionality described in `docs/capital_page_description.md` within the Next.js application (`app/capital/page.tsx`), utilizing `shadcn/ui` components, Tailwind CSS, and `wagmi`/`viem` for blockchain interactions, following the project's established patterns.
++
++## Phase 1: UI Component Scaffolding
++
++Create the basic structure and visual components using `shadcn/ui` and Tailwind CSS based on the descriptions in `capital_page_description.md`.
++
++1.  **Page Layout:**
++    *   Establish the main page structure following the pattern in existing pages like `app/builders/page.tsx` and `app/compute/page.tsx`.
++    *   Use a main `div` container with appropriate padding (`page-container`).
++    *   Employ a CSS Grid (`page-grid`) for the top metric cards, similar to the existing `app/capital/page.tsx` and other pages.
++    *   Structure subsequent sections using `div` wrappers (`page-section`, `section-content`, `section-body`) as seen in `app/builders/page.tsx` and `app/compute/page.tsx`.
++
++2.  **Info Bar / Global Pool Stats:**
++    *   Replicate the `MetricCard` component pattern from the current `page.tsx`.
++    *   Create `MetricCard` instances for:
++        *   Total Deposits (stETH/wstETH)
++        *   Current Daily Reward (MOR) - *Value calculated in frontend based on contract parameters.*
++        *   Pool Start Time
++        *   Withdraw Lock Until - *Displays calculated absolute timestamp based on user and pool data.*
++        *   Claim Lock Until - *Displays calculated absolute timestamp based on user and pool data.*
++    *   Add placeholder values initially.
++    *   Implement the "Deposit stETH/wstETH" button using `shadcn/ui` Button. Add an `onClick` handler placeholder.
++    *   (Optional) Add a link/button for acquiring stETH.
++
++3.  **Info Dashboard / User-Specific Stats & Actions:**
++    *   Use `shadcn/ui Card` or custom divs styled like cards (`card-container`) for grouping user information.
++    *   Create `MetricCard`-like displays (or integrate into the card) for:
++        *   Your Deposit (stETH/wstETH)
++        *   Available to Claim (MOR)
++        *   Your Power Factor (Reward Multiplier) - Use Tooltip for info icon.
++    *   Add placeholder values initially.
++    *   Implement action buttons using `shadcn/ui` Button:
++        *   "Withdraw stETH/wstETH"
++        *   "Claim MOR"
++        *   "Stake MOR Rewards" (Conditional rendering based on context - see Phase 2)
++    *   Add `onClick` handler placeholders for buttons.
++    *   Integrate placeholder sections for graphs/charts (e.g., using a simple `div` with text).
++    *   Add a section for notes/informational text using standard text elements (`p`, `span`).
++
++4.  **Modals (using `shadcn/ui Dialog`):**
++    *   Create separate component files for each modal:
++        *   `DepositModal.tsx`
++        *   `WithdrawModal.tsx`
++        *   `ClaimModal.tsx`
++        *   `ChangeLockModal.tsx` (for Staking MOR Rewards / Setting Lock Period)
++    *   Structure each modal with:
++        *   `DialogTrigger` (linked to the corresponding button from steps 2 & 3).
++        *   `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`.
++        *   Input fields (`shadcn/ui Input`) where necessary (e.g., deposit amount, withdraw amount, lock period).
++        *   Display areas for relevant data (e.g., amount to claim, current lock period, new multiplier).
++        *   Action buttons within the modal (`Confirm`, `Cancel`). Add `onClick` placeholders.
++    *   Implement basic form handling structure using `react-hook-form` (as per `components/knowledge.md`) if complex input/validation is needed, otherwise simple `useState` for amounts.
++
++## Phase 2: Data Fetching & Contract Interaction Logic
++
++Integrate blockchain data fetching and transaction logic using `wagmi`/`viem`, contract ABIs (`ERC1967Proxy.json`, `ERC20.json`), and project hooks/context.
++
++1.  **Contract Setup:**
++    *   Ensure `ERC1967Proxy.json` and `ERC20.json` (and potentially `MOR20.json`) ABIs are correctly placed (`app/abi/`).
++    *   Utilize `config/networks.ts` and its `getContractAddress` helper to get network-specific contract addresses for:
++        *   Main Pool Contract (ERC1967Proxy) - Ethereum L1 (Mainnet/Sepolia)
++        *   Deposit Token (stETH/wstETH) - Ethereum L1
++        *   Reward Token (MOR) - Arbitrum L1 (Mainnet/Sepolia)
++    *   Ensure `wagmi` is configured for multi-chain support (Ethereum and Arbitrum).
++
++2.  **Read Contract Data (Global & User):**
++    *   Use `wagmi`'s `useReadContract` or `useReadContracts` hook to fetch data from the `ERC1967Proxy` contract (on L1, using `poolId=0`):
++        *   **Global Pool Config (`pools` function):** `payoutStart`, `minimalStake`, `initialReward`, `rewardDecrease`, `decreaseInterval`, `withdrawLockPeriod`, `claimLockPeriod`, `withdrawLockPeriodAfterStake`.
++        *   **Global Pool Limits (`poolsLimits` function):** `claimLockPeriodAfterStake`, `claimLockPeriodAfterClaim`.
++        *   **Global Pool State:** `totalDepositedInPublicPools`.
++        *   **User-Specific Data (`usersData` function, requires connected address):** `deposited`, `lastStake`, `lastClaim`, `claimLockEnd`.
++        *   **User-Specific State (`getCurrentUserReward`, `getCurrentUserMultiplier` functions, require address):** Current claimable MOR amount, current power factor multiplier.
++    *   Use `wagmi`'s `useBalance` hook:
++        *   Fetch user's stETH/wstETH balance (on L1).
++        *   Fetch user's MOR balance (on L2 - Arbitrum).
++    *   Populate the placeholder UI elements from Phase 1 with fetched data. Format numbers and dates appropriately.
++    *   Implement loading and error states for data fetching (e.g., using returned flags from `wagmi` hooks).
++
++3.  **Frontend Calculations:**
++    *   **Current Daily Reward:** Implement the frontend calculation based on fetched `initialReward`, `rewardDecrease`, `decreaseInterval`, and `payoutStart` from the `pools` function. Update the corresponding `MetricCard`.
++    *   **Withdraw Lock Timestamp:** Calculate the absolute timestamp for when the user's withdrawal is unlocked. This involves comparing the global lock time (`payoutStart` + `withdrawLockPeriod`) with the user-specific lock time (`lastStake` + `withdrawLockPeriodAfterStake`) and taking the later date. Update the "Withdraw Lock Until" `MetricCard`.
++    *   **Claim Lock Timestamp:** Calculate the absolute timestamp for when the user's rewards are claimable. This involves comparing multiple potential lock times: the user's explicit `claimLockEnd`, the global lock (`payoutStart` + `claimLockPeriod`), the post-claim lock (`lastClaim` + `claimLockPeriodAfterClaim`), and the post-stake lock (`lastStake` + `claimLockPeriodAfterStake`). Take the latest applicable timestamp. Update the "Claim Lock Until" `MetricCard`.
++    *   **Modal Eligibility Checks:** Implement logic based on the calculated lock timestamps and other fetched data (e.g., available balance, deposited amount) to determine if Withdraw/Claim actions are currently allowed. Use this to enable/disable buttons within the respective modals.
++
++4.  **Implement Deposit Logic (`DepositModal.tsx`):**
++    *   Get user input amount.
++    *   Validate against user's stETH/wstETH balance and `minimalStake`.
++    *   **Approve:** Use `wagmi`'s `useWriteContract` to call the `approve` function on the stETH/wstETH contract (L1), approving the Main Pool Contract address to spend the input amount. Handle transaction states (loading, success, error).
++    *   **Deposit:** Once approved (or if allowance sufficient), use `useWriteContract` to call the `stake` function on the Main Pool Contract (L1), passing the pool ID (0), amount, and potentially a referrer address. Handle transaction states.
++    *   Refetch relevant user/pool data upon successful deposit using `wagmi`'s cache invalidation or manual refetching (e.g., calling `refetch` functions from `useReadContract` hooks).
++
++5.  **Implement Claim Logic (`ClaimModal.tsx`):**
++    *   Display the claimable amount fetched in Step 2.
++    *   Use the calculated Claim Lock Timestamp (from Step 3) to determine eligibility. Disable the claim button if ineligible.
++    *   Use `useWriteContract` to call the `claim` function on the Main Pool Contract (L1), passing pool ID (0) and the user's address as the receiver. Handle transaction states.
++    *   Refetch relevant user data upon successful claim.
++
++6.  **Implement Withdraw Logic (`WithdrawModal.tsx`):**
++    *   Get user input amount.
++    *   Use the calculated Withdraw Lock Timestamp (from Step 3) to determine eligibility. Disable the withdraw button if ineligible.
++    *   Validate input amount against the user's deposited amount (`usersData`).
++    *   Use `useWriteContract` to call the `withdraw` function on the Main Pool Contract (L1), passing pool ID (0) and the amount. Handle transaction states.
++    *   Refetch relevant user data upon successful withdrawal.
++
++7.  **Implement Change Lock Period Logic (`ChangeLockModal.tsx`):**
++    *   Allow user to select/input a new lock duration (value + unit).
++    *   Use `useReadContract` to call `getClaimLockPeriodMultiplier` (L1) to display the potential multiplier increase based on the user's selection (converting duration to appropriate start/end timestamps for the call).
++    *   Convert the selected duration into an absolute end timestamp required by the contract.
++    *   Use `useWriteContract` to call `lockClaim` (or similar function identified) on the Main Pool Contract (L1), passing pool ID (0) and the calculated `claimLockEnd` timestamp. Handle transaction states.
++    *   Refetch user data (`usersData`, multiplier) upon success.
++    *   Conditionally render the "Stake MOR Rewards" button on the main page (e.g., always enabled if connected?).
++
++8.  **State Management (Implemented via Context):**
++    *   **React Context (`CapitalPageContext`):** Centralizes core logic, state, and actions related to the capital page.
++        *   Manages all `wagmi` hook calls (`useReadContract`, `useBalance`, `useWriteContract`, etc.) and associated data/loading states.
++        *   Holds calculated state (e.g., eligibility flags `canClaim`, `canWithdraw`, formatted display values).
++        *   Manages modal visibility state (`activeModal`) and provides the `setActiveModal` function.
++        *   Provides stable action functions (`deposit`, `claim`, `withdraw`, `changeLock`, `approveStEth`) that encapsulate transaction logic and feedback.
++    *   **`wagmi` Cache:** Leveraged implicitly by the `useReadContract` and `useBalance` hooks within the context for caching fetched on-chain data.
++    *   **Local `useState` (in Modals):** Used within individual modal components (`DepositModal`, `WithdrawModal`, `ChangeLockModal`) for managing local form state (input values like `amount`, `lockValue`, `lockUnit`) and local form validation errors (`formError`).
++
++## Phase 3: Styling & Refinements
++
++Apply final styling touches and ensure consistency with the rest of the application.
++
++1.  **Tailwind CSS:**
++    *   Refine spacing, typography, and colors using Tailwind utility classes to match the application's design system.
++    *   Ensure responsiveness across different screen sizes.
++    *   Utilize the `cn` utility for conditional class application (e.g., disabled states, hover effects).
++    *   Apply specific styles mentioned (e.g., `card-gradient` hover effects) consistently.
++
++2.  **Component Refinement:**
++    *   Ensure all `shadcn/ui` components are styled consistently.
++    *   Add tooltips (`shadcn/ui Tooltip`) to info icons (`lucide-react Info`) explaining specific metrics or terms.
++    *   Refine loading indicators (e.g., skeleton loaders for data, spinners for transaction processing).
++    *   Improve error message display (e.g., using `shadcn/ui Alert` or inline messages).
++
++3.  **Accessibility:**
++    *   Review and ensure proper ARIA attributes are used, especially for interactive elements, modals, and form inputs.
++    *   Check color contrast ratios.
++
++4.  **Cross-Browser/Device Testing:**
++    *   Test the page functionality and appearance on major browsers and different device sizes.
++
++## Phase 4: Testing
++
++1.  **Component Tests:** Write unit/integration tests for individual components and hooks where appropriate.
++2.  **End-to-End Tests:** Simulate user flows (deposit, claim, withdraw) using a testnet environment.
++3.  **Manual Testing:** Thoroughly test all functionalities on supported testnets (e.g., Arbitrum Sepolia, Ethereum Sepolia). 
+\ No newline at end of file
+diff --git a/docs/coopilotkit-popup.md b/docs/coopilotkit-popup.md
+new file mode 100644
+index 0000000..c0b1608
+--- /dev/null
++++ b/docs/coopilotkit-popup.md
+@@ -0,0 +1,48 @@
++# Prebuilt Copilot UI
++
++First, import the default styles in your root component (typically `layout.tsx`) :
++
++```
++import "@copilotkit/react-ui/styles.css";
++```
++
++Copilot UI ships with a number of built-in UI patterns, choose whichever one you like.
++
++CopilotPopupCopilotSidebarCopilotChatHeadless UI
++
++`CopilotPopup` is a convenience wrapper for `CopilotChat` that lives at the same level as your main content in the view hierarchy. It provides **a floating chat interface** that can be toggled on and off.
++
++![Popup Example](https://docs.copilotkit.ai/images/popup-example.gif)
++
++```
++import { CopilotPopup } from "@copilotkit/react-ui";
++
++export function YourApp() {
++  return (
++    <>
++      <YourMainContent />
++      <CopilotPopup
++        instructions={"You are assisting the user as best as you can. Answer in the best way possible given the data you have."}
++        labels={{
++          title: "Popup Assistant",
++          initial: "Need any help?",
++        }}
++      />
++    </>
++  );
++}
++```
++
++[Previous\\
++\\
++Customize UI](https://docs.copilotkit.ai/guides/custom-look-and-feel) [Next\\
++\\
++Styling Copilot UI](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components)
++
++### On this page
++
++No Headings
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/custom-look-and-feel/built-in-ui-components.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-backendactions-typescript.md b/docs/copilotkit-backendactions-typescript.md
+new file mode 100644
+index 0000000..7334925
+--- /dev/null
++++ b/docs/copilotkit-backendactions-typescript.md
+@@ -0,0 +1,86 @@
++[Backend Actions & Agents](https://docs.copilotkit.ai/guides/backend-actions)
++
++# TypeScript (Node.js)
++
++Implement native backend actions using TypeScript or Node.js in CopilotKit.
++
++### Find your CopilotRuntime
++
++The starting point for this section is the `CopilotRuntime` you set up during quickstart (the CopilotKit backend endpoint).
++For a refresher, see [Self-Hosting](https://docs.copilotkit.ai/guides/self-hosting) (or alternatively, revisit the [quickstart](https://docs.copilotkit.ai/quickstart)).
++
++**First, find your `CopilotRuntime` instance in your code.** You can simply search your codebase for `CopilotRuntime`.
++
++If you followed the quickstart, it'll be where you set up the `/api/copilotkit` endpoint.
++
++### [Modify CopilotRuntime to include TypeScript/Node.js actions](https://docs.copilotkit.ai/guides/backend-actions/typescript-backend-actions\#modify-copilotruntime-to-include-typescriptnodejs-actions)
++
++Once you've located your `CopilotRuntime`, you can add TypeScript/Node.js actions by modifying its configuration. Here's how to implement native backend actions:
++
++**Note** that `actions` is not merely an array of actions, but an array **generator**.
++This generator takes `properties` and `url` as input.
++
++This means you can **customize which backend actions are made available** according to the current frontend URL, as well as custom properties you can pass from the frontend.
++
++/api/copilotkit/route.ts
++
++```
++const runtime = new CopilotRuntime({
++  // ... existing configuration
++  actions: ({properties, url}) => {
++    // Note that actions returns not an array, but an array **generator**.
++    // You can use the input parameters to the actions generator to expose different backend actions to the Copilot at different times:
++    // `url` is the current URL on the frontend application.
++    // `properties` contains custom properties you can pass from the frontend application.
++
++    return [\
++      {\
++        name: "fetchNameForUserId",\
++        description: "Fetches user name from the database for a given ID.",\
++        parameters: [\
++          {\
++            name: "userId",\
++            type: "string",\
++            description: "The ID of the user to fetch data for.",\
++            required: true,\
++          },\
++        ],\
++        handler: async ({userId}: {userId: string}) => {\
++          // do something with the userId\
++          // return the user data\
++          return {\
++            name: "Darth Doe",\
++          };\
++        },\
++      },\
++    ]
++  }
++});
++
++// ... rest of your route definition
++```
++
++### [Test your implementation](https://docs.copilotkit.ai/guides/backend-actions/typescript-backend-actions\#test-your-implementation)
++
++After adding the action, test it by asking the copilot to perform the task. Observe how it selects the correct task, executes it, and streams back relevant responses.
++
++## [Key Points](https://docs.copilotkit.ai/guides/backend-actions/typescript-backend-actions\#key-points)
++
++- Each action is defined with a name, description, parameters, and a handler function.
++- The handler function implements the actual logic of the action and can interact with your backend systems.
++
++By using this method, you can create powerful, context-aware backend actions that integrate seamlessly with your CopilotKit application.
++
++[Previous\\
++\\
++Backend Actions & Agents](https://docs.copilotkit.ai/guides/backend-actions) [Next\\
++\\
++LangChain.js](https://docs.copilotkit.ai/guides/backend-actions/langchain-js-backend-actions)
++
++### On this page
++
++[Modify CopilotRuntime to include TypeScript/Node.js actions](https://docs.copilotkit.ai/guides/backend-actions/typescript-backend-actions#modify-copilotruntime-to-include-typescriptnodejs-actions) [Test your implementation](https://docs.copilotkit.ai/guides/backend-actions/typescript-backend-actions#test-your-implementation) [Key Points](https://docs.copilotkit.ai/guides/backend-actions/typescript-backend-actions#key-points)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/backend-actions/typescript-backend-actions.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-custom-subcomponents.md b/docs/copilotkit-custom-subcomponents.md
+new file mode 100644
+index 0000000..cc04b02
+--- /dev/null
++++ b/docs/copilotkit-custom-subcomponents.md
+@@ -0,0 +1,438 @@
++# Custom Sub-Components
++
++You can swap out any of the sub-components of any Copilot UI to build up a completely custom look and feel. All components are fully typed with TypeScript for better development experience.
++
++| Component | Description |
++| --- | --- |
++| [UserMessage](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#usermessage) | Message component for user messages |
++| [AssistantMessage](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#assistantmessage) | Message component for assistant messages |
++| [Window](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#window) | Contains the chat |
++| [Button](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#button) | Button that opens/closes the chat |
++| [Header](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#header) | The header of the chat |
++| [Messages](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#messages) | The chat messages area |
++| [Input](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#input) | The chat input |
++| [Actions](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#actions) | Customize how actions (tools) are displayed |
++| [Agent State](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#agent-state) | Customize how agent state messages are displayed |
++
++## [UserMessage](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#usermessage)
++
++The user message is what displays when the user sends a message to the chat. In this example, we change the color and add an avatar.
++
++PreviewCode
++
++The main thing to be aware of here is the `message` prop, which is the message text from the user.
++
++```
++import { UserMessageProps } from "@copilotkit/react-ui";
++import { CopilotKit } from "@copilotkit/react-core";
++import { CopilotSidebar } from "@copilotkit/react-ui";
++import "@copilotkit/react-ui/styles.css";
++
++const CustomUserMessage = (props: UserMessageProps) => {
++  const wrapperStyles = "flex items-center gap-2 justify-end mb-4";
++  const messageStyles = "bg-blue-500 text-white py-2 px-4 rounded-xl break-words flex-shrink-0 max-w-[80%]";
++  const avatarStyles = "bg-blue-500 shadow-sm min-h-10 min-w-10 rounded-full text-white flex items-center justify-center";
++
++  return (
++    <div className={wrapperStyles}>
++      <div className={messageStyles}>{props.message}</div>
++      <div className={avatarStyles}>TS</div>
++    </div>
++  );
++};
++
++<CopilotKit>
++  <CopilotSidebar UserMessage={CustomUserMessage} />
++</CopilotKit>
++```
++
++## [AssistantMessage](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#assistantmessage)
++
++The assistant message is what displays when the LLM responds to a user message. In this example, we remove the background color and add an avatar.
++
++PreviewCode
++
++```
++import { AssistantMessageProps } from "@copilotkit/react-ui";
++import { useChatContext } from "@copilotkit/react-ui";
++import { Markdown } from "@copilotkit/react-ui";
++import { SparklesIcon } from "@heroicons/react/24/outline";
++
++import { CopilotKit } from "@copilotkit/react-core";
++import { CopilotSidebar } from "@copilotkit/react-ui";
++import "@copilotkit/react-ui/styles.css";
++
++const CustomAssistantMessage = (props: AssistantMessageProps) => {
++  const { icons } = useChatContext();
++  const { message, isLoading, subComponent } = props;
++
++  const avatarStyles = "bg-zinc-400 border-zinc-500 shadow-lg min-h-10 min-w-10 rounded-full text-white flex items-center justify-center";
++  const messageStyles = "px-4 rounded-xl pt-2";
++
++  const avatar = <div className={avatarStyles}><SparklesIcon className="h-6 w-6" /></div>
++
++
++  return (
++    <div className="py-2">
++      <div className="flex items-start">
++        {!subComponent && avatar}
++        <div className={messageStyles}>
++          {message && <Markdown content={message || ""} /> }
++          {isLoading && icons.spinnerIcon}
++        </div>
++      </div>
++      <div className="my-2">{subComponent}</div>
++    </div>
++  );
++};
++
++<CopilotKit>
++  <CopilotSidebar AssistantMessage={CustomAssistantMessage} />
++</CopilotKit>
++```
++
++**Key concepts**
++
++- `subComponent` \- This is where any generative UI will be rendered.
++- `message` \- This is the message text from the LLM, typically in markdown format.
++- `isLoading` \- This is a boolean that indicates if the message is still loading.
++
++## [Window](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#window)
++
++The window is the main container for the chat. In this example, we turn it into a more traditional modal.
++
++PreviewCode
++
++```
++import { WindowProps, useChatContext, CopilotSidebar } from "@copilotkit/react-ui";
++import { CopilotKit } from "@copilotkit/react-core";
++import "@copilotkit/react-ui/styles.css";
++function Window({ children }: WindowProps) {
++  const { open, setOpen } = useChatContext();
++
++  if (!open) return null;
++
++
++  return (
++    <div
++      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
++      onClick={() => setOpen(false)}
++    >
++      <div
++        className="bg-white rounded-lg shadow-xl max-w-2xl w-full h-[80vh] overflow-auto"
++        onClick={e => e.stopPropagation()}
++      >
++        <div className="flex flex-col h-full">
++          {children}
++        </div>
++      </div>
++    </div>
++  );
++};
++
++<CopilotKit>
++  <CopilotSidebar Window={Window} />
++</CopilotKit>
++```
++
++## [Button](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#button)
++
++The `CopilotSidebar` and `CopilotPopup` components allow you to customize their trigger button by passing in a custom Button component.
++
++PreviewCode
++
++```
++import { ButtonProps, useChatContext, CopilotSidebar } from "@copilotkit/react-ui";
++import { CopilotKit } from "@copilotkit/react-core";
++import "@copilotkit/react-ui/styles.css";
++function Button({}: ButtonProps) {
++  const { open, setOpen } = useChatContext();
++
++  const wrapperStyles = "w-24 bg-blue-500 text-white p-4 rounded-lg text-center cursor-pointer";
++
++
++  return (
++    <div onClick={() => setOpen(!open)} className={wrapperStyles}>
++      <button
++        className={`${open ? "open" : ""}`}
++        aria-label={open ? "Close Chat" : "Open Chat"}
++      >
++        Ask AI
++      </button>
++    </div>
++  );
++};
++
++<CopilotKit>
++  <CopilotSidebar Button={Button} />
++</CopilotKit>
++```
++
++The header component is the top of the chat window. In this example, we add a button to the left of the title
++with a custom icon.
++
++PreviewCode
++
++```
++import { HeaderProps, useChatContext, CopilotSidebar } from "@copilotkit/react-ui";
++import { BookOpenIcon } from "@heroicons/react/24/outline";
++import { CopilotKit } from "@copilotkit/react-core";
++import "@copilotkit/react-ui/styles.css";
++function Header({}: HeaderProps) {
++  const { setOpen, icons, labels } = useChatContext();
++
++
++  return (
++    <div className="flex justify-between items-center p-4 bg-blue-500 text-white">
++      <div className="w-24">
++        <a href="/">
++          <BookOpenIcon className="w-6 h-6" />
++        </a>
++      </div>
++      <div className="text-lg">{labels.title}</div>
++      <div className="w-24 flex justify-end">
++        <button onClick={() => setOpen(false)} aria-label="Close">
++          {icons.headerCloseIcon}
++        </button>
++      </div>
++    </div>
++  );
++};
++
++<CopilotKit>
++  <CopilotSidebar Header={Header} />
++</CopilotKit>
++```
++
++## [Messages](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#messages)
++
++The Messages component handles the display and organization of different message types in the chat interface. Its complexity comes from managing various message types (text, actions, results, and agent states) and maintaining proper scroll behavior.
++
++PreviewCode
++
++```
++import { MessagesProps, CopilotSidebar } from "@copilotkit/react-ui";
++import { useCopilotChat } from "@copilotkit/react-core";
++import { CopilotKit } from "@copilotkit/react-core";
++import "@copilotkit/react-ui/styles.css";
++function CustomMessages({
++  messages,
++  inProgress,
++  RenderTextMessage,
++  RenderActionExecutionMessage,
++  RenderResultMessage,
++  RenderAgentStateMessage,
++}: MessagesProps) {
++  const wrapperStyles = "p-4 flex flex-col gap-2 h-full overflow-y-auto bg-indigo-300";
++
++  /*
++    Message types handled:
++    - TextMessage: Regular chat messages
++    - ActionExecutionMessage: When the LLM executes an action
++    - ResultMessage: Results from actions
++    - AgentStateMessage: Status updates from CoAgents
++  */
++
++  return (
++    <div className={wrapperStyles}>
++      {messages.map((message, index) => {
++        if (message.isTextMessage()) {
++          return <RenderTextMessage
++            key={message.id}
++            message={message}
++            inProgress={inProgress}
++            index={index}
++            isCurrentMessage={index === messages.length - 1}
++          />;
++        } else if (message.isActionExecutionMessage()) {
++          return <RenderActionExecutionMessage
++            key={message.id}
++            message={message}
++            inProgress={inProgress}
++            index={index}
++            isCurrentMessage={index === messages.length - 1}
++          />;
++        } else if (message.isResultMessage()) {
++          return <RenderResultMessage
++            key={message.id}
++            message={message}
++            inProgress={inProgress}
++            index={index}
++            isCurrentMessage={index === messages.length - 1}
++          />;
++        } else if (message.isAgentStateMessage()) {
++          return <RenderAgentStateMessage
++              key={message.id}
++              message={message}
++              inProgress={inProgress}
++              index={index}
++              isCurrentMessage={index === messages.length - 1}
++            />;
++        }
++      })}
++    </div>
++  );
++}
++
++<CopilotKit>
++  <CopilotSidebar Messages={CustomMessages} />
++</CopilotKit>
++```
++
++## [Input](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#input)
++
++The input component that the user interacts with to send messages to the chat. In this example, we customize it
++to have a custom "Ask" button and placeholder text.
++
++PreviewCode
++
++```
++import { InputProps, CopilotSidebar } from "@copilotkit/react-ui";
++import { CopilotKit } from "@copilotkit/react-core";
++import "@copilotkit/react-ui/styles.css";
++function CustomInput({ inProgress, onSend, isVisible }: InputProps) {
++  const handleSubmit = (value: string) => {
++    if (value.trim()) onSend(value);
++  };
++
++  const wrapperStyle = "flex gap-2 p-4 border-t";
++  const inputStyle = "flex-1 p-2 rounded-md border border-gray-300 focus:outline-none focus:border-blue-500 disabled:bg-gray-100";
++  const buttonStyle = "px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed";
++
++
++  return (
++    <div className={wrapperStyle}>
++      <input
++        disabled={inProgress}
++        type="text"
++        placeholder="Ask your question here..."
++        className={inputStyle}
++        onKeyDown={(e) => {
++          if (e.key === 'Enter') {
++            handleSubmit(e.currentTarget.value);
++            e.currentTarget.value = '';
++          }
++        }}
++      />
++      <button
++        disabled={inProgress}
++        className={buttonStyle}
++        onClick={(e) => {
++          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
++          handleSubmit(input.value);
++          input.value = '';
++        }}
++      >
++        Ask
++      </button>
++    </div>
++  );
++}
++
++<CopilotKit>
++  <CopilotSidebar Input={CustomInput} />
++</CopilotKit>
++```
++
++## [Actions](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#actions)
++
++Actions allow the LLM to interact with your application's functionality. When an action is called by the LLM, you can provide custom components to visualize its execution and results. This example demonstrates a calendar meeting card implementation.
++
++PreviewCode
++
++```
++"use client" // only necessary if you are using Next.js with the App Router.
++import { useCopilotAction } from "@copilotkit/react-core";
++
++export function YourComponent() {
++  useCopilotAction({
++    name: "showCalendarMeeting",
++    description: "Displays calendar meeting information",
++    parameters: [\
++      {\
++        name: "date",\
++        type: "string",\
++        description: "Meeting date (YYYY-MM-DD)",\
++        required: true\
++      },\
++      {\
++        name: "time",\
++        type: "string",\
++        description: "Meeting time (HH:mm)",\
++        required: true\
++      },\
++      {\
++        name: "meetingName",\
++        type: "string",\
++        description: "Name of the meeting",\
++        required: false\
++      }\
++    ],
++    render: ({ status, args }) => {
++      const { date, time, meetingName } = args;
++
++      if (status === 'inProgress') {
++        return <LoadingView />; // Your own component for loading state
++      } else {
++        const meetingProps: CalendarMeetingCardProps = {
++          date: date,
++          time,
++          meetingName
++        };
++        return <CalendarMeetingCardComponent {...meetingProps} />;
++      }
++    },
++  });
++
++  return (
++    <>...</>
++  );
++}
++```
++
++## [Agent State](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code\#agent-state)
++
++The Agent State component allows you to visualize the internal state and progress of your CoAgents. When working with CoAgents, you can provide a custom component to render the agent's state. This example demonstrates a progress bar that updates as the agent runs.
++
++Not started with CoAgents yet?
++
++If you haven't gotten started with CoAgents yet, you can get started in 10 minutes with the [quickstart guide](https://docs.copilotkit.ai/coagents/quickstart/langgraph).
++
++PreviewCode
++
++```
++"use client"; // only necessary if you are using Next.js with the App Router.
++
++import { useCoAgentStateRender } from "@copilotkit/react-core";
++import { Progress } from "./progress";
++
++type AgentState = {
++  logs: string[];
++}
++
++useCoAgentStateRender<AgentState>({
++  name: "basic_agent",
++  render: ({ state, nodeName, status }) => {
++    if (!state.logs || state.logs.length === 0) {
++      return null;
++    }
++
++    // Progress is a component we are omitting from this example for brevity.
++    return <Progress logs={state.logs} />;
++  },
++});
++```
++
++[Previous\\
++\\
++Styling Copilot UI](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components) [Next\\
++\\
++Fully Headless UI](https://docs.copilotkit.ai/guides/custom-look-and-feel/headless-ui)
++
++### On this page
++
++[UserMessage](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#usermessage) [AssistantMessage](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#assistantmessage) [Window](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#window) [Button](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#button) [Header](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#header) [Messages](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#messages) [Input](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#input) [Actions](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#actions) [Agent State](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components?undefined=Code#agent-state)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/custom-look-and-feel/bring-your-own-components.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-frontend-actions.md b/docs/copilotkit-frontend-actions.md
+new file mode 100644
+index 0000000..3141232
+--- /dev/null
++++ b/docs/copilotkit-frontend-actions.md
+@@ -0,0 +1,87 @@
++# Frontend Actions
++
++Learn how to enable your Copilot to take actions in the frontend.
++
++# [Let the Copilot Take Action](https://docs.copilotkit.ai/guides/frontend-actions\#let-the-copilot-take-action)
++
++### [`useCopilotAction`](https://docs.copilotkit.ai/guides/frontend-actions\#usecopilotaction)
++
++In addition to understanding state, you can empower the copilot to take actions. Use the [`useCopilotAction`](https://docs.copilotkit.ai/reference/hooks/useCopilotAction) hook to define specific tasks that the copilot can perform based on user input.
++
++YourComponent.tsx
++
++```
++"use client" // only necessary if you are using Next.js with the App Router.
++import { useCopilotAction } from "@copilotkit/react-core";
++
++export function MyComponent() {
++  const [todos, setTodos] = useState<string[]>([]);
++
++  // Define Copilot action
++  useCopilotAction({
++    name: "addTodoItem",
++    description: "Add a new todo item to the list",
++    parameters: [\
++      {\
++        name: "todoText",\
++        type: "string",\
++        description: "The text of the todo item to add",\
++        required: true,\
++      },\
++    ],
++    handler: async ({ todoText }) => {
++      setTodos([...todos, todoText]);
++    },
++  });
++
++  return (
++    <ul>
++      {todos.map((todo, index) => (
++        <li key={index}>{todo}</li>
++      ))}
++    </ul>
++  );
++}
++```
++
++### Changing where/when the action is executed
++
++### [Specify `"use client"` (Next.js App Router)](https://docs.copilotkit.ai/guides/frontend-actions\#specify-use-client-nextjs-app-router)
++
++This is only necessary if you are using Next.js with the App Router.
++
++YourComponent.tsx
++
++```
++"use client"
++```
++
++Like other React hooks such as `useState` and `useEffect`, this is a **client-side** hook.
++If you're using Next.js with the App Router, you'll need to add the `"use client"` directive at the top of any file using this hook.
++
++### [Test it out!](https://docs.copilotkit.ai/guides/frontend-actions\#test-it-out)
++
++After defining the action, ask the copilot to perform the task. For example, you can now ask the copilot to "select an employee" by specifying the `employeeId`.
++
++![Example of Copilot action](https://docs.copilotkit.ai/images/copilot-action-example.gif)
++
++## [Next Steps](https://docs.copilotkit.ai/guides/frontend-actions\#next-steps)
++
++[**useCopilotAction Reference** \\
++Refer to the documentation for the useCopilotAction hook.](https://docs.copilotkit.ai/reference/hooks/useCopilotAction) [**Actions + Generative UI** \\
++Learn how to render custom UI components alongside your actions, directly in the CopilotKit chat window.](https://docs.copilotkit.ai/guides/generative-ui) [**Backend Actions** \\
++Enable backend services to trigger actions via copilot backend hooks.](https://docs.copilotkit.ai/guides/backend-actions)
++
++[Previous\\
++\\
++Generative UI](https://docs.copilotkit.ai/guides/generative-ui) [Next\\
++\\
++Backend Actions & Agents](https://docs.copilotkit.ai/guides/backend-actions)
++
++### On this page
++
++[Let the Copilot Take Action](https://docs.copilotkit.ai/guides/frontend-actions#let-the-copilot-take-action) [useCopilotAction](https://docs.copilotkit.ai/guides/frontend-actions#usecopilotaction) [Test it out!](https://docs.copilotkit.ai/guides/frontend-actions#test-it-out) [Next Steps](https://docs.copilotkit.ai/guides/frontend-actions#next-steps)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/frontend-actions.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-frontend-data.md b/docs/copilotkit-frontend-data.md
+new file mode 100644
+index 0000000..c76e738
+--- /dev/null
++++ b/docs/copilotkit-frontend-data.md
+@@ -0,0 +1,73 @@
++[Connecting Your Data](https://docs.copilotkit.ai/guides/connect-your-data)
++
++# Frontend Data
++
++Learn how to connect your data to CopilotKit.
++
++For your copilot to best answer your users' needs, you will want to provide it with **context-specific**, **user-specific**, and oftentimes **realtime** data. CopilotKit makes it easy to do so.
++
++### [Add the data to the Copilot](https://docs.copilotkit.ai/guides/connect-your-data/frontend\#add-the-data-to-the-copilot)
++
++The [`useCopilotReadable` hook](https://docs.copilotkit.ai/reference/hooks/useCopilotReadable) is used to add data as context to the Copilot.
++
++YourComponent.tsx
++
++```
++"use client" // only necessary if you are using Next.js with the App Router.
++import { useCopilotReadable } from "@copilotkit/react-core";
++import { useState } from 'react';
++
++export function YourComponent() {
++  // Create colleagues state with some sample data
++  const [colleagues, setColleagues] = useState([\
++    { id: 1, name: "John Doe", role: "Developer" },\
++    { id: 2, name: "Jane Smith", role: "Designer" },\
++    { id: 3, name: "Bob Wilson", role: "Product Manager" }\
++  ]);
++
++  // Define Copilot readable state
++
++  useCopilotReadable({
++    description: "The current user's colleagues",
++    value: colleagues,
++  });
++  return (
++    // Your custom UI component
++    <>...</>
++  );
++}
++```
++
++### [Specify `"use client"` (Next.js App Router)](https://docs.copilotkit.ai/guides/connect-your-data/frontend\#specify-use-client-nextjs-app-router)
++
++This is only necessary if you are using Next.js with the App Router.
++
++YourComponent.tsx
++
++```
++"use client"
++```
++
++Like other React hooks such as `useState` and `useEffect`, this is a **client-side** hook.
++If you're using Next.js with the App Router, you'll need to add the `"use client"` directive at the top of any file using this hook.
++
++### [Test it out!](https://docs.copilotkit.ai/guides/connect-your-data/frontend\#test-it-out)
++
++The data you provided is now available to the Copilot.
++Test it out by passing some data in the hook and asking the copilot questions about it.
++
++![Example of connecting data to Copilot](https://docs.copilotkit.ai/images/connect-your-data-example.gif)
++
++[Previous\\
++\\
++Connecting Your Data](https://docs.copilotkit.ai/guides/connect-your-data) [Next\\
++\\
++Backend Data](https://docs.copilotkit.ai/guides/connect-your-data/backend)
++
++### On this page
++
++[Add the data to the Copilot](https://docs.copilotkit.ai/guides/connect-your-data/frontend#add-the-data-to-the-copilot) [Test it out!](https://docs.copilotkit.ai/guides/connect-your-data/frontend#test-it-out)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/connect-your-data/frontend.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-headless.md b/docs/copilotkit-headless.md
+new file mode 100644
+index 0000000..d6ba43e
+--- /dev/null
++++ b/docs/copilotkit-headless.md
+@@ -0,0 +1,59 @@
++
++[Customize UI](https://docs.copilotkit.ai/guides/custom-look-and-feel)
++
++# Prebuilt Copilot UI
++
++First, import the default styles in your root component (typically `layout.tsx`) :
++
++```
++import "@copilotkit/react-ui/styles.css";
++```
++
++Copilot UI ships with a number of built-in UI patterns, choose whichever one you like.
++
++CopilotPopupCopilotSidebarCopilotChatHeadless UI
++
++The built-in Copilot UI can be customized in many ways -- both through css and by passing in custom sub-components.
++
++CopilotKit also offers **fully custom headless UI**, through the `useCopilotChat` hook. Everything built with the built-in UI (and more) can be implemented with the headless UI, providing deep customizability.
++
++```
++import { useCopilotChat } from "@copilotkit/react-core";
++import { Role, TextMessage } from "@copilotkit/runtime-client-gql";
++
++export function CustomChatInterface() {
++  const {
++    visibleMessages,
++    appendMessage,
++    setMessages,
++    deleteMessage,
++    reloadMessages,
++    stopGeneration,
++    isLoading,
++  } = useCopilotChat();
++
++  const sendMessage = (content: string) => {
++    appendMessage(new TextMessage({ content, role: Role.User }));
++  };
++
++  return (
++    <div>
++      {/* Implement your custom chat UI here */}
++    </div>
++  );
++}
++```
++
++[Previous\\
++\\
++Customize UI](https://docs.copilotkit.ai/guides/custom-look-and-feel) [Next\\
++\\
++Styling Copilot UI](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components)
++
++### On this page
++
++No Headings
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/custom-look-and-feel/built-in-ui-components.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-mcp-manual-setup.md b/docs/copilotkit-mcp-manual-setup.md
+new file mode 100644
+index 0000000..4fa2317
+--- /dev/null
++++ b/docs/copilotkit-mcp-manual-setup.md
+@@ -0,0 +1,307 @@
++
++# Connect to MCP Servers
++
++Integrate Model Context Protocol (MCP) servers into React applications
++
++## [Introduction](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#introduction)
++
++The Model Context Protocol is an open standard that enables developers to build secure, two-way connections between their data sources and AI-powered tools. With MCP, you can:
++
++- Connect AI applications to your data sources
++- Enable AI tools to access and utilize your data securely
++- Build AI-powered features that have context about your application
++
++For further reading, check out the [Model Context Protocol](https://modelcontextprotocol.io/introduction) website.
++
++## [Quickstart with CopilotKit](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#quickstart-with-copilotkit)
++
++### [Get an MCP Server](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#get-an-mcp-server)
++
++First, we need to make sure we have an MCP server to connect to. You can use any MCP SSE endpoint you have configured.
++
++### Get an MCP Server from Composio
++
++Use the CopilotKit CLI
++
++I have a Next.js application and want to get started quickly.
++
++Code along
++
++I want to deeply understand what's happening under the hood or don't have a Next.js application.
++
++#### [Set up the CopilotKit Provider](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#set-up-the-copilotkit-provider)
++
++Wrap your application with the `CopilotKit` provider:
++
++```
++"use client";
++
++import { CopilotKit } from "@copilotkit/react-core";
++
++export default function App() {
++  return (
++    <CopilotKit publicApiKey="<replace_with_your_own>">
++      {/* Your app content */}
++    </CopilotKit>
++  );
++}
++```
++
++#### [Connect to MCP Servers](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#connect-to-mcp-servers)
++
++Create a component to manage MCP server connections:
++
++```
++"use client";
++
++import { useCopilotChat } from "@copilotkit/react-core";
++import { useEffect } from "react";
++
++function McpServerManager() {
++  const { setMcpServers } = useCopilotChat();
++
++  useEffect(() => {
++    setMcpServers([\
++      {\
++        // Try a sample MCP server at https://mcp.composio.dev/\
++        endpoint: "your_mcp_sse_url",\
++      },\
++    ]);
++  }, [setMcpServers]);
++
++  return null;
++}
++
++export default McpServerManager;
++```
++
++#### [Add the Chat Interface](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#add-the-chat-interface)
++
++Add the `CopilotChat` component to your page:
++
++```
++"use client";
++
++import { CopilotChat } from "@copilotkit/react-ui";
++import McpServerManager from "./McpServerManager";
++
++export default function ChatInterface() {
++  return (
++    <div className="flex h-screen p-4">
++      <McpServerManager />
++      <CopilotChat
++        instructions="You are a helpful assistant with access to MCP servers."
++        className="flex-grow rounded-lg w-full"
++      />
++    </div>
++  );
++}
++```
++
++#### [Visualize MCP Tool Calls (Optional)](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#visualize-mcp-tool-calls-optional)
++
++Create a component to display MCP tool calls in your UI:
++
++```
++"use client";
++
++import {
++  useCopilotAction,
++  CatchAllActionRenderProps,
++} from "@copilotkit/react-core";
++import McpToolCall from "./McpToolCall";
++
++export function ToolRenderer() {
++  useCopilotAction({
++    /**
++     * The asterisk (*) matches all tool calls
++     */
++    name: "*",
++    render: ({ name, status, args, result }: CatchAllActionRenderProps<[]>) => (
++      <McpToolCall status={status} name={name} args={args} result={result} />
++    ),
++  });
++  return null;
++}
++```
++
++#### [Complete Implementation](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#complete-implementation)
++
++Combine all components together:
++
++```
++"use client";
++
++import { CopilotKit } from "@copilotkit/react-core";
++import { CopilotChat } from "@copilotkit/react-ui";
++import McpServerManager from "./McpServerManager";
++import { ToolRenderer } from "./ToolRenderer";
++
++export default function Page() {
++  return (
++    <CopilotKit publicApiKey="<replace_with_your_own>">
++      <div className="flex h-screen p-4">
++        <McpServerManager />
++        <CopilotChat
++          instructions="You are a helpful assistant with access to MCP servers."
++          className="flex-grow rounded-lg w-full"
++        />
++        <ToolRenderer />
++      </div>
++    </CopilotKit>
++  );
++}
++```
++
++## [Advanced Usage](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#advanced-usage)
++
++### [Implementing the McpToolCall Component](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#implementing-the-mcptoolcall-component)
++
++Click to see the McpToolCall component implementation
++
++```
++"use client";
++
++import * as React from "react";
++
++interface ToolCallProps {
++  status: "complete" | "inProgress" | "executing";
++  name?: string;
++  args?: any;
++  result?: any;
++}
++
++export default function MCPToolCall({
++  status,
++  name = "",
++  args,
++  result,
++}: ToolCallProps) {
++  const [isOpen, setIsOpen] = React.useState(false);
++
++  // Format content for display
++  const format = (content: any): string => {
++    if (!content) return "";
++    const text =
++      typeof content === "object"
++        ? JSON.stringify(content, null, 2)
++        : String(content);
++    return text
++      .replace(/\\n/g, "\n")
++      .replace(/\\t/g, "\t")
++      .replace(/\\"/g, '"')
++      .replace(/\\\\/g, "\\");
++  };
++
++  return (
++    <div className="bg-[#1e2738] rounded-lg overflow-hidden w-full">
++      <div
++        className="p-3 flex items-center cursor-pointer"
++        onClick={() => setIsOpen(!isOpen)}
++      >
++        <span className="text-white text-sm overflow-hidden text-ellipsis">
++          {name || "MCP Tool Call"}
++        </span>
++        <div className="ml-auto">
++          <div
++            className={`w-2 h-2 rounded-full ${
++              status === "complete"
++                ? "bg-gray-300"
++                : status === "inProgress" || status === "executing"
++                ? "bg-gray-500 animate-pulse"
++                : "bg-gray-700"
++            }`}
++          />
++        </div>
++      </div>
++
++      {isOpen && (
++        <div className="px-4 pb-4 text-gray-300 font-mono text-xs">
++          {args && (
++            <div className="mb-4">
++              <div className="text-gray-400 mb-2">Parameters:</div>
++              <pre className="whitespace-pre-wrap max-h-[200px] overflow-auto">
++                {format(args)}
++              </pre>
++            </div>
++          )}
++
++          {status === "complete" && result && (
++            <div>
++              <div className="text-gray-400 mb-2">Result:</div>
++              <pre className="whitespace-pre-wrap max-h-[200px] overflow-auto">
++                {format(result)}
++              </pre>
++            </div>
++          )}
++        </div>
++      )}
++    </div>
++  );
++}
++```
++
++### [Self-Hosting Option](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually\#self-hosting-option)
++
++Click here to learn how to use MCP with self-hosted runtime
++
++Self-Hosting vs Copilot Cloud
++
++The Copilot Runtime handles communication with LLMs, message history, and
++state. You can self-host it or use
++[Copilot Cloud](https://go.copilotkit.ai/copilot-cloud-button-docs?ref=docs&session_id=0196906e-bcaa-7a82-bc91-0e5c69d2d9f1)
++(recommended). Learn more in our [Self-Hosting Guide](https://docs.copilotkit.ai/guides/self-hosting).
++
++To configure your self-hosted runtime with MCP servers, you'll need to implement the `createMCPClient` function that matches this interface:
++
++```
++type CreateMCPClientFunction = (
++  config: MCPEndpointConfig
++) => Promise<MCPClient>;
++```
++
++For detailed implementation guidance, refer to the [official MCP SDK documentation](https://github.com/modelcontextprotocol/typescript-sdk?tab=readme-ov-file#writing-mcp-clients).
++
++Here's a basic example of configuring the runtime:
++
++```
++import {
++  CopilotRuntime,
++  OpenAIAdapter,
++  copilotRuntimeNextJSAppRouterEndpoint,
++} from "@copilotkit/runtime";
++import { NextRequest } from "next/server";
++
++const serviceAdapter = new OpenAIAdapter();
++
++const runtime = new CopilotRuntime({
++  createMCPClient: async (config) => {
++    // Implement your MCP client creation logic here
++    // See the MCP SDK docs for implementation details
++  },
++});
++
++export const POST = async (req: NextRequest) => {
++  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
++    runtime,
++    serviceAdapter,
++    endpoint: "/api/copilotkit",
++  });
++
++  return handleRequest(req);
++};
++```
++
++[Previous\\
++\\
++Remote Endpoint (LangGraph Platform)](https://docs.copilotkit.ai/guides/backend-actions/langgraph-platform-endpoint) [Next\\
++\\
++Customize Instructions](https://docs.copilotkit.ai/guides/custom-ai-assistant-behavior)
++
++### On this page
++
++[Introduction](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#introduction) [Quickstart with CopilotKit](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#quickstart-with-copilotkit) [Get an MCP Server](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#get-an-mcp-server) [Run the CLI](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#run-the-cli) [Set up the CopilotKit Provider](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#set-up-the-copilotkit-provider) [Connect to MCP Servers](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#connect-to-mcp-servers) [Add the Chat Interface](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#add-the-chat-interface) [Visualize MCP Tool Calls (Optional)](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#visualize-mcp-tool-calls-optional) [Complete Implementation](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#complete-implementation) [Advanced Usage](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#advanced-usage) [Implementing the McpToolCall Component](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#implementing-the-mcptoolcall-component) [Self-Hosting Option](https://docs.copilotkit.ai/guides/model-context-protocol?cli=do-it-manually#self-hosting-option)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/model-context-protocol.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-model-context-protocol.md b/docs/copilotkit-model-context-protocol.md
+new file mode 100644
+index 0000000..ceecdf9
+--- /dev/null
++++ b/docs/copilotkit-model-context-protocol.md
+@@ -0,0 +1,194 @@
++# Connect to MCP Servers
++
++Integrate Model Context Protocol (MCP) servers into React applications
++
++## [Introduction](https://docs.copilotkit.ai/guides/model-context-protocol\#introduction)
++
++The Model Context Protocol is an open standard that enables developers to build secure, two-way connections between their data sources and AI-powered tools. With MCP, you can:
++
++- Connect AI applications to your data sources
++- Enable AI tools to access and utilize your data securely
++- Build AI-powered features that have context about your application
++
++For further reading, check out the [Model Context Protocol](https://modelcontextprotocol.io/introduction) website.
++
++## [Quickstart with CopilotKit](https://docs.copilotkit.ai/guides/model-context-protocol\#quickstart-with-copilotkit)
++
++### [Get an MCP Server](https://docs.copilotkit.ai/guides/model-context-protocol\#get-an-mcp-server)
++
++First, we need to make sure we have an MCP server to connect to. You can use any MCP SSE endpoint you have configured.
++
++### Get an MCP Server from Composio
++
++Use the CopilotKit CLI
++
++Use the CopilotKit CLI
++
++I have a Next.js application and want to get started quickly.
++
++Code along
++
++I want to deeply understand what's happening under the hood or don't have a Next.js application.
++
++### [Run the CLI](https://docs.copilotkit.ai/guides/model-context-protocol\#run-the-cli)
++
++Just run this following command in your Next.js application to get started!
++
++### Don't have a Next.js application?
++
++```
++npx copilotkit@latest init -m MCP
++```
++
++## [Advanced Usage](https://docs.copilotkit.ai/guides/model-context-protocol\#advanced-usage)
++
++### [Implementing the McpToolCall Component](https://docs.copilotkit.ai/guides/model-context-protocol\#implementing-the-mcptoolcall-component)
++
++Click to see the McpToolCall component implementation
++
++```
++"use client";
++
++import * as React from "react";
++
++interface ToolCallProps {
++  status: "complete" | "inProgress" | "executing";
++  name?: string;
++  args?: any;
++  result?: any;
++}
++
++export default function MCPToolCall({
++  status,
++  name = "",
++  args,
++  result,
++}: ToolCallProps) {
++  const [isOpen, setIsOpen] = React.useState(false);
++
++  // Format content for display
++  const format = (content: any): string => {
++    if (!content) return "";
++    const text =
++      typeof content === "object"
++        ? JSON.stringify(content, null, 2)
++        : String(content);
++    return text
++      .replace(/\\n/g, "\n")
++      .replace(/\\t/g, "\t")
++      .replace(/\\"/g, '"')
++      .replace(/\\\\/g, "\\");
++  };
++
++  return (
++    <div className="bg-[#1e2738] rounded-lg overflow-hidden w-full">
++      <div
++        className="p-3 flex items-center cursor-pointer"
++        onClick={() => setIsOpen(!isOpen)}
++      >
++        <span className="text-white text-sm overflow-hidden text-ellipsis">
++          {name || "MCP Tool Call"}
++        </span>
++        <div className="ml-auto">
++          <div
++            className={`w-2 h-2 rounded-full ${
++              status === "complete"
++                ? "bg-gray-300"
++                : status === "inProgress" || status === "executing"
++                ? "bg-gray-500 animate-pulse"
++                : "bg-gray-700"
++            }`}
++          />
++        </div>
++      </div>
++
++      {isOpen && (
++        <div className="px-4 pb-4 text-gray-300 font-mono text-xs">
++          {args && (
++            <div className="mb-4">
++              <div className="text-gray-400 mb-2">Parameters:</div>
++              <pre className="whitespace-pre-wrap max-h-[200px] overflow-auto">
++                {format(args)}
++              </pre>
++            </div>
++          )}
++
++          {status === "complete" && result && (
++            <div>
++              <div className="text-gray-400 mb-2">Result:</div>
++              <pre className="whitespace-pre-wrap max-h-[200px] overflow-auto">
++                {format(result)}
++              </pre>
++            </div>
++          )}
++        </div>
++      )}
++    </div>
++  );
++}
++```
++
++### [Self-Hosting Option](https://docs.copilotkit.ai/guides/model-context-protocol\#self-hosting-option)
++
++Click here to learn how to use MCP with self-hosted runtime
++
++Self-Hosting vs Copilot Cloud
++
++The Copilot Runtime handles communication with LLMs, message history, and
++state. You can self-host it or use
++[Copilot Cloud](https://go.copilotkit.ai/copilot-cloud-button-docs?ref=docs&session_id=0196906c-d633-7d53-9b4c-079868cfcd49)
++(recommended). Learn more in our [Self-Hosting Guide](https://docs.copilotkit.ai/guides/self-hosting).
++
++To configure your self-hosted runtime with MCP servers, you'll need to implement the `createMCPClient` function that matches this interface:
++
++```
++type CreateMCPClientFunction = (
++  config: MCPEndpointConfig
++) => Promise<MCPClient>;
++```
++
++For detailed implementation guidance, refer to the [official MCP SDK documentation](https://github.com/modelcontextprotocol/typescript-sdk?tab=readme-ov-file#writing-mcp-clients).
++
++Here's a basic example of configuring the runtime:
++
++```
++import {
++  CopilotRuntime,
++  OpenAIAdapter,
++  copilotRuntimeNextJSAppRouterEndpoint,
++} from "@copilotkit/runtime";
++import { NextRequest } from "next/server";
++
++const serviceAdapter = new OpenAIAdapter();
++
++const runtime = new CopilotRuntime({
++  createMCPClient: async (config) => {
++    // Implement your MCP client creation logic here
++    // See the MCP SDK docs for implementation details
++  },
++});
++
++export const POST = async (req: NextRequest) => {
++  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
++    runtime,
++    serviceAdapter,
++    endpoint: "/api/copilotkit",
++  });
++
++  return handleRequest(req);
++};
++```
++
++[Previous\\
++\\
++Remote Endpoint (LangGraph Platform)](https://docs.copilotkit.ai/guides/backend-actions/langgraph-platform-endpoint) [Next\\
++\\
++Customize Instructions](https://docs.copilotkit.ai/guides/custom-ai-assistant-behavior)
++
++### On this page
++
++[Introduction](https://docs.copilotkit.ai/guides/model-context-protocol#introduction) [Quickstart with CopilotKit](https://docs.copilotkit.ai/guides/model-context-protocol#quickstart-with-copilotkit) [Get an MCP Server](https://docs.copilotkit.ai/guides/model-context-protocol#get-an-mcp-server) [Run the CLI](https://docs.copilotkit.ai/guides/model-context-protocol#run-the-cli) [Set up the CopilotKit Provider](https://docs.copilotkit.ai/guides/model-context-protocol#set-up-the-copilotkit-provider) [Connect to MCP Servers](https://docs.copilotkit.ai/guides/model-context-protocol#connect-to-mcp-servers) [Add the Chat Interface](https://docs.copilotkit.ai/guides/model-context-protocol#add-the-chat-interface) [Visualize MCP Tool Calls (Optional)](https://docs.copilotkit.ai/guides/model-context-protocol#visualize-mcp-tool-calls-optional) [Complete Implementation](https://docs.copilotkit.ai/guides/model-context-protocol#complete-implementation) [Advanced Usage](https://docs.copilotkit.ai/guides/model-context-protocol#advanced-usage) [Implementing the McpToolCall Component](https://docs.copilotkit.ai/guides/model-context-protocol#implementing-the-mcptoolcall-component) [Self-Hosting Option](https://docs.copilotkit.ai/guides/model-context-protocol#self-hosting-option)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/model-context-protocol.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-selfhosted.md b/docs/copilotkit-selfhosted.md
+new file mode 100644
+index 0000000..827a44b
+--- /dev/null
++++ b/docs/copilotkit-selfhosted.md
+@@ -0,0 +1,139 @@
++
++# Self Hosting (Copilot Runtime)
++
++Learn how to self-host the Copilot Runtime.
++
++The Copilot Runtime is the back-end component of CopilotKit, handling the communication with LLM, message history, state and more.
++
++You may choose to self-host the Copilot Runtime, or [use Copilot Cloud](https://cloud.copilotkit.ai/) (recommended).
++
++## [Integration](https://docs.copilotkit.ai/guides/self-hosting\#integration)
++
++### [Step 1: Create an Endpoint](https://docs.copilotkit.ai/guides/self-hosting\#step-1-create-an-endpoint)
++
++##### Choose your provider:
++
++![OpenAI logo](https://docs.copilotkit.ai/icons/openai.png)OpenAI
++
++If you are planning to use a single LangGraph agent in [agent-lock mode](https://docs.copilotkit.ai/coagents/multi-agent-flows) as your agentic backend, your LLM adapter will only be used for peripherals such as suggestions, etc.
++
++If you are not sure yet, simply ignore this note.
++
++### [Add your API key](https://docs.copilotkit.ai/guides/self-hosting\#add-your-api-key)
++
++Next, add your API key to your `.env` file in the root of your project (unless you prefer to provide it directly to the client):
++
++.env
++
++```
++OPENAI_API_KEY=your_api_key_here
++```
++
++Please note that the code below uses GPT-4o, which requires a paid OpenAI API key. **If you are using a free OpenAI API key**, change the model to a different option such as `gpt-3.5-turbo`.
++
++### [Setup the Runtime Endpoint](https://docs.copilotkit.ai/guides/self-hosting\#setup-the-runtime-endpoint)
++
++### [Serverless Function Timeouts](https://docs.copilotkit.ai/guides/self-hosting\#serverless-function-timeouts)
++
++When deploying to serverless platforms (Vercel, AWS Lambda, etc.), be aware that default function timeouts may be too short for CopilotKit's streaming responses:
++
++- Vercel defaults: 10s (Hobby), 15s (Pro)
++- AWS Lambda default: 3s
++
++**Solution options:**
++
++1. Increase function timeout:
++
++
++
++
++
++
++
++
++```
++// vercel.json
++{
++     "functions": {
++       "api/copilotkit/**/*": {
++         "maxDuration": 60
++       }
++     }
++}
++```
++
++2. Use [Copilot Cloud](https://cloud.copilotkit.ai/) to avoid timeout issues entirely
++
++Next.js App RouterNext.js Pages RouterNode.js ExpressNode.js HTTPNestJS
++
++Create a new route to handle the `/api/copilotkit` endpoint.
++
++app/api/copilotkit/route.ts
++
++```
++import {
++  CopilotRuntime,
++  OpenAIAdapter,
++  copilotRuntimeNextJSAppRouterEndpoint,
++} from '@copilotkit/runtime';
++
++import { NextRequest } from 'next/server';
++
++
++const serviceAdapter = new OpenAIAdapter();
++const runtime = new CopilotRuntime();
++
++export const POST = async (req: NextRequest) => {
++  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
++    runtime,
++    serviceAdapter,
++    endpoint: '/api/copilotkit',
++  });
++
++  return handleRequest(req);
++};
++```
++
++Your Copilot Runtime endpoint should be available at `http://localhost:3000/api/copilotkit`.
++
++### [Step 2: Configure the `<CopilotKit>` Provider](https://docs.copilotkit.ai/guides/self-hosting\#step-2-configure-the-copilotkit-provider)
++
++layout.tsx
++
++```
++import "./globals.css";
++import { ReactNode } from "react";
++import { CopilotKit } from "@copilotkit/react-core";
++
++export default function RootLayout({ children }: { children: ReactNode }) {
++  return (
++    <html lang="en">
++      <body>
++        {/* Make sure to use the URL you configured in the previous step  */}
++        <CopilotKit runtimeUrl="/api/copilotkit">
++          {children}
++        </CopilotKit>
++      </body>
++    </html>
++  );
++}
++```
++
++## [Next Steps](https://docs.copilotkit.ai/guides/self-hosting\#next-steps)
++
++- [`CopilotRuntime` Reference](https://docs.copilotkit.ai/reference/classes/CopilotRuntime)
++- [LLM Adapters](https://docs.copilotkit.ai/reference/classes/llm-adapters/OpenAIAdapter)
++
++[Previous\\
++\\
++Copilot Textarea](https://docs.copilotkit.ai/guides/copilot-textarea) [Next\\
++\\
++Saving and restoring messages](https://docs.copilotkit.ai/guides/messages-localstorage)
++
++### On this page
++
++[Integration](https://docs.copilotkit.ai/guides/self-hosting#integration) [Step 1: Create an Endpoint](https://docs.copilotkit.ai/guides/self-hosting#step-1-create-an-endpoint) [Step 2: Configure the <CopilotKit> Provider](https://docs.copilotkit.ai/guides/self-hosting#step-2-configure-the-copilotkit-provider) [Next Steps](https://docs.copilotkit.ai/guides/self-hosting#next-steps)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/self-hosting.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-styling-ui.md b/docs/copilotkit-styling-ui.md
+new file mode 100644
+index 0000000..73fbe3f
+--- /dev/null
++++ b/docs/copilotkit-styling-ui.md
+@@ -0,0 +1,210 @@
++[Customize UI](https://docs.copilotkit.ai/guides/custom-look-and-feel)
++
++# Styling Copilot UI
++
++CopilotKit has a variety of ways to customize colors and structures of the Copilot UI components.
++
++- [CSS Variables](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#css-variables-easiest)
++- [Custom CSS](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#custom-css)
++- [Custom Icons](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#custom-icons)
++- [Custom Labels](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#custom-labels)
++
++If you want to customize the style as well as the functionality of the Copilot UI, you can also try the following:
++
++- [Custom Sub-Components](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components)
++- [Fully Headless UI](https://docs.copilotkit.ai/guides/custom-look-and-feel/headless-ui)
++
++## [CSS Variables (Easiest)](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#css-variables-easiest)
++
++The easiest way to change the colors using in the Copilot UI components is to override CopilotKit CSS variables.
++
++Hover over the interactive UI elements below to see the available CSS variables.
++
++Close CopilotKit
++
++CopilotKit
++
++Hi you! 👋 I can help you create a presentation on any topic.
++
++Hello CopilotKit!
++
++Powered by CopilotKit
++
++Once you've found the right variable, you can import `CopilotKitCSSProperties` and simply wrap CopilotKit in a div and override the CSS variables.
++
++```
++import { CopilotKitCSSProperties } from "@copilotkit/react-ui";
++
++<div
++
++  style={
++    {
++      "--copilot-kit-primary-color": "#222222",
++    } as CopilotKitCSSProperties
++  }
++>
++  <CopilotSidebar .../>
++</div>
++```
++
++### [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#reference)
++
++| CSS Variable | Description |
++| --- | --- |
++| `--copilot-kit-primary-color` | Main brand/action color - used for buttons, interactive elements |
++| `--copilot-kit-contrast-color` | Color that contrasts with primary - used for text on primary elements |
++| `--copilot-kit-background-color` | Main page/container background color |
++| `--copilot-kit-secondary-color` | Secondary background - used for cards, panels, elevated surfaces |
++| `--copilot-kit-secondary-contrast-color` | Primary text color for main content |
++| `--copilot-kit-separator-color` | Border color for dividers and containers |
++| `--copilot-kit-muted-color` | Muted color for disabled/inactive states |
++
++## [Custom CSS](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#custom-css)
++
++In addition to customizing the colors, the CopilotKit CSS is structured to easily allow customization via CSS classes.
++
++globals.css
++
++```
++.copilotKitButton {
++  border-radius: 0;
++}
++
++.copilotKitMessages {
++  padding: 2rem;
++}
++
++.copilotKitUserMessage {
++  background: #007AFF;
++}
++```
++
++### [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#reference-1)
++
++For a full list of styles and classes used in CopilotKit, click [here](https://github.com/CopilotKit/CopilotKit/blob/main/CopilotKit/packages/react-ui/src/css/).
++
++| CSS Class | Description |
++| --- | --- |
++| `.copilotKitMessages` | Main container for all chat messages with scroll behavior and spacing |
++| `.copilotKitInput` | Text input container with typing area and send button |
++| `.copilotKitUserMessage` | Styling for user messages including background, text color and bubble shape |
++| `.copilotKitAssistantMessage` | Styling for AI responses including background, text color and bubble shape |
++| `.copilotKitHeader` | Top bar of chat window containing title and controls |
++| `.copilotKitButton` | Primary chat toggle button with hover and active states |
++| `.copilotKitWindow` | Root container defining overall chat window dimensions and position |
++| `.copilotKitMarkdown` | Styles for rendered markdown content including lists, links and quotes |
++| `.copilotKitCodeBlock` | Code snippet container with syntax highlighting and copy button |
++| `.copilotKitChat` | Base chat layout container handling positioning and dimensions |
++| `.copilotKitSidebar` | Styles for sidebar chat mode including width and animations |
++| `.copilotKitPopup` | Styles for popup chat mode including position and animations |
++| `.copilotKitButtonIcon` | Icon styling within the main chat toggle button |
++| `.copilotKitButtonIconOpen` `.copilotKitButtonIconClose` | Icon states for when chat is open/closed |
++| `.copilotKitCodeBlockToolbar` | Top bar of code blocks with language and copy controls |
++| `.copilotKitCodeBlockToolbarLanguage` | Language label styling in code block toolbar |
++| `.copilotKitCodeBlockToolbarButtons` | Container for code block action buttons |
++| `.copilotKitCodeBlockToolbarButton` | Individual button styling in code block toolbar |
++| `.copilotKitSidebarContentWrapper` | Inner container for sidebar mode content |
++| `.copilotKitInputControls` | Container for input area buttons and controls |
++| `.copilotKitActivityDot1` `.copilotKitActivityDot2` `.copilotKitActivityDot3` | Animated typing indicator dots |
++| `.copilotKitDevConsole` | Development debugging console container |
++| `.copilotKitDevConsoleWarnOutdated` | Warning styles for outdated dev console |
++| `.copilotKitVersionInfo` | Version information display styles |
++| `.copilotKitDebugMenuButton` | Debug menu toggle button styling |
++| `.copilotKitDebugMenu` | Debug options menu container |
++| `.copilotKitDebugMenuItem` | Individual debug menu option styling |
++
++## [Custom Fonts](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#custom-fonts)
++
++You can customize the fonts by updating the `fontFamily` property in the various CSS classes that are used in the CopilotKit.
++
++globals.css
++
++```
++.copilotKitMessages {
++  font-family: "Arial, sans-serif";
++}
++
++.copilotKitInput {
++  font-family: "Arial, sans-serif";
++}
++```
++
++### [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#reference-2)
++
++You can update the main content classes to change the font family for the various components.
++
++| CSS Class | Description |
++| --- | --- |
++| `.copilotKitMessages` | Main container for all messages |
++| `.copilotKitInput` | The input field |
++| `.copilotKitMessage` | Base styling for all chat messages |
++| `.copilotKitUserMessage` | User messages |
++| `.copilotKitAssistantMessage` | AI responses |
++
++## [Custom Icons](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#custom-icons)
++
++You can customize the icons by passing the `icons` property to the `CopilotSidebar`, `CopilotPopup` or `CopilotChat` component.
++
++```
++<CopilotChat
++  icons={{
++    // Use your own icons here – any React nodes
++    openIcon: <YourOpenIconComponent />,
++    closeIcon: <YourCloseIconComponent />,
++  }}
++/>
++```
++
++### [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#reference-3)
++
++| Icon | Description |
++| --- | --- |
++| `openIcon` | The icon to use for the open chat button |
++| `closeIcon` | The icon to use for the close chat button |
++| `headerCloseIcon` | The icon to use for the close chat button in the header |
++| `sendIcon` | The icon to use for the send button |
++| `activityIcon` | The icon to use for the activity indicator |
++| `spinnerIcon` | The icon to use for the spinner |
++| `stopIcon` | The icon to use for the stop button |
++| `regenerateIcon` | The icon to use for the regenerate button |
++| `pushToTalkIcon` | The icon to use for push to talk |
++
++## [Custom Labels](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#custom-labels)
++
++To customize labels, pass the `labels` property to the `CopilotSidebar`, `CopilotPopup` or `CopilotChat` component.
++
++```
++<CopilotChat
++  labels={{
++    initial: "Hello! How can I help you today?",
++    title: "My Copilot",
++    placeholder: "Ask me anything!",
++    stopGenerating: "Stop",
++    regenerateResponse: "Regenerate",
++  }}
++/>
++```
++
++### [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components\#reference-4)
++
++| Label | Description |
++| --- | --- |
++| `initial` | The initial message(s) to display in the chat window |
++| `title` | The title to display in the header |
++| `placeholder` | The placeholder to display in the input |
++| `stopGenerating` | The label to display on the stop button |
++| `regenerateResponse` | The label to display on the regenerate button |
++
++[Previous\\
++\\
++Prebuilt Copilot UI](https://docs.copilotkit.ai/guides/custom-look-and-feel/built-in-ui-components) [Next\\
++\\
++Custom Sub-Components](https://docs.copilotkit.ai/guides/custom-look-and-feel/bring-your-own-components)
++
++### On this page
++
++[CSS Variables (Easiest)](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#css-variables-easiest) [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#reference) [Custom CSS](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#custom-css) [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#reference-1) [Custom Fonts](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#custom-fonts) [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#reference-2) [Custom Icons](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#custom-icons) [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#reference-3) [Custom Labels](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#custom-labels) [Reference](https://docs.copilotkit.ai/guides/custom-look-and-feel/customize-built-in-ui-components#reference-4)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/custom-look-and-feel/customize-built-in-ui-components.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/copilotkit-suggestions.md b/docs/copilotkit-suggestions.md
+new file mode 100644
+index 0000000..297662e
+--- /dev/null
++++ b/docs/copilotkit-suggestions.md
+@@ -0,0 +1,80 @@
++
++# Copilot Suggestions
++
++Learn how to auto-generate suggestions in the chat window based on real time application state.
++
++useCopilotChatSuggestions is experimental. The interface is not final and can
++change without notice.
++
++[`useCopilotChatSuggestions`](https://docs.copilotkit.ai/reference/hooks/useCopilotChatSuggestions) is a React hook that generates suggestions in the chat window based on real time application state.
++
++![](https://docs.copilotkit.ai/images/use-copilot-chat-suggestions/use-copilot-chat-suggestions.gif)
++
++### [Simple Usage](https://docs.copilotkit.ai/guides/copilot-suggestions\#simple-usage)
++
++```
++import { useCopilotChatSuggestions } from "@copilotkit/react-ui";
++
++export function MyComponent() {
++
++  useCopilotChatSuggestions(
++    {
++      instructions: "Suggest the most relevant next actions.",
++      minSuggestions: 1,
++      maxSuggestions: 2,
++    },
++    [relevantState],
++  );
++}
++```
++
++### [Dependency Management](https://docs.copilotkit.ai/guides/copilot-suggestions\#dependency-management)
++
++```
++import { useCopilotChatSuggestions } from "@copilotkit/react-ui";
++
++export function MyComponent() {
++  useCopilotChatSuggestions(
++    {
++      instructions: "Suggest the most relevant next actions.",
++      minSuggestions: 1,
++      maxSuggestions: 2,
++    },
++    [relevantState],
++  );
++}
++```
++
++In the example above, the suggestions are generated based on the given instructions.
++The hook monitors `relevantState`, and updates suggestions accordingly whenever it changes.
++
++### [Specify `"use client"` (Next.js App Router)](https://docs.copilotkit.ai/guides/copilot-suggestions\#specify-use-client-nextjs-app-router)
++
++This is only necessary if you are using Next.js with the App Router.
++
++YourComponent.tsx
++
++```
++"use client"
++```
++
++Like other React hooks such as `useState` and `useEffect`, this is a **client-side** hook.
++If you're using Next.js with the App Router, you'll need to add the `"use client"` directive at the top of any file using this hook.
++
++## [Next Steps](https://docs.copilotkit.ai/guides/copilot-suggestions\#next-steps)
++
++- Check out the [useCopilotChatSuggestions reference](https://docs.copilotkit.ai/reference/hooks/useCopilotChatSuggestions) for more details.
++
++[Previous\\
++\\
++Guardrails](https://docs.copilotkit.ai/guides/guardrails) [Next\\
++\\
++Bring Your Own LLM](https://docs.copilotkit.ai/guides/bring-your-own-llm)
++
++### On this page
++
++[Simple Usage](https://docs.copilotkit.ai/guides/copilot-suggestions#simple-usage) [Dependency Management](https://docs.copilotkit.ai/guides/copilot-suggestions#dependency-management) [Next Steps](https://docs.copilotkit.ai/guides/copilot-suggestions#next-steps)
++
++[Edit on GitHub](https://github.com/CopilotKit/CopilotKit/blob/main/docs/content/docs/(root)/guides/copilot-suggestions.mdx)
++
++![](https://static.scarf.sh/a.png?x-pxid=ffc9f65d-0186-4575-b065-61d62ea9d7d3)
+\ No newline at end of file
+diff --git a/docs/tanstack-devtools.md b/docs/tanstack-devtools.md
+new file mode 100644
+index 0000000..4bc0ccf
+--- /dev/null
++++ b/docs/tanstack-devtools.md
+@@ -0,0 +1,333 @@
++# Devtools
++
++Wave your hands in the air and shout hooray because React Query comes with dedicated devtools! 🥳
++
++When you begin your React Query journey, you'll want these devtools by your side. They help visualize all the inner workings of React Query and will likely save you hours of debugging if you find yourself in a pinch!
++
++> For React Native users: A third-party native macOS app is available for debugging React Query in ANY js-based application. Monitor queries across devices in real-time. Check it out here: [rn-better-dev-tools](https://github.com/LovesWorking/rn-better-dev-tools)
++
++> Note that since version 5, the dev tools support observing mutations as well.
++
++[**Install and Import the Devtools**](https://tanstack.com/query/latest/docs/framework/react/devtools#install-and-import-the-devtools)
++
++The devtools are a separate package that you need to install:
++
++bash
++
++```
++npm i @tanstack/react-query-devtools
++
++```
++
++```
++npm i @tanstack/react-query-devtools
++
++```
++
++or
++
++bash
++
++```
++pnpm add @tanstack/react-query-devtools
++
++```
++
++```
++pnpm add @tanstack/react-query-devtools
++
++```
++
++or
++
++bash
++
++```
++yarn add @tanstack/react-query-devtools
++
++```
++
++```
++yarn add @tanstack/react-query-devtools
++
++```
++
++or
++
++bash
++
++```
++bun add @tanstack/react-query-devtools
++
++```
++
++```
++bun add @tanstack/react-query-devtools
++
++```
++
++For Next 13+ App Dir you must install it as a dev dependency for it to work.
++
++You can import the devtools like this:
++
++tsx
++
++```
++import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
++
++```
++
++```
++import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
++
++```
++
++By default, React Query Devtools are only included in bundles when process.env.NODE\_ENV === 'development', so you don't need to worry about excluding them during a production build.
++
++[**Floating Mode**](https://tanstack.com/query/latest/docs/framework/react/devtools#floating-mode)
++
++Floating Mode will mount the devtools as a fixed, floating element in your app and provide a toggle in the corner of the screen to show and hide the devtools. This toggle state will be stored and remembered in localStorage across reloads.
++
++Place the following code as high in your React app as you can. The closer it is to the root of the page, the better it will work!
++
++tsx
++
++```
++import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
++
++function App() {
++  return (
++    <QueryClientProvider client={queryClient}>
++      {/* The rest of your application */}
++      <ReactQueryDevtools initialIsOpen={false} />
++    </QueryClientProvider>
++  )
++}
++
++```
++
++```
++import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
++
++function App() {
++  return (
++    <QueryClientProvider client={queryClient}>
++      {/* The rest of your application */}
++      <ReactQueryDevtools initialIsOpen={false} />
++    </QueryClientProvider>
++  )
++}
++
++```
++
++[**Options**](https://tanstack.com/query/latest/docs/framework/react/devtools#options)
++
++- initialIsOpen: Boolean
++  - Set this true if you want the dev tools to default to being open
++- buttonPosition?: "top-left" \| "top-right" \| "bottom-left" \| "bottom-right" \| "relative"
++  - Defaults to bottom-right
++  - The position of the React Query logo to open and close the devtools panel
++  - If relative, the button is placed in the location that you render the devtools.
++- position?: "top" \| "bottom" \| "left" \| "right"
++  - Defaults to bottom
++  - The position of the React Query devtools panel
++- client?: QueryClient,
++  - Use this to use a custom QueryClient. Otherwise, the one from the nearest context will be used.
++- errorTypes?: { name: string; initializer: (query: Query) => TError}\[\]
++  - Use this to predefine some errors that can be triggered on your queries. Initializer will be called (with the specific query) when that error is toggled on from the UI. It must return an Error.
++- styleNonce?: string
++  - Use this to pass a nonce to the style tag that is added to the document head. This is useful if you are using a Content Security Policy (CSP) nonce to allow inline styles.
++- shadowDOMTarget?: ShadowRoot
++  - Default behavior will apply the devtool's styles to the head tag within the DOM.
++  - Use this to pass a shadow DOM target to the devtools so that the styles will be applied within the shadow DOM instead of within the head tag in the light DOM.
++
++[**Embedded Mode**](https://tanstack.com/query/latest/docs/framework/react/devtools#embedded-mode)
++
++Embedded mode will show the development tools as a fixed element in your application, so you can use our panel in your own development tools.
++
++Place the following code as high in your React app as you can. The closer it is to the root of the page, the better it will work!
++
++tsx
++
++```
++import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
++
++function App() {
++  const [isOpen, setIsOpen] = React.useState(false)
++
++  return (
++    <QueryClientProvider client={queryClient}>
++      {/* The rest of your application */}
++      <button
++        onClick={() => setIsOpen(!isOpen)}
++      >{`${isOpen ? 'Close' : 'Open'} the devtools panel`}</button>
++      {isOpen && <ReactQueryDevtoolsPanel onClose={() => setIsOpen(false)} />}
++    </QueryClientProvider>
++  )
++}
++
++```
++
++```
++import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
++
++function App() {
++  const [isOpen, setIsOpen] = React.useState(false)
++
++  return (
++    <QueryClientProvider client={queryClient}>
++      {/* The rest of your application */}
++      <button
++        onClick={() => setIsOpen(!isOpen)}
++      >{`${isOpen ? 'Close' : 'Open'} the devtools panel`}</button>
++      {isOpen && <ReactQueryDevtoolsPanel onClose={() => setIsOpen(false)} />}
++    </QueryClientProvider>
++  )
++}
++
++```
++
++[**Options**](https://tanstack.com/query/latest/docs/framework/react/devtools#options-1)
++
++- style?: React.CSSProperties
++  - Custom styles for the devtools panel
++  - Default: { height: '500px' }
++  - Example: { height: '100%' }
++  - Example: { height: '100%', width: '100%' }
++- onClose?: () => unknown
++  - Callback function that is called when the devtools panel is closed
++- client?: QueryClient,
++  - Use this to use a custom QueryClient. Otherwise, the one from the nearest context will be used.
++- errorTypes?: { name: string; initializer: (query: Query) => TError}\[\]
++  - Use this to predefine some errors that can be triggered on your queries. Initializer will be called (with the specific query) when that error is toggled on from the UI. It must return an Error.
++- styleNonce?: string
++  - Use this to pass a nonce to the style tag that is added to the document head. This is useful if you are using a Content Security Policy (CSP) nonce to allow inline styles.
++- shadowDOMTarget?: ShadowRoot
++  - Default behavior will apply the devtool's styles to the head tag within the DOM.
++  - Use this to pass a shadow DOM target to the devtools so that the styles will be applied within the shadow DOM instead of within the head tag in the light DOM.
++
++[**Devtools in production**](https://tanstack.com/query/latest/docs/framework/react/devtools#devtools-in-production)
++
++Devtools are excluded in production builds. However, it might be desirable to lazy load the devtools in production:
++
++tsx
++
++```
++import * as React from 'react'
++import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
++import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
++import { Example } from './Example'
++
++const queryClient = new QueryClient()
++
++const ReactQueryDevtoolsProduction = React.lazy(() =>
++  import('@tanstack/react-query-devtools/build/modern/production.js').then(
++    (d) => ({
++      default: d.ReactQueryDevtools,
++    }),
++  ),
++)
++
++function App() {
++  const [showDevtools, setShowDevtools] = React.useState(false)
++
++  React.useEffect(() => {
++    // @ts-expect-error
++    window.toggleDevtools = () => setShowDevtools((old) => !old)
++  }, [])
++
++  return (
++    <QueryClientProvider client={queryClient}>
++      <Example />
++      <ReactQueryDevtools initialIsOpen />
++      {showDevtools && (
++        <React.Suspense fallback={null}>
++          <ReactQueryDevtoolsProduction />
++        </React.Suspense>
++      )}
++    </QueryClientProvider>
++  )
++}
++
++export default App
++
++```
++
++```
++import * as React from 'react'
++import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
++import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
++import { Example } from './Example'
++
++const queryClient = new QueryClient()
++
++const ReactQueryDevtoolsProduction = React.lazy(() =>
++  import('@tanstack/react-query-devtools/build/modern/production.js').then(
++    (d) => ({
++      default: d.ReactQueryDevtools,
++    }),
++  ),
++)
++
++function App() {
++  const [showDevtools, setShowDevtools] = React.useState(false)
++
++  React.useEffect(() => {
++    // @ts-expect-error
++    window.toggleDevtools = () => setShowDevtools((old) => !old)
++  }, [])
++
++  return (
++    <QueryClientProvider client={queryClient}>
++      <Example />
++      <ReactQueryDevtools initialIsOpen />
++      {showDevtools && (
++        <React.Suspense fallback={null}>
++          <ReactQueryDevtoolsProduction />
++        </React.Suspense>
++      )}
++    </QueryClientProvider>
++  )
++}
++
++export default App
++
++```
++
++With this, calling window.toggleDevtools() will download the devtools bundle and show them.
++
++[**Modern bundlers**](https://tanstack.com/query/latest/docs/framework/react/devtools#modern-bundlers)
++
++If your bundler supports package exports, you can use the following import path:
++
++tsx
++
++```
++const ReactQueryDevtoolsProduction = React.lazy(() =>
++  import('@tanstack/react-query-devtools/production').then((d) => ({
++    default: d.ReactQueryDevtools,
++  })),
++)
++
++```
++
++```
++const ReactQueryDevtoolsProduction = React.lazy(() =>
++  import('@tanstack/react-query-devtools/production').then((d) => ({
++    default: d.ReactQueryDevtools,
++  })),
++)
++
++```
++
++For TypeScript, you would need to set moduleResolution: 'nodenext' in your tsconfig, which requires at least TypeScript v4.7.
++
++[Edit on GitHub](https://github.com/tanstack/query/edit/main/docs/framework/react/devtools.md)
++
++[Quick Start](https://tanstack.com/query/latest/docs/framework/react/quick-start)
++
++[Videos & Talks](https://tanstack.com/query/latest/docs/framework/react/videos)
++
++Our Partners
++
++[![Speakeasy](https://tanstack.com/_build/assets/speakeasy-light-UpY7QmwQ.svg)![Speakeasy](https://tanstack.com/_build/assets/speakeasy-dark-BjP-Hd9M.svg)](https://www.speakeasy.com/product/react-query?utm_source=tanstack&utm_campaign=tanstack)
+diff --git a/docs/tanstack-graphql.md b/docs/tanstack-graphql.md
+new file mode 100644
+index 0000000..8df7e39
+--- /dev/null
++++ b/docs/tanstack-graphql.md
+@@ -0,0 +1,87 @@
++# GraphQL
++
++Because React Query's fetching mechanisms are agnostically built on Promises, you can use React Query with literally any asynchronous data fetching client, including GraphQL!
++
++> Keep in mind that React Query does not support normalized caching. While a vast majority of users do not actually need a normalized cache or even benefit from it as much as they believe they do, there may be very rare circumstances that may warrant it so be sure to check with us first to make sure it's truly something you need!
++
++[**Type-Safety and Code Generation**](https://tanstack.com/query/latest/docs/framework/react/graphql#type-safety-and-code-generation)
++
++React Query, used in combination with graphql-request^5 and [GraphQL Code Generator](https://graphql-code-generator.com/) provides full-typed GraphQL operations:
++
++tsx
++
++```
++import request from 'graphql-request'
++import { useQuery } from '@tanstack/react-query'
++
++import { graphql } from './gql/gql'
++
++const allFilmsWithVariablesQueryDocument = graphql(/* GraphQL */ `
++  query allFilmsWithVariablesQuery($first: Int!) {
++    allFilms(first: $first) {
++      edges {
++        node {
++          id
++          title
++        }
++      }
++    }
++  }
++`)
++
++function App() {
++  // `data` is fully typed!
++  const { data } = useQuery({
++    queryKey: ['films'],
++    queryFn: async () =>
++      request(
++        'https://swapi-graphql.netlify.app/.netlify/functions/index',
++        allFilmsWithVariablesQueryDocument,
++        // variables are type-checked too!
++        { first: 10 },
++      ),
++  })
++  // ...
++}
++
++```
++
++```
++import request from 'graphql-request'
++import { useQuery } from '@tanstack/react-query'
++
++import { graphql } from './gql/gql'
++
++const allFilmsWithVariablesQueryDocument = graphql(/* GraphQL */ `
++  query allFilmsWithVariablesQuery($first: Int!) {
++    allFilms(first: $first) {
++      edges {
++        node {
++          id
++          title
++        }
++      }
++    }
++  }
++`)
++
++function App() {
++  // `data` is fully typed!
++  const { data } = useQuery({
++    queryKey: ['films'],
++    queryFn: async () =>
++      request(
++        'https://swapi-graphql.netlify.app/.netlify/functions/index',
++        allFilmsWithVariablesQueryDocument,
++        // variables are type-checked too!
++        { first: 10 },
++      ),
++  })
++  // ...
++}
++
++```
++
++_You can find a [complete example in the repo](https://github.com/dotansimha/graphql-code-generator/tree/7c25c4eeb77f88677fd79da557b7b5326e3f3950/examples/front-end/react/tanstack-react-query)_
++
++Get started with the [dedicated guide on GraphQL Code Generator documentation](https://www.the-guild.dev/graphql/codegen/docs/guides/react-vue).
+diff --git a/docs/tanstack-query-refactor-plan.md b/docs/tanstack-query-refactor-plan.md
+new file mode 100644
+index 0000000..721457e
+--- /dev/null
++++ b/docs/tanstack-query-refactor-plan.md
+@@ -0,0 +1,221 @@
++# TanStack Query Refactor Plan for Builders Data
++
++**Version:** 1.1
++**Date:** 2025-05-12
++**Author:** Gemini AI Assistant
++**Updated By:** Gemini AI Assistant
++
++## 1. Introduction & Goals
++
++This document outlines the plan to refactor the existing data fetching and state management logic for "Builders" and "Your Subnets" features from the current `React.Context` + `useEffect` approach to utilize TanStack Query (v5, formerly React Query).
++
++**Goals:**
++-   Resolve persistent race conditions causing incorrect state updates (e.g., `userAdminSubnets` being cleared).
++-   Eliminate excessive API calls and `429 Too Many Requests` errors.
++-   Simplify state management logic within `BuildersContext` and related components.
++-   Improve caching, background updates, and overall robustness of data handling.
++-   Provide a more declarative, type-safe, and maintainable approach to server state.
++
++## 2. Current Problems Addressed
++
++-   **Race conditions:** `useEffect` hooks in `BuildersPage` and `BuildersContext` react to auth state changes (`isAuthenticated`, `userAddress`) at slightly different times relative to data fetching and state setting, leading to incorrect "clear" logic overriding "set" logic.
++-   **Complex synchronization:** Manual management of `useEffect` dependencies is error-prone.
++-   **Lack of robust caching & Over-fetching:** Eager fetching without sophisticated caching leads to excessive API calls.
++-   **Difficult derived state management:** Deriving `userAdminSubnets` in `useEffect` is complicated by asynchronous sources and fluctuating dependencies.
++
++## 3. Proposed Architecture with TanStack Query
++
++### 3.1. Core Data Fetching (`useQuery` for `allBuilders`)
++
++-   **Query Key:** A stable, typed query key. Example: `['builders', { network: isTestnet ? 'testnet' : 'mainnet', chainId }] as const;`. Using `as const` helps with type safety if keys are constructed dynamically. Consider using the `queryOptions` helper for strongly-typed, co-located query configurations.
++-   **Query Function (`queryFn`):**
++    -   The existing `fetchBuildersData` logic will be adapted. It must be an async function returning `Promise<Builder[]>`.
++    -   Ensure the `queryFn` is strongly typed. For instance, `const fetchBuilders: () => Promise<Builder[]> = async () => { ... }`.
++    -   It should not rely on setting context state directly.
++-   **Caching & Staleness:** Configure `staleTime` (e.g., 5 minutes) and `cacheTime` (e.g., 30 minutes) appropriately.
++-   **`enabled` option:** Control query execution based on prerequisites (e.g., `isAuthenticated`, Supabase data loaded).
++-   **Error Handling:** TanStack Query will manage error states. The `error` object in the query result can be typed (e.g., `AxiosError` or a custom error type). Consider registering a global error type via module augmentation if a specific error type is consistently expected.
++
++### 3.2. `BuildersContext` Simplification
++
++-   Will no longer manage raw data fetching state (`buildersProjects`, `isLoading` for fetching, etc.).
++-   Will primarily consume query results from `useQuery(['builders', ...])`.
++-   May still manage UI-specific state (filters, sorting), applied to data from `useQuery`.
++-   Complex `useEffect` hooks for data fetching and synchronization will be removed.
++
++### 3.3. Derived State for `userAdminSubnets`
++
++-   Derived from cached `allBuilders` data using `React.useMemo` or the `select` option in `useQuery`.
++    ```typescript
++    // Example with useMemo
++    const { data: allBuilders } = useQuery({ queryKey: ['builders', ...], queryFn: ... });
++    const { userAddress, isAuthenticated } = useAuth();
++
++    const userAdminSubnets = React.useMemo<Builder[] | null>(() => {
++        if (!isAuthenticated || !userAddress || !allBuilders) return null;
++        return allBuilders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
++    }, [isAuthenticated, userAddress, allBuilders]);
++    ```
++-   The `select` option is powerful for transforming/filtering data directly within the query.
++
++### 3.4. Filtering and Sorting
++
++-   Applied client-side to the data array from `useQuery(['builders', ...])` using `React.useMemo`.
++
++### 3.5. Auth State Integration
++
++-   `enabled` option in `useQuery` tied to `isAuthenticated`.
++-   Derived state updates automatically when `isAuthenticated` or `userAddress` changes due to `useMemo` dependencies or `select` re-evaluation.
++
++### 3.6. TypeScript Best Practices
++
++-   **Typed Query Functions:** Ensure `queryFn` has a clear return type (e.g., `Promise<Builder[]>`).
++-   **`queryOptions` Helper:** For reusable and strongly-typed query configurations:
++    ```typescript
++    // services/builderService.ts (example)
++    import { queryOptions } from '@tanstack/react-query';
++    import { Builder } from '@/app/builders/builders-data';
++
++    const fetchBuildersDataLogic = async (isTestnet: boolean, /* other args */): Promise<Builder[]> => {
++      // ... existing fetch logic
++      return []; // Placeholder
++    };
++
++    export const buildersQueryOptions = (isTestnet: boolean, /* other deps */) => queryOptions({
++      queryKey: ['builders', { isTestnet }] as const,
++      queryFn: () => fetchBuildersDataLogic(isTestnet, /* other args */),
++      // staleTime, cacheTime, enabled etc.
++    });
++
++    // In component/context:
++    // const { data } = useQuery(buildersQueryOptions(isTestnet));
++    ```
++-   **Error Typing:** Default error type is `Error`. If using specific error types (e.g., from Axios), use type narrowing or register a global error type.
++-   **Query Key Factory:** Consider a factory for query keys to ensure consistency and type safety if keys become complex.
++
++### 3.7. GraphQL (If Applicable)
++
++-   While the current fetching seems to use Apollo Client against subgraphs, TanStack Query works well with direct GraphQL requests (e.g., using `graphql-request`).
++-   Combining with [GraphQL Code Generator](https://graphql-code-generator.com/) provides end-to-end type safety for GraphQL operations.
++
++## 4. Step-by-Step Implementation Plan
++
++1.  **Install TanStack Query & Devtools:**
++    ```bash
++    npm install @tanstack/react-query @tanstack/react-query-devtools
++    # or
++    yarn add @tanstack/react-query @tanstack/react-query-devtools
++    ```
++    Install the ESLint plugin for best practices (optional but recommended):
++    ```bash
++    npm install -D @tanstack/eslint-plugin-query
++    # or
++    yarn add -D @tanstack/eslint-plugin-query
++    ```
++    (Update your ESLint config to include `plugin:@tanstack/eslint-plugin-query/recommended`)
++
++2.  **Setup `QueryClientProvider` & Devtools:**
++    -   In `pages/_app.tsx` (or your main layout component):
++        ```typescript
++        import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
++        import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
++        import React from 'react';
++
++        const queryClient = new QueryClient({
++          defaultOptions: {
++            queries: {
++              staleTime: 1000 * 60 * 5, // 5 minutes
++              // Consider retry options, refetchOnWindowFocus, etc.
++            },
++          },
++        });
++
++        function MyApp({ Component, pageProps }) {
++          return (
++            <QueryClientProvider client={queryClient}>
++              <Component {...pageProps} />
++              <ReactQueryDevtools initialIsOpen={false} />
++            </QueryClientProvider>
++          );
++        }
++        export default MyApp;
++        ```
++
++3.  **Refactor `fetchBuildersData` Logic:**
++    -   Create a standalone, typed asynchronous function (e.g., in a `services/buildersService.ts` or similar).
++    -   This function will encapsulate the core data fetching and merging logic.
++    -   Example signature: `export const fetchBuildersApi = async (isTestnet: boolean, supabaseBuilders: BuilderDB[] | null): Promise<Builder[]> => { ... }`.
++    -   Remove context state setting from it.
++
++4.  **Implement `useQuery` for `allBuilders` (e.g., in a custom hook `hooks/useBuildersData.ts` or directly in `BuildersContext` initially):**
++    ```typescript
++    // Example: hooks/useBuildersData.ts
++    import { useQuery } from '@tanstack/react-query';
++    import { fetchBuildersApi } from '@/services/buildersService'; // Assuming path
++    import { useNetworkInfo } from '@/hooks/useNetworkInfo'; // Placeholder for actual hook
++    import { useSupabaseData } from '@/hooks/useSupabaseData'; // Placeholder for Supabase data hook
++    import { Builder } from '@/app/builders/builders-data';
++
++    export const useAllBuildersQuery = () => {
++      const { isTestnet } = useNetworkInfo(); // Example
++      const { data: supabaseBuilders, isLoading: supabaseLoading } = useSupabaseData(); // Example
++
++      return useQuery<Builder[], Error>({ // Explicitly type TData and TError
++        queryKey: ['builders', { isTestnet, supabaseLoaded: !supabaseLoading && !!supabaseBuilders }],
++        queryFn: () => fetchBuildersApi(isTestnet, supabaseBuilders),
++        enabled: isTestnet ? true : (!supabaseLoading && !!supabaseBuilders), // Fetch mainnet only if Supabase data is ready
++        // staleTime, cacheTime can be set here or in QueryClient defaultOptions
++      });
++    };
++    ```
++
++5.  **Update `BuildersContext`:**
++    -   Remove old data fetching state and `useEffect` hooks.
++    -   Call `useAllBuildersQuery()`.
++    -   Provide `data`, `isLoading`, `error` from the query result.
++    -   Keep UI state (filters, sort) and apply them to `data` using `useMemo`.
++
++6.  **Refactor `userAdminSubnets` Logic in Consumers:**
++    -   In `app/builders/page.tsx` or other components:
++        ```typescript
++        const { data: allBuilders, isLoading: isLoadingAllBuilders } = useBuilders(); // From context, now provides TanStack Query result
++        const { userAddress, isAuthenticated } = useAuth();
++
++        const userAdminSubnets = React.useMemo<Builder[] | null>(() => {
++            if (!isAuthenticated || !userAddress || !allBuilders) return null;
++            // Ensure allBuilders is not undefined before filtering
++            return (allBuilders || []).filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
++        }, [isAuthenticated, userAddress, allBuilders]);
++
++        const isLoadingUserAdminSubnets = isLoadingAllBuilders; // Or combine with auth loading state
++        ```
++
++7.  **Refactor `BuildersPage.tsx`:** Adjust to use the new context structure and derived state.
++
++8.  **Handle Supabase Integration with TanStack Query:**
++    -   When Supabase real-time updates are received:
++        ```typescript
++        import { useQueryClient } from '@tanstack/react-query';
++
++        // Inside your Supabase subscription setup
++        const queryClient = useQueryClient();
++        // ... on update from Supabase ...
++        queryClient.invalidateQueries({ queryKey: ['builders'] }); // Invalidate to trigger refetch
++        ```
++
++9.  **Test Thoroughly:** Cover all cases mentioned in the previous plan.
++
++## 5. Potential Challenges & Considerations
++
++-   **Dependencies for `queryFn` and `queryKey`:** Ensure consistency and correctness. `queryOptions` helper can improve this.
++-   **Supabase Real-time Updates:** Test invalidation strategy thoroughly.
++-   **Global State vs. Local `useQuery`:** Decide where `useQuery` calls live (context, custom hooks, or components) based on reusability.
++-   **SSR/SSG:** If applicable, review TanStack Query's Next.js integration guides for hydration.
++
++## 6. Rollback Plan
++
++-   Maintain on a separate feature branch.
++-   Commit incrementally.
++-   Rollback by reverting commits or merging from the main/previous stable branch.
++
++This plan provides a roadmap for the refactor. Each step will require careful implementation and testing. 
+\ No newline at end of file
+diff --git a/docs/tanstack-typescript.md b/docs/tanstack-typescript.md
+new file mode 100644
+index 0000000..546167e
+--- /dev/null
++++ b/docs/tanstack-typescript.md
+@@ -0,0 +1,396 @@
++# TypeScript
++
++React Query is now written in **TypeScript** to make sure the library and your projects are type-safe!
++
++Things to keep in mind:
++
++- Types currently require using TypeScript **v4.7** or greater
++- Changes to types in this repository are considered **non-breaking** and are usually released as **patch** semver changes (otherwise every type enhancement would be a major version!).
++- It is **highly recommended that you lock your react-query package version to a specific patch release and upgrade with the expectation that types may be fixed or upgraded between any release**
++- The non-type-related public API of React Query still follows semver very strictly.
++
++[**Type Inference**](https://tanstack.com/query/latest/docs/framework/react/typescript#type-inference)
++
++Types in React Query generally flow through very well so that you don't have to provide type annotations for yourself
++
++tsx
++
++```
++const { data } = useQuery({
++  //    ^? const data: number | undefined
++  queryKey: ['test'],
++  queryFn: () => Promise.resolve(5),
++})
++
++```
++
++```
++const { data } = useQuery({
++  //    ^? const data: number | undefined
++  queryKey: ['test'],
++  queryFn: () => Promise.resolve(5),
++})
++
++```
++
++[typescript playground](https://www.typescriptlang.org/play?#code/JYWwDg9gTgLgBAbzgVwM4FMCKz1QJ5wC+cAZlBCHAORToCGAxjALQCOO+VAsAFC8MQAdqnhIAJnRh0icALwoM2XHgAUAbSqDkIAEa4qAXQA0cFQEo5APjgAFciGAYAdLVQQANgDd0KgKxmzXgB6ILgw8IA9AH5eIA)
++
++tsx
++
++```
++const { data } = useQuery({
++  //      ^? const data: string | undefined
++  queryKey: ['test'],
++  queryFn: () => Promise.resolve(5),
++  select: (data) => data.toString(),
++})
++
++```
++
++```
++const { data } = useQuery({
++  //      ^? const data: string | undefined
++  queryKey: ['test'],
++  queryFn: () => Promise.resolve(5),
++  select: (data) => data.toString(),
++})
++
++```
++
++[typescript playground](https://www.typescriptlang.org/play?#code/JYWwDg9gTgLgBAbzgVwM4FMCKz1QJ5wC+cAZlBCHAORToCGAxjALQCOO+VAsAFC8MQAdqnhIAJnRh0icALwoM2XHgAUAbSox0IqgF0ANHBUBKOQD44ABXIhgGAHS1UEADYA3dCoCsxw0gwu6EwAXHASUuZhknT2MBAAyjBQwIIA5iaExrwA9Nlw+QUAegD8vEA)
++
++This works best if your queryFn has a well-defined returned type. Keep in mind that most data fetching libraries return any per default, so make sure to extract it to a properly typed function:
++
++tsx
++
++```
++const fetchGroups = (): Promise<Group[]> =>
++  axios.get('/groups').then((response) => response.data)
++
++const { data } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const data: Group[] | undefined
++
++```
++
++```
++const fetchGroups = (): Promise<Group[]> =>
++  axios.get('/groups').then((response) => response.data)
++
++const { data } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const data: Group[] | undefined
++
++```
++
++[typescript playground](https://www.typescriptlang.org/play?#code/JYWwDg9gTgLgBAbzgVwM4FMCKz1QJ5wC+cAZlBCHAORToCGAxjALQCOO+VAsAFCiSw4dAB7AIqUuUpURY1Nx68YeMOjgBxcsjBwAvIjjAAJgC44AO2QgARriK9eDCOdTwS6GAwAWmiNon6ABQAlGYAClLAGAA8vtoA2gC6AHx6qbLiAHQA5h6BVAD02Vpg8sGZMF7o5oG0qJAuarqpdQ0YmUZ0MHTBDjxOLvBInd1EeigY2Lh4gfFUxX6lVIkANKQe3nGlvTwFBXAHhwB6APxwA65wI3RmW0lwAD4o5kboJMDm6Ea8QA)
++
++[**Type Narrowing**](https://tanstack.com/query/latest/docs/framework/react/typescript#type-narrowing)
++
++React Query uses a [discriminated union type](https://www.typescriptlang.org/docs/handbook/typescript-in-5-minutes-func.html#discriminated-unions) for the query result, discriminated by the status field and the derived status boolean flags. This will allow you to check for e.g. success status to make data defined:
++
++tsx
++
++```
++const { data, isSuccess } = useQuery({
++  queryKey: ['test'],
++  queryFn: () => Promise.resolve(5),
++})
++
++if (isSuccess) {
++  data
++  //  ^? const data: number
++}
++
++```
++
++```
++const { data, isSuccess } = useQuery({
++  queryKey: ['test'],
++  queryFn: () => Promise.resolve(5),
++})
++
++if (isSuccess) {
++  data
++  //  ^? const data: number
++}
++
++```
++
++[typescript playground](https://www.typescriptlang.org/play?#code/JYWwDg9gTgLgBAbzgVwM4FMCKz1QJ5wC+cAZlBCHAORToCGAxjALQCOO+VAsAFC8MQAdqnhIAJnRh0ANHGCoAysgYN0qVETgBeFBmy48ACgDaVGGphUAurMMBKbQD44ABXIh56AHS1UEADYAbuiGAKx2dry8wCRwhvJKKmqoDgi8cBlwElK8APS5GQB6APy8hLxAA)
++
++[**Typing the error field**](https://tanstack.com/query/latest/docs/framework/react/typescript#typing-the-error-field)
++
++The type for error defaults to Error, because that is what most users expect.
++
++tsx
++
++```
++const { error } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const error: Error
++
++```
++
++```
++const { error } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const error: Error
++
++```
++
++[typescript playground](https://www.typescriptlang.org/play?#code/JYWwDg9gTgLgBAbzgVwM4FMCKz1QJ5wC+cAZlBCHAOQACMAhgHaoMDGA1gPRTr2swBaAI458VALAAoUJFhx6AD2ARUpcpSqLlqCZKkw8YdHADi5ZGDgBeRHGAATAFxxGyEACNcRKVNYRm8CToMKwAFmYQFqo2ABQAlM4ACurAGAA8ERYA2gC6AHzWBVoqAHQA5sExVJxl5mA6cSUwoeiMMTyokMzGVgUdXRgl9vQMcT6SfgG2uORQRNYoGNi4eDFZVLWR9VQ5ADSkwWGZ9WOSnJxwl1cAegD8QA)
++
++If you want to throw a custom error, or something that isn't an Error at all, you can specify the type of the error field:
++
++tsx
++
++```
++const { error } = useQuery<Group[], string>(['groups'], fetchGroups)
++//      ^? const error: string | null
++
++```
++
++```
++const { error } = useQuery<Group[], string>(['groups'], fetchGroups)
++//      ^? const error: string | null
++
++```
++
++However, this has the drawback that type inference for all other generics of useQuery will not work anymore. It is generally not considered a good practice to throw something that isn't an Error, so if you have a subclass like AxiosError you can use _type narrowing_ to make the error field more specific:
++
++tsx
++
++```
++import axios from 'axios'
++
++const { error } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const error: Error | null
++
++if (axios.isAxiosError(error)) {
++  error
++  // ^? const error: AxiosError
++}
++
++```
++
++```
++import axios from 'axios'
++
++const { error } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const error: Error | null
++
++if (axios.isAxiosError(error)) {
++  error
++  // ^? const error: AxiosError
++}
++
++```
++
++[typescript playground](https://www.typescriptlang.org/play?#code/JYWwDg9gTgLgBAbzgVwM4FMCKz1QJ5wC+cAZlBCHAOQACMAhgHaoMDGA1gPRTr2swBaAI458VALAAoUJFhx6AD2ARUpcpSqLlqCZKkw8YdHADi5ZGDgBeRHGAATAFxxGyEACNcRKVNYRm8CToMKwAFmYQFqo2ABQAlM4ACurAGAA8ERYA2gC6AHzWBVoqAHQA5sExVJxl5mA6cSUwoeiMMTyokMzGVgUdXRgl9vQMcT6SfgG2uORQRNYoGNi4eDFIIisA0uh4zllUtZH1VDkANHAb+ABijM5BIeF1qoRjkpyccJ9fAHoA-OPAEhwGLFVAlVIAQSUKgAolBZjEZtA4nFEFJPkioOi4O84H8pIQgA)
++
++[**Registering a global Error**](https://tanstack.com/query/latest/docs/framework/react/typescript#registering-a-global-error)
++
++TanStack Query v5 allows for a way to set a global Error type for everything, without having to specify generics on call-sides, by amending the Register interface. This will make sure inference still works, but the error field will be of the specified type:
++
++tsx
++
++```
++import '@tanstack/react-query'
++
++declare module '@tanstack/react-query' {
++  interface Register {
++    defaultError: AxiosError
++  }
++}
++
++const { error } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const error: AxiosError | null
++
++```
++
++```
++import '@tanstack/react-query'
++
++declare module '@tanstack/react-query' {
++  interface Register {
++    defaultError: AxiosError
++  }
++}
++
++const { error } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups })
++//      ^? const error: AxiosError | null
++
++```
++
++[**Typing meta**](https://tanstack.com/query/latest/docs/framework/react/typescript#typing-meta) [**Registering global Meta**](https://tanstack.com/query/latest/docs/framework/react/typescript#registering-global-meta)
++
++Similarly to registering a [global error type](https://tanstack.com/query/latest/docs/framework/react/typescript/#registering-a-global-error) you can also register a global Meta type. This ensures the optional meta field on [queries](https://tanstack.com/query/latest/docs/framework/react/reference/useQuery) and [mutations](https://tanstack.com/query/latest/docs/framework/react/reference/useMutation) stays consistent and is type-safe. Note that the registered type must extend Record<string, unknown> so that meta remains an object.
++
++ts
++
++```
++import '@tanstack/react-query'
++
++interface MyMeta extends Record<string, unknown> {
++  // Your meta type definition.
++}
++
++declare module '@tanstack/react-query' {
++  interface Register {
++    queryMeta: MyMeta
++    mutationMeta: MyMeta
++  }
++}
++
++```
++
++```
++import '@tanstack/react-query'
++
++interface MyMeta extends Record<string, unknown> {
++  // Your meta type definition.
++}
++
++declare module '@tanstack/react-query' {
++  interface Register {
++    queryMeta: MyMeta
++    mutationMeta: MyMeta
++  }
++}
++
++```
++
++[**Typing query and mutation keys**](https://tanstack.com/query/latest/docs/framework/react/typescript#typing-query-and-mutation-keys) [**Registering the query and mutation key types**](https://tanstack.com/query/latest/docs/framework/react/typescript#registering-the-query-and-mutation-key-types)
++
++Also similarly to registering a [global error type](https://tanstack.com/query/latest/docs/framework/react/typescript/#registering-a-global-error), you can also register a global QueryKey and MutationKey type. This allows you to provide more structure to your keys, that matches your application's hierarchy, and have them be typed across all of the library's surface area. Note that the registered type must extend the Array type, so that your keys remain an array.
++
++ts
++
++```
++import '@tanstack/react-query'
++
++type QueryKey = ['dashboard' | 'marketing', ...ReadonlyArray<unknown>]
++
++declare module '@tanstack/react-query' {
++  interface Register {
++    queryKey: QueryKey
++    mutationKey: QueryKey
++  }
++}
++
++```
++
++```
++import '@tanstack/react-query'
++
++type QueryKey = ['dashboard' | 'marketing', ...ReadonlyArray<unknown>]
++
++declare module '@tanstack/react-query' {
++  interface Register {
++    queryKey: QueryKey
++    mutationKey: QueryKey
++  }
++}
++
++```
++
++[**Typing Query Options**](https://tanstack.com/query/latest/docs/framework/react/typescript#typing-query-options)
++
++If you inline query options into useQuery, you'll get automatic type inference. However, you might want to extract the query options into a separate function to share them between useQuery and e.g. prefetchQuery. In that case, you'd lose type inference. To get it back, you can use the queryOptions helper:
++
++ts
++
++```
++import { queryOptions } from '@tanstack/react-query'
++
++function groupOptions() {
++  return queryOptions({
++    queryKey: ['groups'],
++    queryFn: fetchGroups,
++    staleTime: 5 * 1000,
++  })
++}
++
++useQuery(groupOptions())
++queryClient.prefetchQuery(groupOptions())
++
++```
++
++```
++import { queryOptions } from '@tanstack/react-query'
++
++function groupOptions() {
++  return queryOptions({
++    queryKey: ['groups'],
++    queryFn: fetchGroups,
++    staleTime: 5 * 1000,
++  })
++}
++
++useQuery(groupOptions())
++queryClient.prefetchQuery(groupOptions())
++
++```
++
++Further, the queryKey returned from queryOptions knows about the queryFn associated with it, and we can leverage that type information to make functions like queryClient.getQueryData aware of those types as well:
++
++ts
++
++```
++function groupOptions() {
++  return queryOptions({
++    queryKey: ['groups'],
++    queryFn: fetchGroups,
++    staleTime: 5 * 1000,
++  })
++}
++
++const data = queryClient.getQueryData(groupOptions().queryKey)
++//     ^? const data: Group[] | undefined
++
++```
++
++```
++function groupOptions() {
++  return queryOptions({
++    queryKey: ['groups'],
++    queryFn: fetchGroups,
++    staleTime: 5 * 1000,
++  })
++}
++
++const data = queryClient.getQueryData(groupOptions().queryKey)
++//     ^? const data: Group[] | undefined
++
++```
++
++Without queryOptions, the type of data would be unknown, unless we'd pass a generic to it:
++
++ts
++
++```
++const data = queryClient.getQueryData<Group[]>(['groups'])
++
++```
++
++```
++const data = queryClient.getQueryData<Group[]>(['groups'])
++
++```
++
++[**Further Reading**](https://tanstack.com/query/latest/docs/framework/react/typescript#further-reading)
++
++For tips and tricks around type inference, have a look at [React Query and TypeScript](https://tanstack.com/query/latest/docs/framework/react/community/tkdodos-blog#6-react-query-and-typescript) from
++the Community Resources. To find out how to get the best possible type-safety, you can read [Type-safe React Query](https://tanstack.com/query/latest/docs/framework/react/community/tkdodos-blog#19-type-safe-react-query).
++
++[**Typesafe disabling of queries using skipToken**](https://tanstack.com/query/latest/docs/framework/react/typescript#typesafe-disabling-of-queries-using-skiptoken)
++
++If you are using TypeScript, you can use the skipToken to disable a query. This is useful when you want to disable a query based on a condition, but you still want to keep the query to be type safe.
++Read more about it in the [Disabling Queries](https://tanstack.com/query/latest/docs/framework/react/guides/disabling-queries) guide.
++
++[Edit on GitHub](https://github.com/tanstack/query/edit/main/docs/framework/react/typescript.md)
++
++[Comparison](https://tanstack.com/query/latest/docs/framework/react/comparison)
++
++[GraphQL](https://tanstack.com/query/latest/docs/framework/react/graphql)
++
++Our Partners
++
++[![Speakeasy](https://tanstack.com/_build/assets/speakeasy-light-UpY7QmwQ.svg)![Speakeasy](https://tanstack.com/_build/assets/speakeasy-dark-BjP-Hd9M.svg)](https://www.speakeasy.com/product/react-query?utm_source=tanstack&utm_campaign=tanstack)
