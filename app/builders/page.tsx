@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
-import { ExternalLink } from "lucide-react";
 import { BulkRegistrationModal } from "@/components/bulk-registration-modal";
 import { useBuilders } from "@/context/builders-context";
 import { useAuth } from "@/context/auth-context";
@@ -25,6 +24,7 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { formatUnits } from "ethers/lib/utils";
+import { useRouter } from 'next/navigation';
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -335,19 +335,6 @@ export default function BuildersPage() {
                     <p className="text-sm text-gray-300">
                       {builder.description || "No description available."}
                     </p>
-                    {builder.website && (
-                      <div className="flex items-center pt-2">
-                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
-                        <a 
-                          href={builder.website} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                        >
-                          Visit Project
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -842,19 +829,6 @@ export default function BuildersPage() {
                     <p className="text-sm text-gray-300">
                       {builder.description || "No description available."}
                     </p>
-                    {builder.website && (
-                      <div className="flex items-center pt-2">
-                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
-                        <a 
-                          href={builder.website} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                        >
-                          Visit Project
-                        </a>
-                      </div>
-                    )}
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -946,6 +920,8 @@ export default function BuildersPage() {
     }
     return "0"; // Or 'N/A' or some other placeholder
   }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
+
+  const router = useRouter();
 
   return (
     <div className="page-container">
@@ -1087,7 +1063,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                      router.push(`/builders/${builderNameToSlug(builder.name)}`);
                     }}
                   />
                 </div>
@@ -1138,7 +1114,7 @@ export default function BuildersPage() {
                     noResultsMessage="No subnets administered by you were found." // Updated message
                     onRowClick={(subnet) => {
                        // Link to builder/subnet detail page
-                       window.location.href = `/builders/${builderNameToSlug(subnet.name)}`; // Or /subnets/<id>
+                       router.push(`/builders/${builderNameToSlug(subnet.name)}`); // Or /subnets/<id>
                     }}
                   />
                 </div>
@@ -1186,7 +1162,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                      router.push(`/builders/${builderNameToSlug(builder.name)}`);
                     }}
                   />
                 </div>
