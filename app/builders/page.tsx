@@ -25,6 +25,7 @@ import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { formatUnits } from "ethers/lib/utils";
 import { useRouter } from 'next/navigation';
+import { SortingState } from "@/components/ui/data-table";
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -212,7 +213,6 @@ const participatingBuildersSample: Builder[] = [
 ];
 
 export default function BuildersPage() {
-  // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
   
@@ -222,60 +222,85 @@ export default function BuildersPage() {
     setStakeModalOpen(true);
   }, []);
 
-  // Use the URL params hook
-  const { getParam, setParam } = useUrlParams();
+  // State for participating tab filters
+  const [participatingNameFilter, setParticipatingNameFilter] = useState("");
+  const [participatingNetworkFilter, setParticipatingNetworkFilter] = useState("all");
+  const [participatingTypeFilter, setParticipatingTypeFilter] = useState("all");
 
-  // Use the builders context
+  // State for your subnets tab filters
+  const [yourSubnetsNameFilter, setYourSubnetsNameFilter] = useState("");
+  const [yourSubnetsNetworkFilter, setYourSubnetsNetworkFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  // State for sorting
+  const [sorting, setSortingState] = useState<SortingState>([{
+    id: 'totalStaked',
+    desc: true
+  }]);
+
+  const { getParam, setParam } = useUrlParams();
+  const { userAddress, isAuthenticated } = useAuth();
+  const router = useRouter();
+
   const {
-    // Filtering for 'Builders' tab
     nameFilter,
     setNameFilter,
     rewardTypeFilter,
     setRewardTypeFilter,
     networkFilter,
     setNetworkFilter,
-    
-    // Sorting for 'Builders' tab
     sortColumn,
     sortDirection,
     setSorting,
-    
-    // Data for 'Builders' tab
     filteredBuilders,
     builders,
     rewardTypes,
     isLoading,
-    
-    // Total metrics (independent of filters)
+    userAdminSubnets,
+    isLoadingUserAdminSubnets,
+    participatingBuilders,
+    isLoadingParticipating,
     totalMetrics,
-
   } = useBuilders();
 
-  // Get auth state
-  const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
-
-  // --- NEW: Derive userAdminSubnets and its loading state locally ---
-  const userAdminSubnets = useMemo<Builder[] | null>(() => {
-    if (!isAuthenticated || !userAddress || !builders) return null;
-    return builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
-  }, [isAuthenticated, userAddress, builders]);
-
-  const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
-  // --- END NEW ---
-
-  // Initialize tab state from URL or use default
+  // Initialize tab state from URL
   const [activeTab, setActiveTab] = useState(() => {
     return getParam('tab') || 'builders';
   });
 
-  // Convert context sorting to the format expected by the UI (for Builders tab)
-  const sorting = useMemo(() => {
-    if (!sortColumn) return null;
-    return {
-      id: sortColumn,
-      desc: sortDirection === 'desc'
-    };
-  }, [sortColumn, sortDirection]);
+  // Filter participating builders
+  const filteredParticipatingBuilders = useMemo(() => {
+    return (participatingBuilders || []).filter((builder) => {
+      const matchesName = participatingNameFilter === '' || 
+        builder.name.toLowerCase().includes(participatingNameFilter.toLowerCase());
+      
+      const matchesNetwork = participatingNetworkFilter === 'all' || 
+        builder.networks?.includes(participatingNetworkFilter);
+      
+      const matchesType = participatingTypeFilter === 'all' || 
+        builder.reward_types?.includes(participatingTypeFilter);
+
+      return matchesName && matchesNetwork && matchesType;
+    });
+  }, [participatingBuilders, participatingNameFilter, participatingNetworkFilter, participatingTypeFilter]);
+
+  // Calculate average MOR staked per user
+  const avgMorStakedPerUser = useMemo(() => {
+    if (totalMetrics.totalStaking > 0) {
+      const avg = totalMetrics.totalStaked / totalMetrics.totalStaking;
+      return parseFloat(avg.toFixed(2)).toLocaleString();
+    }
+    return "0";
+  }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
+
+  // Handle navigation to builder details
+  const handleBuilderClick = useCallback((builder: Builder) => {
+    const queryParams = new URLSearchParams({
+      name: builder.name,
+      projectId: builder.id
+    });
+    router.push(`/builders/${builderNameToSlug(builder.name)}?${queryParams.toString()}`);
+  }, [router]);
 
   // Define columns for the builders table
   const buildersColumns: Column<Builder>[] = useMemo(
@@ -603,11 +628,6 @@ export default function BuildersPage() {
   // --- END MODIFY subnetsColumns ---
 
 
-  // Define state for your subnets tab filters
-  const [yourSubnetsNameFilter, setYourSubnetsNameFilter] = useState("");
-  const [yourSubnetsNetworkFilter, setYourSubnetsNetworkFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all"); // Note: This filters the calculated 'Active'/'Pending' status
-
   // --- MODIFY Filter logic ---
   // Filter the userAdminSubnets based on the filters
   const filteredUserAdminSubnets = useMemo(() => {
@@ -621,19 +641,18 @@ export default function BuildersPage() {
            network.toLowerCase() === yourSubnetsNetworkFilter.toLowerCase()
         ));
       
-       let currentStatus = "Pending";
-       if (subnet.startsAt) {
-          try {
-              // Ensure startsAt is treated as a Unix timestamp in seconds for filtering
-              const startsDate = new Date(Number(subnet.startsAt) * 1000);
-              const currentDate = new Date();
-              if (!isNaN(startsDate.getTime()) && startsDate <= currentDate) {
-                  currentStatus = "Active";
-              }
-          } catch {} // Ignore errors for filtering, will default to Pending
-       } else {
-           currentStatus = "Pending"; // Default if no date, or if date was invalid
-       }
+      let currentStatus = "Pending";
+      if (subnet.startsAt) {
+        try {
+          const startsDate = new Date(Number(subnet.startsAt) * 1000);
+          const currentDate = new Date();
+          if (!isNaN(startsDate.getTime()) && startsDate <= currentDate) {
+            currentStatus = "Active";
+          }
+        } catch {} // Ignore errors for filtering, will default to Pending
+      } else {
+        currentStatus = "Active"; // Default if no date
+      }
 
       const matchesStatus =
         statusFilter === "all" || statusFilter === "" || 
@@ -669,77 +688,6 @@ export default function BuildersPage() {
     ParamConverters.string.deserialize
   );
 
-  // Define state for participating tab filters
-  const [participatingNameFilter, setParticipatingNameFilter] = useState("");
-  const [participatingNetworkFilter, setParticipatingNetworkFilter] = useState("all");
-  const [participatingTypeFilter, setParticipatingTypeFilter] = useState("all");
-
-  // Filter the participatingBuilders based on the filters
-  const filteredParticipatingBuilders = useMemo(() => {
-    let sourceData: (Builder & { userStake?: number })[] = []; // Default to empty, not sample
-    let useSampleData = true; // Assume sample data initially
-
-    if (isAuthenticated && userAddress && builders && builders.length > 0) {
-      const realParticipatingBuilders: (Builder & { userStake: number })[] = [];
-      let networkSupportsBuilderUsers = false;
-
-      builders.forEach(builder => {
-        if (builder.hasOwnProperty('builderUsers')) { // Check if the field exists, even if undefined/null/empty
-          networkSupportsBuilderUsers = true;
-          if (builder.builderUsers && builder.builderUsers.length > 0) {
-            builder.builderUsers.forEach(user => {
-              if (user.address.toLowerCase() === userAddress.toLowerCase()) {
-                const stakedAmount = parseFloat(formatUnits(user.staked, 18));
-                if (stakedAmount > 0) {
-                  realParticipatingBuilders.push({
-                    ...builder,
-                    userStake: stakedAmount,
-                  });
-                }
-              }
-            });
-          }
-        }
-      });
-
-      if (networkSupportsBuilderUsers) {
-        sourceData = realParticipatingBuilders; // Use real data (even if empty)
-        useSampleData = false; // Do not use sample data
-      } else {
-        // Network doesn't support builderUsers (e.g., older mainnet data structure before potential GQL changes)
-        // or builders array doesn't have this structure from context.
-        // In this specific case, falling back to sample might be okay if that was the old behavior
-        // but ideally, we want to move away from sample if data is loaded.
-        // For now, let's stick to the logic: if network *could* have builderUsers, don't show sample.
-        sourceData = []; // Show empty if structure implies builderUsers could exist but none for this user
-        useSampleData = false; // Explicitly don't use sample if we determined network type
-      }
-    }
-    
-    // If, after all checks, we still decided to use sample data (e.g., user not authenticated)
-    if (useSampleData || (!isAuthenticated || !userAddress)) {
-      sourceData = participatingBuildersSample;
-    }
-
-    // Apply text filters to whatever sourceData was determined
-    return sourceData.filter((builder) => {
-      const matchesName = participatingNameFilter === '' || 
-        builder.name.toLowerCase().includes(participatingNameFilter.toLowerCase());
-      
-      const matchesNetwork =
-        participatingNetworkFilter === "all" || participatingNetworkFilter === "" || 
-        (builder.networks && builder.networks.some(network => 
-          network.toLowerCase() === participatingNetworkFilter.toLowerCase()
-        ));
-      
-      const matchesType =
-        participatingTypeFilter === "all" || participatingTypeFilter === "" || 
-        (builder.reward_types && builder.reward_types.toString().toLowerCase() === participatingTypeFilter.toLowerCase());
-
-      return matchesName && matchesNetwork && matchesType;
-    });
-  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter, isAuthenticated, userAddress, builders]);
-
   // For participating filters, initialize from URL if values exist
   useInitStateFromUrl(
     'participating_name',
@@ -772,12 +720,12 @@ export default function BuildersPage() {
   };
 
   // Define columns for the participating builders table
-  const participatingColumns: Column<Builder & { userStake: number }>[] = useMemo(
+  const participatingColumns: Column<Builder>[] = useMemo(
     () => [
       {
         id: "name",
         header: "Name",
-        cell: (builder: Builder & { userStake: number }) => {
+        cell: (builder) => {
           // Try to safely determine if the image can be rendered
           const hasValidImage = (() => {
             try {
@@ -866,12 +814,18 @@ export default function BuildersPage() {
       {
         id: "stakeVsTotal",
         header: "Your stake vs Total",
-        cell: (builder) => (
-          <StakeVsTotalChart 
-            userStake={builder.userStake || 0} 
-            totalStaked={builder.totalStaked} 
-          />
-        ),
+        cell: (builder) => {
+          const userStake = builder.builderUsers?.find(
+            user => user.address.toLowerCase() === userAddress?.toLowerCase()
+          );
+          const stakedAmount = userStake ? parseFloat(formatUnits(BigInt(userStake.staked), 18)) : 0;
+          return (
+            <StakeVsTotalChart 
+              userStake={stakedAmount} 
+              totalStaked={builder.totalStaked} 
+            />
+          );
+        },
       },
       {
         id: "stakingCount",
@@ -908,20 +862,17 @@ export default function BuildersPage() {
         ),
       },
     ],
-    [handleOpenStakeModal]
+    [userAddress]
   );
 
-  // Calculate Avg MOR Staked for Community Stats
-  const avgMorStakedPerUser = useMemo(() => {
-    if (totalMetrics.totalStaking > 0) {
-      const avg = totalMetrics.totalStaked / totalMetrics.totalStaking;
-      // Format to 2 decimal places if it's a float, otherwise show as integer
-      return parseFloat(avg.toFixed(2)).toLocaleString();
-    }
-    return "0"; // Or 'N/A' or some other placeholder
-  }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
-
-  const router = useRouter();
+  // Convert context sorting to the format expected by the UI
+  const tableSorting = useMemo<SortingState | null>(() => {
+    if (!sortColumn) return null;
+    return {
+      column: sortColumn,
+      direction: sortDirection
+    };
+  }, [sortColumn, sortDirection]);
 
   return (
     <div className="page-container">
@@ -1052,7 +1003,7 @@ export default function BuildersPage() {
                     columns={buildersColumns}
                     data={filteredBuilders}
                     isLoading={isLoading}
-                    sorting={sorting}
+                    sorting={tableSorting}
                     onSortingChange={(columnId: string) => {
                       setSorting(columnId);
                       // Determine the direction based on current state
@@ -1070,10 +1021,8 @@ export default function BuildersPage() {
               </div>
             </TabsContent>
             
-            {/* --- MODIFY Your Subnets Tab Content --- */}
             <TabsContent value="subnets">
               <div className="section-body p-2">
-                {/* Filters for your subnets */}
                 <DataFilters
                   nameFilter={yourSubnetsNameFilter}
                   onNameFilterChange={(value) => {
@@ -1097,36 +1046,40 @@ export default function BuildersPage() {
                   }}
                   selectFilterLabel="Status"
                   selectFilterPlaceholder="Select status"
-                  selectFilterOptions={[ // Filters based on calculated Active/Pending
+                  selectFilterOptions={[
                     { value: "active", label: "Active" },
                     { value: "pending", label: "Pending" },
-                    // { value: "inactive", label: "Inactive" }, // Add if needed later
                   ]}
                   showSelectFilter={true}
                 />
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
                   <DataTable
-                    columns={subnetsColumns} // Use updated columns
-                    data={filteredUserAdminSubnets} // Use filtered real data
-                    isLoading={isLoadingUserAdminSubnets} // Use loading state from context
-                    loadingRows={6}
-                    noResultsMessage="No subnets administered by you were found." // Updated message
-                    onRowClick={(subnet) => {
-                       // Link to builder/subnet detail page
-                       router.push(`/builders/${builderNameToSlug(subnet.name)}`); // Or /subnets/<id>
+                    columns={subnetsColumns}
+                    data={filteredUserAdminSubnets}
+                    isLoading={isLoadingUserAdminSubnets}
+                    sorting={tableSorting}
+                    onSortingChange={(columnId: string) => {
+                      setSorting(columnId);
+                      // Determine the direction based on current state
+                      const newDirection = columnId === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc';
+                      // Update URL parameter
+                      setParam('sort', `${columnId}-${newDirection}`);
                     }}
+                    loadingRows={6}
+                    noResultsMessage={
+                      !isAuthenticated 
+                        ? "Please connect your wallet to view your subnets"
+                        : "No subnets administered by you were found."
+                    }
+                    onRowClick={handleBuilderClick}
                   />
                 </div>
               </div>
             </TabsContent>
-            {/* --- END MODIFY Your Subnets Tab Content --- */}
-
-
-            {/* Participating Tab Content */}
+            
             <TabsContent value="participating">
               <div className="section-body p-2">
-                {/* Filters for participating */}
                 <DataFilters
                   nameFilter={participatingNameFilter}
                   onNameFilterChange={(value) => {
@@ -1150,20 +1103,30 @@ export default function BuildersPage() {
                   }}
                   selectFilterLabel="Reward Type"
                   selectFilterPlaceholder="Select type"
-                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))} // Use rewardTypes from context if needed here too
+                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))}
                   showSelectFilter={true}
                 />
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
                   <DataTable
-                    columns={participatingColumns as unknown as Column<Builder>[]} 
-                    data={filteredParticipatingBuilders} // Use the new dynamic list
-                    isLoading={isLoadingAuth || isLoading} // Reflect loading state of auth and builders data
-                    loadingRows={6}
-                    noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
-                    onRowClick={(builder) => {
-                      router.push(`/builders/${builderNameToSlug(builder.name)}`);
+                    columns={participatingColumns}
+                    data={filteredParticipatingBuilders}
+                    isLoading={isLoadingParticipating}
+                    sorting={tableSorting}
+                    onSortingChange={(columnId: string) => {
+                      setSorting(columnId);
+                      // Determine the direction based on current state
+                      const newDirection = columnId === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc';
+                      // Update URL parameter
+                      setParam('sort', `${columnId}-${newDirection}`);
                     }}
+                    loadingRows={6}
+                    noResultsMessage={
+                      !isAuthenticated 
+                        ? "Please connect your wallet to view your participating subnets"
+                        : "You have not staked in any subnets on this network."
+                    }
+                    onRowClick={handleBuilderClick}
                   />
                 </div>
               </div>
@@ -1172,7 +1135,6 @@ export default function BuildersPage() {
         </Tabs>
       </div>
       
-      {/* Stake Modal */}
       <StakeModal 
         isOpen={stakeModalOpen} 
         onClose={() => setStakeModalOpen(false)} 

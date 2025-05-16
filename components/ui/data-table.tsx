@@ -11,28 +11,28 @@ import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export interface SortingState {
-  id: string
-  desc: boolean
+  column: string | null;
+  direction: 'asc' | 'desc' | null;
 }
 
 export interface Column<T> {
-  id: string
-  header: string | React.ReactNode
-  accessorKey?: keyof T
-  cell?: (item: T) => React.ReactNode
-  enableSorting?: boolean
+  id: string;
+  header: string | React.ReactNode;
+  accessorKey?: keyof T;
+  cell?: (item: T) => React.ReactNode;
+  enableSorting?: boolean;
 }
 
 export interface DataTableProps<T> {
-  columns: Column<T>[]
-  data: T[]
-  isLoading?: boolean
-  sorting?: SortingState | null
-  onSortingChange?: (columnId: string) => void
-  loadingRows?: number
-  noResultsMessage?: string
-  className?: string
-  onRowClick?: (item: T) => void
+  columns: Column<T>[];
+  data: T[];
+  isLoading?: boolean;
+  sorting?: SortingState | null;
+  onSortingChange?: (columnId: string) => void;
+  loadingRows?: number;
+  noResultsMessage?: string;
+  className?: string;
+  onRowClick?: (item: T) => void;
 }
 
 export function DataTable<T>({
@@ -72,7 +72,7 @@ export function DataTable<T>({
                         <ChevronUp
                           className={cn(
                             "table-sort-icon table-sort-icon-up",
-                            sorting?.id === column.id && !sorting.desc
+                            sorting?.column === column.id && sorting.direction === 'asc'
                               ? "table-sort-icon-active"
                               : "table-sort-icon-inactive"
                           )}
@@ -80,7 +80,7 @@ export function DataTable<T>({
                         <ChevronDown
                           className={cn(
                             "table-sort-icon table-sort-icon-down",
-                            sorting?.id === column.id && sorting.desc
+                            sorting?.column === column.id && sorting.direction === 'desc'
                               ? "table-sort-icon-active"
                               : "table-sort-icon-inactive"
                           )}

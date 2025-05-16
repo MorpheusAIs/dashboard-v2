@@ -9,6 +9,15 @@ export const GET_BUILDERS_PROJECT_BY_NAME = `
       totalUsers
       withdrawLockPeriodAfterDeposit
       minimalDeposit
+      admin
+      builderUsers {
+        id
+        address
+        staked
+        claimed
+        lastStake
+        claimLockEnd
+      }
     }
   }
 `;
@@ -23,6 +32,7 @@ export const GET_BUILDER_SUBNET_BY_NAME = `
       totalUsers
       withdrawLockPeriodAfterStake
       minStake
+      owner
       builderUsers {
         id
         address
@@ -40,16 +50,24 @@ export const GET_BUILDERS_PROJECT_USERS = `
     $first: Int = 10
     $skip: Int = 10
     $buildersProjectId: Bytes = ""
+    $userAddress: String = ""
   ) {
     buildersUsers(
       first: $first
       skip: $skip
-      where: { buildersProject_: {id: $buildersProjectId} }
+      where: { 
+        buildersProject_: {id: $buildersProjectId}
+        address: $userAddress
+      }
     ) {
       address
       id
       staked
       lastStake
+      buildersProject {
+        id
+        name
+      }
     }
   }
 `;
@@ -60,11 +78,15 @@ export const GET_BUILDER_SUBNET_USERS = `
     $first: Int = 10
     $skip: Int = 10
     $builderSubnetId: Bytes = ""
+    $userAddress: String = ""
   ) {
     builderUsers(
       first: $first
       skip: $skip
-      where: { builderSubnet_: {id: $builderSubnetId} }
+      where: { 
+        builderSubnet_: {id: $builderSubnetId}
+        address: $userAddress
+      }
     ) {
       address
       id
@@ -72,13 +94,17 @@ export const GET_BUILDER_SUBNET_USERS = `
       lastStake
       claimed
       claimLockEnd
+      builderSubnet {
+        id
+        name
+      }
     }
   }
 `;
 
 // Use this query to get all builders projects (like in query.json)
 export const GET_ALL_BUILDERS_PROJECTS = `
-  query getAllBuildersProjects($first: Int = 5) {
+  query getAllBuildersProjects($first: Int = 5, $userAddress: String = "") {
     buildersProjects(first: $first) {
       id
       name
@@ -86,6 +112,13 @@ export const GET_ALL_BUILDERS_PROJECTS = `
       totalStaked
       totalUsers
       withdrawLockPeriodAfterDeposit
+      admin
+      builderUsers(where: { address: $userAddress }) {
+        id
+        address
+        staked
+        lastStake
+      }
     }
   }
 `; 
