@@ -405,7 +405,10 @@ function CapitalPageContent() {
             {/* Notes Section */}
             <div className="col-span-1 md:col-span-3 border-t border-gray-800 px-4 md:px-6 py-3">
               <p className="text-xs text-gray-500">
-                Note: Claims mint MOR on Arbitrum One. Withdrawals/deposits occur on Ethereum. Lock periods apply.
+                {networkEnv === 'mainnet' ?
+                  "Note: Claims mint MOR on Arbitrum One. Withdrawals/deposits occur on Ethereum. Lock periods apply." :
+                  "Note: Claims mint MOR on Arbitrum Sepolia. Withdrawals/deposits occur on Sepolia. Lock periods apply."
+                }
               </p>
             </div>
           </div>

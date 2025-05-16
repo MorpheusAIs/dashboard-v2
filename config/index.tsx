@@ -1,6 +1,6 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { cookieStorage, createStorage } from 'wagmi';
-import { mainnet, arbitrum, base, arbitrumSepolia } from 'wagmi/chains';
+import { mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
 import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
@@ -21,7 +21,8 @@ export const getWagmiConfig = (environment: NetworkEnvironment) => {
   //   ? [mainnet, arbitrum, base] as const
   //   : [arbitrumSepolia] as const;
 
-  const chains = [mainnet, arbitrum, base, arbitrumSepolia] as const;
+  // Always include all supported chains
+  const chains = [mainnet, arbitrum, base, arbitrumSepolia, sepolia] as const;
   
   return defaultWagmiConfig({
     chains,

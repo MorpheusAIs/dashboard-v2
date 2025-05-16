@@ -117,11 +117,8 @@ export function DepositModal({
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label htmlFor="deposit-amount" className="text-sm font-medium">
-                  Amount (stETH/wstETH)
+                  Amount
                 </Label>
-                <span className="text-xs text-gray-400">
-                  Balance: {stEthBalance !== undefined ? formatUnits(stEthBalance, 18) : 'Loading...'} stETH
-                </span>
               </div>
               <div className="relative">
                 <Input
@@ -136,7 +133,7 @@ export function DepositModal({
                       setFormError(null);
                     }
                   }}
-                  className={`bg-background border-gray-700 ${(validationError || formError) ? 'border-red-500' : ''}`}
+                  className={`bg-background border-gray-700 pr-32 ${(validationError || formError) ? 'border-red-500' : ''}`}
                   type="text" // Changed from "number" to "text" for better control
                   inputMode="decimal" // Suggests a decimal keypad on mobile
                   pattern="[0-9]*[.]?[0-9]*" // HTML5 pattern for numbers only
@@ -150,6 +147,26 @@ export function DepositModal({
                     }
                   }}
                 />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+                  {stEthBalance !== undefined && (
+                    <span className="text-xs text-gray-400 mr-2">
+                      {`${parseFloat(formatUnits(stEthBalance, 18)).toFixed(2)} stETH`}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="h-8 px-2 text-xs copy-button-secondary"
+                    onClick={() => {
+                      if (stEthBalance !== undefined) {
+                        setAmount(formatUnits(stEthBalance, 18));
+                        setFormError(null); // Clear any existing error when max is set
+                      }
+                    }}
+                    disabled={stEthBalance === undefined || isProcessingDeposit}
+                  >
+                    Max
+                  </button>
+                </div>
               </div>
                {(validationError || formError) && (
                   <p className="text-xs text-red-500 pt-1">{validationError || formError}</p>

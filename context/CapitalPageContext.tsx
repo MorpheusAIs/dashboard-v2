@@ -24,6 +24,7 @@ import {
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
 import ERC20Abi from "@/app/abi/ERC20.json";
+import { useNetwork } from "@/context/network-context";
 
 const PUBLIC_POOL_ID = BigInt(0);
 const SECONDS_PER_DAY = BigInt(86400);
@@ -160,6 +161,9 @@ interface CapitalContextState {
   triggerMultiplierEstimation: (lockValue: string, lockUnit: TimeUnit) => void;
   estimatedMultiplierValue: string;
   isSimulatingMultiplier: boolean;
+
+  // New state for L2 switching after claim
+  isSwitchingToL2AfterClaim: boolean;
 }
 
 // --- Create Context ---
@@ -169,10 +173,12 @@ const CapitalPageContext = createContext<CapitalContextState | null>(null);
 export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Modal State ---
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [isSwitchingToL2AfterClaim, setIsSwitchingToL2AfterClaim] = useState<boolean>(false);
 
   // --- Hooks from Page ---
   const { address: userAddress } = useAccount();
   const chainId = useChainId();
+  const { switchToChain: switchToNetwork, isNetworkSwitching: isSwitchingNetworkCore } = useNetwork();
 
   const networkEnv = useMemo((): NetworkEnvironment => {
     return [1, 42161, 8453].includes(chainId) ? 'mainnet' : 'testnet';
@@ -570,8 +576,30 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserReward();
           refetchMorBalance();
           setActiveModal(null); // Close modal on success
+
+          // Now, attempt to switch to L2
+          const switchAndNotify = async () => {
+            if (!l2ChainId) {
+              console.warn("L2 chain ID not available, cannot switch after claim.");
+              return;
+            }
+            toast.info("Attempting to switch to L2 network to view MOR balance...", { duration: 5000 });
+            setIsSwitchingToL2AfterClaim(true);
+            try {
+              await switchToNetwork(l2ChainId);
+              toast.success("Switched to L2 network successfully.");
+            } catch (error) {
+              console.error("Failed to switch to L2 network:", error);
+              toast.error("Failed to automatically switch to L2. Please switch manually to view your MOR balance.", { duration: 8000 });
+            }
+            finally {
+              setIsSwitchingToL2AfterClaim(false);
+            }
+          };
+          switchAndNotify();
       }
-  }, [isClaimSuccess, refetchUserData, refetchUserReward, refetchMorBalance, setActiveModal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClaimSuccess, refetchUserData, refetchUserReward, refetchMorBalance, setActiveModal, l2ChainId]);
   
   useEffect(() => {
       if (isWithdrawSuccess) {
@@ -708,6 +736,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
     // New state for multiplier simulation
     multiplierSimArgs,
+
+    // New state for L2 switching after claim
+    isSwitchingToL2AfterClaim,
   }), [
     // Dependencies for all values provided
     poolContractAddress, stEthContractAddress, l1ChainId, l2ChainId, userAddress, networkEnv,
@@ -723,7 +754,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock,
     deposit, claim, withdraw, changeLock, approveStEth, needsApproval, 
     triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier,
-    activeModal, setActiveModal
+    activeModal, setActiveModal,
+    isSwitchingToL2AfterClaim,
   ]);
 
   return (
