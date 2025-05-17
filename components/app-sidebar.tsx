@@ -20,21 +20,21 @@ import { cn } from "@/lib/utils"
 import { useEffect, useRef, useState } from "react"
 
 const navigation = [
-  {
-    title: "Capital",
-    url: "/capital",
-    icon: CircleDollarSign,
-  },
+  // {
+  //   title: "Capital",
+  //   url: "/capital",
+  //   icon: CircleDollarSign,
+  // },
   {
     title: "Builders",
     url: "/builders",
     icon: Users,
   },
-  {
-    title: "Compute",
-    url: "/compute",
-    icon: Cpu,
-  },
+  // {
+  //   title: "Compute",
+  //   url: "/compute",
+  //   icon: Cpu,
+  // },
   // {
   //   title: "MOR20",
   //   url: "/mor20",
