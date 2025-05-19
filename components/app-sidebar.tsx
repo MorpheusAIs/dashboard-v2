@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import {
-  CircleDollarSign,
-  Cpu,
+  // CircleDollarSign,
+  // Cpu,
   Users,
 } from "lucide-react"
 import Image from "next/image"
