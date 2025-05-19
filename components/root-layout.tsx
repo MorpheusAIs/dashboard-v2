@@ -1,6 +1,5 @@
 "use client"
 
-import Link from 'next/link';
 import { AppSidebar } from "@/components/app-sidebar"
 import {
   Breadcrumb,
@@ -67,18 +66,14 @@ export function RootLayoutContent({
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink asChild>
-                    <Link href="/">
-                      Dashboard
-                    </Link>
+                  <BreadcrumbLink href="/">
+                    Dashboard
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link href={`/${pageInfo.title.toLowerCase()}`}>
-                      {pageInfo.title}
-                    </Link>
+                  <BreadcrumbLink href={`/${pageInfo.title.toLowerCase()}`}>
+                    {pageInfo.title}
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 {pageInfo.subPage && (

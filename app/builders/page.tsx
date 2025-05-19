@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { MetricCard } from "@/components/metric-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
-import { useRouter } from 'next/navigation';
+import { formatUnits } from "ethers/lib/utils";
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -121,7 +121,7 @@ function BuilderModalWrapper() {
 
 
 // Sample data for Participating tab - Projects where the user has staked tokens
-const participatingBuilders: Builder[] = [
+const participatingBuildersSample: Builder[] = [
   {
     id: "1",
     name: "Neptune AI",
@@ -148,7 +148,8 @@ const participatingBuilders: Builder[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     startsAt: new Date().toISOString(),
-    admin: null // Added admin field
+    admin: null, // Added admin field
+    mainnetProjectId: null
   },
   {
     id: "2",
@@ -176,7 +177,8 @@ const participatingBuilders: Builder[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     startsAt: new Date().toISOString(),
-    admin: null // Added admin field
+    admin: null, // Added admin field
+    mainnetProjectId: null
   },
   {
     id: "3",
@@ -204,21 +206,21 @@ const participatingBuilders: Builder[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     startsAt: new Date(Date.now() + 86400000 * 5).toISOString(),
-    admin: null // Added admin field
+    admin: null, // Added admin field
+    mainnetProjectId: null
   }
 ];
 
 export default function BuildersPage() {
-  const router = useRouter();
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
   
   // Handler for opening the stake modal
-  const handleOpenStakeModal = (builder: Builder) => {
+  const handleOpenStakeModal = useCallback((builder: Builder) => {
     setSelectedBuilder(builder);
     setStakeModalOpen(true);
-  };
+  }, []);
 
   // Use the URL params hook
   const { getParam, setParam } = useUrlParams();
@@ -240,18 +242,26 @@ export default function BuildersPage() {
     
     // Data for 'Builders' tab
     filteredBuilders,
+    builders,
     rewardTypes,
     isLoading,
     
     // Total metrics (independent of filters)
     totalMetrics,
 
-    // --- NEW: Data for 'Your Subnets' tab ---
-    userAdminSubnets, // Assuming this will be provided by the context
-    isLoadingUserAdminSubnets, // Assuming this loading state will be provided
-    // --- END NEW ---
-
   } = useBuilders();
+
+  // Get auth state
+  const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
+
+  // --- NEW: Derive userAdminSubnets and its loading state locally ---
+  const userAdminSubnets = useMemo<Builder[] | null>(() => {
+    if (!isAuthenticated || !userAddress || !builders) return null;
+    return builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
+  }, [isAuthenticated, userAddress, builders]);
+
+  const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
+  // --- END NEW ---
 
   // Initialize tab state from URL or use default
   const [activeTab, setActiveTab] = useState(() => {
@@ -325,6 +335,19 @@ export default function BuildersPage() {
                     <p className="text-sm text-gray-300">
                       {builder.description || "No description available."}
                     </p>
+                    {builder.website && (
+                      <div className="flex items-center pt-2">
+                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
+                        <a 
+                          href={builder.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          Visit Project
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -412,8 +435,8 @@ export default function BuildersPage() {
             <button 
               className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent row click from triggering navigation
-                handleOpenStakeModal(builder); // Open the stake modal
+                e.stopPropagation(); // Prevent row click from triggering
+                handleOpenStakeModal(builder);
               }}
             >
               Stake
@@ -507,27 +530,33 @@ export default function BuildersPage() {
       {
         id: "status",
         header: "Status",
-        cell: (subnet) => { // Use startsAt from Builder (needs to be added to type/data)
-          // Assuming subnet.startsAt exists and is a valid date string or Date object
+        cell: (subnet) => {
           let status = "Pending";
-          let statusClass = "bg-yellow-900/30 text-yellow-400";
+          let statusClass = "bg-yellow-900/30 text-yellow-400"; // Default for Pending
 
           if (subnet.startsAt) {
               try {
-                  const startsDate = new Date(subnet.startsAt);
-                  if (!isNaN(startsDate.getTime()) && startsDate <= new Date()) {
-                      status = "Active";
-                      statusClass = "bg-emerald-900/30 text-emerald-400";
+                  // Ensure startsAt is treated as a Unix timestamp in seconds
+                  const startsDate = new Date(Number(subnet.startsAt) * 1000);
+                  const currentDate = new Date();
+
+                  if (!isNaN(startsDate.getTime())) { // Check if date is valid
+                      if (startsDate <= currentDate) { // startsAt is past or present
+                          status = "Active";
+                          statusClass = "bg-emerald-900/30 text-emerald-400";
+                      } else { // startsAt is in the future
+                          // Status remains "Pending", class remains yellow
+                      }
+                  } else {
+                      // Invalid date, status remains "Pending", class remains yellow
+                      console.warn("Invalid startsAt date encountered:", subnet.startsAt);
                   }
               } catch (e) {
                   console.error("Error parsing startsAt date:", e);
-                  // Keep default pending status if date is invalid
+                  // Error during parsing, status remains "Pending", class remains yellow
               }
           } else {
-             // If no startsAt date, maybe default to Active or handle as needed
-             // For now, let's assume Active if startsAt is missing or invalid after fetch
-             status = "Active"; 
-             statusClass = "bg-emerald-900/30 text-emerald-400"; 
+              // No startsAt date, status remains "Pending", class remains yellow
           }
            
           // We might need a separate 'Inactive' status based on other criteria later
@@ -558,7 +587,9 @@ export default function BuildersPage() {
         accessorKey: "created_at", // Use created_at from Builder
         cell: (subnet) => ( // Format the date
            <span className="text-gray-300">
-            {subnet.created_at ? new Date(subnet.created_at).toLocaleDateString() : '—'}
+            {subnet.created_at 
+              ? new Date(Number(subnet.created_at) * 1000).toLocaleDateString() 
+              : '—'}
           </span>
         ),
       },
@@ -570,8 +601,8 @@ export default function BuildersPage() {
             <button 
               className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent row click from triggering navigation
-                handleOpenStakeModal(subnet); // Open the stake modal
+                e.stopPropagation(); // Prevent row click from triggering
+                handleOpenStakeModal(subnet);
               }}
             >
               Stake
@@ -593,29 +624,28 @@ export default function BuildersPage() {
   // --- MODIFY Filter logic ---
   // Filter the userAdminSubnets based on the filters
   const filteredUserAdminSubnets = useMemo(() => {
-    // Use userAdminSubnets from context
     return (userAdminSubnets || []).filter((subnet) => { 
       const matchesName = yourSubnetsNameFilter === '' || 
         subnet.name.toLowerCase().includes(yourSubnetsNameFilter.toLowerCase());
       
-      // Check against the 'networks' array in Builder type
       const matchesNetwork =
         yourSubnetsNetworkFilter === "all" || yourSubnetsNetworkFilter === "" || 
         (subnet.networks && subnet.networks.some(network => 
            network.toLowerCase() === yourSubnetsNetworkFilter.toLowerCase()
         ));
       
-      // Calculate status on the fly for filtering
        let currentStatus = "Pending";
        if (subnet.startsAt) {
           try {
-              const startsDate = new Date(subnet.startsAt);
-              if (!isNaN(startsDate.getTime()) && startsDate <= new Date()) {
+              // Ensure startsAt is treated as a Unix timestamp in seconds for filtering
+              const startsDate = new Date(Number(subnet.startsAt) * 1000);
+              const currentDate = new Date();
+              if (!isNaN(startsDate.getTime()) && startsDate <= currentDate) {
                   currentStatus = "Active";
               }
-          } catch {} // Ignore errors for filtering
+          } catch {} // Ignore errors for filtering, will default to Pending
        } else {
-           currentStatus = "Active"; // Default if no date
+           currentStatus = "Pending"; // Default if no date, or if date was invalid
        }
 
       const matchesStatus =
@@ -659,8 +689,53 @@ export default function BuildersPage() {
 
   // Filter the participatingBuilders based on the filters
   const filteredParticipatingBuilders = useMemo(() => {
-    // Keep using sample data for now
-    return participatingBuilders.filter((builder) => {
+    let sourceData: (Builder & { userStake?: number })[] = []; // Default to empty, not sample
+    let useSampleData = true; // Assume sample data initially
+
+    if (isAuthenticated && userAddress && builders && builders.length > 0) {
+      const realParticipatingBuilders: (Builder & { userStake: number })[] = [];
+      let networkSupportsBuilderUsers = false;
+
+      builders.forEach(builder => {
+        if (builder.hasOwnProperty('builderUsers')) { // Check if the field exists, even if undefined/null/empty
+          networkSupportsBuilderUsers = true;
+          if (builder.builderUsers && builder.builderUsers.length > 0) {
+            builder.builderUsers.forEach(user => {
+              if (user.address.toLowerCase() === userAddress.toLowerCase()) {
+                const stakedAmount = parseFloat(formatUnits(user.staked, 18));
+                if (stakedAmount > 0) {
+                  realParticipatingBuilders.push({
+                    ...builder,
+                    userStake: stakedAmount,
+                  });
+                }
+              }
+            });
+          }
+        }
+      });
+
+      if (networkSupportsBuilderUsers) {
+        sourceData = realParticipatingBuilders; // Use real data (even if empty)
+        useSampleData = false; // Do not use sample data
+      } else {
+        // Network doesn't support builderUsers (e.g., older mainnet data structure before potential GQL changes)
+        // or builders array doesn't have this structure from context.
+        // In this specific case, falling back to sample might be okay if that was the old behavior
+        // but ideally, we want to move away from sample if data is loaded.
+        // For now, let's stick to the logic: if network *could* have builderUsers, don't show sample.
+        sourceData = []; // Show empty if structure implies builderUsers could exist but none for this user
+        useSampleData = false; // Explicitly don't use sample if we determined network type
+      }
+    }
+    
+    // If, after all checks, we still decided to use sample data (e.g., user not authenticated)
+    if (useSampleData || (!isAuthenticated || !userAddress)) {
+      sourceData = participatingBuildersSample;
+    }
+
+    // Apply text filters to whatever sourceData was determined
+    return sourceData.filter((builder) => {
       const matchesName = participatingNameFilter === '' || 
         builder.name.toLowerCase().includes(participatingNameFilter.toLowerCase());
       
@@ -676,7 +751,7 @@ export default function BuildersPage() {
 
       return matchesName && matchesNetwork && matchesType;
     });
-  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter]);
+  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter, isAuthenticated, userAddress, builders]);
 
   // For participating filters, initialize from URL if values exist
   useInitStateFromUrl(
@@ -767,6 +842,19 @@ export default function BuildersPage() {
                     <p className="text-sm text-gray-300">
                       {builder.description || "No description available."}
                     </p>
+                    {builder.website && (
+                      <div className="flex items-center pt-2">
+                        <ExternalLink className="mr-2 h-4 w-4 text-emerald-400" />
+                        <a 
+                          href={builder.website} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                        >
+                          Visit Project
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </HoverCardContent>
               </HoverCard>
@@ -836,8 +924,8 @@ export default function BuildersPage() {
             <button 
               className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent row click from triggering navigation
-                handleOpenStakeModal(builder); // Open the stake modal
+                e.stopPropagation(); // Prevent row click from triggering
+                handleOpenStakeModal(builder);
               }}
             >
               Stake
@@ -849,19 +937,15 @@ export default function BuildersPage() {
     [handleOpenStakeModal]
   );
 
-  // Fetch user admin subnets when address is available or data reloads
-  const { userAddress } = useAuth();
-  const { fetchUserAdminSubnets } = useBuilders(); // Get the fetch function
-  useEffect(() => {
-     // Ensure we have an address and the fetch function exists
-     if (userAddress && fetchUserAdminSubnets) { 
-       console.log("useEffect in BuildersPage triggering fetchUserAdminSubnets for:", userAddress);
-       fetchUserAdminSubnets(userAddress);
-     }
-     // Note: The context itself handles re-fetching when its internal data reloads,
-     // so we only need to depend on the userAddress and the function reference here.
-  }, [userAddress, fetchUserAdminSubnets]);
-
+  // Calculate Avg MOR Staked for Community Stats
+  const avgMorStakedPerUser = useMemo(() => {
+    if (totalMetrics.totalStaking > 0) {
+      const avg = totalMetrics.totalStaked / totalMetrics.totalStaking;
+      // Format to 2 decimal places if it's a float, otherwise show as integer
+      return parseFloat(avg.toFixed(2)).toLocaleString();
+    }
+    return "0"; // Or 'N/A' or some other placeholder
+  }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
 
   return (
     <div className="page-container">
@@ -907,7 +991,7 @@ export default function BuildersPage() {
             title="Community Stats"
             metrics={[
               { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
-              { value: "12.5k", label: "Commits" }
+              { value: avgMorStakedPerUser, label: "Avg MOR / Staker" }
             ]}
             disableGlow={true}
           />
@@ -1002,9 +1086,9 @@ export default function BuildersPage() {
                     }}
                     loadingRows={6}
                     noResultsMessage="No builders found."
-                    onRowClick={(subnet) => {
-                      router.push(`/builders/${builderNameToSlug(subnet.name)}`); // Or /subnets/<id>
-                   }}
+                    onRowClick={(builder) => {
+                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                    }}
                   />
                 </div>
               </div>
@@ -1053,7 +1137,8 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No subnets administered by you were found." // Updated message
                     onRowClick={(subnet) => {
-                       router.push(`/builders/${builderNameToSlug(subnet.name)}`); // Or /subnets/<id>
+                       // Link to builder/subnet detail page
+                       window.location.href = `/builders/${builderNameToSlug(subnet.name)}`; // Or /subnets/<id>
                     }}
                   />
                 </div>
@@ -1095,13 +1180,13 @@ export default function BuildersPage() {
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
                   <DataTable
-                    columns={participatingColumns as unknown as Column<Builder>[]} // Keep using sample data columns for now
-                    data={filteredParticipatingBuilders} // Keep using sample data for now
-                    isLoading={false} // Assuming sample data isn't loading
+                    columns={participatingColumns as unknown as Column<Builder>[]} 
+                    data={filteredParticipatingBuilders} // Use the new dynamic list
+                    isLoading={isLoadingAuth || isLoading} // Reflect loading state of auth and builders data
                     loadingRows={6}
-                    noResultsMessage="No participating builders found."
+                    noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
                     onRowClick={(builder) => {
-                      router.push(`/builders/${builderNameToSlug(builder.name)}`);
+                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
                     }}
                   />
                 </div>

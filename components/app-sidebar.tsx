@@ -60,22 +60,6 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   
-  // Effect to read initial state from localStorage on client-side
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedState = localStorage.getItem('sidebar-collapsed');
-      if (savedState !== null) {
-        try {
-          setCollapsed(JSON.parse(savedState));
-        } catch (error) {
-          console.error("Error parsing sidebar state from localStorage:", error);
-          // Fallback to default if parsing fails
-          setCollapsed(false);
-        }
-      }
-    }
-  }, []);
-  
   // Check for visual width of the sidebar to determine if it's collapsed
   useEffect(() => {
     if (!sidebarRef.current) return;
@@ -85,10 +69,6 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
         // Assuming sidebar width less than 100px means it's collapsed
         const isCollapsed = entry.contentRect.width < 100;
         setCollapsed(isCollapsed);
-        // Save the state to localStorage, ensuring this also runs client-side
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
-        }
       }
     });
     
@@ -128,25 +108,25 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
           {navigation.map((item) => {
             const isActive = pathname === item.url
             return (
-              <Link
+              <div
                 key={item.title}
-                href={item.url}
                 className={cn(
                   "sidebar-nav-link-base",
                   "sidebar-nav-link-hover",
-                  isActive && "sidebar-nav-link-active",
-                  "flex items-center w-full"
+                  isActive && "sidebar-nav-link-active"
                 )}
               >
-                <item.icon className="sidebar-nav-icon" />
-                <span className={cn(
-                  "sidebar-nav-text-base",
-                  isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
-                  collapsed && "hidden"
-                )}>
-                  {item.title}
-                </span>
-              </Link>
+                <Link href={item.url} className="flex items-center w-full">
+                  <item.icon className="sidebar-nav-icon" />
+                  <span className={cn(
+                    "sidebar-nav-text-base",
+                    isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
+                    collapsed && "hidden"
+                  )}>
+                    {item.title}
+                  </span>
+                </Link>
+              </div>
             )
           })}
         </nav>
