@@ -44,11 +44,11 @@ export default function NewSubnetPage() {
     defaultValues: {
       subnet: {
         name: "",
-        minStake: 0,
+        minStake: 0.001,
         fee: 0,
         feeTreasury: undefined as unknown as `0x${string}` | undefined,
         networkChainId: arbitrumSepolia.id,
-        withdrawLockPeriod: 1,
+        withdrawLockPeriod: 7,
         withdrawLockUnit: "days",
         startsAt: new Date(),
         maxClaimLockEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
@@ -96,8 +96,11 @@ export default function NewSubnetPage() {
 
   // Handles stepping through form or triggering final action (approve/submit)
   const handleNext = useCallback(async () => {
-    // const currentStepConfig = FORM_STEPS[currentStep - 1];
-    let fieldsToValidate: string[] = []; // Store field paths to validate
+    console.log("handleNext called. Current step:", currentStep);
+    console.log("Form errors before trigger:", JSON.stringify(form.formState.errors, null, 2)); // Log existing errors
+    console.log("Is form valid before trigger?:", form.formState.isValid);
+
+    let fieldsToValidate: string[] = [];
 
     if (currentStep === 1) {
       const isTestnet = form.getValues("subnet.networkChainId") === arbitrumSepolia.id;
@@ -152,25 +155,40 @@ export default function NewSubnetPage() {
     console.log("Fields to validate:", fieldsToValidate); // Debugging log
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await form.trigger(fieldsToValidate as any, { shouldFocus: true });
-    console.log("Validation result:", result); // Debugging log
-    
-    if (!result) return; // Don't proceed if validation fails
+    console.log("Validation trigger result:", result); // Log validation result
+    if (!result) {
+      console.log("Validation failed. Form errors after trigger:", JSON.stringify(form.formState.errors, null, 2));
+      return; // Don't proceed if validation fails
+    }
+
+    console.log("Validation passed. Proceeding with network switch or action...");
 
     // Ensure correct network first
     if (!isCorrectNetwork()) {
+      console.log("Incorrect network, attempting switch...");
       const switchSuccessful = await handleNetworkSwitch();
-      if (!switchSuccessful) return;
+      if (!switchSuccessful) {
+        console.log("Network switch failed or was cancelled.");
+        return;
+      }
+      console.log("Network switch successful.");
     }
 
     // On final step, decide whether to approve or submit based on current state
     if (currentStep === FORM_STEPS.length) {
+      console.log("Final step. Needs approval:", needsApproval);
       if (needsApproval) {
-          handleApprove();
-        } else {
-        form.handleSubmit((data) => handleCreateSubnet(data))();
+        console.log("Calling handleApprove...");
+        handleApprove();
+      } else {
+        console.log("Calling form.handleSubmit(handleCreateSubnet)...");
+        form.handleSubmit((data) => {
+          console.log("Form data submitted to handleCreateSubnet:", data);
+          handleCreateSubnet(data);
+        })();
       }
     } else {
-      // Move to next step if not the final step
+      console.log("Moving to next step.");
       setCurrentStep(currentStep + 1);
     }
   }, [
@@ -288,7 +306,7 @@ export default function NewSubnetPage() {
             {(isApproving || isCreating) && <RiProgress4Fill className="size-4 mr-2 animate-spin" />}
             {/* Dynamically set button text based on state */}
             {isCreating
-              ? 'Creating Pool...'
+              ? 'Creating Subnet...'
               : isApproving
               ? 'Approving...'
               : currentStep < FORM_STEPS.length
