@@ -11,6 +11,7 @@ import { formatTimePeriod } from '@/app/utils/time-utils';
 import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
 import BuilderSubnetsAbi from '@/app/abi/BuilderSubnets.json';
 import ERC20Abi from '@/app/abi/ERC20.json';
+import BuildersAbi from '@/app/abi/Builders.json';
 
 // Import from config
 import { getChainById } from '@/config/networks';
@@ -597,6 +598,7 @@ export const useStakingContractInteractions = ({
         const networkName = networkChainId === 42161 ? 'Arbitrum' : 'Base';
         
         console.log(`Mainnet staking transaction parameters (${networkName}):`, {
+          builderPoolId: subnetId, // Log this to debug
           amount: parsedAmount.toString(),
           formattedAmount: formatEther(parsedAmount),
           contractAddress,
@@ -604,11 +606,13 @@ export const useStakingContractInteractions = ({
           networkName
         });
         
+        // For mainnet, we need to use deposit(bytes32,uint256) from BuildersAbi
+        // Mainnet uses a different contract interface: Builders.json
         writeStake({
           address: contractAddress,
-          abi: BuilderSubnetsAbi,
-          functionName: 'stake',
-          args: [parsedAmount],
+          abi: BuildersAbi, // Changed from BuilderSubnetsAbi to BuildersAbi
+          functionName: 'deposit', // Changed from 'stake' to 'deposit'
+          args: [subnetId, parsedAmount], // Changed to include subnetId
           chainId: networkChainId,
         });
       }
@@ -659,7 +663,7 @@ export const useStakingContractInteractions = ({
       // withdraw(bytes32 subnetId_, uint256 amount_)
       writeWithdraw({
         address: contractAddress,
-        abi: isTestnet ? BuilderSubnetsV2Abi : BuilderSubnetsAbi,
+        abi: isTestnet ? BuilderSubnetsV2Abi : BuildersAbi, // Use BuildersAbi for mainnet
         functionName: 'withdraw',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
