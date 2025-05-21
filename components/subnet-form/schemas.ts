@@ -102,11 +102,11 @@ export const projectOffChainSchema = z.object({
 // Combined Form Schema
 export const formSchema = z.object({
   subnet: z.object({
-    name: z.string().min(1, "Subnet name is required."), // For testnet path
+    name: z.string().min(1, "Subnet name is required."),
     networkChainId: z.number(),
-    minStake: z.number().gte(0.001, "Minimum stake must be at least 0.001."), // Testnet might allow lower, adjust if needed. For mainnet, see builderPool
-    fee: z.number().optional(), // Testnet specific
-    feeTreasury: z.string().optional(), // Testnet specific
+    minStake: z.number().min(0, "Minimum stake must be non-negative."),
+    fee: z.number().optional(),
+    feeTreasury: z.string().optional(),
     withdrawLockPeriod: z.number().min(1, "Withdraw lock period is required."),
     withdrawLockUnit: z.enum(["days", "hours"]),
     startsAt: z.date().refine(date => date.getTime() > new Date().getTime() - 24*60*60*1000, { // Allow selection of 'today', hook ensures future
@@ -116,8 +116,8 @@ export const formSchema = z.object({
   }),
   builderPool: z.object({ // For mainnet-specific fields that differ from 'subnet'
     name: z.string().min(1, "Pool name is required."),
-    minimalDeposit: z.number().gte(0.01, "Minimum deposit must be at least 0.01."), // Enforce 0.01 for mainnet
-  }).optional(), // Make builderPool itself optional if not always present
+    minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative"), 
+  }).optional(), 
   metadata: metadataContractSchema,
   projectOffChain: projectOffChainSchema,
 }).superRefine((data, ctx) => {
