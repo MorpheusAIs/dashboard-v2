@@ -161,7 +161,7 @@ export function StakingFormCard({
   return (
     <Card>
       <CardHeader>
-        {title && <CardTitle>{title}</CardTitle>}
+        {title && <CardTitle className="text-lg font-bold">{title}</CardTitle>}
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent>
