@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -39,7 +39,7 @@ export function StakingPositionCard({
 }: StakingPositionCardProps) {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
-  // Handle input change with one decimal place formatting
+  // Handle input change with TWO decimal place formatting (updated from 1)
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let newAmount = e.target.value;
     
@@ -48,28 +48,43 @@ export function StakingPositionCard({
       newAmount = "0";
     }
     
-    // Format to one decimal place if there's a decimal point
+    // Format to TWO decimal places if there's a decimal point
     if (newAmount.includes('.')) {
       const parts = newAmount.split('.');
-      if (parts[1].length > 1) {
-        newAmount = `${parts[0]}.${parts[1].substring(0, 1)}`;
+      if (parts[1].length > 2) { // Changed from 1 to 2
+        newAmount = `${parts[0]}.${parts[1].substring(0, 2)}`; // Changed from 1 to 2
       }
     }
     
     setWithdrawAmount(newAmount);
   };
 
+  // Add useEffect to listen for reset-withdraw-form event
+  useEffect(() => {
+    const resetForm = () => {
+      setWithdrawAmount("");
+    };
+    
+    document.addEventListener('reset-withdraw-form', resetForm);
+    return () => {
+      document.removeEventListener('reset-withdraw-form', resetForm);
+    };
+  }, []);
+
   const handleWithdraw = () => {
     onWithdraw(withdrawAmount);
   };
 
   const setMaxAmount = () => {
-    // Format the max amount to one decimal place
+    // Use exact amount with 2 decimal precision (no rounding/flooring)
     const formattedMaxAmount = userStakedAmount > 0
-      ? (Math.floor(userStakedAmount * 10) / 10).toString()
+      ? userStakedAmount.toFixed(2)
       : "0";
     setWithdrawAmount(formattedMaxAmount);
   };
+
+  const isAmountExceedingBalance = parseFloat(withdrawAmount) > userStakedAmount;
+  const isAmountInvalid = parseFloat(withdrawAmount) <= 0;
 
   return (
     <Card>
@@ -81,7 +96,7 @@ export function StakingPositionCard({
         <div className="space-y-4">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-400">Your staked amount:</span>
-            <span className="text-gray-200">{userStakedAmount.toLocaleString()} {tokenSymbol}</span>
+            <span className="text-gray-200">{userStakedAmount.toFixed(2)} {tokenSymbol}</span>
           </div>
           
           {showUnlockTime && timeUntilUnlock && (
@@ -98,7 +113,7 @@ export function StakingPositionCard({
                 id="withdraw-amount"
                 type="number"
                 min="0"
-                step="0.1"
+                step="0.01"
                 placeholder={`Enter ${tokenSymbol} amount`}
                 value={withdrawAmount}
                 onChange={handleAmountChange}
@@ -116,13 +131,23 @@ export function StakingPositionCard({
                 </button>
               </div>
             </div>
+            {isAmountExceedingBalance && (
+              <p className="text-yellow-400 text-sm">
+                You are trying to withdraw more {tokenSymbol} than you have staked.
+              </p>
+            )}
+            {isAmountInvalid && withdrawAmount !== "" && (
+              <p className="text-yellow-400 text-sm">
+                Withdrawal amount must be greater than zero.
+              </p>
+            )}
           </div>
           
           <Button 
             onClick={handleWithdraw}
             className="w-full"
             variant="outline"
-            disabled={disableWithdraw || !withdrawAmount || isWithdrawing}
+            disabled={disableWithdraw || !withdrawAmount || isWithdrawing || isAmountExceedingBalance || isAmountInvalid}
           >
             {isWithdrawing ? "Withdrawing..." : withdrawButtonText}
           </Button>
