@@ -18,10 +18,14 @@ import { useBuilders } from "@/context/builders-context";
 import { useChainId, useAccount, useReadContract } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 import { MetricCard } from "@/components/metric-card";
+import BuildersAbi from '@/app/abi/Builders.json';
 import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
 import { useStakingContractInteractions, type UseStakingContractInteractionsProps } from "@/hooks/useStakingContractInteractions";
-import { formatEther, type Address } from "viem";
+import { formatEther, type Address, parseUnits } from "viem";
 import { testnetChains, mainnetChains } from '@/config/networks';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Type for user in formatStakingEntry
 type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
@@ -48,6 +52,8 @@ const getExplorerUrl = (address: string, network?: string): string => {
     : `https://basescan.org/address/${address}`;
 };
 
+console.log("########## BUILDER PAGE COMPONENT RENDERED ##########"); // Top-level log
+
 export default function BuilderPage() {
   const { slug } = useParams();
   const router = useRouter();
@@ -58,12 +64,18 @@ export default function BuilderPage() {
   const previousIsTestnetRef = useRef<boolean>();
   
   const [userStakedAmount, setUserStakedAmount] = useState<number | null>(null);
+  const [rawStakedAmount, setRawStakedAmount] = useState<bigint | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
   const refreshStakingDataRef = useRef(false); // Add a ref to track if refresh has been called
   const [builder, setBuilder] = useState<Builder | null>(null);
   const [subnetId, setSubnetId] = useState<Address | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>("");
+  
+  // Local alert dialog state
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
+  const showAlert = (msg: string) => setAlertMessage(msg);
   
   // useEffect for redirecting on network change (mainnet <-> testnet)
   useEffect(() => {
@@ -93,12 +105,13 @@ export default function BuilderPage() {
   useEffect(() => {
     if (typeof slug !== 'string') return;
     
-    const name = slugToBuilderName(slug);
+    console.log("########## EFFECT TO FIND BUILDER: slug, builders, isTestnet ##########", slug, builders, isTestnet);
+    const builderNameFromSlug = slugToBuilderName(slug);
     let foundBuilder: Builder | null | undefined = null;
     
     if (builders && builders.length > 0) {
       foundBuilder = builders.find(b => 
-        b.name.toLowerCase() === name.toLowerCase()
+        b.name.toLowerCase() === builderNameFromSlug.toLowerCase()
       );
     }
 
@@ -107,16 +120,32 @@ export default function BuilderPage() {
         ...foundBuilder,
         admin: foundBuilder.admin || null, 
       };
-      setBuilder(builderToSet); // This sets the local builder state
+      setBuilder(builderToSet);
       
-      // Set subnetId (UUID for testnet identification if needed elsewhere, or builder.id)
-      // Note: builder.id from BuilderDB is the UUID.
-      if (foundBuilder.id) { 
-        setSubnetId(foundBuilder.id as Address); 
+      // Set the appropriate subnetId based on network
+      if (isTestnet) {
+        // For testnet, use foundBuilder.id
+        if (foundBuilder.id) {
+          setSubnetId(foundBuilder.id as Address);
+          console.log("########## TESTNET: SUBNET ID SET FROM foundBuilder.id ##########", foundBuilder.id);
+        } else {
+          console.error("########## TESTNET: BUILDER ID IS UNDEFINED, CANNOT SET SUBNET ID ##########");
+          setSubnetId(null);
+        }
+      } else {
+        // For mainnet, use mainnetProjectId
+        if (foundBuilder.mainnetProjectId) {
+          setSubnetId(foundBuilder.mainnetProjectId as Address);
+          console.log("########## MAINNET: SUBNET ID SET FROM foundBuilder.mainnetProjectId ##########", foundBuilder.mainnetProjectId);
+        } else {
+          console.error("########## MAINNET: BUILDER mainnetProjectId IS UNDEFINED, CANNOT SET SUBNET ID ##########");
+          setSubnetId(null);
+        }
       }
     } else {
-      setBuilder(null); // Clear builder if not found
+      setBuilder(null);
       setSubnetId(null);
+      console.log("########## BUILDER NOT FOUND, SUBNET ID CLEARED ##########");
     }
   }, [slug, builders, isTestnet, buildersError, isLoading]);
 
@@ -173,11 +202,11 @@ export default function BuilderPage() {
   }, [chainId, isTestnet, networksToDisplay, contractAddress]);
   
   // Get staker information from the contract
-  const { data: stakerData } = useReadContract({
+  const { data: stakerData, refetch: refetchStakerDataForUser } = useReadContract({
     address: contractAddress,
-    abi: BuilderSubnetsV2Abi,
-    functionName: 'stakers',
-    args: subnetId && userAddress ? [subnetId, userAddress] : undefined,
+    abi: isTestnet ? BuilderSubnetsV2Abi : BuildersAbi, // Use BuildersAbi for mainnet
+    functionName: isTestnet ? 'stakers' : 'usersData', // Different function name in mainnet contract
+    args: subnetId && userAddress ? [isTestnet ? subnetId : userAddress, isTestnet ? userAddress : subnetId] : undefined, // Different parameter order
     query: {
       enabled: !!subnetId && !!userAddress && !!contractAddress, // Only enable if all args are present
       staleTime: 5 * 60 * 1000, // 5 minutes
@@ -187,16 +216,52 @@ export default function BuilderPage() {
   // Update user staked amount and time until unlock when data is loaded
   useEffect(() => {
     if (stakerData) {
-      // Staker data structure: [staked, virtualStaked, pendingRewards, rate, lastStake, claimLockEnd]
-      const [staked, , , , , claimLockEnd] = stakerData as [bigint, bigint, bigint, bigint, bigint, bigint];
+      let staked: bigint;
+      let lastStake: bigint;
+      let claimLockEndRaw: bigint;
+
+      if (isTestnet) {
+        // Testnet data structure: [staked, virtualStaked, pendingRewards, rate, lastStake, claimLockEnd]
+        const [stakedData, , , , lastStakeData, claimLockEndData] = stakerData as [bigint, bigint, bigint, bigint, bigint, bigint];
+        staked = stakedData;
+        lastStake = lastStakeData;
+        claimLockEndRaw = claimLockEndData;
+      } else {
+        // Mainnet structure from usersData:
+        // [lastDeposit, claimLockStart, deposited, virtualDeposited]
+        // [uint128, uint128, uint256, uint256]
+        const [lastStakeData, claimLockStartData, depositedData, virtualDepositedData] = stakerData as [bigint, bigint, bigint, bigint];
+        staked = depositedData;
+        lastStake = lastStakeData;
+        // For mainnet, calculate claimLockEnd
+        claimLockEndRaw = BigInt(0); // Default to 0
+        if (lastStake !== BigInt(0)) {
+          const lpSeconds = isTestnet
+            ? (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod)
+            : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
+          claimLockEndRaw = BigInt(Number(lastStake) + lpSeconds);
+        }
+      }
       
-      // Format the staked amount
+      // Determine effective claimLockEnd. If contract returned 0 (or an old value),
+      // fallback to lastStake + appropriate lock period based on network
+      let effectiveClaimLockEnd = claimLockEndRaw;
+      if (claimLockEndRaw === BigInt(0) || Number(claimLockEndRaw) < Number(lastStake)) {
+        const lpSeconds = isTestnet
+          ? (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod)
+          : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
+        effectiveClaimLockEnd = BigInt(Number(lastStake) + lpSeconds);
+      }
+      
+      setRawStakedAmount(staked); // Store the raw bigint value
+
+      // Format the staked amount for UI display
       const formattedStaked = parseFloat(formatUnits(staked, 18));
-      setUserStakedAmount(Math.round(formattedStaked));
+      setUserStakedAmount(formattedStaked); // Keep decimal precision
       
       // Calculate time until unlock
       const now = Math.floor(Date.now() / 1000);
-      const claimLockEndNumber = Number(claimLockEnd);
+      const claimLockEndNumber = Number(effectiveClaimLockEnd);
       
       if (claimLockEndNumber > now) {
         const secondsRemaining = claimLockEndNumber - now;
@@ -215,16 +280,20 @@ export default function BuilderPage() {
       }
       
       console.log("Staker data loaded:", {
-        staked: formattedStaked,
-        claimLockEnd: new Date(Number(claimLockEnd) * 1000).toLocaleString(),
-        timeLeft
+        isTestnet,
+        stakedRaw: staked.toString(), // Log raw value
+        stakedFormattedForUI: Math.round(formattedStaked),
+        claimLockEnd: new Date(Number(effectiveClaimLockEnd) * 1000).toLocaleString(),
+        lastStake: new Date(Number(lastStake) * 1000).toLocaleString(),
+        // timeLeft // timeLeft is set within this effect, logging its value from previous render can be confusing.
       });
     } else {
       // Reset values if no data
       setUserStakedAmount(0);
+      setRawStakedAmount(null); // Reset raw amount
       setTimeLeft("Not staked");
     }
-  }, [stakerData, timeLeft]);
+  }, [stakerData, builder, withdrawLockPeriod, isTestnet]); // Added isTestnet as a dependency
   
   // Custom formatter function to handle timestamp and unlock date
   const formatStakingEntry = useCallback((user: StakingUser) => ({
@@ -283,12 +352,31 @@ export default function BuilderPage() {
     subnetId: subnetId || undefined,
     networkChainId: chainId,
     onTxSuccess: () => {
-      console.log("Transaction successful, setting refreshStakingDataRef to true.");
-      refreshStakingDataRef.current = true; 
-      setStakeAmount("");
+      console.log("Transaction successful (stake/withdraw), refreshing staking table and current user staker data.");
+      refreshStakingDataRef.current = true; // For the main staking table
+      setStakeAmount(""); // Clear stake input
+      // Signal the StakingPositionCard to reset its withdrawal amount
+      if (window && window.document) {
+        const resetWithdrawEvent = new CustomEvent('reset-withdraw-form');
+        window.document.dispatchEvent(resetWithdrawEvent);
+      }
+      if (refetchStakerDataForUser) {
+        refetchStakerDataForUser(); // Refetch the current user's specific staker data (includes lock time)
+      }
     },
     lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
-  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw]);
+  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser]); // Added refetchStakerDataForUser to dependency array
+
+  // Log subnet ID state for debugging
+  useEffect(() => {
+    console.log("Subnet ID state updated:", {
+      subnetId,
+      isTestnet,
+      builderId: builder?.id,
+      mainnetProjectId: builder?.mainnetProjectId,
+      chainId
+    });
+  }, [subnetId, isTestnet, builder, chainId]);
 
   const {
     isCorrectNetwork,
@@ -338,9 +426,21 @@ export default function BuilderPage() {
       needsApproval,
       stakeAmount,
       isCorrectNetwork: isCorrectNetwork(),
-      tokenSymbol
+      tokenSymbol,
+      subnetId  // Log subnetId here to debug
     });
     
+    // Validate subnetId is present
+    if (!subnetId) {
+      console.error("ERROR: Cannot stake - subnetId is missing!", {
+        isTestnet,
+        builderId: builder?.id,
+        mainnetProjectId: builder?.mainnetProjectId
+      });
+      showAlert("Cannot stake: Subnet ID is missing. This is likely because the builder's mainnet project ID is not set correctly.");
+      return;
+    }
+
     // If not on the correct network, switch first
     if (!isCorrectNetwork()) {
       await handleNetworkSwitch();
@@ -368,19 +468,75 @@ export default function BuilderPage() {
     }
   };
 
-  const onWithdrawSubmit = async (amount: string) => {
-    console.log("Withdrawing:", amount);
-    // If not on the correct network, switch first
-    if (!isCorrectNetwork()) {
-      await handleNetworkSwitch();
-      return; // Exit after network switch to prevent further action
+  const onWithdrawSubmit = async (amountUserWantsToWithdrawStr: string) => {
+    console.log("########## ON WITHDRAW SUBMIT - User wants to withdraw:", amountUserWantsToWithdrawStr, "##########");
+    // Calculate builder min stake in MOR (assuming builder.minDeposit is MOR string/number)
+    const builderMinStake = builder?.minDeposit ? Number(builder.minDeposit) : 0;
+    const amountUserWantsToWithdraw = parseFloat(amountUserWantsToWithdrawStr);
+    if (!isNaN(amountUserWantsToWithdraw) && (userStakedAmount !== null)) {
+      const remainingAfterWithdraw = userStakedAmount - amountUserWantsToWithdraw;
+      if (remainingAfterWithdraw < builderMinStake) {
+        showAlert(`You must keep at least ${builderMinStake} ${tokenSymbol} staked. You can withdraw up to ${Math.max(userStakedAmount - builderMinStake, 0)} ${tokenSymbol}.`);
+        return;
+      }
     }
 
-    // Actually perform the withdrawal
-    if (amount && parseFloat(amount) > 0) {
-      await handleWithdraw(amount);
+    if (!isCorrectNetwork()) {
+      console.log("########## Incorrect network. Requesting switch. ##########");
+      await handleNetworkSwitch();
+      return; // Exit after network switch
     }
+
+    if (!rawStakedAmount || rawStakedAmount <= BigInt(0)) {
+      console.warn("########## No staked amount available for withdrawal. rawStakedAmount:", rawStakedAmount?.toString(), "##########");
+      showAlert("You have no staked amount to withdraw.");
+      return;
+    }
+
+    let amountToWithdrawWei: bigint;
+    try {
+      amountToWithdrawWei = parseUnits(amountUserWantsToWithdrawStr, 18); // Convert user input (e.g., "4") to BigInt wei
+    } catch (error) {
+      console.error("########## Invalid withdrawal amount format:", amountUserWantsToWithdrawStr, error, "##########");
+      showAlert("Invalid amount format. Please enter a valid number.");
+      return;
+    }
+
+    if (amountToWithdrawWei <= BigInt(0)) {
+      console.warn("########## Withdrawal amount must be greater than zero. Attempted:", amountUserWantsToWithdrawStr, "##########");
+      showAlert("Withdrawal amount must be greater than zero.");
+      return;
+    }
+
+    if (amountToWithdrawWei > rawStakedAmount) {
+      const maxWithdrawFriendly = formatUnits(rawStakedAmount, 18);
+      console.warn(
+        `########## Withdrawal amount (${amountUserWantsToWithdrawStr} ${tokenSymbol}) exceeds staked balance (${maxWithdrawFriendly} ${tokenSymbol}). rawStaked: ${rawStakedAmount.toString()}, attemptedWei: ${amountToWithdrawWei.toString()} ##########`
+      );
+      showAlert(
+        `Error: You are trying to withdraw ${amountUserWantsToWithdrawStr} ${tokenSymbol}, but you only have ${maxWithdrawFriendly} ${tokenSymbol} staked. Please enter a valid amount.`
+      );
+      return;
+    }
+
+    console.log(`########## CALLING HANDLEWITHDRAW ########## Amount (token units string): ${amountUserWantsToWithdrawStr}, SubnetID: ${subnetId}`);
+    // Pass the original string (e.g., "4") to handleWithdraw, as the hook expects token units.
+    await handleWithdraw(amountUserWantsToWithdrawStr);
   };
+
+  // Effect to listen for the reset-withdraw-form event
+  useEffect(() => {
+    const handleResetWithdrawForm = () => {
+      // This code is for demonstration - since we can't directly reset StakingPositionCard's state
+      // Another approach would be to pass a resetWithdrawAmount prop to StakingPositionCard
+      console.log("Should reset withdrawal form now");
+    };
+    
+    document.addEventListener('reset-withdraw-form', handleResetWithdrawForm);
+    return () => {
+      document.removeEventListener('reset-withdraw-form', handleResetWithdrawForm);
+    };
+  }, []);
 
   // Loading state for the page should consider builder loading first
   if (isLoading) { // This isLoading is from useBuilders()
@@ -397,6 +553,24 @@ export default function BuilderPage() {
 
   return (
     <div className="page-container">
+      {/* Destructive alert dialog */}
+      {alertMessage && (
+        <div className="fixed inset-0 flex items-center justify-center z-50">
+          <Alert variant="destructive" className="w-[90%] max-w-md bg-black">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{alertMessage}</AlertDescription>
+            <Button
+              variant="destructive"
+              className="mr-auto mt-4"
+              onClick={() => setAlertMessage(null)}
+            >
+              Understood
+            </Button>
+          </Alert>
+        </div>
+      )}
+
+      {/* Main content */}
       <div className="max-w-5xl mx-auto space-y-8">
         {/* Builder Header */}
         <ProjectHeader
@@ -545,13 +719,13 @@ export default function BuilderPage() {
                   ? "Withdrawing..."
                   : "Withdraw MOR"
               }
-              description={
-                timeLeft !== "Unlocked"
-                  ? `Your funds are locked until ${timeLeft} from now.`
-                  : userStakedAmount
-                  ? `You can withdraw up to ${userStakedAmount} ${tokenSymbol}.`
-                  : `You have no staked tokens to withdraw.`
-              }
+              // description={
+              //   timeLeft !== "Unlocked"
+              //     ? `Your funds are locked until ${timeLeft} from now.`
+              //     : userStakedAmount
+              //     ? `You can withdraw up to ${Math.max(userStakedAmount - (builder?.minDeposit ? Number(builder.minDeposit) : 0), 0)} ${tokenSymbol}.`
+              //     : `You have no staked tokens to withdraw.`
+              // }
             />
             <GlowingEffect 
               spread={40}
