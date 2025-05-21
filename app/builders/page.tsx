@@ -82,6 +82,52 @@ function checkSimpleImageExtension(url: string): boolean {
   return validExtensions.some(ext => urlLower.includes(ext));
 }
 
+// Add this helper function after the checkSimpleImageExtension function
+
+/**
+ * Formats the time until unlocking in a human-readable way
+ */
+function formatUnlockTime(claimLockEnd?: string | number | bigint | null): string {
+  if (!claimLockEnd) return "Unknown";
+  
+  try {
+    // Convert input to number if it's a string or bigint
+    const unlockTimestamp = typeof claimLockEnd === 'string' 
+      ? parseInt(claimLockEnd) 
+      : typeof claimLockEnd === 'bigint' 
+      ? Number(claimLockEnd) 
+      : claimLockEnd;
+    
+    // Check if it's a valid number
+    if (isNaN(unlockTimestamp)) return "Unknown";
+    
+    const now = Math.floor(Date.now() / 1000);
+    
+    // If already unlocked
+    if (unlockTimestamp <= now) {
+      return "Unlocked";
+    }
+    
+    // Calculate remaining time
+    const remainingSeconds = unlockTimestamp - now;
+    
+    // Format the remaining time more precisely
+    if (remainingSeconds < 60) {
+      return `${remainingSeconds} seconds`;
+    } else if (remainingSeconds < 3600) {
+      return `${Math.floor(remainingSeconds / 60)} minutes`;
+    } else if (remainingSeconds < 86400) {
+      return `${Math.floor(remainingSeconds / 3600)} hours`;
+    } else {
+      const days = Math.floor(remainingSeconds / 86400);
+      return days === 1 ? "1 day" : `${days} days`;
+    }
+  } catch (error) {
+    console.error("Error calculating unlock time:", error);
+    return "Unknown";
+  }
+}
+
 // Separate component for the modal to ensure it works independently
 function BuilderModalWrapper() {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -582,17 +628,61 @@ export default function BuildersPage() {
         ),
       },
       {
-        id: "createdAt", // Assuming Builder type has created_at
-        header: "Created At",
-        accessorKey: "created_at", // Use created_at from Builder
-        cell: (subnet) => ( // Format the date
+        id: "startsAt",
+        header: "Starts at",
+        accessorKey: "startsAt",
+        cell: (subnet) => (
            <span className="text-gray-300">
-            {subnet.created_at 
-              ? new Date(Number(subnet.created_at) * 1000).toLocaleDateString() 
+            {subnet.startsAt 
+              ? new Date(Number(subnet.startsAt) * 1000).toLocaleDateString() 
               : '—'}
           </span>
         ),
       },
+      // {
+      //   id: "unlockIn_subnets",
+      //   header: "Claim unlocks in",
+      //   enableSorting: true,
+      //   cell: (subnet) => {
+      //     // Only log one time per subnet to avoid console clutter
+      //     console.log("DEBUG - Processing subnet for claim unlock:", subnet.name);
+          
+      //     // Different data structures between testnet and mainnet
+      //     let claimLockEnd = null;
+          
+      //     // For the "Your Subnets" tab
+      //     // For testnet networks - use the builderUsers data for the admin's stake
+      //     if (subnet.builderUsers && subnet.admin && userAddress && 
+      //         subnet.admin.toLowerCase() === userAddress.toLowerCase()) {
+      //       // Try to find the admin's own stake to get their claimLockEnd
+      //       const adminStake = subnet.builderUsers.find(user => 
+      //         user.address.toLowerCase() === userAddress.toLowerCase()
+      //       );
+            
+      //       if (adminStake && adminStake.claimLockEnd) {
+      //         claimLockEnd = adminStake.claimLockEnd;
+      //         console.log(`Subnet ${subnet.name}: Found claim lock end in admin stake:`, claimLockEnd);
+      //       }
+      //     }
+          
+      //     console.log(`FINAL RESULT - Subnet ${subnet.name}:`, {
+      //       claimLockEnd,
+      //       formattedTime: formatUnlockTime(claimLockEnd)
+      //     });
+          
+      //     const unlockStatus = formatUnlockTime(claimLockEnd);
+          
+      //     if (unlockStatus === "Unlocked") {
+      //       return (
+      //         <span className="bg-emerald-900/30 text-emerald-400 px-2 py-1 rounded-full text-xs">
+      //           Unlocked
+      //         </span>
+      //       );
+      //     } else {
+      //       return <span className="text-gray-300">{unlockStatus}</span>;
+      //     }
+      //   },
+      // },
       {
         id: "actions",
         header: "Actions",
@@ -611,7 +701,7 @@ export default function BuildersPage() {
         ),
       },
     ],
-    [handleOpenStakeModal]
+    [handleOpenStakeModal, userAddress]
   );
   // --- END MODIFY subnetsColumns ---
 
@@ -654,7 +744,8 @@ export default function BuildersPage() {
 
       return matchesName && matchesNetwork && matchesStatus;
     });
-  }, [userAdminSubnets, yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter]); // Added userAdminSubnets dependency
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userAdminSubnets, yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter, userAddress]); // userAddress is needed for filtering
   // --- END MODIFY Filter logic ---
 
   // For your subnets filters, initialize from URL only if values exist
@@ -916,6 +1007,48 @@ export default function BuildersPage() {
           <span className="text-gray-300">{builder.lockPeriod}</span>
         ),
       },
+      // {
+      //   id: "unlockIn_participating",
+      //   header: "Claim unlocks in",
+      //   enableSorting: true,
+      //   cell: (builder) => {
+      //     // Only log one time per builder to avoid console clutter
+      //     console.log("DEBUG - Processing builder for claim unlock:", builder.name);
+          
+      //     // Different data structures between testnet and mainnet
+      //     let claimLockEnd = null;
+          
+      //     // For the "Participating" tab
+      //     // Check for builderUsers data for the current user's stake
+      //     if (builder.builderUsers && userAddress) {
+      //       const userStake = builder.builderUsers.find(user => 
+      //         user.address.toLowerCase() === userAddress.toLowerCase()
+      //       );
+            
+      //       if (userStake && userStake.claimLockEnd) {
+      //         claimLockEnd = userStake.claimLockEnd;
+      //         console.log(`Builder ${builder.name}: Found claim lock end in user stake:`, claimLockEnd);
+      //       }
+      //     }
+          
+      //     console.log(`FINAL RESULT - Builder ${builder.name}:`, {
+      //       claimLockEnd,
+      //       formattedTime: formatUnlockTime(claimLockEnd)
+      //     });
+          
+      //     const unlockStatus = formatUnlockTime(claimLockEnd);
+          
+      //     if (unlockStatus === "Unlocked") {
+      //       return (
+      //         <span className="bg-emerald-900/30 text-emerald-400 px-2 py-1 rounded-full text-xs">
+      //           Unlocked
+      //         </span>
+      //       );
+      //     } else {
+      //       return <span className="text-gray-300">{unlockStatus}</span>;
+      //     }
+      //   },
+      // },
       {
         id: "actions",
         header: "Actions",
@@ -934,7 +1067,7 @@ export default function BuildersPage() {
         ),
       },
     ],
-    [handleOpenStakeModal]
+    [handleOpenStakeModal, userAddress]
   );
 
   // Calculate Avg MOR Staked for Community Stats
