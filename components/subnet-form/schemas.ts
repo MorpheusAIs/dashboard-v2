@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { zeroAddress, isAddress } from "viem";
 import { Option } from "@/components/ui/multiple-selector";
+import { arbitrum, base } from 'wagmi/chains';
 
 // Constants for form options
 export const REWARD_OPTIONS: Option[] = [
@@ -100,11 +101,76 @@ export const projectOffChainSchema = z.object({
 
 // Combined Form Schema
 export const formSchema = z.object({
-  subnet: subnetContractSchema,
+  subnet: z.object({
+    name: z.string().min(1, "Subnet name is required."), // For testnet path
+    networkChainId: z.number(),
+    minStake: z.number().gte(0.001, "Minimum stake must be at least 0.001."), // Testnet might allow lower, adjust if needed. For mainnet, see builderPool
+    fee: z.number().optional(), // Testnet specific
+    feeTreasury: z.string().optional(), // Testnet specific
+    withdrawLockPeriod: z.number().min(1, "Withdraw lock period is required."),
+    withdrawLockUnit: z.enum(["days", "hours"]),
+    startsAt: z.date().refine(date => date.getTime() > new Date().getTime() - 24*60*60*1000, { // Allow selection of 'today', hook ensures future
+        message: "Start date should be today or in the future."
+    }),
+    maxClaimLockEnd: z.date(),
+  }),
+  builderPool: z.object({ // For mainnet-specific fields that differ from 'subnet'
+    name: z.string().min(1, "Pool name is required."),
+    minimalDeposit: z.number().gte(0.01, "Minimum deposit must be at least 0.01."), // Enforce 0.01 for mainnet
+  }).optional(), // Make builderPool itself optional if not always present
   metadata: metadataContractSchema,
   projectOffChain: projectOffChainSchema,
-  builderPool: builderPoolSchema.optional(), // Add optional builderPool
+}).superRefine((data, ctx) => {
+  // Cross-field validation for withdrawLockPeriod on mainnet
+  if (data.subnet.networkChainId === arbitrum.id || data.subnet.networkChainId === base.id) {
+    const withdrawLockSeconds = calculateSecondsForLockPeriod(data.subnet.withdrawLockPeriod, data.subnet.withdrawLockUnit);
+    // Assuming minimalWithdrawLockPeriod on chain is 604800 (7 days)
+    if (withdrawLockSeconds < 604800) {
+      ctx.addIssue({
+        path: ["subnet", "withdrawLockPeriod"],
+        message: "Withdraw lock period must be at least 7 days for mainnet.",
+        code: z.ZodIssueCode.custom,
+      });
+    }
+  }
+
+  // Validate maxClaimLockEnd is after startsAt
+  if (data.subnet.maxClaimLockEnd.getTime() <= data.subnet.startsAt.getTime()) {
+    ctx.addIssue({
+      path: ["subnet", "maxClaimLockEnd"],
+      message: "Claim lock end date must be after the start date.",
+      code: z.ZodIssueCode.custom,
+    });
+  }
+
+  // Conditional validation for mainnet vs testnet names if they use different fields
+  // This example assumes 'subnet.name' is used for testnet and 'builderPool.name' for mainnet.
+  // If you use a single 'name' field in the form that maps to different contract fields, adjust accordingly.
+  if (data.subnet.networkChainId === arbitrum.id || data.subnet.networkChainId === base.id) {
+      if (!data.builderPool?.name || data.builderPool.name.trim() === "") {
+          ctx.addIssue({
+            path: ["builderPool", "name"], // Path to the mainnet name field
+            message: "Pool name is required for mainnet.",
+            code: z.ZodIssueCode.custom,
+          });
+      }
+  } else { // Testnet
+      if (!data.subnet.name || data.subnet.name.trim() === "") {
+           ctx.addIssue({
+            path: ["subnet", "name"], // Path to the testnet name field
+            message: "Subnet name is required for testnet.",
+            code: z.ZodIssueCode.custom,
+          });
+      }
+  }
 });
+
+// Helper function (if not already available to your Zod schema)
+const calculateSecondsForLockPeriod = (period: number, unit: "hours" | "days"): number => {
+  const secondsInHour = 3600;
+  const secondsInDay = 86400;
+  return unit === "hours" ? period * secondsInHour : period * secondsInDay;
+};
 
 // Type for form data
 export type FormData = z.infer<typeof formSchema>; 

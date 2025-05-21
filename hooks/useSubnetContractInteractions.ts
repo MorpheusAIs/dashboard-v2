@@ -164,8 +164,14 @@ export const useSubnetContractInteractions = ({
   });
 
   // Transaction Receipt Hooks
-  const { isLoading: isWriteTxLoading, isSuccess: isWriteTxSuccess } = useWaitForTransactionReceipt({ hash: writeTxResult });
-  const { isLoading: isApproveTxLoading, isSuccess: isApproveTxSuccess } = useWaitForTransactionReceipt({ hash: approveTxResult });
+  const { isLoading: isWriteTxLoading, isSuccess: isWriteTxSuccess, isError: isWriteTxError } = useWaitForTransactionReceipt({ 
+    hash: writeTxResult,
+    timeout: 60_000, // Add a 60-second timeout
+  });
+  const { isLoading: isApproveTxLoading, isSuccess: isApproveTxSuccess, isError: isApproveTxError } = useWaitForTransactionReceipt({ 
+    hash: approveTxResult,
+    timeout: 60_000, // Add a 60-second timeout
+  });
 
   // Store form data temporarily when submit is called
   const [submittedFormData, setSubmittedFormData] = useState<FormData | null>(null);
@@ -313,7 +319,24 @@ export const useSubnetContractInteractions = ({
       resetWriteContract();
       setSubmittedFormData(null); // Clear form data on error
     }
-  }, [isWritePending, isWriteTxSuccess, writeTxResult, writeError, selectedChainId, resetWriteContract, onTxSuccess]);
+    // Add handler for transaction error/timeout
+    if (isWriteTxError || (writeTxResult && !isWriteTxLoading && !isWriteTxSuccess)) {
+      toast.error("Transaction Failed or Timed Out", { 
+        id: "subnet-tx", 
+        description: "The transaction may still be pending on the network. Check your wallet or block explorer for status.",
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            const explorerUrl = SUPPORTED_CHAINS[selectedChainId]?.blockExplorers?.default.url;
+            if (explorerUrl && writeTxResult) {
+              window.open(`${explorerUrl}/tx/${writeTxResult}`, "_blank");
+            }
+          }
+        }
+      });
+      resetWriteContract();
+    }
+  }, [isWritePending, isWriteTxSuccess, isWriteTxError, writeTxResult, isWriteTxLoading, writeError, selectedChainId, resetWriteContract, onTxSuccess]);
 
   // Effect to handle Supabase insertion after successful transaction
   useEffect(() => {
@@ -380,6 +403,56 @@ export const useSubnetContractInteractions = ({
     setIsLoadingFeeData(isFetchingToken || isFetchingSymbol || isFetchingAllowance);
   }, [isFetchingToken, isFetchingSymbol, isFetchingAllowance]);
 
+  // Add this new useEffect after the transaction receipt hooks
+  // Add a recovery timeout for stuck transactions
+  useEffect(() => {
+    let txTimeoutId: NodeJS.Timeout | null = null;
+    
+    // Start a timeout if we have a transaction hash and are waiting
+    if (writeTxResult && isWriteTxLoading) {
+      txTimeoutId = setTimeout(() => {
+        // After 60 seconds, offer a way to continue even if the transaction receipt wasn't detected
+        toast.warning("Transaction Taking Longer Than Expected", {
+          id: "tx-stuck",
+          description: "The transaction was submitted but confirmation is taking longer than expected.",
+          action: {
+            label: "Continue Anyway",
+            onClick: () => {
+              resetWriteContract();
+              if (onTxSuccess) {
+                toast.info("Redirecting...", { id: "tx-stuck" });
+                onTxSuccess();
+              }
+            }
+          },
+          duration: 30000, // Show for 30 seconds
+        });
+      }, 60000); // 60 seconds
+    }
+    
+    // Clear timeout on unmount or when state changes
+    return () => {
+      if (txTimeoutId) clearTimeout(txTimeoutId);
+    };
+  }, [writeTxResult, isWriteTxLoading, resetWriteContract, onTxSuccess]);
+
+  // Check for Subnet Creation Fee
+  const { data: subnetCreationFeeAmount } = useReadContract({
+    address: builderContractAddress as Address,
+    abi: BuilderSubnetsV2Abi,
+    functionName: 'subnetCreationFeeAmount',
+    chainId: selectedChainId,
+    query: {
+      enabled: !!builderContractAddress,
+    }
+  });
+
+  useEffect(() => {
+    if (subnetCreationFeeAmount !== undefined && subnetCreationFeeAmount !== null) {
+      console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
+    }
+  }, [subnetCreationFeeAmount]);
+
   // Action Handlers
   const handleNetworkSwitch = useCallback(async () => {
     if (isCorrectNetwork()) return true;
@@ -400,32 +473,31 @@ export const useSubnetContractInteractions = ({
   }, [isCorrectNetwork, switchToChain, selectedChainId, getNetworkName]);
 
   const handleApprove = useCallback(async () => {
-    // Use fallback token address if undefined
-    const effectiveTokenAddress = tokenAddress || FALLBACK_TOKEN_ADDRESS;
-    // Use a larger approval amount (max uint256 / 2) to avoid needing multiple approvals
-    const effectiveFee = parseEther("1000000"); // Approve 1M tokens to avoid repeated approvals
-    
-    if (!effectiveTokenAddress || !builderContractAddress) {
-      toast.error("Cannot approve: Missing contract address data.");
+    if (!isCorrectNetwork()) {
+      toast.error("Please connect to the right network.");
       return;
     }
 
-    console.log(`Requesting approval for ${formatEther(effectiveFee)} ${tokenSymbol} to ${builderContractAddress}`);
-    console.log(`Using token address: ${effectiveTokenAddress}`);
+    if (!tokenAddress || !connectedAddress || !builderContractAddress) {
+      toast.error("Missing required contract addresses for approval.");
+      return;
+    }
 
     try {
       writeApprove({
-        address: effectiveTokenAddress,
+        address: tokenAddress,
         abi: ERC20Abi,
         functionName: 'approve',
-        args: [builderContractAddress, effectiveFee],
+        args: [builderContractAddress, creationFee || BigInt(0)],
         chainId: selectedChainId,
+        // Add explicit gas limit for Arbitrum Sepolia to prevent excessive estimates
+        gas: selectedChainId === arbitrumSepolia.id ? BigInt(400000) : undefined,
       });
     } catch (error) {
-      console.error("Error in approval call:", error);
-      toast.error("Approval request failed: " + (error instanceof Error ? error.message : "Unknown error"));
+      console.error("Error preparing approve transaction:", error);
+      toast.error("Error preparing approval: " + (error instanceof Error ? error.message : "Unknown error"));
     }
-  }, [tokenAddress, builderContractAddress, selectedChainId, writeApprove, tokenSymbol]);
+  }, [isCorrectNetwork, tokenAddress, connectedAddress, builderContractAddress, writeApprove, creationFee, selectedChainId]);
 
   const handleCreateSubnet = useCallback(async (data: FormData) => {
     const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
@@ -441,83 +513,86 @@ export const useSubnetContractInteractions = ({
     }
 
     try {
-      // Final address validation before submitting
-      if (data.subnet.feeTreasury && !isAddress(data.subnet.feeTreasury)) {
-        toast.error("Invalid Fee Treasury address provided.");
-        return;
-      }
-
-      // Always set startsAt to 5 minutes in the future to avoid contract validation errors
       const futureDate = new Date();
-      futureDate.setMinutes(futureDate.getMinutes() + 5);
+      futureDate.setHours(futureDate.getHours() + 1);
       const startsAtTimestamp = BigInt(getUnixTime(futureDate));
-      
-      console.log(`Setting startsAt to 5 minutes in the future: ${new Date(Number(startsAtTimestamp) * 1000).toISOString()}`);
+      // console.log(`Setting startsAt to 1 hour in the future for contract: ${new Date(Number(startsAtTimestamp) * 1000).toISOString()}`);
 
       if (isMainnet) {
-        // --- MAINNET createBuilderPool --- //
-        const builderPool = {
-          name: data.builderPool?.name || data.subnet.name,
-          admin: connectedAddress as `0x${string}`,
-          poolStart: startsAtTimestamp,
-          withdrawLockPeriodAfterDeposit: calculateSecondsForLockPeriod(
-            data.subnet.withdrawLockPeriod,
-            data.subnet.withdrawLockUnit
-          ),
-          claimLockEnd: BigInt(getUnixTime(data.subnet.maxClaimLockEnd ?? new Date())),
-          minimalDeposit: parseEther((data.builderPool?.minimalDeposit ?? data.subnet.minStake).toString()),
-        };
+        const poolName = data.builderPool?.name || data.subnet.name || `UniquePool-${Date.now()}`; // Name from form
+        const adminAddress = connectedAddress;
+        const poolStart = startsAtTimestamp.toString(); // From "now + 1hr"
 
-        console.log("Creating builder pool with parameters:", builderPool);
+        // These now come directly from validated form data
+        const withdrawLock = calculateSecondsForLockPeriod(
+          data.subnet.withdrawLockPeriod,
+          data.subnet.withdrawLockUnit
+        ).toString();
+
+        const claimLock = BigInt(
+          getUnixTime(data.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // Default if not set
+        ).toString();
+
+        // Form validation should ensure this meets contract's practical minimum (e.g. >= 0.01)
+        const minDeposit = parseEther(
+          (data.builderPool?.minimalDeposit ?? data.subnet.minStake ?? 0.01).toString() // Fallback to 0.01 if form values are missing
+        ).toString();
+
+        const dynamicBuilderPoolTuple = [
+          poolName, adminAddress, poolStart, withdrawLock, claimLock, minDeposit
+        ];
+        console.log("Creating builder pool (Mainnet) with validated DYNAMIC parameters:", dynamicBuilderPoolTuple);
 
         writeContract({
           address: builderContractAddress,
-          abi: BuildersAbi as Abi,
+          abi: BuildersAbi as Abi, 
           functionName: 'createBuilderPool',
-          args: [builderPool],
+          args: [dynamicBuilderPoolTuple],
           chainId: selectedChainId,
         });
 
       } else {
-        // --- TESTNET createSubnet --- //
-        const subnet = {
-          name: data.subnet.name,
+        // Testnet logic (as corrected previously)
+        const testnetSubnetName = data.subnet.name || `TestNetSubnet-${Date.now()}`;
+        const testnetSlug = data.metadata.slug || testnetSubnetName.toLowerCase().replace(/\s+/g, '-');
+
+        const subnetStruct = {
+          name: testnetSubnetName,
           owner: connectedAddress as `0x${string}`,
-          minStake: parseEther(data.subnet.minStake.toString()),
-          fee: BigInt(data.subnet.fee ?? 0),
-          feeTreasury: (data.subnet.fee && data.subnet.fee > 0 ?
-            (data.subnet.feeTreasury || connectedAddress) : zeroAddress) as `0x${string}`,
+          // Form validation should ensure minStake is appropriate for testnet (e.g. >= 0.001)
+          minStake: parseEther((data.subnet.minStake || 0.001).toString()),
+          fee: BigInt(data.subnet.fee || 0),
+          feeTreasury: (data.subnet.feeTreasury || connectedAddress) as `0x${string}`,
           startsAt: startsAtTimestamp,
           withdrawLockPeriodAfterStake: calculateSecondsForLockPeriod(
             data.subnet.withdrawLockPeriod,
             data.subnet.withdrawLockUnit
           ),
-          maxClaimLockEnd: BigInt(getUnixTime(data.subnet.maxClaimLockEnd ?? new Date())),
+          maxClaimLockEnd: BigInt(getUnixTime(data.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))),
         };
 
-        const metadata = {
-          slug: data.metadata.slug || data.subnet.name.toLowerCase().replace(/\s+/g, '-'),
-          description: data.metadata.description || '',
-          website: data.metadata.website || '',
-          image: data.metadata.image || '',
+        const metadataStruct = {
+          slug: testnetSlug,
+          description: data.metadata.description || "Testnet subnet description",
+          website: data.metadata.website || "https://example.com",
+          image: data.metadata.image || ""
         };
 
-        console.log("Creating subnet (testnet) with:", { subnet, metadata });
+        console.log("Creating subnet (Testnet) with DYNAMIC parameters:", subnetStruct, metadataStruct);
 
         writeContract({
           address: builderContractAddress,
-          abi: BuilderSubnetsV2Abi,
+          abi: BuilderSubnetsV2Abi, 
           functionName: 'createSubnet',
-          args: [subnet, metadata],
+          args: [subnetStruct, metadataStruct],
           chainId: selectedChainId,
         });
       }
 
-      // Store form data upon successful initiation
       setSubmittedFormData(data);
       
     } catch (error) {
-      console.error("Error preparing createSubnet transaction:", error);
+      console.error("Error preparing createSubnet/createBuilderPool transaction:", error);
       toast.error("Error preparing transaction: " + (error instanceof Error ? error.message : "Unknown error"), { id: "subnet-tx" });
     }
   }, [
@@ -527,8 +602,8 @@ export const useSubnetContractInteractions = ({
     writeContract,
     selectedChainId,
     calculateSecondsForLockPeriod,
-    arbitrum.id,
-    base.id
+    arbitrum.id, 
+    base.id,     
   ]);
 
   return {
