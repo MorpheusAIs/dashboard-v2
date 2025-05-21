@@ -87,6 +87,7 @@ function checkSimpleImageExtension(url: string): boolean {
 /**
  * Formats the time until unlocking in a human-readable way
  */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 function formatUnlockTime(claimLockEnd?: string | number | bigint | null): string {
   if (!claimLockEnd) return "Unknown";
   
@@ -701,6 +702,7 @@ export default function BuildersPage() {
         ),
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [handleOpenStakeModal, userAddress]
   );
   // --- END MODIFY subnetsColumns ---
@@ -1067,6 +1069,7 @@ export default function BuildersPage() {
         ),
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [handleOpenStakeModal, userAddress]
   );
 

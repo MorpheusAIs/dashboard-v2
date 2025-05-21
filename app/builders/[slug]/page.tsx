@@ -230,7 +230,10 @@ export default function BuilderPage() {
         // Mainnet structure from usersData:
         // [lastDeposit, claimLockStart, deposited, virtualDeposited]
         // [uint128, uint128, uint256, uint256]
-        const [lastStakeData, claimLockStartData, depositedData, virtualDepositedData] = stakerData as [bigint, bigint, bigint, bigint];
+        // Only extract the values we need (index 0 and 2)
+        const stakerArray = stakerData as [bigint, bigint, bigint, bigint];
+        const lastStakeData = stakerArray[0];
+        const depositedData = stakerArray[2];
         staked = depositedData;
         lastStake = lastStakeData;
         // For mainnet, calculate claimLockEnd
