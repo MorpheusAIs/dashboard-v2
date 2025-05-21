@@ -225,6 +225,7 @@ export const fetchBuildersAPI = async (
           lockPeriod: lockPeriodFormatted,
           minDeposit: minDepositInMor,
           totalStakedFormatted: totalStakedInMor,
+          mainnetProjectId: project.id,
         };
       });
       
@@ -247,6 +248,7 @@ export const fetchBuildersAPI = async (
           lockPeriod: lockPeriodFormatted,
           minDeposit: minDepositInMor,
           totalStakedFormatted: totalStakedInMor,
+          mainnetProjectId: project.id,
         };
       });
 
@@ -263,7 +265,11 @@ export const fetchBuildersAPI = async (
       const mappedBuilders = supabaseBuilders.map((builderDB): Builder => {
         const onChainProject = combinedProjects.find(p => p.name === builderDB.name);
         const mainnetLockPeriodSeconds = onChainProject ? parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10) : 0;
+        
+        console.log(`[Builder ID Debug] ${builderDB.name}: onChainID=${onChainProject?.id}, mainnetProjectId=${onChainProject?.mainnetProjectId}`);
+        
         return mergeBuilderData(builderDB, {
+          id: onChainProject?.id,
           totalStaked: onChainProject?.totalStakedFormatted !== undefined 
             ? onChainProject.totalStakedFormatted 
             : parseFloat(onChainProject?.totalStaked || '0') / 1e18 || 0, 
