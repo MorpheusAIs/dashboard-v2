@@ -106,8 +106,8 @@ export const GET_ACCOUNT_USER_BUILDERS_PROJECTS = gql`
 
 export const GET_BUILDERS_PROJECT_USERS = gql`
   query getBuildersProjectUsers(
-    $first: Int = 10
-    $skip: Int = 10
+    $first: Int = 100
+    $skip: Int = 0
     $buildersProjectId: Bytes = ""
   ) {
     buildersUsers(
@@ -346,6 +346,25 @@ export const COMBINED_BUILDER_SUBNETS = gql`
       id
       totalSubnets
       totalBuilderProjects
+    }
+  }
+`;
+
+// Query to get builders where user has staked (for mainnet networks)
+export const GET_USER_STAKED_BUILDERS = gql`
+  ${BUILDER_PROJECT_FRAGMENT}
+  query getUserStakedBuilders($address: String = "") {
+    buildersUsers(
+      where: { address: $address, staked_gt: "0" }
+    ) {
+      id
+      address
+      staked
+      claimed
+      lastStake
+      buildersProject {
+        ...BuilderProject
+      }
     }
   }
 `; 
