@@ -258,6 +258,16 @@ const participatingBuildersSample: Builder[] = [
   }
 ];
 
+// Function to generate the correct slug for a builder, including network for duplicates
+const getBuilderSlug = (builder: Builder, duplicateNames: string[]) => {
+  const baseSlug = builderNameToSlug(builder.name);
+  // For builders with duplicate names across networks, append the network to the slug
+  if (duplicateNames.includes(builder.name)) {
+    return `${baseSlug}-${builder.network.toLowerCase()}`;
+  }
+  return baseSlug;
+};
+
 export default function BuildersPage() {
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
@@ -324,6 +334,22 @@ export default function BuildersPage() {
     };
   }, [sortColumn, sortDirection]);
 
+  // Add a memo to track duplicate builder names
+  const duplicateBuilderNames = useMemo(() => {
+    if (!builders) return [];
+    const counts: Record<string, number> = {};
+    
+    // Count occurrences of each builder name
+    builders.forEach(builder => {
+      counts[builder.name] = (counts[builder.name] || 0) + 1;
+    });
+    
+    // Return names that appear more than once
+    return Object.entries(counts)
+      .filter(([_, count]) => count > 1)
+      .map(([name]) => name);
+  }, [builders]);
+
   // Define columns for the builders table
   const buildersColumns: Column<Builder>[] = useMemo(
     () => [
@@ -369,7 +395,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${builderNameToSlug(builder.name)}`}
+                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -492,7 +518,7 @@ export default function BuildersPage() {
         ),
       },
     ],
-    [handleOpenStakeModal]
+    [handleOpenStakeModal, duplicateBuilderNames]
   );
 
   // Define columns for the subnets table
@@ -539,7 +565,7 @@ export default function BuildersPage() {
               <div className="flex items-center gap-2">
                 <Link 
                   // Assuming subnets might have a different detail page or use slug like builders
-                  href={`/builders/${builderNameToSlug(subnet.name)}`} // Or potentially /subnets/<id> if that page exists
+                  href={`/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}`} // Or potentially /subnets/<id> if that page exists
                   className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                 >
                   {subnet.name}
@@ -703,7 +729,7 @@ export default function BuildersPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [handleOpenStakeModal, userAddress]
+    [handleOpenStakeModal, duplicateBuilderNames, userAddress]
   );
   // --- END MODIFY subnetsColumns ---
 
@@ -922,7 +948,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${builderNameToSlug(builder.name)}`}
+                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -1070,7 +1096,7 @@ export default function BuildersPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [handleOpenStakeModal, userAddress]
+    [handleOpenStakeModal, duplicateBuilderNames, userAddress]
   );
 
   // Calculate Avg MOR Staked for Community Stats
@@ -1223,7 +1249,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`;
                     }}
                   />
                 </div>
@@ -1274,7 +1300,7 @@ export default function BuildersPage() {
                     noResultsMessage="No subnets administered by you were found." // Updated message
                     onRowClick={(subnet) => {
                        // Link to builder/subnet detail page
-                       window.location.href = `/builders/${builderNameToSlug(subnet.name)}`; // Or /subnets/<id>
+                       window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}`; // Or /subnets/<id>
                     }}
                   />
                 </div>
@@ -1322,7 +1348,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${builderNameToSlug(builder.name)}`;
+                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`;
                     }}
                   />
                 </div>
