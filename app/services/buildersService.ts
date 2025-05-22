@@ -270,7 +270,7 @@ export const fetchBuildersAPI = async (
       }, {} as Record<string, number>);
 
       const duplicateBuilderNames = Object.entries(builderNameCounts)
-        .filter(([_, count]) => count > 1)
+        .filter(([, count]) => count > 1)
         .map(([name]) => name);
 
       if (duplicateBuilderNames.length > 0) {
