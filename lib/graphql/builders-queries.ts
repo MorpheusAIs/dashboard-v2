@@ -106,19 +106,24 @@ export const GET_ACCOUNT_USER_BUILDERS_PROJECTS = gql`
 
 export const GET_BUILDERS_PROJECT_USERS = gql`
   query getBuildersProjectUsers(
-    $first: Int = 100
+    $first: Int = 5
     $skip: Int = 0
     $buildersProjectId: Bytes = ""
+    $orderBy: String = "staked"
+    $orderDirection: String = "desc"
   ) {
     buildersUsers(
       first: $first
       skip: $skip
       where: { buildersProject_: {id: $buildersProjectId} }
+      orderBy: $orderBy
+      orderDirection: $orderDirection
     ) {
       address
       id
       staked
       lastStake
+      __typename
     }
   }
 `;
