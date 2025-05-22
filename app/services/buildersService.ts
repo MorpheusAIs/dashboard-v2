@@ -262,31 +262,132 @@ export const fetchBuildersAPI = async (
         console.warn("[API] Mainnet: supabaseBuilders is null at merging stage. Returning empty Builder array.");
         return [];
       }
-      const mappedBuilders = supabaseBuilders.map((builderDB): Builder => {
-        const onChainProject = combinedProjects.find(p => p.name === builderDB.name);
-        const mainnetLockPeriodSeconds = onChainProject ? parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10) : 0;
+
+      // Check for duplicate builder names across networks
+      const builderNameCounts = combinedProjects.reduce((counts, project) => {
+        counts[project.name] = (counts[project.name] || 0) + 1;
+        return counts;
+      }, {} as Record<string, number>);
+
+      const duplicateBuilderNames = Object.entries(builderNameCounts)
+        .filter(([_, count]) => count > 1)
+        .map(([name]) => name);
+
+      if (duplicateBuilderNames.length > 0) {
+        console.log('[API] Mainnet: Found builders deployed on multiple networks:', duplicateBuilderNames);
+      }
+
+      // NEW APPROACH: Map from combined projects to preserve network information
+      const mappedBuilders: Builder[] = [];
+      
+      // First process all combined projects to create builder objects
+      combinedProjects.forEach(onChainProject => {
+        // Find matching Supabase data
+        const matchingSupabaseBuilder = supabaseBuilders.find(b => b.name === onChainProject.name);
         
-        console.log(`[Builder ID Debug] ${builderDB.name}: onChainID=${onChainProject?.id}, mainnetProjectId=${onChainProject?.mainnetProjectId}`);
-        
-        return mergeBuilderData(builderDB, {
-          id: onChainProject?.id,
-          totalStaked: onChainProject?.totalStakedFormatted !== undefined 
-            ? onChainProject.totalStakedFormatted 
-            : parseFloat(onChainProject?.totalStaked || '0') / 1e18 || 0, 
-          minimalDeposit: parseFloat(onChainProject?.minimalDeposit || '0') / 1e18 || 0, 
-          withdrawLockPeriodAfterDeposit: mainnetLockPeriodSeconds,
-          withdrawLockPeriodRaw: mainnetLockPeriodSeconds,
-          stakingCount: onChainProject?.stakingCount || 0,
-          lockPeriod: onChainProject?.lockPeriod || '',
-          network: onChainProject?.network || 'Unknown',
-          networks: onChainProject?.networks || ['Unknown'],
-          admin: onChainProject?.admin,
-          image: onChainProject?.image, 
-          website: onChainProject?.website,
-          startsAt: onChainProject?.startsAt,
-        });
+        if (matchingSupabaseBuilder) {
+          // This builder exists in Supabase, merge the data
+          const mainnetLockPeriodSeconds = parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10);
+          
+          const builder = mergeBuilderData(matchingSupabaseBuilder, {
+            id: onChainProject.id,
+            totalStaked: onChainProject.totalStakedFormatted !== undefined 
+              ? onChainProject.totalStakedFormatted 
+              : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0, 
+            minimalDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0, 
+            withdrawLockPeriodAfterDeposit: mainnetLockPeriodSeconds,
+            withdrawLockPeriodRaw: mainnetLockPeriodSeconds,
+            stakingCount: onChainProject.stakingCount || 0,
+            lockPeriod: onChainProject.lockPeriod || '',
+            network: onChainProject.network || 'Unknown',
+            networks: onChainProject.networks || ['Unknown'],
+            admin: onChainProject.admin,
+            image: onChainProject.image, 
+            website: onChainProject.website,
+            startsAt: onChainProject.startsAt,
+          });
+          
+          // Add a unique identifier for duplicate builders across networks
+          if (duplicateBuilderNames.includes(onChainProject.name)) {
+            // Append network to the ID to make it unique
+            builder.id = `${builder.id}-${onChainProject.network?.toLowerCase()}`;
+          }
+          
+          mappedBuilders.push(builder);
+        } else {
+          // This is an on-chain builder that doesn't exist in Supabase
+          // Create a minimal builder object
+          console.log(`[API] Mainnet: Found on-chain builder '${onChainProject.name}' on ${onChainProject.network} not in Supabase`);
+          
+          const currentDate = new Date().toISOString();
+          const builder: Builder = {
+            id: onChainProject.id,
+            mainnetProjectId: onChainProject.id,
+            name: onChainProject.name,
+            description: onChainProject.description || `${onChainProject.name} (on ${onChainProject.network})`,
+            long_description: '',
+            admin: onChainProject.admin || "",
+            networks: onChainProject.networks || [onChainProject.network || 'Unknown'],
+            network: onChainProject.network || 'Unknown',
+            totalStaked: onChainProject.totalStakedFormatted !== undefined 
+              ? onChainProject.totalStakedFormatted 
+              : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0,
+            minDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0,
+            lockPeriod: onChainProject.lockPeriod || '',
+            stakingCount: onChainProject.stakingCount || 0,
+            website: onChainProject.website || '',
+            image_src: onChainProject.image || '',
+            image: onChainProject.image || '',
+            tags: [],
+            github_url: '',
+            twitter_url: '',
+            discord_url: '',
+            contributors: 0,
+            github_stars: 0,
+            reward_types: ['TBA'],
+            reward_types_detail: [],
+            created_at: currentDate,
+            updated_at: currentDate,
+            startsAt: onChainProject.startsAt,
+          };
+          
+          // Add a unique identifier for duplicate builders across networks
+          if (duplicateBuilderNames.includes(onChainProject.name)) {
+            // Append network to the ID to make it unique
+            builder.id = `${builder.id}-${onChainProject.network?.toLowerCase()}`;
+          }
+          
+          mappedBuilders.push(builder);
+        }
       });
-      console.log("[fetchBuildersAPI Mainnet] Finished mapping supabaseBuilders. Count:", mappedBuilders.length);
+      
+      // Process any remaining Supabase builders that weren't found on-chain
+      const onChainBuilderNames = combinedProjects.map(p => p.name);
+      const supabaseOnlyBuilders = supabaseBuilders.filter(b => !onChainBuilderNames.includes(b.name));
+      
+      if (supabaseOnlyBuilders.length > 0) {
+        console.log(`[API] Mainnet: Found ${supabaseOnlyBuilders.length} builders in Supabase without on-chain data`);
+        
+        // Add these builders to the mapped list with default on-chain values
+        supabaseOnlyBuilders.forEach(builderDB => {
+          const builder = mergeBuilderData(builderDB, {
+            id: "",
+            totalStaked: 0,
+            minimalDeposit: 0,
+            withdrawLockPeriodAfterDeposit: 0,
+            withdrawLockPeriodRaw: 0,
+            stakingCount: 0,
+            lockPeriod: '',
+            network: 'Unknown',
+            networks: ['Unknown'],
+            admin: "",
+          });
+          
+          mappedBuilders.push(builder);
+        });
+      }
+      
+      console.log("[fetchBuildersAPI Mainnet] Finished creating builders list. Count:", mappedBuilders.length);
 
       // Populate builderUsers for mainnet if userAddress was provided
       if (userAddress && (baseResponse.data?.buildersUsers || arbitrumResponse.data?.buildersUsers)) {
@@ -297,7 +398,7 @@ export const fetchBuildersAPI = async (
 
         mappedBuilders.forEach(builder => {
           const userStakesForThisBuilder = allUserStakes.filter(
-            stake => stake.buildersProject?.id === builder.id || stake.buildersProject?.name === builder.name
+            stake => stake.buildersProject?.id === builder.mainnetProjectId || stake.buildersProject?.name === builder.name
           );
 
           if (userStakesForThisBuilder.length > 0) {
@@ -312,6 +413,7 @@ export const fetchBuildersAPI = async (
           }
         });
       }
+      
       return mappedBuilders;
     }
 
