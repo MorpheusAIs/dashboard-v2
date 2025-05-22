@@ -1,27 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
-interface MorlordBuilderData {
-  admin: string;
-  poolStart: string;
-  withdrawLockPeriodAfterDeposit: string;
-  claimLockEnd: string;
-  minimalDeposit: string;
-  name: string;
-  stakedMor: string;
-  unclaimedRewards: string;
-  builderUnclaimedRewards: string;
-  stakerUnclaimedRewards: string;
-  currentReward: string;
-  totalRewardsEarned: string;
-  numberOfStakers: string;
-  lastClaim: string;
-  chain: string;
-}
-
-interface MorlordBuildersResponse {
-  [key: string]: MorlordBuilderData;
-}
 
 /**
  * Hook to fetch builder data from Morlord API via our proxy API route
