@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 
+interface MorlordBuilder {
+  name: string;
+  [key: string]: string | number;
+}
+
 export async function GET() {
   console.log('[API ROUTE] /api/builders route called');
   
@@ -20,7 +25,7 @@ export async function GET() {
     console.log(`[API ROUTE] Successfully fetched data with ${Object.keys(data).length} entries`);
     
     // Extract just the names from the data
-    const builderNames = Object.values(data).map((builder: any) => builder.name);
+    const builderNames = Object.values(data as Record<string, MorlordBuilder>).map(builder => builder.name);
     console.log(`[API ROUTE] Extracted ${builderNames.length} builder names:`, builderNames);
     
     // Return the data with proper CORS headers
