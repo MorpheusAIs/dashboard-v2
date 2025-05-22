@@ -72,8 +72,8 @@ export function useStakingData({
   projectId,
   projectName,
   network = 'Base',
-  initialPageSize = 5,
-  initialSort = { column: 'amount', direction: 'desc' },
+  initialPageSize = 5, // Keep at 5 to match what the working implementation uses
+  initialSort = { column: 'staked', direction: 'desc' }, // Change to 'staked' to match the GraphQL field name
   formatAddressFunc,
   formatEntryFunc,
   queryEndpoint,
@@ -293,6 +293,88 @@ export function useStakingData({
         isTestnet
       });
       
+      // Fetch total users count first for better pagination
+      if (!isComputeProject && !isTestnet && projectIdToUse) {
+        try {
+          console.log(`[useStakingData] Fetching builder project details to get total user count`);
+                     // We need to make a specific query for this to work properly
+           const getProjectQuery = `
+           query getBuildersProjects($id: ID!) {
+             buildersProjects(where: {id: $id}) {
+               id
+               totalUsers
+             }
+           }`;
+           
+           const builderResponse = await fetchGraphQL<BuildersGraphQLResponse>(
+            endpoint,
+            "getBuildersProjects",
+            getProjectQuery,
+            { id: projectIdToUse }
+          );
+          
+          if (builderResponse.data?.buildersProjects?.[0]) {
+            const totalUsers = parseInt(builderResponse.data.buildersProjects[0].totalUsers || '0');
+            console.log(`[useStakingData] Found builder with totalUsers: ${totalUsers}`);
+            
+            // Calculate total pages
+            const totalPages = Math.max(1, Math.ceil(totalUsers / pagination.pageSize));
+            
+            // Update pagination with accurate total count
+            setPagination(prev => ({
+              ...prev,
+              totalItems: totalUsers,
+              totalPages: totalPages
+            }));
+            
+            // Background prefetch the second page if there are more pages
+            if (totalPages > 1 && pagination.currentPage === 1) {
+              console.log(`[useStakingData] Background prefetching page 2 data`);
+              setTimeout(() => {
+                fetchGraphQL<BuildersGraphQLResponse>(
+                  endpoint,
+                  queryFunction || "getBuildersProjectUsers",
+                  queryDocument || GET_BUILDERS_PROJECT_USERS,
+                  {
+                    first: pagination.pageSize,
+                    skip: pagination.pageSize, // Skip first page
+                    buildersProjectId: projectIdToUse,
+                    orderBy: 'staked',
+                    orderDirection: 'desc'
+                  }
+                ).then(nextPageResponse => {
+                  if (nextPageResponse.data?.buildersUsers) {
+                    // Format and cache the next page
+                    const formattedNextPageEntries = (nextPageResponse.data.buildersUsers || []).map(user => {
+                      if (formatEntryFunc) {
+                        return formatEntryFunc(user);
+                      }
+                      return {
+                        address: user.address,
+                        displayAddress: formatAddress(user.address),
+                        amount: parseFloat(user.staked || '0') / 10**18,
+                        timestamp: parseInt(user.lastStake || '0'),
+                      };
+                    });
+                    
+                    // Cache the prefetched page
+                    setCachedPages(prev => ({
+                      ...prev,
+                      2: formattedNextPageEntries
+                    }));
+                    console.log(`[useStakingData] Page 2 prefetched and cached`);
+                  }
+                }).catch(error => {
+                  console.warn(`[useStakingData] Error prefetching page 2:`, error);
+                });
+              }, 500); // Small delay to prioritize current page render
+            }
+          }
+        } catch (error) {
+          console.error('[useStakingData] Error fetching builder details:', error);
+        }
+      }
+      
       // Make the actual data query
       if (isComputeProject) {
         const response = await fetchGraphQL<ComputeGraphQLResponse>(
@@ -392,6 +474,7 @@ export function useStakingData({
       } else {
         // Mainnet builders project query
         console.log(`[useStakingData] Mainnet projectId (expected to be an ETH address): ${projectIdToUse}`);
+        console.log(`[useStakingData] Pagination state for query: page=${pagination.currentPage}, pageSize=${pagination.pageSize}, skip=${skip}`);
 
         const response = await fetchGraphQL<BuildersGraphQLResponse>(
           endpoint,
@@ -411,6 +494,61 @@ export function useStakingData({
         }
         
         console.log('[useStakingData] Mainnet Builders data raw response:', response);
+        
+              // Update pagination based on response data
+              const buildersUsers = response.data.buildersUsers || [];
+        
+        // Check if we've reached the end of the data
+        if (buildersUsers.length === 0 && pagination.currentPage > 1) {
+          console.log(`[useStakingData] No more users found for page ${pagination.currentPage}. Setting totalPages to previous page.`);
+          // We've reached the end - set totalPages to the previous page
+          setPagination(prev => ({
+            ...prev,
+            totalPages: prev.currentPage - 1,
+            currentPage: prev.currentPage - 1 // Go back to the previous page
+          }));
+          
+          // Use cached data from the previous page if available
+          const prevPage = pagination.currentPage - 1;
+          if (cachedPages[prevPage]?.length > 0) {
+            console.log(`[useStakingData] Using cached data for previous page ${prevPage}`);
+            setEntries(cachedPages[prevPage]);
+          } else {
+            // This should rarely happen - fallback case
+            console.warn(`[useStakingData] No cached data for previous page ${prevPage}. Setting empty entries.`);
+            setEntries([]);
+          }
+          
+          return; // Exit early - we'll display the previous page's data
+        }
+        
+        // Continue with normal flow if we have users
+        if (buildersUsers.length > 0) {
+          console.log(`[useStakingData] Found ${buildersUsers.length} users. projectId: ${projectIdToUse}`);
+          
+          // If we have a projectId, update pagination based on available data
+          if (projectIdToUse) {
+            try {
+                              // Only update totalPages if we haven't already set it with the total count fetch
+                // This prevents overriding our accurate count with an incremental guess
+                if (pagination.totalItems === 0) {
+                  setPagination(prev => ({
+                    ...prev,
+                    totalPages: Math.max(prev.totalPages, prev.currentPage + 1) // At least one more page
+                  }));
+                }
+            } catch (error) {
+              console.error('[useStakingData] Error updating pagination:', error);
+            }
+          }
+        } else if (pagination.currentPage === 1) {
+          // First page is empty - this is a legitimate empty dataset
+          console.log(`[useStakingData] First page is empty. No users found for this builder.`);
+          setPagination(prev => ({
+            ...prev,
+            totalPages: 1
+          }));
+        }
         
         // Format the data using provided formatter or default
         const formattedEntries = (response.data.buildersUsers || []).map(user => {
@@ -528,18 +666,37 @@ export function useStakingData({
 
   // Pagination handlers
   const nextPage = useCallback(() => {
+    // First check if we're already at the last page with data
+    if (pagination.currentPage === pagination.totalPages) {
+      console.log('[useStakingData] Already at last page, not navigating forward');
+      return;
+    }
+    
+    // If we have empty entries on the current page and trying to go forward, don't proceed
+    if (entries.length === 0 && pagination.currentPage > 1) {
+      console.log('[useStakingData] Current page is empty, not navigating forward');
+      return;
+    }
+    
+    console.log(`[useStakingData] Moving to next page: ${pagination.currentPage + 1}`);
     setPagination(prev => ({
       ...prev,
       currentPage: Math.min(prev.currentPage + 1, prev.totalPages)
     }));
-  }, []);
+  }, [pagination.currentPage, pagination.totalPages, entries.length]);
 
   const prevPage = useCallback(() => {
+    if (pagination.currentPage <= 1) {
+      console.log('[useStakingData] Already at first page, not navigating backward');
+      return;
+    }
+    
+    console.log(`[useStakingData] Moving to previous page: ${pagination.currentPage - 1}`);
     setPagination(prev => ({
       ...prev,
       currentPage: Math.max(prev.currentPage - 1, 1)
     }));
-  }, []);
+  }, [pagination.currentPage]);
 
   // Sort entries in memory if needed
   const sortedEntries = useMemo(() => {
