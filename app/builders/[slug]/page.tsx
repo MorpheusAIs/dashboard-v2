@@ -106,13 +106,36 @@ export default function BuilderPage() {
     if (typeof slug !== 'string') return;
     
     console.log("########## EFFECT TO FIND BUILDER: slug, builders, isTestnet ##########", slug, builders, isTestnet);
-    const builderNameFromSlug = slugToBuilderName(slug);
+    
+    // Extract network from slug if present
+    const hasNetworkSuffix = slug.includes('-base') || slug.includes('-arbitrum');
+    const network = slug.includes('-base') ? 'Base' : 
+                   slug.includes('-arbitrum') ? 'Arbitrum' : undefined;
+    
+    // Extract base name without network suffix
+    const slugWithoutNetwork = hasNetworkSuffix 
+      ? slug.substring(0, slug.lastIndexOf('-'))
+      : slug;
+    
+    const builderNameFromSlug = slugToBuilderName(slugWithoutNetwork);
     let foundBuilder: Builder | null | undefined = null;
     
     if (builders && builders.length > 0) {
-      foundBuilder = builders.find(b => 
-        b.name.toLowerCase() === builderNameFromSlug.toLowerCase()
-      );
+      // Find builder matching both name and network (if specified)
+      foundBuilder = builders.find(b => {
+        const nameMatches = b.name.toLowerCase() === builderNameFromSlug.toLowerCase();
+        // If network is specified in the slug, require a network match
+        if (network) {
+          return nameMatches && b.network === network;
+        }
+        // Otherwise just match by name
+        return nameMatches;
+      });
+      
+      // Log for debugging
+      if (hasNetworkSuffix) {
+        console.log(`########## LOOKING FOR BUILDER WITH NAME '${builderNameFromSlug}' ON NETWORK '${network}' ##########`);
+      }
     }
 
     if (foundBuilder) {
