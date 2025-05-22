@@ -16,7 +16,8 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { slugToBuilderName } from "@/app/utils/supabase-utils";
 import { useBuilders } from "@/context/builders-context";
 import { useChainId, useAccount, useReadContract } from 'wagmi';
-import { arbitrumSepolia } from 'wagmi/chains';
+import { useNetwork } from "@/context/network-context";
+import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
 import { MetricCard } from "@/components/metric-card";
 import BuildersAbi from '@/app/abi/Builders.json';
 import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
@@ -62,6 +63,8 @@ export default function BuilderPage() {
   const { address: userAddress } = useAccount();
   const isTestnet = chainId === arbitrumSepolia.id;
   const previousIsTestnetRef = useRef<boolean>();
+  
+  const { switchToChain, isNetworkSwitching } = useNetwork();
   
   const [userStakedAmount, setUserStakedAmount] = useState<number | null>(null);
   const [rawStakedAmount, setRawStakedAmount] = useState<bigint | null>(null);
@@ -564,6 +567,77 @@ export default function BuilderPage() {
     };
   }, []);
 
+  // Add a flag to track if network switch has been attempted
+  const networkSwitchAttempted = useRef(false);
+  
+  // Add a flag to track when the page is fully loaded
+  const [isPageFullyLoaded, setIsPageFullyLoaded] = useState(false);
+  
+  // Update the shouldSwitchNetwork function to return the target chainId
+  const networkInfo = useMemo(() => {
+    if (!builder || isTestnet || !networksToDisplay.length) return { shouldSwitch: false, targetChainId: null };
+    
+    // If on mainnet, check if current network matches builder's network
+    const builderNetwork = networksToDisplay[0]; // Primary network
+    
+    // Arbitrum network is chainId 42161
+    if (builderNetwork === 'Arbitrum' && chainId !== arbitrum.id) {
+      return { shouldSwitch: true, targetChainId: arbitrum.id };
+    }
+    
+    // Base network is chainId 8453
+    if (builderNetwork === 'Base' && chainId !== base.id) {
+      return { shouldSwitch: true, targetChainId: base.id };
+    }
+    
+    return { shouldSwitch: false, targetChainId: null };
+  }, [builder, isTestnet, networksToDisplay, chainId]);
+  
+  // Effect to auto-switch network after data is loaded
+  useEffect(() => {
+    // Only run if:
+    // 1. Page is fully loaded
+    // 2. We should switch networks
+    // 3. We haven't attempted a switch yet in this session
+    if (isPageFullyLoaded && 
+        networkInfo.shouldSwitch && 
+        networkInfo.targetChainId && 
+        !networkSwitchAttempted.current && 
+        !isNetworkSwitching) {
+      
+      console.log(`Auto-switching network to ${networksToDisplay[0]} (chainId: ${networkInfo.targetChainId}) for builder ${builder?.name}`);
+      
+      // Set the flag to prevent multiple switch attempts
+      networkSwitchAttempted.current = true;
+      
+      // Show notification
+      setShowNetworkSwitchNotice(true);
+      
+      // Use a small delay to ensure the UI is fully rendered
+      const timer = setTimeout(() => {
+        // Call the network context's switchToChain function
+        switchToChain(networkInfo.targetChainId);
+        
+        // Hide notification after a brief period
+        setTimeout(() => {
+          setShowNetworkSwitchNotice(false);
+        }, 3000);
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isPageFullyLoaded, networkInfo, networksToDisplay, builder, switchToChain, isNetworkSwitching]);
+
+  // Effect to determine when the page is fully loaded
+  useEffect(() => {
+    if (!isLoading && builder && subnetId) {
+      setIsPageFullyLoaded(true);
+    }
+  }, [isLoading, builder, subnetId]);
+  
+  // Add state for network switch notification
+  const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
+  
   // Loading state for the page should consider builder loading first
   if (isLoading) { // This isLoading is from useBuilders()
     return <div className="p-8">Loading builder details...</div>;
@@ -579,6 +653,13 @@ export default function BuilderPage() {
 
   return (
     <div className="page-container">
+      {/* Network Switch Notification */}
+      {showNetworkSwitchNotice && (
+        <div className="fixed top-4 right-4 bg-emerald-900/90 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-md transition-all duration-300 ease-in-out opacity-100 transform translate-y-0">
+          <p>Switching to {networksToDisplay[0]} network to view this builder...</p>
+        </div>
+      )}
+      
       {/* Destructive alert dialog */}
       {alertMessage && (
         <div className="fixed inset-0 flex items-center justify-center z-50">
