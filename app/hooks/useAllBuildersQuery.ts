@@ -4,37 +4,136 @@ import { useNetworkInfo } from './useNetworkInfo';
 import { useSupabaseBuilders } from './useSupabaseBuilders';
 import { Builder } from '@/app/builders/builders-data'; // For return type
 import { useAuth } from '@/context/auth-context'; // Added to get userAddress
+import { useMorlordBuilders } from './useMorlordBuilders'; // Import the new hook
+import { BuilderDB } from '@/app/lib/supabase';
 
 export const useAllBuildersQuery = () => {
+  console.log('[useAllBuildersQuery] Hook initialized');
+  
   const { isTestnet } = useNetworkInfo();
   const { supabaseBuilders, supabaseBuildersLoaded, error: supabaseError } = useSupabaseBuilders();
   const { userAddress, isAuthenticated } = useAuth(); // Get userAddress and isAuthenticated
+  const { data: morlordBuilderNames, isLoading: isLoadingMorlordBuilders } = useMorlordBuilders(); // Add the Morlord hook
 
-  // Include userAddress in the queryKey if the user is authenticated, to refetch if user changes.
-  // If not authenticated, userAddress might be null/undefined, an empty string for the query is fine.
-  const queryKey: QueryKey = ['builders', { isTestnet, supabaseBuildersLoaded, userAddress: isAuthenticated ? userAddress : null }];
+  // Safe access to lengths for logging
+  const morlordNamesLength = Array.isArray(morlordBuilderNames) ? morlordBuilderNames.length : 0;
+  const supabaseBuildersLength = Array.isArray(supabaseBuilders) ? supabaseBuilders.length : 0;
+
+  console.log(`[useAllBuildersQuery] Dependencies: 
+    isTestnet: ${isTestnet}
+    supabaseBuildersLoaded: ${supabaseBuildersLoaded}
+    isLoadingMorlordBuilders: ${isLoadingMorlordBuilders}
+    morlordBuilderNames length: ${morlordNamesLength}
+    supabaseBuilders length: ${supabaseBuildersLength}
+  `);
+
+  // Include userAddress and morlordBuilderNames in the queryKey for refetching
+  const queryKey: QueryKey = [
+    'builders', 
+    { 
+      isTestnet, 
+      supabaseBuildersLoaded, 
+      userAddress: isAuthenticated ? userAddress : null,
+      morlordBuilderNamesLoaded: !isLoadingMorlordBuilders && !!morlordBuilderNames
+    }
+  ];
 
   // The query is enabled if:
   // 1. It's testnet (doesn't need supabase data pre-loaded for its core fetch)
-  // 2. It's mainnet AND supabase builders have been loaded (or attempted to load)
-  const isEnabled = isTestnet ? true : supabaseBuildersLoaded;
+  // 2. It's mainnet AND supabase builders have been loaded AND Morlord builder names have been loaded
+  const isEnabled = isTestnet ? true : (supabaseBuildersLoaded && !isLoadingMorlordBuilders);
+  
+  console.log(`[useAllBuildersQuery] Query enabled: ${isEnabled}`);
 
   return useQuery<Builder[], Error>({ 
     queryKey: queryKey,
     queryFn: async () => {
+      console.log('[useAllBuildersQuery] Query function executing');
+      
       if (!isTestnet && supabaseError) {
-        // If Supabase had an error on mainnet, fetchBuildersAPI might still proceed if supabaseBuildersLoaded is true
-        // but supabaseBuilders is empty. fetchBuildersAPI handles this by returning [].
-        // If supabaseError itself should halt the query, we could throw here.
-        // For now, logging and letting fetchBuildersAPI run its course based on its params.
-        console.warn('Supabase error detected by useAllBuildersQuery on mainnet, fetch will proceed based on loaded data:', supabaseError);
+        console.warn('[useAllBuildersQuery] Supabase error detected on mainnet:', supabaseError);
       }
-      // Pass userAddress (or empty string if not authenticated/available) to fetchBuildersAPI
-      return fetchBuildersAPI(isTestnet, supabaseBuilders, supabaseBuildersLoaded, isAuthenticated ? userAddress : "");
+
+      // Start with supabase builders
+      let combinedBuilders = supabaseBuilders ? [...supabaseBuilders] : [];
+      
+      if (!isTestnet && Array.isArray(morlordBuilderNames) && morlordBuilderNames.length > 0) {
+        console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names`);
+        
+        // Log the names from Supabase
+        const supabaseNames = supabaseBuilders?.map(b => b.name) || [];
+        console.log(`[useAllBuildersQuery] Supabase builder names:`, supabaseNames);
+        
+        // Identify which builders are in Supabase but not in Morlord
+        const supabaseOnlyBuilders = supabaseBuilders?.filter(builder => 
+          !morlordBuilderNames.includes(builder.name)
+        ) || [];
+        
+        if (supabaseOnlyBuilders.length > 0) {
+          const supabaseOnlyNames = supabaseOnlyBuilders.map(b => b.name);
+          console.log(`[useAllBuildersQuery] Found ${supabaseOnlyBuilders.length} builders in Supabase that are NOT in Morlord list:`, supabaseOnlyNames);
+        } else {
+          console.log('[useAllBuildersQuery] All Supabase builders are also in the Morlord list');
+        }
+        
+        // Identify which builders are in Morlord but not in Supabase
+        const morlordOnlyNames = morlordBuilderNames.filter(name => 
+          !supabaseNames.includes(name)
+        );
+        
+        if (morlordOnlyNames.length > 0) {
+          console.log(`[useAllBuildersQuery] Found ${morlordOnlyNames.length} builders in Morlord list that are NOT in Supabase:`, morlordOnlyNames);
+          
+          // Create basic builder objects for these missing builders and add them to the combined list
+          const currentDate = new Date().toISOString();
+          const morlordOnlyBuilders = morlordOnlyNames.map(name => {
+            // Create a minimal BuilderDB object for each missing builder
+            const builder: BuilderDB = {
+              id: `morlord-${name.replace(/\s+/g, '-').toLowerCase()}`, // Generate a temporary ID
+              name: name,
+              description: `${name} (from Morlord API)`,
+              long_description: '',
+              website: '',
+              image_src: '',
+              tags: [],
+              github_url: '',
+              twitter_url: '',
+              discord_url: '',
+              contributors: 0,
+              github_stars: 0,
+              reward_types: ['TBA'],
+              reward_types_detail: [],
+              created_at: currentDate,
+              updated_at: currentDate,
+              networks: [],
+              admin: null
+            };
+            return builder;
+          });
+          
+          // Add these to the combined list
+          combinedBuilders = [...combinedBuilders, ...morlordOnlyBuilders];
+          console.log(`[useAllBuildersQuery] Added ${morlordOnlyBuilders.length} builders from Morlord API that weren't in Supabase`);
+        } else {
+          console.log('[useAllBuildersQuery] All Morlord builders are also in Supabase');
+        }
+      } else {
+        console.log('[useAllBuildersQuery] Not enough data to analyze builders (either Morlord or Supabase data missing)');
+      }
+      
+      // Pass the COMBINED list of builders to fetchBuildersAPI
+      console.log(`[useAllBuildersQuery] Calling fetchBuildersAPI with ${combinedBuilders.length} COMBINED builders from both Supabase and Morlord`);
+      
+      const result = await fetchBuildersAPI(
+        isTestnet, 
+        combinedBuilders, 
+        supabaseBuildersLoaded, 
+        isAuthenticated ? userAddress : ""
+      );
+      
+      console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);
+      return result;
     },
     enabled: isEnabled,
-    // Default staleTime/cacheTime will be used from QueryClientProvider setup.
-    // Add specific options here if needed for this query.
-    // Example: staleTime: 1000 * 60 * 1, // 1 minute for this specific query
   });
 }; 
