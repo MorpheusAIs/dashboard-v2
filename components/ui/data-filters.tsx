@@ -4,6 +4,8 @@ import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons"
+import { useNetworkInfo } from "@/app/hooks/useNetworkInfo"
+import { cn } from "@/lib/utils"
 
 export interface SelectFilterOption {
   value: string
@@ -59,6 +61,8 @@ export function DataFilters({
   // Styling
   className = "",
 }: DataFiltersProps) {
+  const { isTestnet } = useNetworkInfo();
+
   return (
     <div className={`flex gap-4 mb-6 ${className}`}>
       {showNameFilter && (
@@ -108,8 +112,8 @@ export function DataFilters({
             type="single" 
             value={networkFilter}
             onValueChange={(value) => {
-              // Only update if there's a new value
-              if (value) {
+              // Only update if there's a new value and either we're not in testnet or the value is "all"
+              if (value && (!isTestnet || value === "all")) {
                 onNetworkFilterChange?.(value);
               }
             }}
@@ -118,12 +122,26 @@ export function DataFilters({
             <ToggleGroupItem value="all" className="flex items-center gap-2 px-4">
               All
             </ToggleGroupItem>
-            <ToggleGroupItem value="Arbitrum" className="flex items-center gap-2 px-4">
+            <ToggleGroupItem 
+              value="Arbitrum" 
+              className={cn(
+                "flex items-center gap-2 px-4",
+                isTestnet && "opacity-50 cursor-not-allowed"
+              )}
+              disabled={isTestnet}
+            >
               <div className="w-[18px] h-[20px] relative">
                 <ArbitrumIcon size={19} className="text-current" fill="currentColor" />
               </div>
             </ToggleGroupItem>
-            <ToggleGroupItem value="Base" className="flex items-center gap-2 px-4">
+            <ToggleGroupItem 
+              value="Base" 
+              className={cn(
+                "flex items-center gap-2 px-4",
+                isTestnet && "opacity-50 cursor-not-allowed"
+              )}
+              disabled={isTestnet}
+            >
               <div className="w-[18px] h-[20px] relative">
                 <BaseIcon size={19} className="text-current" fill="currentColor" />
               </div>
