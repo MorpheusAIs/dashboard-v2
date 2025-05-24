@@ -7,6 +7,7 @@ import { ArbitrumSepoliaIcon } from './constants';
 import { zeroAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { useNetwork } from "@/context/network-context";
 
 import {
   FormField,
@@ -40,6 +41,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   const [claimLockEndsPopoverOpen, setClaimLockEndsPopoverOpen] = useState(false);
   const form = useFormContext();
   const { address } = useAccount();
+  const { currentChainId } = useNetwork();
 
   const selectedChainId = form.watch("subnet.networkChainId");
   const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
@@ -59,6 +61,16 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
       }
     }
   }, [builderPoolName, builderPoolDeposit, isMainnet, form]);
+
+  // Add network sync effect
+  useEffect(() => {
+    if (currentChainId) {
+      const supportedChainIds = [arbitrumSepolia.id, arbitrum.id, base.id] as const;
+      if (currentChainId !== selectedChainId && supportedChainIds.includes(currentChainId as typeof supportedChainIds[number])) {
+        form.setValue("subnet.networkChainId", currentChainId as typeof supportedChainIds[number], { shouldValidate: true });
+      }
+    }
+  }, [currentChainId, selectedChainId, form]);
 
   // Determine the minimum value for the withdrawLockPeriod input
   let minWithdrawLockPeriodValue = 1; // Default for testnet (can be 1 day or 1 hour)
