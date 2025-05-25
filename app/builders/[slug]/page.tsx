@@ -36,10 +36,13 @@ const formatDate = (timestamp: number): string => {
   return new Date(timestamp * 1000).toLocaleDateString();
 };
 
-// Function to format wei to MOR tokens (without decimals)
+// Function to format wei to MOR tokens (with decimals for small amounts)
 const formatMOR = (weiAmount: string): number => {
   try {
-    return Math.round(parseFloat(formatUnits(BigInt(weiAmount), 18)));
+    const amount = parseFloat(formatUnits(BigInt(weiAmount), 18));
+    // If amount is less than 1, show up to 3 decimal places
+    // Otherwise round to whole numbers as before
+    return amount < 1 ? parseFloat(amount.toFixed(2)) : Math.round(amount);
   } catch (error) {
     console.error("Error formatting MOR:", error);
     return 0;
@@ -325,19 +328,30 @@ export default function BuilderPage() {
   }, [stakerData, builder, withdrawLockPeriod, isTestnet]); // Added isTestnet as a dependency
   
   // Custom formatter function to handle timestamp and unlock date
-  const formatStakingEntry = useCallback((user: StakingUser) => ({
-    address: user.address,
-    displayAddress: `${user.address.substring(0, 6)}...${user.address.substring(user.address.length - 4)}`,
-    amount: formatMOR(user.staked || '0'),
-    timestamp: ('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0,
-    unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
-  }), [withdrawLockPeriod, builder]);
+  const formatStakingEntry = useCallback((user: StakingUser) => {
+    // Skip entries where staked is "0"
+    if (user.staked === "0") return null;
+
+    return {
+        address: user.address,
+        displayAddress: `${user.address.substring(0, 6)}...${user.address.substring(user.address.length - 4)}`,
+        amount: formatMOR(user.staked || '0'),
+        timestamp: ('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0,
+        unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
+    };
+  }, [withdrawLockPeriod, builder]);
 
   const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
     queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
-    projectId: hookProjectId, // Use the derived and stable hookProjectId
+    projectId: hookProjectId,
     isTestnet: isTestnet,
-    formatEntryFunc: formatStakingEntry,
+    formatEntryFunc: (user: StakingUser) => ({
+        address: user.address,
+        displayAddress: `${user.address.substring(0, 6)}...${user.address.substring(user.address.length - 4)}`,
+        amount: user.staked === "0" ? 0 : formatMOR(user.staked || '0'),
+        timestamp: ('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0,
+        unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
+    }),
     network: networksToDisplay[0],
   }), [isTestnet, hookProjectId, formatStakingEntry, networksToDisplay]);
 
