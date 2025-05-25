@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Builder } from "../builders-data";
 import { formatUnits } from "viem";
@@ -327,20 +327,6 @@ export default function BuilderPage() {
     }
   }, [stakerData, builder, withdrawLockPeriod, isTestnet]); // Added isTestnet as a dependency
   
-  // Custom formatter function to handle timestamp and unlock date
-  const formatStakingEntry = useCallback((user: StakingUser) => {
-    // Skip entries where staked is "0"
-    if (user.staked === "0") return null;
-
-    return {
-        address: user.address,
-        displayAddress: `${user.address.substring(0, 6)}...${user.address.substring(user.address.length - 4)}`,
-        amount: formatMOR(user.staked || '0'),
-        timestamp: ('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0,
-        unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
-    };
-  }, [withdrawLockPeriod, builder]);
-
   const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
     queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
     projectId: hookProjectId,
@@ -353,7 +339,7 @@ export default function BuilderPage() {
         unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
     }),
     network: networksToDisplay[0],
-  }), [isTestnet, hookProjectId, formatStakingEntry, networksToDisplay]);
+  }), [isTestnet, hookProjectId, networksToDisplay, builder?.withdrawLockPeriodRaw, withdrawLockPeriod]);
 
   // Log the props just before calling the hook
   console.log("[BuilderPage] Props for useStakingData:", stakingDataHookProps);
@@ -397,8 +383,7 @@ export default function BuilderPage() {
     onTxSuccess: () => {
       console.log("Transaction successful (stake/withdraw), refreshing staking table and current user staker data.");
       refreshStakingDataRef.current = true; // For the main staking table
-      setStakeAmount(""); // Clear stake input
-      // Signal the StakingPositionCard to reset its withdrawal amount
+      setStakeAmount(""); // Clear stake input // Signal the StakingPositionCard to reset its withdrawal amount
       if (window && window.document) {
         const resetWithdrawEvent = new CustomEvent('reset-withdraw-form');
         window.document.dispatchEvent(resetWithdrawEvent);
