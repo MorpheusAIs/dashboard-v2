@@ -437,7 +437,9 @@ export function useStakingData({
           {
             first: pagination.pageSize,
             skip,
-            builderSubnetId: projectIdToUse
+            builderSubnetId: projectIdToUse,
+            orderBy: 'staked',
+            orderDirection: 'desc'
           }
         );
         
@@ -460,9 +462,9 @@ export function useStakingData({
             amount: parseFloat(user.staked || '0') / 10**18,
             timestamp: parseInt(user.lastStake || '0'),
           };
-        });
+        }).filter(entry => entry.amount > 0); // Filter out entries with zero amount
         
-        console.log('[useStakingData] [Testnet] Formatted entries:', formattedEntries);
+        console.log('[useStakingData] [Testnet] Formatted entries (after filtering zeros):', formattedEntries);
         
         // Update cache and state
         setCachedPages(prev => ({
@@ -476,104 +478,147 @@ export function useStakingData({
         console.log(`[useStakingData] Mainnet projectId (expected to be an ETH address): ${projectIdToUse}`);
         console.log(`[useStakingData] Pagination state for query: page=${pagination.currentPage}, pageSize=${pagination.pageSize}, skip=${skip}`);
 
-        const response = await fetchGraphQL<BuildersGraphQLResponse>(
-          endpoint,
-          queryFunction || "getBuildersProjectUsers",
-          queryDocument || GET_BUILDERS_PROJECT_USERS,
-          {
-            first: pagination.pageSize,
-            skip,
-            buildersProjectId: projectIdToUse, // Use projectIdToUse directly
-            orderBy: 'staked',
-            orderDirection: 'desc'
-          }
-        );
-        
-        if (!response.data) {
-          throw new Error("No data returned from API");
-        }
-        
-        console.log('[useStakingData] Mainnet Builders data raw response:', response);
-        
-              // Update pagination based on response data
-              const buildersUsers = response.data.buildersUsers || [];
-        
-        // Check if we've reached the end of the data
-        if (buildersUsers.length === 0 && pagination.currentPage > 1) {
-          console.log(`[useStakingData] No more users found for page ${pagination.currentPage}. Setting totalPages to previous page.`);
-          // We've reached the end - set totalPages to the previous page
-          setPagination(prev => ({
-            ...prev,
-            totalPages: prev.currentPage - 1,
-            currentPage: prev.currentPage - 1 // Go back to the previous page
-          }));
+        // Function to format and filter entries
+        const formatAndFilterEntries = (users: (BuilderSubnetUser | BuildersUser | SubnetUser)[], source: string) => {
+          console.log(`[useStakingData] ${source}: Processing ${users.length} raw entries`);
           
-          // Use cached data from the previous page if available
-          const prevPage = pagination.currentPage - 1;
-          if (cachedPages[prevPage]?.length > 0) {
-            console.log(`[useStakingData] Using cached data for previous page ${prevPage}`);
-            setEntries(cachedPages[prevPage]);
-          } else {
-            // This should rarely happen - fallback case
-            console.warn(`[useStakingData] No cached data for previous page ${prevPage}. Setting empty entries.`);
-            setEntries([]);
-          }
-          
-          return; // Exit early - we'll display the previous page's data
-        }
-        
-        // Continue with normal flow if we have users
-        if (buildersUsers.length > 0) {
-          console.log(`[useStakingData] Found ${buildersUsers.length} users. projectId: ${projectIdToUse}`);
-          
-          // If we have a projectId, update pagination based on available data
-          if (projectIdToUse) {
-            try {
-                              // Only update totalPages if we haven't already set it with the total count fetch
-                // This prevents overriding our accurate count with an incremental guess
-                if (pagination.totalItems === 0) {
-                  setPagination(prev => ({
-                    ...prev,
-                    totalPages: Math.max(prev.totalPages, prev.currentPage + 1) // At least one more page
-                  }));
-                }
-            } catch (error) {
-              console.error('[useStakingData] Error updating pagination:', error);
+          // First filter out zero staked entries
+          const nonZeroUsers = users.filter(user => {
+            const isZeroStaked = user.staked === "0";
+            if (isZeroStaked) {
+              console.log(`[useStakingData] ${source}: Filtering out zero-staked address ${user.address}`);
             }
-          }
-        } else if (pagination.currentPage === 1) {
-          // First page is empty - this is a legitimate empty dataset
-          console.log(`[useStakingData] First page is empty. No users found for this builder.`);
-          setPagination(prev => ({
-            ...prev,
-            totalPages: 1
-          }));
-        }
-        
-        // Format the data using provided formatter or default
-        const formattedEntries = (response.data.buildersUsers || []).map(user => {
-          if (formatEntryFunc) {
-            return formatEntryFunc(user);
+            return !isZeroStaked;
+          });
+          
+          console.log(`[useStakingData] ${source}: ${users.length - nonZeroUsers.length} zero-staked entries filtered out, ${nonZeroUsers.length} remaining`);
+          
+          // Then format the remaining entries
+          const formatted = nonZeroUsers.map(user => {
+            if (formatEntryFunc) {
+              return formatEntryFunc(user);
+            }
+            
+            // Default formatter
+            return {
+              address: user.address,
+              displayAddress: formatAddress(user.address),
+              amount: parseFloat(user.staked || '0') / 10**18,
+              // Handle lastStake based on user type
+              timestamp: 'lastStake' in user ? parseInt(user.lastStake || '0') : 0,
+            };
+          });
+          
+          // Additional check for any zero amounts after formatting
+          const finalFiltered = formatted.filter(entry => {
+            const isZeroAmount = entry.amount === 0;
+            if (isZeroAmount) {
+              console.log(`[useStakingData] ${source}: Found zero amount after formatting for address ${entry.address}`);
+            }
+            return !isZeroAmount;
+          });
+          
+          console.log(`[useStakingData] ${source}: Final formatted entries: ${finalFiltered.length}`);
+          return finalFiltered;
+        };
+
+        // Function to fetch a specific page of data for mainnet
+        const fetchMainnetPageData = async (pageNumber: number, pageSize: number) => {
+          const skip = (pageNumber - 1) * pageSize;
+          
+          const response = await fetchGraphQL<BuildersGraphQLResponse>(
+            endpoint,
+            queryFunction || "getBuildersProjectUsers",
+            queryDocument || GET_BUILDERS_PROJECT_USERS,
+            {
+              first: pageSize,
+              skip,
+              buildersProjectId: projectIdToUse,
+              orderBy: 'staked',
+              orderDirection: 'desc'
+            }
+          );
+          
+          if (!response.data?.buildersUsers) {
+            throw new Error("No data returned from API");
           }
           
-          // Default formatter - this would need more info like withdrawLockPeriod
-          return {
-            address: user.address,
-            displayAddress: formatAddress(user.address),
-            amount: parseFloat(user.staked || '0') / 10**18,
-            timestamp: parseInt(user.lastStake || '0'),
-          };
-        });
-        
-        console.log('[useStakingData] Mainnet Formatted entries:', formattedEntries);
-        
-        // Update cache and state
-        setCachedPages(prev => ({
-          ...prev,
-          [pagination.currentPage]: formattedEntries
-        }));
-        
-        setEntries(formattedEntries);
+          console.log('[useStakingData] Mainnet raw response with ordered data:', response.data.buildersUsers);
+          return response.data.buildersUsers;
+        };
+
+        // Function to fetch a specific page of data for testnet
+        const fetchTestnetPageData = async (pageNumber: number, pageSize: number) => {
+          const skip = (pageNumber - 1) * pageSize;
+          
+          const response = await fetchGraphQL<BuilderSubnetResponse>(
+            endpoint,
+            queryFunction || "getBuilderSubnetUsers",
+            queryDocument || GET_BUILDER_SUBNET_USERS,
+            {
+              first: pageSize,
+              skip,
+              builderSubnetId: projectIdToUse,
+              orderBy: 'staked',
+              orderDirection: 'desc'
+            }
+          );
+          
+          if (!response.data?.builderUsers) {
+            throw new Error("No data returned from API");
+          }
+          
+          console.log('[useStakingData] Testnet raw response with ordered data:', response.data.builderUsers);
+          return response.data.builderUsers;
+        };
+
+        // Mainnet or testnet query with prefetching
+        try {
+          console.log(`[useStakingData] Starting ${isTestnet ? 'testnet' : 'mainnet'} fetch for page ${pagination.currentPage}`);
+          
+          // Fetch current page and next page in parallel
+          const fetchFunc = isTestnet ? fetchTestnetPageData : fetchMainnetPageData;
+          const [currentPageUsers, nextPageUsers] = await Promise.all([
+            fetchFunc(pagination.currentPage, pagination.pageSize),
+            pagination.currentPage === 1 ? fetchFunc(2, pagination.pageSize) : Promise.resolve([])
+          ]);
+          
+          // Process current page
+          const currentPageEntries = formatAndFilterEntries(currentPageUsers, 'Current Page');
+          
+          // Update current page in cache and state
+          setCachedPages(prev => ({
+            ...prev,
+            [pagination.currentPage]: currentPageEntries
+          }));
+          setEntries(currentPageEntries);
+          
+          // If we're on page 1, process and cache next page
+          if (pagination.currentPage === 1 && nextPageUsers.length > 0) {
+            const nextPageEntries = formatAndFilterEntries(nextPageUsers, 'Next Page');
+            
+            // Cache next page
+            setCachedPages(prev => ({
+              ...prev,
+              2: nextPageEntries
+            }));
+            
+            // Update pagination if we have more data
+            if (nextPageEntries.length > 0) {
+              setPagination(prev => ({
+                ...prev,
+                totalPages: Math.max(prev.totalPages, 2)
+              }));
+            }
+            
+            console.log(`[useStakingData] Prefetched and cached page 2 with ${nextPageEntries.length} entries`);
+          }
+          
+        } catch (error) {
+          console.error(`[useStakingData] Error fetching ${isTestnet ? 'testnet' : 'mainnet'} data:`, error);
+          setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
+          setEntries([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching staking data:", error);

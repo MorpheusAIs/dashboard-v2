@@ -40,11 +40,15 @@ export const GET_BUILDERS_PROJECT_USERS = `
     $first: Int = 10
     $skip: Int = 10
     $buildersProjectId: Bytes = ""
+    $orderBy: String = "staked"
+    $orderDirection: String = "desc"
   ) {
     buildersUsers(
       first: $first
       skip: $skip
       where: { buildersProject_: {id: $buildersProjectId} }
+      orderBy: $orderBy
+      orderDirection: $orderDirection
     ) {
       address
       id
@@ -60,11 +64,15 @@ export const GET_BUILDER_SUBNET_USERS = `
     $first: Int = 10
     $skip: Int = 10
     $builderSubnetId: Bytes = ""
+    $orderBy: String = "staked"
+    $orderDirection: String = "desc"
   ) {
     builderUsers(
       first: $first
       skip: $skip
       where: { builderSubnet_: {id: $builderSubnetId} }
+      orderBy: $orderBy
+      orderDirection: $orderDirection
     ) {
       address
       id
