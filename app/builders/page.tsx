@@ -1337,7 +1337,7 @@ export default function BuildersPage() {
                   selectFilterLabel="Reward Type"
                   selectFilterPlaceholder="Select type"
                   selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))} // Use rewardTypes from context if needed here too
-                  showSelectFilter={true}
+                  showSelectFilter={false}
                 />
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
