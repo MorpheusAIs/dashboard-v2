@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { MetricCard } from "@/components/metric-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -302,6 +302,7 @@ export default function BuildersPage() {
     builders,
     rewardTypes,
     isLoading,
+    refreshData,
     
     // Total metrics (independent of filters)
     totalMetrics,
@@ -324,6 +325,18 @@ export default function BuildersPage() {
   const [activeTab, setActiveTab] = useState(() => {
     return getParam('tab') || 'builders';
   });
+
+  // useEffect to refresh data if 'refresh=true' is in URL
+  useEffect(() => {
+    if (getParam('refresh') === 'true') {
+      console.log("Refresh param found, calling refreshData");
+      refreshData().then(() => {
+        console.log("Data refreshed, removing refresh param from URL");
+        setParam('refresh', null); // Use setParam with null to remove
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getParam, refreshData, setParam]); // Updated dependencies
 
   // Convert context sorting to the format expected by the UI (for Builders tab)
   const sorting = useMemo(() => {
@@ -1195,7 +1208,7 @@ export default function BuildersPage() {
                   value="participating"
                   className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
                 >
-                  Participating
+                  Staking in
                 </TabsTrigger>
               </TabsList>
             </div>
