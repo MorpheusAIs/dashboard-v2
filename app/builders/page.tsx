@@ -1374,7 +1374,7 @@ export default function BuildersPage() {
       {/* Stake Modal */}
       <StakeModal 
         isOpen={stakeModalOpen} 
-        onClose={() => setStakeModalOpen(false)} 
+        onCloseAction={() => setStakeModalOpen(false)} 
         selectedBuilder={selectedBuilder}
       />
     </div>

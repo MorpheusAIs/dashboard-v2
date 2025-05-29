@@ -9,21 +9,38 @@ import { useStakingContractInteractions } from "@/hooks/useStakingContractIntera
 import { formatEther } from "viem";
 import { useChainId } from "wagmi";
 import { Builder } from "@/app/builders/builders-data";
+import { arbitrumSepolia } from 'wagmi/chains';
 
 interface StakeModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onCloseAction: () => void;
   selectedBuilder: Builder | null;
 }
 
 export function StakeModal({ 
   isOpen, 
-  onClose, 
+  onCloseAction, 
   selectedBuilder 
 }: StakeModalProps) {
   const [stakeAmount, setStakeAmount] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
   const chainId = useChainId(); // Get current chain ID
+  
+  // Determine if we're on testnet
+  const isTestnet = chainId === arbitrumSepolia.id;
+  
+  // Calculate the correct subnet ID based on network type (same logic as page.tsx)
+  const subnetId = useMemo(() => {
+    if (!selectedBuilder) return undefined;
+    
+    if (isTestnet) {
+      // For testnet, use selectedBuilder.id
+      return selectedBuilder.id as `0x${string}` | undefined;
+    } else {
+      // For mainnet, use mainnetProjectId
+      return selectedBuilder.mainnetProjectId as `0x${string}` | undefined;
+    }
+  }, [selectedBuilder, isTestnet]);
   
   // Use the staking hook
   const {
@@ -37,11 +54,11 @@ export function StakeModal({
     handleStake,
     checkAndUpdateApprovalNeeded
   } = useStakingContractInteractions({
-    subnetId: selectedBuilder?.id as `0x${string}` | undefined,
+    subnetId: subnetId,
     networkChainId: chainId,
     onTxSuccess: () => {
       setStakeAmount("");
-      onClose();
+      onCloseAction();
     }
   });
 
@@ -181,7 +198,7 @@ export function StakeModal({
   const onCorrectNetwork = isCorrectNetwork();
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCloseAction()}>
       <DialogContent className="sm:max-w-[425px] bg-background border-gray-800">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-emerald-400">
@@ -273,7 +290,7 @@ export function StakeModal({
             <Button
               type="button" 
               variant="outline"
-              onClick={onClose}
+              onClick={onCloseAction}
               disabled={isSubmitting}
             >
               Cancel
