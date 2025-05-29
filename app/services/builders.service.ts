@@ -82,37 +82,28 @@ export class BuildersService {
       throw new Error("Builder name and networks are required.");
     }
 
-    // Prepare data for insertion, setting defaults if needed
-    const dataToInsert: Omit<BuilderDB, 'id' | 'created_at' | 'updated_at'> & { id?: string } = {
-      name: builderData.name,
-      networks: builderData.networks,
-      description: builderData.description || null,
-      long_description: builderData.long_description || builderData.description || null, // Use description if long_description is missing
-      image_src: builderData.image_src || null,
-      tags: builderData.tags || [],
-      github_url: builderData.github_url || null,
-      twitter_url: builderData.twitter_url || null,
-      discord_url: builderData.discord_url || null,
-      contributors: builderData.contributors || 0,
-      github_stars: builderData.github_stars || 0,
-      reward_types: builderData.reward_types || [],
-      reward_types_detail: builderData.reward_types_detail || [],
-      website: builderData.website || null,
-      admin: builderData.admin || null,
-    };
+    try {
+      // Use the API route to add the builder (server-side with service key)
+      const response = await fetch('/api/builders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(builderData),
+      });
 
-    const { data, error } = await supabase
-      .from('builders')
-      .insert(dataToInsert)
-      .select() // Return the inserted row
-      .single(); // Expecting a single row back
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
 
-    if (error) {
-      console.error('Error adding builder to Supabase:', error);
+      const data = await response.json();
+      console.log('Builder added successfully via API route:', data);
+      return data as BuilderDB;
+
+    } catch (error) {
+      console.error('Error adding builder via API route:', error);
       throw error; // Re-throw the error to be handled by the caller
     }
-
-    console.log('Builder added successfully to Supabase:', data);
-    return data as BuilderDB;
   }
 } 
