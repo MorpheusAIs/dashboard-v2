@@ -106,7 +106,6 @@ export const useAllBuildersQuery = () => {
               created_at: currentDate,
               updated_at: currentDate,
               networks: [],
-              admin: null
             };
             return builder;
           });

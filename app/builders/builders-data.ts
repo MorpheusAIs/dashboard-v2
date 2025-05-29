@@ -15,6 +15,7 @@ export interface Builder extends BuilderDB {
   startsAt?: string;
   builderUsers?: BuilderUser[];
   mainnetProjectId: string | null;
+  admin: string | null;
 }
 
 export interface BuilderUser {
@@ -49,13 +50,8 @@ export const mergeBuilderData = (
     startsAt?: string;
   }
 ): Builder => {
-  let finalAdmin: string | null;
-
-  if (typeof onChainData.admin === 'string') {
-    finalAdmin = onChainData.admin;
-  } else {
-    finalAdmin = builderDB.admin;
-  }
+  // Admin data only comes from on-chain data since BuilderDB doesn't have this field
+  const finalAdmin: string | null = (typeof onChainData.admin === 'string') ? onChainData.admin : null;
 
   return {
     ...builderDB,
