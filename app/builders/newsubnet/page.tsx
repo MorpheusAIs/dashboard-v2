@@ -34,6 +34,7 @@ import { useBalance } from 'wagmi';
 export default function NewSubnetPage() {
   // --- State --- //
   const [currentStep, setCurrentStep] = useState(1);
+  const [hasValidationError, setHasValidationError] = useState(false);
   const router = useRouter();
   const { address: connectedAddress } = useAccount();
   // const walletChainId = useChainId(); // Make sure walletChainId is available here
@@ -52,6 +53,10 @@ export default function NewSubnetPage() {
         withdrawLockUnit: "days",
         startsAt: new Date(),
         maxClaimLockEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      },
+      builderPool: {
+        name: "",
+        minimalDeposit: 0,
       },
       metadata: { slug: "", description: "", website: "", image: "" },
       projectOffChain: { email: "", discordLink: "", twitterLink: "", rewards: [] },
@@ -261,7 +266,11 @@ export default function NewSubnetPage() {
         <form className="space-y-6">
           {/* Step 1: Subnet Config */}
           {currentStep === 1 && (
-            <Step1PoolConfig isSubmitting={isSubmitting} tokenSymbol={tokenSymbol} />
+            <Step1PoolConfig 
+              isSubmitting={isSubmitting} 
+              tokenSymbol={tokenSymbol}
+              onValidationChange={setHasValidationError}
+            />
           )}
 
           {/* Step 2: Project & Metadata */}          
@@ -299,7 +308,8 @@ export default function NewSubnetPage() {
               !connectedAddress ||
               !isCorrectNetwork() ||
               (currentStep === FORM_STEPS.length && isLoadingFeeData) || // Disable final button if fee data loading
-              (currentStep === FORM_STEPS.length && hasNoEth && isCorrectNetwork()) // Disable final button if no ETH on correct network
+              (currentStep === FORM_STEPS.length && hasNoEth && isCorrectNetwork()) || // Disable final button if no ETH on correct network
+              hasValidationError // Disable if there are validation errors (e.g., duplicate subnet name)
               // Don't pre-disable on isValid; we validate inside handleNext
             }
           >

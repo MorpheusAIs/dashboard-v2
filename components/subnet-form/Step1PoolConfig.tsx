@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { format } from "date-fns";
 import { CalendarIcon, Wallet } from "lucide-react";
 import { useFormContext, useWatch } from "react-hook-form";
@@ -8,6 +8,7 @@ import { zeroAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
 import { useNetwork } from "@/context/network-context";
+import { useBuilders } from "@/context/builders-context";
 
 import {
   FormField,
@@ -34,18 +35,60 @@ import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 interface Step1PoolConfigProps {
   isSubmitting: boolean;
   tokenSymbol: string;
+  onValidationChange?: (hasError: boolean) => void;
 }
 
-export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, tokenSymbol }) => {
+export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, tokenSymbol, onValidationChange }) => {
   const [startTimePopoverOpen, setStartTimePopoverOpen] = useState(false);
   const [claimLockEndsPopoverOpen, setClaimLockEndsPopoverOpen] = useState(false);
+  const [subnetNameError, setSubnetNameError] = useState<string | null>(null);
   const form = useFormContext();
   const { address } = useAccount();
   const { currentChainId } = useNetwork();
+  const { builders } = useBuilders();
 
   const selectedChainId = form.watch("subnet.networkChainId");
   const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
   const isTestnet = selectedChainId === arbitrumSepolia.id;
+
+  // Get the current subnet name being entered
+  const currentSubnetName = useWatch({ 
+    control: form.control, 
+    name: isTestnet ? "subnet.name" : "builderPool.name" 
+  });
+
+  // Function to validate subnet name against existing names
+  const validateSubnetName = useCallback((name: string) => {
+    if (!name || !name.trim()) {
+      setSubnetNameError(null);
+      onValidationChange?.(false);
+      return true;
+    }
+
+    // Extract existing subnet names from builders data
+    const existingNames = builders.map(builder => builder.name.toLowerCase().trim());
+    const nameToCheck = name.toLowerCase().trim();
+
+    if (existingNames.includes(nameToCheck)) {
+      setSubnetNameError("This subnet name already exists. Please choose a different name.");
+      onValidationChange?.(true);
+      return false;
+    }
+
+    setSubnetNameError(null);
+    onValidationChange?.(false);
+    return true;
+  }, [builders, onValidationChange]);
+
+  // Validate subnet name whenever it changes
+  useEffect(() => {
+    if (currentSubnetName) {
+      validateSubnetName(currentSubnetName);
+    } else {
+      setSubnetNameError(null);
+      onValidationChange?.(false);
+    }
+  }, [currentSubnetName, validateSubnetName, onValidationChange]);
 
   // --- Field Mirrors for Mainnet Validation ---
   const builderPoolName = useWatch({ control: form.control, name: "builderPool.name" });
@@ -121,8 +164,26 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
           <FormItem>
             <FormLabel htmlFor={isTestnet ? "subnet.name" : "builderPool.name"}>Subnet Name</FormLabel>
             <FormControl>
-              <Input id={isTestnet ? "subnet.name" : "builderPool.name"} placeholder="Unique name (cannot be changed)" {...field} />
+              <Input 
+                id={isTestnet ? "subnet.name" : "builderPool.name"} 
+                placeholder="Unique name (cannot be changed)" 
+                {...field} 
+                className={subnetNameError ? "border-red-500" : undefined}
+                onChange={(e) => {
+                  field.onChange(e);
+                  validateSubnetName(e.target.value);
+                }}
+                onBlur={(e) => {
+                  field.onBlur();
+                  validateSubnetName(e.target.value);
+                }}
+              />
             </FormControl>
+            {subnetNameError && (
+              <FormDescription className="text-red-500">
+                {subnetNameError}
+              </FormDescription>
+            )}
             <FormMessage />
           </FormItem>
         )}
