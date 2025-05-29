@@ -91,7 +91,7 @@ export const useAllBuildersQuery = () => {
             const builder: BuilderDB = {
               id: `morlord-${name.replace(/\s+/g, '-').toLowerCase()}`, // Generate a temporary ID
               name: name,
-              description: `${name} (from Morlord API)`,
+              description: ``,
               long_description: '',
               website: '',
               image_src: '',
