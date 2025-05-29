@@ -1,10 +1,17 @@
 'use client'
 
 import { formatUnits } from 'viem'
-import { useAccount, useReadContract, useChainId } from 'wagmi'
+import { useAccount, useReadContract, useChainId, useWatchContractEvent } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
 import NumberFlow from '@number-flow/react'
 import { morTokenContracts } from '@/lib/contracts'
+import { useEffect, useCallback } from 'react'
+
+declare global {
+  interface Window {
+    refreshMORBalances?: () => Promise<void>
+  }
+}
 
 const MOR_ABI = [{
   "inputs": [{"internalType": "address","name": "account","type": "address"}],
@@ -12,7 +19,114 @@ const MOR_ABI = [{
   "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
   "stateMutability": "view",
   "type": "function"
+}, {
+  "anonymous": false,
+  "inputs": [
+    {"indexed": true, "internalType": "address", "name": "from", "type": "address"},
+    {"indexed": true, "internalType": "address", "name": "to", "type": "address"},
+    {"indexed": false, "internalType": "uint256", "name": "value", "type": "uint256"}
+  ],
+  "name": "Transfer",
+  "type": "event"
 }] as const
+
+// Custom hook for MOR balance management
+function useMORBalances(address: `0x${string}` | undefined) {
+  const { data: arbitrumBalance, refetch: refetchArbitrum } = useReadContract({
+    address: morTokenContracts[42161] as `0x${string}`,
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 42161, // Arbitrum One
+    account: address
+  })
+
+  const { data: baseBalance, refetch: refetchBase } = useReadContract({
+    address: morTokenContracts[8453] as `0x${string}`,
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 8453, // Base
+    account: address
+  })
+
+  const { data: arbitrumSepoliaBalance, refetch: refetchSepolia } = useReadContract({
+    address: morTokenContracts[421614] as `0x${string}`,
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 421614, // Arbitrum Sepolia
+    account: address
+  })
+
+  // Function to refresh all balances
+  const refreshBalances = useCallback(async () => {
+    console.log('MORBalance - Refreshing all balances...')
+    await Promise.all([
+      refetchArbitrum(),
+      refetchBase(),
+      refetchSepolia()
+    ])
+  }, [refetchArbitrum, refetchBase, refetchSepolia])
+
+  // Listen for Transfer events on Arbitrum One
+  useWatchContractEvent({
+    address: morTokenContracts[42161] as `0x${string}`,
+    abi: MOR_ABI,
+    eventName: 'Transfer',
+    chainId: 42161,
+    onLogs: (logs) => {
+      const userInvolved = logs.some(log => 
+        log.args.from === address || log.args.to === address
+      )
+      if (userInvolved) {
+        console.log('MORBalance - Transfer event detected on Arbitrum, refreshing balance')
+        refetchArbitrum()
+      }
+    },
+  })
+
+  // Listen for Transfer events on Base
+  useWatchContractEvent({
+    address: morTokenContracts[8453] as `0x${string}`,
+    abi: MOR_ABI,
+    eventName: 'Transfer',
+    chainId: 8453,
+    onLogs: (logs) => {
+      const userInvolved = logs.some(log => 
+        log.args.from === address || log.args.to === address
+      )
+      if (userInvolved) {
+        console.log('MORBalance - Transfer event detected on Base, refreshing balance')
+        refetchBase()
+      }
+    },
+  })
+
+  // Listen for Transfer events on Arbitrum Sepolia
+  useWatchContractEvent({
+    address: morTokenContracts[421614] as `0x${string}`,
+    abi: MOR_ABI,
+    eventName: 'Transfer',
+    chainId: 421614,
+    onLogs: (logs) => {
+      const userInvolved = logs.some(log => 
+        log.args.from === address || log.args.to === address
+      )
+      if (userInvolved) {
+        console.log('MORBalance - Transfer event detected on Arbitrum Sepolia, refreshing balance')
+        refetchSepolia()
+      }
+    },
+  })
+
+  return {
+    arbitrumBalance,
+    baseBalance,
+    arbitrumSepoliaBalance,
+    refreshBalances
+  }
+}
 
 export function MORBalance() {
   const { address } = useAccount()
@@ -22,38 +136,19 @@ export function MORBalance() {
   console.log('MORBalance - User address:', address)
   console.log('MORBalance - MOR contract addresses:', morTokenContracts)
 
-  const { data: arbitrumBalance } = useReadContract({
-    address: morTokenContracts[42161] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 42161, // Arbitrum One
-    account: address
-  })
+  const { arbitrumBalance, baseBalance, arbitrumSepoliaBalance, refreshBalances } = useMORBalances(address)
   
   console.log('MORBalance - Arbitrum One raw balance:', arbitrumBalance)
-
-  const { data: baseBalance } = useReadContract({
-    address: morTokenContracts[8453] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 8453, // Base
-    account: address
-  })
-  
   console.log('MORBalance - Base raw balance:', baseBalance)
-
-  const { data: arbitrumSepoliaBalance } = useReadContract({
-    address: morTokenContracts[421614] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 421614, // Arbitrum Sepolia
-    account: address
-  })
-  
   console.log('MORBalance - Arbitrum Sepolia raw balance:', arbitrumSepoliaBalance)
+
+  // Expose refresh function globally for other components to use
+  useEffect(() => {
+    // Store refresh function in window object so other components can access it
+    if (typeof window !== 'undefined') {
+      window.refreshMORBalances = refreshBalances
+    }
+  }, [refreshBalances])
 
   if (!address || !chainId) return null
 

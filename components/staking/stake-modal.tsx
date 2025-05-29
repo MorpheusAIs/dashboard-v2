@@ -7,9 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useStakingContractInteractions } from "@/hooks/useStakingContractInteractions";
 import { formatEther } from "viem";
-import { useChainId } from "wagmi";
+import { useChainId, useReadContract, useAccount } from "wagmi";
 import { Builder } from "@/app/builders/builders-data";
-import { arbitrumSepolia } from 'wagmi/chains';
+import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { morTokenContracts } from '@/lib/contracts';
+import { useNetwork } from "@/context/network-context";
+
+// MOR Token ABI for balance checking
+const MOR_ABI = [{
+  "inputs": [{"internalType": "address","name": "account","type": "address"}],
+  "name": "balanceOf",
+  "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
+  "stateMutability": "view",
+  "type": "function"
+}] as const;
 
 interface StakeModalProps {
   isOpen: boolean;
@@ -24,32 +35,96 @@ export function StakeModal({
 }: StakeModalProps) {
   const [stakeAmount, setStakeAmount] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
-  const chainId = useChainId(); // Get current chain ID
+  const chainId = useChainId();
+  const { address } = useAccount();
+  const { switchToChain } = useNetwork();
   
   // Determine if we're on testnet
   const isTestnet = chainId === arbitrumSepolia.id;
   
-  // Calculate the correct subnet ID based on network type (same logic as page.tsx)
+  // Determine target network and chainId based on selectedBuilder
+  const targetNetworkInfo = useMemo(() => {
+    if (!selectedBuilder) return { chainId: chainId, networkName: 'Unknown' };
+    
+    if (isTestnet) {
+      return { chainId: arbitrumSepolia.id, networkName: 'Arbitrum Sepolia' };
+    }
+    
+    // For mainnet, check the builder's primary network
+    const primaryNetwork = selectedBuilder.networks?.[0] || selectedBuilder.network;
+    if (primaryNetwork === 'Arbitrum') {
+      return { chainId: arbitrum.id, networkName: 'Arbitrum' };
+    } else if (primaryNetwork === 'Base') {
+      return { chainId: base.id, networkName: 'Base' };
+    }
+    
+    // Default to current chain if we can't determine
+    return { chainId: chainId, networkName: 'Unknown' };
+  }, [selectedBuilder, isTestnet, chainId]);
+  
+  // Calculate the correct subnet ID based on network type
   const subnetId = useMemo(() => {
     if (!selectedBuilder) return undefined;
     
     if (isTestnet) {
-      // For testnet, use selectedBuilder.id
       return selectedBuilder.id as `0x${string}` | undefined;
     } else {
-      // For mainnet, use mainnetProjectId
       return selectedBuilder.mainnetProjectId as `0x${string}` | undefined;
     }
   }, [selectedBuilder, isTestnet]);
+  
+  // Fetch MOR balances from all networks (following mor-balance.tsx pattern)
+  const { data: arbitrumBalance } = useReadContract({
+    address: morTokenContracts[42161] as `0x${string}`,
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 42161, // Arbitrum One
+    query: {
+      enabled: !!address && isOpen
+    }
+  });
+
+  const { data: baseBalance } = useReadContract({
+    address: morTokenContracts[8453] as `0x${string}`,
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 8453, // Base
+    query: {
+      enabled: !!address && isOpen
+    }
+  });
+
+  const { data: arbitrumSepoliaBalance } = useReadContract({
+    address: morTokenContracts[421614] as `0x${string}`,
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 421614, // Arbitrum Sepolia
+    query: {
+      enabled: !!address && isOpen
+    }
+  });
+  
+  // Get the effective token balance for the target network
+  const effectiveTokenBalance = useMemo(() => {
+    if (targetNetworkInfo.chainId === arbitrum.id) {
+      return arbitrumBalance;
+    } else if (targetNetworkInfo.chainId === base.id) {
+      return baseBalance;
+    } else if (targetNetworkInfo.chainId === arbitrumSepolia.id) {
+      return arbitrumSepoliaBalance;
+    }
+    return undefined;
+  }, [targetNetworkInfo.chainId, arbitrumBalance, baseBalance, arbitrumSepoliaBalance]);
   
   // Use the staking hook
   const {
     isCorrectNetwork,
     tokenSymbol,
-    tokenBalance,
     needsApproval,
     isSubmitting,
-    handleNetworkSwitch,
     handleApprove,
     handleStake,
     checkAndUpdateApprovalNeeded
@@ -69,52 +144,68 @@ export function StakeModal({
   
   // Handle max button click
   const handleMaxClick = () => {
-    if (tokenBalance) {
-      const maxAmount = parseFloat(formatEther(tokenBalance));
-      // Format the max amount to one decimal place
+    if (effectiveTokenBalance) {
+      const maxAmount = parseFloat(formatEther(effectiveTokenBalance));
       const formattedMaxAmount = formatToOneDecimal(maxAmount);
       setStakeAmount(formattedMaxAmount);
     }
   };
 
-  // Check if entered amount is above minimum and below maximum
-  const isAmountValid = useCallback(() => {
+  // Check if the stake amount is valid (following page.tsx validation pattern)
+  const isValidForSubmission = useMemo(() => {
+    if (!stakeAmount || !effectiveTokenBalance) return false;
+    
     const amount = parseFloat(stakeAmount);
     if (isNaN(amount) || amount <= 0) return false;
+    
+    const balance = parseFloat(formatEther(effectiveTokenBalance));
+    if (amount > balance) return false;
     
     // Check minimum deposit
     if (selectedBuilder?.minDeposit && amount < selectedBuilder.minDeposit) return false;
     
-    // Check if amount is greater than balance
-    if (tokenBalance && amount > parseFloat(formatEther(tokenBalance))) return false;
-    
     return true;
-  }, [stakeAmount, selectedBuilder, tokenBalance]);
+  }, [stakeAmount, effectiveTokenBalance, selectedBuilder]);
 
-  // Show warning based on validation conditions
-  const displayWarning = useCallback(() => {
-    if (!stakeAmount) return null;
-    
+  // Warning logic (following page.tsx pattern)
+  const showWarning = useMemo(() => {
+    if (!stakeAmount) return false;
     const amount = parseFloat(stakeAmount);
-    if (isNaN(amount) || amount <= 0) return null;
+    if (isNaN(amount) || amount <= 0) return false;
     
-    // Check if amount is greater than balance
-    if (tokenBalance !== undefined) {
-      const balance = parseFloat(formatEther(tokenBalance));
-      if (amount > balance) {
-        console.log('Warning: amount exceeds balance', { amount, balance });
-        return `Warning: Insufficient ${tokenSymbol} balance`;
-      }
+    // Show warning if on wrong network OR insufficient balance OR needs approval
+    return chainId !== targetNetworkInfo.chainId ||
+           (needsApproval && amount > 0) ||
+           (effectiveTokenBalance && amount > parseFloat(formatEther(effectiveTokenBalance)));
+  }, [stakeAmount, chainId, targetNetworkInfo.chainId, needsApproval, effectiveTokenBalance]);
+
+  const warningMessage = useMemo(() => {
+    if (!stakeAmount) return "";
+    const amount = parseFloat(stakeAmount);
+    if (isNaN(amount) || amount <= 0) return "";
+    
+    // Check balance first - this is most important
+    if (effectiveTokenBalance && amount > parseFloat(formatEther(effectiveTokenBalance))) {
+      return `Warning: You don't have enough ${tokenSymbol} on ${targetNetworkInfo.networkName}`;
     }
     
     // Check minimum deposit
     if (selectedBuilder?.minDeposit && amount < selectedBuilder.minDeposit) {
-      console.log('Warning: amount below min deposit', { amount, minDeposit: selectedBuilder.minDeposit });
       return `Minimum deposit is ${selectedBuilder.minDeposit} ${tokenSymbol}`;
     }
     
-    return null;
-  }, [stakeAmount, tokenBalance, tokenSymbol, selectedBuilder]);
+    // Then check network
+    if (chainId !== targetNetworkInfo.chainId) {
+      return `Please switch to ${targetNetworkInfo.networkName} network to stake`;
+    }
+    
+    // Finally check approval
+    if (needsApproval && amount > 0) {
+      return `You need to approve ${tokenSymbol} spending first`;
+    }
+    
+    return "";
+  }, [stakeAmount, chainId, targetNetworkInfo, needsApproval, tokenSymbol, effectiveTokenBalance, selectedBuilder]);
 
   // Check approval status when amount changes
   useEffect(() => {
@@ -122,22 +213,6 @@ export function StakeModal({
       checkAndUpdateApprovalNeeded(stakeAmount);
     }
   }, [stakeAmount, checkAndUpdateApprovalNeeded]);
-  
-  // Debug logs to help troubleshoot
-  useEffect(() => {
-    if (stakeAmount) {
-      const amount = parseFloat(stakeAmount);
-      const balance = tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0;
-      
-      console.log("Validation state:", {
-        amount,
-        balance,
-        isValid: isAmountValid(),
-        warning: displayWarning(),
-        exceedsBalance: amount > balance
-      });
-    }
-  }, [stakeAmount, tokenBalance, isAmountValid, displayWarning]);
 
   // Reset form state when modal opens or closes
   useEffect(() => {
@@ -151,20 +226,28 @@ export function StakeModal({
     e.preventDefault();
     setFormError(null);
 
-    // Use our validation function
-    if (!isAmountValid()) {
-      setFormError(displayWarning() || "Invalid amount");
+    if (!isValidForSubmission) {
+      setFormError(warningMessage || "Invalid amount");
       return;
     }
 
     try {
-      // If not on the correct network, switch first
-      if (!isCorrectNetwork()) {
-        await handleNetworkSwitch();
-        return;
+      // FIRST: Check if we need to switch to the target network
+      const needsNetworkSwitch = chainId !== targetNetworkInfo.chainId;
+      
+      if (needsNetworkSwitch) {
+        console.log(`Switching from chainId ${chainId} to target chainId ${targetNetworkInfo.chainId} (${targetNetworkInfo.networkName})`);
+        await switchToChain(targetNetworkInfo.chainId);
+        return; // Exit after network switch to let user click again
       }
 
-      // Check if approval is needed
+      // Also handle case where hook thinks we're not on correct network
+      if (!isCorrectNetwork()) {
+        await switchToChain(targetNetworkInfo.chainId);
+        return; // Exit after network switch to let user click again
+      }
+
+      // Only proceed with approval/staking if we're on the correct network
       const currentlyNeedsApproval = stakeAmount ? await checkAndUpdateApprovalNeeded(stakeAmount) : false;
 
       if ((currentlyNeedsApproval || needsApproval) && stakeAmount && parseFloat(stakeAmount) > 0) {
@@ -177,25 +260,6 @@ export function StakeModal({
       setFormError((error as Error)?.message || "An unexpected error occurred.");
     }
   };
-
-  // Get warning message
-  const warningMessage = displayWarning();
-  
-  // Separate check for amount exceeded (for button disable logic)
-  const amountExceedsBalance = useMemo(() => {
-    if (!stakeAmount || !tokenBalance) return false;
-    
-    const amount = parseFloat(stakeAmount);
-    const balance = parseFloat(formatEther(tokenBalance));
-    
-    return !isNaN(amount) && amount > balance;
-  }, [stakeAmount, tokenBalance]);
-  
-  // Network name for display
-  const networkToUse = selectedBuilder?.networks?.[0] || 'appropriate network';
-  
-  // Check if we're on the correct network for this builder
-  const onCorrectNetwork = isCorrectNetwork();
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCloseAction()}>
@@ -220,26 +284,13 @@ export function StakeModal({
                 placeholder="0.0"
                 value={stakeAmount}
                 onChange={(e) => {
-                  // Only allow numbers and decimal point
                   const value = e.target.value;
                   if (value === '' || /^\d*\.?\d*$/.test(value)) {
                     setStakeAmount(value);
                     setFormError(null);
-                    
-                    // Immediately check if we should show warnings
-                    const amount = parseFloat(value);
-                    if (!isNaN(amount)) {
-                      if (tokenBalance && amount > parseFloat(formatEther(tokenBalance))) {
-                        console.log("Amount exceeds balance:", amount, parseFloat(formatEther(tokenBalance)));
-                      }
-                      
-                      if (selectedBuilder?.minDeposit && amount < selectedBuilder.minDeposit) {
-                        console.log("Amount below min deposit:", amount, selectedBuilder.minDeposit);
-                      }
-                    }
                   }
                 }}
-                className={`bg-background border-gray-700 pr-32 ${amountExceedsBalance ? 'border-yellow-500' : ''}`}
+                className={`bg-background border-gray-700 pr-32 ${showWarning ? 'border-yellow-500' : ''}`}
                 type="text"
                 inputMode="decimal"
                 pattern="[0-9]*[.]?[0-9]*"
@@ -247,23 +298,22 @@ export function StakeModal({
                 disabled={isSubmitting}
                 required
                 onKeyDown={(e) => {
-                  // Prevent 'e', '-', '+' keys
                   if (['e', 'E', '-', '+'].includes(e.key)) {
                     e.preventDefault();
                   }
                 }}
               />
               <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                {tokenBalance !== undefined && (
+                {effectiveTokenBalance !== undefined && (
                   <span className="text-xs text-gray-400 mr-2">
-                    {parseFloat(formatEther(tokenBalance)).toFixed(1)} {tokenSymbol}
+                    {parseFloat(formatEther(effectiveTokenBalance)).toFixed(1)} {tokenSymbol}
                   </span>
                 )}
                 <button
                   type="button"
                   className="h-8 px-2 text-xs copy-button-secondary"
                   onClick={handleMaxClick}
-                  disabled={!tokenBalance || isSubmitting}
+                  disabled={!effectiveTokenBalance || isSubmitting}
                 >
                   Max
                 </button>
@@ -295,27 +345,30 @@ export function StakeModal({
             >
               Cancel
             </Button>
-            <Button
+            <button
               type="submit"
-              className={`${!onCorrectNetwork ? 'bg-blue-500 hover:bg-blue-600' : 'bg-emerald-500 hover:bg-emerald-600'} text-white`}
+              className={
+                isSubmitting || 
+                chainId !== targetNetworkInfo.chainId || 
+                (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0)
+                  ? "copy-button-secondary px-2 text-sm" 
+                  : "copy-button-base"
+              }
               disabled={
                 isSubmitting || 
-                !stakeAmount || 
-                (onCorrectNetwork && !!warningMessage) ||
-                isNaN(parseFloat(stakeAmount)) || 
-                parseFloat(stakeAmount) <= 0
+                !isValidForSubmission
               }
             >
               {isSubmitting ? (
                 "Processing..."
-              ) : !onCorrectNetwork ? (
-                `Switch to ${networkToUse}`
+              ) : chainId !== targetNetworkInfo.chainId ? (
+                `Switch to ${targetNetworkInfo.networkName}`
               ) : (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0) ? (
                 `Approve ${tokenSymbol}`
               ) : (
                 `Stake ${tokenSymbol}`
               )}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>
