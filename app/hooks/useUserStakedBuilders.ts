@@ -75,7 +75,8 @@ export const useUserStakedBuilders = () => {
             if (userStake && userStake.staked && parseFloat(userStake.staked) > 0) {
               // Add userStake property to the builder for display
               const userStakedAmount = parseFloat(formatUnits(userStake.staked, 18));
-              (builder as any).userStake = userStakedAmount;
+              const builderWithStake = builder;
+              builderWithStake.userStake = userStakedAmount;
               return true;
             }
           }
