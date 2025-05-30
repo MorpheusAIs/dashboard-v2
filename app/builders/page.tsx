@@ -24,7 +24,7 @@ import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
-import { formatUnits } from "ethers/lib/utils";
+import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -312,14 +312,16 @@ export default function BuildersPage() {
   // Get auth state
   const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
 
-  // --- NEW: Derive userAdminSubnets and its loading state locally ---
+  // Hook for fetching user staked builders on mainnet (for "Staking in" tab)
+  const { data: userStakedBuilders, isLoading: isLoadingUserStakedBuilders } = useUserStakedBuilders();
+
+  // Temporary fallback values for testing
   const userAdminSubnets = useMemo<Builder[] | null>(() => {
     if (!isAuthenticated || !userAddress || !builders) return null;
     return builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
   }, [isAuthenticated, userAddress, builders]);
 
   const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
-  // --- END NEW ---
 
   // Initialize tab state from URL or use default
   const [activeTab, setActiveTab] = useState(() => {
@@ -821,52 +823,29 @@ export default function BuildersPage() {
 
   // Filter the participatingBuilders based on the filters
   const filteredParticipatingBuilders = useMemo(() => {
-    let sourceData: (Builder & { userStake?: number })[] = []; // Default to empty, not sample
-    let useSampleData = true; // Assume sample data initially
+    // Use the dedicated hook data for mainnet user staked builders
+    let sourceData: (Builder & { userStake?: number })[] = [];
 
-    if (isAuthenticated && userAddress && builders && builders.length > 0) {
-      const realParticipatingBuilders: (Builder & { userStake: number })[] = [];
-      let networkSupportsBuilderUsers = false;
-
-      builders.forEach(builder => {
-        if (builder.hasOwnProperty('builderUsers')) { // Check if the field exists, even if undefined/null/empty
-          networkSupportsBuilderUsers = true;
-          if (builder.builderUsers && builder.builderUsers.length > 0) {
-            builder.builderUsers.forEach(user => {
-              if (user.address.toLowerCase() === userAddress.toLowerCase()) {
-                const stakedAmount = parseFloat(formatUnits(user.staked, 18));
-                if (stakedAmount > 0) {
-                  realParticipatingBuilders.push({
-                    ...builder,
-                    userStake: stakedAmount,
-                  });
-                }
-              }
-            });
-          }
-        }
-      });
-
-      if (networkSupportsBuilderUsers) {
-        sourceData = realParticipatingBuilders; // Use real data (even if empty)
-        useSampleData = false; // Do not use sample data
+    if (isAuthenticated && userAddress) {
+      if (userStakedBuilders && userStakedBuilders.length > 0) {
+        // Use real data from the dedicated hook
+        sourceData = userStakedBuilders.map(builder => ({
+          ...builder,
+          userStake: builder.userStake || 0
+        }));
+        console.log(`[filteredParticipatingBuilders] Using ${sourceData.length} real staked builders from hook`);
       } else {
-        // Network doesn't support builderUsers (e.g., older mainnet data structure before potential GQL changes)
-        // or builders array doesn't have this structure from context.
-        // In this specific case, falling back to sample might be okay if that was the old behavior
-        // but ideally, we want to move away from sample if data is loaded.
-        // For now, let's stick to the logic: if network *could* have builderUsers, don't show sample.
-        sourceData = []; // Show empty if structure implies builderUsers could exist but none for this user
-        useSampleData = false; // Explicitly don't use sample if we determined network type
+        // No real data available, use empty array for authenticated users
+        sourceData = [];
+        console.log('[filteredParticipatingBuilders] User is authenticated but has no staked builders');
       }
-    }
-    
-    // If, after all checks, we still decided to use sample data (e.g., user not authenticated)
-    if (useSampleData || (!isAuthenticated || !userAddress)) {
+    } else {
+      // User not authenticated, show sample data
       sourceData = participatingBuildersSample;
+      console.log('[filteredParticipatingBuilders] User not authenticated, using sample data');
     }
 
-    // Apply text filters to whatever sourceData was determined
+    // Apply text filters to the source data
     return sourceData.filter((builder) => {
       const matchesName = participatingNameFilter === '' || 
         builder.name.toLowerCase().includes(participatingNameFilter.toLowerCase());
@@ -883,7 +862,7 @@ export default function BuildersPage() {
 
       return matchesName && matchesNetwork && matchesType;
     });
-  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter, isAuthenticated, userAddress, builders]);
+  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter, isAuthenticated, userAddress, userStakedBuilders]);
 
   // For participating filters, initialize from URL if values exist
   useInitStateFromUrl(
@@ -1357,9 +1336,9 @@ export default function BuildersPage() {
                   <DataTable
                     columns={participatingColumns as unknown as Column<Builder>[]} 
                     data={filteredParticipatingBuilders} // Use the new dynamic list
-                    isLoading={isLoadingAuth || isLoading} // Reflect loading state of auth and builders data
+                    isLoading={isLoadingAuth || isLoadingUserStakedBuilders} // Use loading state from new hook
                     loadingRows={6}
-                    noResultsMessage={isAuthenticated && userAddress && builders?.some(b => b.builderUsers) ? "You have not staked in any subnets on this network." : "No participating builders found."}
+                    noResultsMessage={isAuthenticated && userAddress ? "You have not staked in any builders on mainnet networks." : "No participating builders found."}
                     onRowClick={(builder) => {
                       window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`;
                     }}

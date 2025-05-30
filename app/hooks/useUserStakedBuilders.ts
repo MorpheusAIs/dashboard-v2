@@ -3,17 +3,16 @@ import { useAuth } from '@/context/auth-context';
 import { useNetworkInfo } from './useNetworkInfo';
 import { Builder } from '@/app/builders/builders-data';
 import { getClientForNetwork } from '@/lib/apollo-client';
-import { GET_USER_STAKED_BUILDERS } from '@/lib/graphql/builders-queries';
+import { GET_ACCOUNT_USER_BUILDERS_PROJECTS } from '@/lib/graphql/builders-queries';
 import { formatTimePeriod } from "@/app/utils/time-utils";
 import { formatUnits } from 'ethers/lib/utils';
 import { useSupabaseBuilders } from './useSupabaseBuilders';
-import { useMorlordBuilders } from './useMorlordBuilders';
+import { useBuilders } from '@/context/builders-context';
 
 interface BuilderUser {
   id: string;
   address: string;
   staked: string;
-  claimed: string;
   lastStake: string;
   buildersProject: {
     id: string;
@@ -25,68 +24,98 @@ interface BuilderUser {
     withdrawLockPeriodAfterDeposit: string;
     startsAt: string;
     claimLockEnd?: string;
+    totalClaimed?: string;
     [key: string]: string | undefined;
   };
 }
 
 /**
- * Hook to fetch all builders where the user has staked tokens
- * Fetches from both Arbitrum and Base networks and combines the results
- * Now filters by builder names from the Morlord API
+ * Hook to fetch ALL builders where the user has staked tokens
+ * Handles both testnet and mainnet with different GraphQL queries and data structures
+ * - Mainnet: Uses GET_ACCOUNT_USER_BUILDERS_PROJECTS query (new approach from documentation)
+ * - Testnet: Uses the existing builder subnet logic from the main builders context
  */
 export const useUserStakedBuilders = () => {
   const { userAddress, isAuthenticated } = useAuth();
   const { isTestnet } = useNetworkInfo();
   const { supabaseBuilders } = useSupabaseBuilders();
-  const { data: morlordBuilderNames, isLoading: isLoadingMorlordBuilders } = useMorlordBuilders();
+  const { builders } = useBuilders();
 
   // Create a unique query key
-  const queryKey: QueryKey = ['userStakedBuilders', { userAddress, isTestnet }];
+  const queryKey: QueryKey = ['userStakedBuilders', { userAddress, isTestnet, buildersCount: builders?.length || 0 }];
 
-  // The query is enabled only if the user is authenticated and has an address and Morlord data is loaded
-  const isEnabled = isAuthenticated && !!userAddress && !isLoadingMorlordBuilders;
+  // The query is enabled only if the user is authenticated and has an address
+  // For testnet, also wait for builders to be loaded
+  const isEnabled = isAuthenticated && !!userAddress && (isTestnet ? !!builders && builders.length > 0 : true);
 
   return useQuery<Builder[], Error>({
     queryKey,
     queryFn: async () => {
-      // If not on mainnet or user not authenticated, return empty array
-      if (isTestnet || !isAuthenticated || !userAddress) {
-        console.log('[useUserStakedBuilders] Not on mainnet or user not authenticated. Returning empty array.');
+      if (!userAddress) {
         return [];
       }
 
-      console.log('[useUserStakedBuilders] Fetching user staked builders for address:', userAddress);
+      if (isTestnet) {
+        // For testnet, use builders from the context and filter by user stakes
+        console.log('[useUserStakedBuilders] Fetching testnet staked builders for:', userAddress);
+        
+        if (!builders || builders.length === 0) {
+          console.log('[useUserStakedBuilders] No builders available from context');
+          return [];
+        }
 
-      // Get clients for both networks
+        // Filter builders where the user has staked tokens
+        const userStakedBuilders = builders.filter((builder: Builder) => {
+          // Check if the builder has builderUsers data and if the user has staked
+          if (builder.builderUsers && Array.isArray(builder.builderUsers)) {
+            const userStake = builder.builderUsers.find(user => 
+              user.address.toLowerCase() === userAddress.toLowerCase()
+            );
+            
+            if (userStake && userStake.staked && parseFloat(userStake.staked) > 0) {
+              // Add userStake property to the builder for display
+              const userStakedAmount = parseFloat(formatUnits(userStake.staked, 18));
+              (builder as any).userStake = userStakedAmount;
+              return true;
+            }
+          }
+          return false;
+        });
+
+        console.log(`[useUserStakedBuilders] Found ${userStakedBuilders.length} testnet builders where user has staked`);
+        return userStakedBuilders;
+      }
+
+      // Mainnet logic (unchanged)
+      console.log('[useUserStakedBuilders] Fetching user staked builders for:', userAddress);
+
       const baseClient = getClientForNetwork('Base');
       const arbitrumClient = getClientForNetwork('Arbitrum');
 
       if (!baseClient || !arbitrumClient) {
-        throw new Error('[useUserStakedBuilders] Could not get Apollo clients for Base or Arbitrum');
+        throw new Error('Could not get Apollo clients for Base or Arbitrum');
       }
 
-      // Execute queries on both networks
+      // Fetch from both Base and Arbitrum networks
       const [baseResponse, arbitrumResponse] = await Promise.all([
-        baseClient.query({
-          query: GET_USER_STAKED_BUILDERS,
+        baseClient.query<{ buildersUsers: BuilderUser[] }>({
+          query: GET_ACCOUNT_USER_BUILDERS_PROJECTS,
           variables: { address: userAddress },
           fetchPolicy: 'no-cache',
         }),
-        arbitrumClient.query({
-          query: GET_USER_STAKED_BUILDERS,
+        arbitrumClient.query<{ buildersUsers: BuilderUser[] }>({
+          query: GET_ACCOUNT_USER_BUILDERS_PROJECTS,
           variables: { address: userAddress },
           fetchPolicy: 'no-cache',
-        }),
+        })
       ]);
 
-      // Extract builder users from responses
       const baseBuilderUsers = baseResponse.data?.buildersUsers || [];
       const arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers || [];
 
-      console.log(`[useUserStakedBuilders] Found ${baseBuilderUsers.length} staked builders on Base and ${arbitrumBuilderUsers.length} on Arbitrum`);
+      console.log(`[useUserStakedBuilders] Found ${baseBuilderUsers.length} Base builders and ${arbitrumBuilderUsers.length} Arbitrum builders`);
 
-      // Combine and map to Builder format
-      const mappedBuilders: Builder[] = [];
+      const stakedBuilders: Builder[] = [];
 
       // Process Base builders
       baseBuilderUsers.forEach((user: BuilderUser) => {
@@ -97,16 +126,7 @@ export const useUserStakedBuilders = () => {
         // Skip if staked amount is zero
         if (userStakedAmount <= 0) return;
 
-        // Check if the builder name is in our Morlord list
-        const isMorlordBuilder = morlordBuilderNames?.includes(user.buildersProject.name);
-        
-        // Skip if not in Morlord builders list
-        if (!isMorlordBuilder) {
-          console.log(`[useUserStakedBuilders] Skipping Base builder ${user.buildersProject.name} - not found in Morlord builders list`);
-          return;
-        }
-
-        // Find corresponding Supabase builder data
+        // Find corresponding Supabase builder data for metadata
         const supabaseBuilder = supabaseBuilders?.find(b => 
           b.name.toLowerCase() === user.buildersProject.name.toLowerCase()
         );
@@ -116,12 +136,11 @@ export const useUserStakedBuilders = () => {
         const lockPeriodSeconds = parseInt(user.buildersProject.withdrawLockPeriodAfterDeposit || '0', 10);
         const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
 
-        // Create builder object
-        mappedBuilders.push({
+        const builder: Builder = {
           id: user.buildersProject.id,
           mainnetProjectId: user.buildersProject.id,
           name: user.buildersProject.name,
-          description: supabaseBuilder?.description || '',
+          description: supabaseBuilder?.description || `${user.buildersProject.name} (on Base)`,
           long_description: supabaseBuilder?.long_description || '',
           admin: user.buildersProject.admin,
           networks: ['Base'],
@@ -129,7 +148,9 @@ export const useUserStakedBuilders = () => {
           totalStaked: totalStakedInMor,
           minDeposit: minDepositInMor,
           lockPeriod: lockPeriodFormatted,
+          withdrawLockPeriodRaw: lockPeriodSeconds,
           stakingCount: parseInt(user.buildersProject.totalUsers || '0', 10),
+          userStake: userStakedAmount,
           website: supabaseBuilder?.website || '',
           image_src: supabaseBuilder?.image_src || '',
           image: supabaseBuilder?.image_src || '',
@@ -139,13 +160,22 @@ export const useUserStakedBuilders = () => {
           discord_url: supabaseBuilder?.discord_url || '',
           contributors: supabaseBuilder?.contributors || 0,
           github_stars: supabaseBuilder?.github_stars || 0,
-          reward_types: supabaseBuilder?.reward_types || [],
+          reward_types: supabaseBuilder?.reward_types || ['TBA'],
           reward_types_detail: supabaseBuilder?.reward_types_detail || [],
-          created_at: supabaseBuilder?.created_at || '',
-          updated_at: supabaseBuilder?.updated_at || '',
+          created_at: supabaseBuilder?.created_at || new Date().toISOString(),
+          updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
           startsAt: user.buildersProject.startsAt,
-          userStake: userStakedAmount, // Add the user's stake amount
-        });
+          builderUsers: [{
+            id: user.id,
+            address: user.address,
+            staked: user.staked,
+            claimed: "0",
+            claimLockEnd: user.buildersProject.claimLockEnd || "0",
+            lastStake: user.lastStake,
+          }]
+        };
+
+        stakedBuilders.push(builder);
       });
 
       // Process Arbitrum builders
@@ -157,16 +187,7 @@ export const useUserStakedBuilders = () => {
         // Skip if staked amount is zero
         if (userStakedAmount <= 0) return;
 
-        // Check if the builder name is in our Morlord list
-        const isMorlordBuilder = morlordBuilderNames?.includes(user.buildersProject.name);
-        
-        // Skip if not in Morlord builders list
-        if (!isMorlordBuilder) {
-          console.log(`[useUserStakedBuilders] Skipping Arbitrum builder ${user.buildersProject.name} - not found in Morlord builders list`);
-          return;
-        }
-
-        // Find corresponding Supabase builder data
+        // Find corresponding Supabase builder data for metadata
         const supabaseBuilder = supabaseBuilders?.find(b => 
           b.name.toLowerCase() === user.buildersProject.name.toLowerCase()
         );
@@ -176,12 +197,11 @@ export const useUserStakedBuilders = () => {
         const lockPeriodSeconds = parseInt(user.buildersProject.withdrawLockPeriodAfterDeposit || '0', 10);
         const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
 
-        // Create builder object
-        mappedBuilders.push({
+        const builder: Builder = {
           id: user.buildersProject.id,
           mainnetProjectId: user.buildersProject.id,
           name: user.buildersProject.name,
-          description: supabaseBuilder?.description || '',
+          description: supabaseBuilder?.description || `${user.buildersProject.name} (on Arbitrum)`,
           long_description: supabaseBuilder?.long_description || '',
           admin: user.buildersProject.admin,
           networks: ['Arbitrum'],
@@ -189,7 +209,9 @@ export const useUserStakedBuilders = () => {
           totalStaked: totalStakedInMor,
           minDeposit: minDepositInMor,
           lockPeriod: lockPeriodFormatted,
+          withdrawLockPeriodRaw: lockPeriodSeconds,
           stakingCount: parseInt(user.buildersProject.totalUsers || '0', 10),
+          userStake: userStakedAmount,
           website: supabaseBuilder?.website || '',
           image_src: supabaseBuilder?.image_src || '',
           image: supabaseBuilder?.image_src || '',
@@ -199,27 +221,29 @@ export const useUserStakedBuilders = () => {
           discord_url: supabaseBuilder?.discord_url || '',
           contributors: supabaseBuilder?.contributors || 0,
           github_stars: supabaseBuilder?.github_stars || 0,
-          reward_types: supabaseBuilder?.reward_types || [],
+          reward_types: supabaseBuilder?.reward_types || ['TBA'],
           reward_types_detail: supabaseBuilder?.reward_types_detail || [],
-          created_at: supabaseBuilder?.created_at || '',
-          updated_at: supabaseBuilder?.updated_at || '',
+          created_at: supabaseBuilder?.created_at || new Date().toISOString(),
+          updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
           startsAt: user.buildersProject.startsAt,
-          userStake: userStakedAmount, // Add the user's stake amount
-        });
+          builderUsers: [{
+            id: user.id,
+            address: user.address,
+            staked: user.staked,
+            claimed: "0",
+            claimLockEnd: user.buildersProject.claimLockEnd || "0",
+            lastStake: user.lastStake,
+          }]
+        };
+
+        stakedBuilders.push(builder);
       });
 
-      console.log(`[useUserStakedBuilders] Returning ${mappedBuilders.length} staked builders for user ${userAddress}`);
-      
-      // Log detailed information about each builder for debugging
-      if (mappedBuilders.length > 0) {
-        console.log('[useUserStakedBuilders] Details of user staked builders:');
-        mappedBuilders.forEach((builder, index) => {
-          console.log(`Builder ${index + 1}: ${builder.name}, Network: ${builder.network}, User Stake: ${builder.userStake}`);
-        });
-      }
-      
-      return mappedBuilders;
+      console.log(`[useUserStakedBuilders] Processed ${stakedBuilders.length} total staked builders`);
+      return stakedBuilders;
     },
     enabled: isEnabled,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2
   });
 }; 
