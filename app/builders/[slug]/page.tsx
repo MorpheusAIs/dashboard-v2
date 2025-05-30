@@ -74,6 +74,7 @@ export default function BuilderPage() {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
   const refreshStakingDataRef = useRef(false); // Add a ref to track if refresh has been called
+  const previousStakedAmountRef = useRef<number | null>(null); // Add ref to track previous staked amount
   const [builder, setBuilder] = useState<Builder | null>(null);
   const [subnetId, setSubnetId] = useState<Address | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>("");
@@ -244,6 +245,8 @@ export default function BuilderPage() {
   
   // Update user staked amount and time until unlock when data is loaded
   useEffect(() => {
+    console.log("Processing staker data:", { stakerData, isTestnet, userAddress });
+    
     if (stakerData) {
       let staked: bigint;
       let lastStake: bigint;
@@ -289,43 +292,56 @@ export default function BuilderPage() {
 
       // Format the staked amount for UI display
       const formattedStaked = parseFloat(formatUnits(staked, 18));
+      const previousUserStakedAmount = previousStakedAmountRef.current;
       setUserStakedAmount(formattedStaked); // Keep decimal precision
+      previousStakedAmountRef.current = formattedStaked; // Update ref with new value
+      
+      console.log("Updated user staked amount:", {
+        previousAmount: previousUserStakedAmount,
+        newAmount: formattedStaked,
+        rawStaked: staked.toString(),
+        formattedForDisplay: formattedStaked.toFixed(2)
+      });
       
       // Calculate time until unlock
       const now = Math.floor(Date.now() / 1000);
       const claimLockEndNumber = Number(effectiveClaimLockEnd);
+      let calculatedTimeLeft: string;
       
       if (claimLockEndNumber > now) {
         const secondsRemaining = claimLockEndNumber - now;
         
         if (secondsRemaining < 60) {
-          setTimeLeft(`${secondsRemaining} seconds`);
+          calculatedTimeLeft = `${secondsRemaining} seconds`;
         } else if (secondsRemaining < 3600) {
-          setTimeLeft(`${Math.floor(secondsRemaining / 60)} minutes`);
+          calculatedTimeLeft = `${Math.floor(secondsRemaining / 60)} minutes`;
         } else if (secondsRemaining < 86400) {
-          setTimeLeft(`${Math.floor(secondsRemaining / 3600)} hours`);
+          calculatedTimeLeft = `${Math.floor(secondsRemaining / 3600)} hours`;
         } else {
-          setTimeLeft(`${Math.floor(secondsRemaining / 86400)} days`);
+          calculatedTimeLeft = `${Math.floor(secondsRemaining / 86400)} days`;
         }
       } else {
-        setTimeLeft("Unlocked");
+        calculatedTimeLeft = "Unlocked";
       }
       
-      console.log("Staker data loaded:", {
+      setTimeLeft(calculatedTimeLeft);
+      
+      console.log("Staker data processed:", {
         isTestnet,
-        stakedRaw: staked.toString(), // Log raw value
-        stakedFormattedForUI: Math.round(formattedStaked),
+        stakedRaw: staked.toString(),
+        stakedFormattedForUI: formattedStaked.toFixed(2),
         claimLockEnd: new Date(Number(effectiveClaimLockEnd) * 1000).toLocaleString(),
         lastStake: new Date(Number(lastStake) * 1000).toLocaleString(),
-        // timeLeft // timeLeft is set within this effect, logging its value from previous render can be confusing.
+        timeLeft: calculatedTimeLeft
       });
     } else {
       // Reset values if no data
+      console.log("No staker data found, resetting values");
       setUserStakedAmount(0);
       setRawStakedAmount(null); // Reset raw amount
       setTimeLeft("Not staked");
     }
-  }, [stakerData, builder, withdrawLockPeriod, isTestnet]); // Added isTestnet as a dependency
+  }, [stakerData, builder, withdrawLockPeriod, isTestnet, userAddress]);
   
   const stakingDataHookProps: UseStakingDataProps = useMemo(() => ({
     queryDocument: isTestnet ? GET_BUILDER_SUBNET_USERS : GET_BUILDERS_PROJECT_USERS,
@@ -383,17 +399,28 @@ export default function BuilderPage() {
     onTxSuccess: () => {
       console.log("Transaction successful (stake/withdraw), refreshing staking table and current user staker data.");
       refreshStakingDataRef.current = true; // For the main staking table
-      setStakeAmount(""); // Clear stake input // Signal the StakingPositionCard to reset its withdrawal amount
+      setStakeAmount(""); // Clear stake input
+      
+      // Signal the StakingPositionCard to reset its withdrawal amount
       if (window && window.document) {
         const resetWithdrawEvent = new CustomEvent('reset-withdraw-form');
         window.document.dispatchEvent(resetWithdrawEvent);
       }
+      
+      // Refetch the current user's staker data with logging
       if (refetchStakerDataForUser) {
-        refetchStakerDataForUser(); // Refetch the current user's specific staker data (includes lock time)
+        console.log("Calling refetchStakerDataForUser to refresh user's staked amount...");
+        refetchStakerDataForUser().then(() => {
+          console.log("Successfully refetched user staker data after transaction");
+        }).catch((error) => {
+          console.error("Error refetching user staker data:", error);
+        });
+      } else {
+        console.warn("refetchStakerDataForUser is not available");
       }
     },
     lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
-  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser]); // Added refetchStakerDataForUser to dependency array
+  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser]);
 
   // Log subnet ID state for debugging
   useEffect(() => {
@@ -755,6 +782,7 @@ export default function BuilderPage() {
           <div className="relative">
             <StakingFormCard
               title="Stake MOR"
+              value={stakeAmount}
               onStake={onStakeSubmit}
               onAmountChange={(value) => {
                 // Format value to one decimal place if possible

@@ -21,6 +21,7 @@ export interface StakingFormCardProps {
   showWarning?: boolean;
   warningMessage?: string;
   tokenSymbol?: string;
+  value?: string;
 }
 
 export function StakingFormCard({
@@ -35,8 +36,12 @@ export function StakingFormCard({
   showWarning = false,
   warningMessage = "Warning: You don't have enough MOR to stake this amount.",
   tokenSymbol = "MOR",
+  value,
 }: StakingFormCardProps) {
   const [stakeAmount, setStakeAmount] = useState("");
+  
+  // Use controlled value if provided, otherwise use internal state
+  const currentValue = value !== undefined ? value : stakeAmount;
   
   // Format a value to one decimal place
   const formatToOneDecimal = useCallback((value: number): string => {
@@ -48,7 +53,10 @@ export function StakingFormCard({
     if (maxAmount !== undefined) {
       // Format the max amount to one decimal place
       const formattedMaxAmount = formatToOneDecimal(maxAmount);
-      setStakeAmount(formattedMaxAmount);
+      // Only update internal state if not controlled
+      if (value === undefined) {
+        setStakeAmount(formattedMaxAmount);
+      }
       if (onAmountChange) {
         onAmountChange(formattedMaxAmount);
       }
@@ -57,7 +65,7 @@ export function StakingFormCard({
   
   // Check if entered amount is above minimum and below maximum
   const isAmountValid = useCallback(() => {
-    const amount = parseFloat(stakeAmount);
+    const amount = parseFloat(currentValue);
     if (isNaN(amount) || amount <= 0) return false;
     
     // Skip minimum validation if minAmount is undefined
@@ -65,18 +73,18 @@ export function StakingFormCard({
     if (maxAmount !== undefined && amount > maxAmount) return false;
     
     return true;
-  }, [stakeAmount, minAmount, maxAmount]);
+  }, [currentValue, minAmount, maxAmount]);
   
   // New: Check if the amount is just positive for approval
   const hasPositiveAmount = useCallback(() => {
-    const amount = parseFloat(stakeAmount);
+    const amount = parseFloat(currentValue);
     return !isNaN(amount) && amount > 0;
-  }, [stakeAmount]);
+  }, [currentValue]);
   
   // Show warning based on logic or explicit flag
   const displayWarning = showWarning || (
     maxAmount !== undefined && 
-    parseFloat(stakeAmount) > maxAmount
+    parseFloat(currentValue) > maxAmount
   );
 
   // Log props for debugging
@@ -102,17 +110,17 @@ export function StakingFormCard({
     
     // Allow approval with any positive amount
     if (buttonText?.toLowerCase().includes('approve') && hasPositiveAmount()) {
-      console.log("Calling onStake for approval with amount:", stakeAmount);
-      onStake(stakeAmount);
+      console.log("Calling onStake for approval with amount:", currentValue);
+      onStake(currentValue);
     } 
     // For staking, require valid amount per requirements
     else if (isAmountValid()) {
-      console.log("Calling onStake for staking with amount:", stakeAmount);
-      onStake(stakeAmount);
+      console.log("Calling onStake for staking with amount:", currentValue);
+      onStake(currentValue);
     } else {
       console.log("Amount validation failed:", {
-        amount: stakeAmount,
-        parsedAmount: parseFloat(stakeAmount),
+        amount: currentValue,
+        parsedAmount: parseFloat(currentValue),
         minAmount,
         maxAmount,
         isPositive: hasPositiveAmount(),
@@ -139,7 +147,10 @@ export function StakingFormCard({
       }
     }
     
-    setStakeAmount(newAmount);
+    // Only update internal state if not controlled
+    if (value === undefined) {
+      setStakeAmount(newAmount);
+    }
     if (onAmountChange) {
       onAmountChange(newAmount);
     }
@@ -175,7 +186,7 @@ export function StakingFormCard({
                 min="0"
                 step="0.1"
                 placeholder="Enter MOR amount"
-                value={stakeAmount}
+                value={currentValue}
                 onChange={handleAmountChange}
                 className="pr-32" // Add padding for the button and balance
               />
