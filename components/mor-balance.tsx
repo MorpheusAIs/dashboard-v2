@@ -1,11 +1,11 @@
 'use client'
 
 import { formatUnits } from 'viem'
-import { useAccount, useReadContract, useChainId, useWatchContractEvent } from 'wagmi'
+import { useAccount, useReadContract, useChainId } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
 import NumberFlow from '@number-flow/react'
 import { morTokenContracts } from '@/lib/contracts'
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 
 declare global {
   interface Window {
@@ -32,6 +32,8 @@ const MOR_ABI = [{
 
 // Custom hook for MOR balance management
 function useMORBalances(address: `0x${string}` | undefined) {
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
   const { data: arbitrumBalance, refetch: refetchArbitrum } = useReadContract({
     address: morTokenContracts[42161] as `0x${string}`,
     abi: MOR_ABI,
@@ -69,56 +71,32 @@ function useMORBalances(address: `0x${string}` | undefined) {
     ])
   }, [refetchArbitrum, refetchBase, refetchSepolia])
 
-  // Listen for Transfer events on Arbitrum One
-  useWatchContractEvent({
-    address: morTokenContracts[42161] as `0x${string}`,
-    abi: MOR_ABI,
-    eventName: 'Transfer',
-    chainId: 42161,
-    onLogs: (logs) => {
-      const userInvolved = logs.some(log => 
-        log.args.from === address || log.args.to === address
-      )
-      if (userInvolved) {
-        console.log('MORBalance - Transfer event detected on Arbitrum, refreshing balance')
-        refetchArbitrum()
+  // Set up polling for balance updates instead of watching events
+  useEffect(() => {
+    if (!address) {
+      // Clear interval if no address
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
       }
-    },
-  })
+      return
+    }
 
-  // Listen for Transfer events on Base
-  useWatchContractEvent({
-    address: morTokenContracts[8453] as `0x${string}`,
-    abi: MOR_ABI,
-    eventName: 'Transfer',
-    chainId: 8453,
-    onLogs: (logs) => {
-      const userInvolved = logs.some(log => 
-        log.args.from === address || log.args.to === address
-      )
-      if (userInvolved) {
-        console.log('MORBalance - Transfer event detected on Base, refreshing balance')
-        refetchBase()
-      }
-    },
-  })
+    // Poll for balance updates every 30 seconds
+    // This is more reliable than event watching with RPC providers that don't support filters
+    intervalRef.current = setInterval(() => {
+      console.log('MORBalance - Polling for balance updates...')
+      refreshBalances()
+    }, 30000) // 30 seconds
 
-  // Listen for Transfer events on Arbitrum Sepolia
-  useWatchContractEvent({
-    address: morTokenContracts[421614] as `0x${string}`,
-    abi: MOR_ABI,
-    eventName: 'Transfer',
-    chainId: 421614,
-    onLogs: (logs) => {
-      const userInvolved = logs.some(log => 
-        log.args.from === address || log.args.to === address
-      )
-      if (userInvolved) {
-        console.log('MORBalance - Transfer event detected on Arbitrum Sepolia, refreshing balance')
-        refetchSepolia()
+    // Cleanup interval on unmount or address change
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
       }
-    },
-  })
+    }
+  }, [address, refreshBalances])
 
   return {
     arbitrumBalance,
