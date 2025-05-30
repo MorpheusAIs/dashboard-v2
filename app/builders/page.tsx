@@ -519,7 +519,7 @@ export default function BuildersPage() {
         cell: (builder) => (
           <div className="w-24 flex justify-center">
             <button 
-              className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
+              className="stake-button py-1 px-3 text-sm border border-white text-white bg-transparent hover:border-emerald-400 hover:text-emerald-400 hover:bg-emerald-400/10 transition-all duration-200 rounded"
               onClick={(e) => {
                 e.stopPropagation(); // Prevent row click from triggering
                 handleOpenStakeModal(builder);
@@ -729,7 +729,7 @@ export default function BuildersPage() {
         cell: (subnet) => (
           <div className="w-24 flex justify-center">
             <button 
-              className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
+              className="stake-button py-1 px-3 text-sm border border-white text-white bg-transparent hover:border-emerald-400 hover:text-emerald-400 hover:bg-emerald-400/10 transition-all duration-200 rounded"
               onClick={(e) => {
                 e.stopPropagation(); // Prevent row click from triggering
                 handleOpenStakeModal(subnet);
@@ -1096,7 +1096,7 @@ export default function BuildersPage() {
         cell: (builder) => (
           <div className="w-24 flex justify-center">
             <button 
-              className="copy-button-secondary py-1 px-3 text-sm opacity-0 transition-opacity duration-200 action-button"
+              className="stake-button py-1 px-3 text-sm border border-white text-white bg-transparent hover:border-emerald-400 hover:text-emerald-400 hover:bg-emerald-400/10 transition-all duration-200 rounded"
               onClick={(e) => {
                 e.stopPropagation(); // Prevent row click from triggering
                 handleOpenStakeModal(builder);

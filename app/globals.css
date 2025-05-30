@@ -372,6 +372,13 @@ body {
     opacity: 1 !important;
   }
 
+  /* Style stake buttons on table row hover */
+  tr.table-row:hover .stake-button {
+    border-color: rgb(16 185 129) !important; /* emerald-500 */
+    color: rgb(16 185 129) !important; /* emerald-500 */
+    background-color: rgb(16 185 129 / 0.1) !important; /* emerald-500/10 */
+  }
+
   /* Sidebar collapsible states */
   .sidebar-collapsed {
     @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:w-[72px];
