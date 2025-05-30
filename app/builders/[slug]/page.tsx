@@ -51,9 +51,14 @@ const formatMOR = (weiAmount: string): number => {
 
 // Function to get explorer URL based on network
 const getExplorerUrl = (address: string, network?: string): string => {
-  return network === 'Arbitrum' || network === 'Arbitrum Sepolia'
-    ? `https://arbiscan.io/address/${address}`
-    : `https://basescan.org/address/${address}`;
+  switch (network) {
+    case 'Arbitrum':
+      return `https://arbiscan.io/address/${address}`;
+    case 'Arbitrum Sepolia':
+      return `https://sepolia.arbiscan.io/address/${address}`;
+    default:
+      return `https://basescan.org/address/${address}`;
+  }
 };
 
 console.log("########## BUILDER PAGE COMPONENT RENDERED ##########"); // Top-level log
