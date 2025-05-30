@@ -10,11 +10,31 @@ interface StakeVsTotalChartProps {
 
 export function StakeVsTotalChart({ userStake, totalStaked, className = "" }: StakeVsTotalChartProps) {
   // Calculate percentage of user stake vs total
-  const percentage = userStake && totalStaked ? Math.round((userStake / totalStaked) * 100) : 0
+  const percentage = userStake && totalStaked ? Math.round((userStake / totalStaked) * 100) : 0;
   
-  // Format numbers for display
-  const formattedUserStake = userStake.toLocaleString()
-  const formattedTotalStaked = totalStaked.toLocaleString()
+  // Helper function to add commas to numbers
+  const addThousandSeparators = (numStr: string) => {
+    const parts = numStr.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return parts.join('.');
+  };
+  
+  // Helper function to format number with decimals only if less than 1
+  const formatNumber = (num: number) => {
+    if (num < 1) {
+      // For numbers less than 1, show one decimal place
+      return num.toString().includes('.') 
+        ? num.toString().split('.')[0] + '.' + num.toString().split('.')[1].substring(0, 1)
+        : num.toString();
+    } else {
+      // For numbers >= 1, show only whole number
+      return Math.floor(num).toString();
+    }
+  };
+  
+  // Format numbers and add commas
+  const formattedUserStake = addThousandSeparators(formatNumber(userStake));
+  const formattedTotalStaked = addThousandSeparators(formatNumber(totalStaked));
 
   // Create the conic gradient style for the progress circle
   const conicGradient = `conic-gradient(
