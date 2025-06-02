@@ -169,9 +169,11 @@ export function StakeModal({
 
   // Warning logic (following page.tsx pattern)
   const showWarning = useMemo(() => {
-    if (!stakeAmount) return false;
+    // Show warning if input is empty (need to enter amount)
+    if (!stakeAmount || stakeAmount.trim() === "") return true;
+    
     const amount = parseFloat(stakeAmount);
-    if (isNaN(amount) || amount <= 0) return false;
+    if (isNaN(amount) || amount <= 0) return true;
     
     // Show warning if on wrong network OR insufficient balance OR needs approval
     return chainId !== targetNetworkInfo.chainId ||
@@ -180,21 +182,32 @@ export function StakeModal({
   }, [stakeAmount, chainId, targetNetworkInfo.chainId, needsApproval, effectiveTokenBalance]);
 
   const warningMessage = useMemo(() => {
-    if (!stakeAmount) return "";
-    const amount = parseFloat(stakeAmount);
-    if (isNaN(amount) || amount <= 0) return "";
-    
-    // Check balance first - this is most important
-    if (effectiveTokenBalance && amount > parseFloat(formatEther(effectiveTokenBalance))) {
-      return `Warning: You don't have enough ${tokenSymbol} on ${targetNetworkInfo.networkName}`;
+    // Show message if input is empty
+    if (!stakeAmount || stakeAmount.trim() === "") {
+      return "Please enter an amount to stake";
     }
     
-    // Check minimum deposit
+    const amount = parseFloat(stakeAmount);
+    if (isNaN(amount) || amount <= 0) {
+      return "Please enter a valid amount greater than 0";
+    }
+    
+    // Check minimum deposit first
     if (selectedBuilder?.minDeposit && amount < selectedBuilder.minDeposit) {
       return `Minimum deposit is ${selectedBuilder.minDeposit} ${tokenSymbol}`;
     }
     
-    // Then check network
+    // Check balance - this is most important and should show regardless of network
+    if (effectiveTokenBalance !== undefined && amount > parseFloat(formatEther(effectiveTokenBalance))) {
+      const currentBalance = parseFloat(formatEther(effectiveTokenBalance));
+      if (currentBalance === 0) {
+        return `You don't have any ${tokenSymbol} on ${targetNetworkInfo.networkName}. You may need to bridge tokens or use a different network.`;
+      } else {
+        return `Insufficient balance: You have ${currentBalance.toFixed(4)} ${tokenSymbol} on ${targetNetworkInfo.networkName} but need ${amount} ${tokenSymbol}`;
+      }
+    }
+    
+    // Then check network (only if balance is sufficient)
     if (chainId !== targetNetworkInfo.chainId) {
       return `Please switch to ${targetNetworkInfo.networkName} network to stake`;
     }
@@ -348,9 +361,10 @@ export function StakeModal({
             <button
               type="submit"
               className={
-                isSubmitting || 
-                chainId !== targetNetworkInfo.chainId || 
-                (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0)
+                isSubmitting || !isValidForSubmission
+                  ? "copy-button-secondary px-2 text-sm opacity-50 cursor-not-allowed" 
+                  : (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0) ||
+                    (chainId !== targetNetworkInfo.chainId)
                   ? "copy-button-secondary px-2 text-sm" 
                   : "copy-button-base"
               }
@@ -374,4 +388,4 @@ export function StakeModal({
       </DialogContent>
     </Dialog>
   );
-} 
+}
