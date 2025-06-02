@@ -17,6 +17,7 @@ export interface StakingFormCardProps {
   buttonText?: string;
   minAmount?: number;
   maxAmount?: number;
+  minDeposit?: number;
   disableStaking?: boolean;
   showWarning?: boolean;
   warningMessage?: string;
@@ -32,6 +33,7 @@ export function StakingFormCard({
   buttonText = "Stake MOR",
   minAmount,
   maxAmount,
+  minDeposit,
   disableStaking = false,
   showWarning = false,
   warningMessage = "Warning: You don't have enough MOR to stake this amount.",
@@ -178,7 +180,15 @@ export function StakingFormCard({
       <CardContent>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="stake-amount">Amount to stake</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="stake-amount">Amount to stake</Label>
+              {minDeposit !== undefined && (
+                <div className="text-sm text-gray-400">
+                  <span className="text-gray-500">Minimum deposit:</span>{" "}
+                  <span className="text-gray-300">{minDeposit} {tokenSymbol}</span>
+                </div>
+              )}
+            </div>
             <div className="relative">
               <Input
                 id="stake-amount"

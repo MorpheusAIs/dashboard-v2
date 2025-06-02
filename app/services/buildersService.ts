@@ -86,6 +86,8 @@ export const fetchBuildersAPI = async (
         const totalStakedRaw = subnet.totalStaked || '0';
         const totalStakedInMor = Number(totalStakedRaw) / 1e18;
         const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
+        const totalClaimedRaw = subnet.totalClaimed || '0';
+        const totalClaimedInMor = Number(totalClaimedRaw) / 1e18;
         
         const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
           ? subnet.builderUsers.length 
@@ -110,12 +112,15 @@ export const fetchBuildersAPI = async (
           website: subnet.website || '',
           image: subnet.image || '',
           totalStakedFormatted: totalStakedInMor,
+          totalClaimedFormatted: totalClaimedInMor,
           startsAt: subnet.startsAt,
           claimLockEnd: subnet.maxClaimLockEnd,
           withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake, 
-          totalClaimed: subnet.totalClaimed || '0',
+          totalClaimed: totalClaimedInMor.toString(),
           builderUsers: subnet.builderUsers,
         };
+
+
         return project;
       });
       
@@ -140,6 +145,7 @@ export const fetchBuildersAPI = async (
           networks: project.networks || ['Arbitrum Sepolia'],
           network: project.network || 'Arbitrum Sepolia',
           totalStaked: project.totalStakedFormatted !== undefined ? project.totalStakedFormatted : parseFloat(project.totalStaked || '0'),
+          totalClaimed: project.totalClaimedFormatted !== undefined ? project.totalClaimedFormatted : parseFloat(project.totalClaimed || '0'),
           minDeposit: project.minDeposit !== undefined ? project.minDeposit : parseFloat(project.minimalDeposit || '0') / 1e18,
           lockPeriod: project.lockPeriod || formatTimePeriod(lockPeriodSeconds),
           withdrawLockPeriodRaw: lockPeriodSeconds,
@@ -207,47 +213,51 @@ export const fetchBuildersAPI = async (
       console.log("[Mainnet Participation Check] Arbitrum buildersUsers from GQL:", JSON.stringify(arbitrumResponse.data?.buildersUsers, null, 2));
 
       const baseProjects = (baseResponse.data?.buildersProjects || []).map((project): BuilderProject => {
+
+
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
         const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
-        const lockPeriodFormatted = formatTimePeriod(parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10));
-        
-        // Explicitly convert potential Date objects to ISO strings, defaulting to empty string if null/undefined
-        const pStartsAt = project.startsAt;
-        const pClaimLockEnd = project.claimLockEnd;
+        const totalClaimedInMor = Number(project.totalClaimed || '0') / 1e18;
 
-        return {
+
+
+        const projectData = {
           ...project,
-          startsAt: typeof pStartsAt === 'string' ? pStartsAt : (pStartsAt ? new Date(pStartsAt).toISOString() : ''),
-          claimLockEnd: typeof pClaimLockEnd === 'string' ? pClaimLockEnd : (pClaimLockEnd ? new Date(pClaimLockEnd).toISOString() : ''),
+          startsAt: typeof project.startsAt === 'string' ? project.startsAt : '',
+          claimLockEnd: typeof project.claimLockEnd === 'string' ? project.claimLockEnd : '',
           networks: ['Base'],
           network: 'Base',
           stakingCount: parseInt(project.totalUsers || '0', 10),
-          lockPeriod: lockPeriodFormatted,
+          lockPeriod: formatTimePeriod(parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10)),
           minDeposit: minDepositInMor,
           totalStakedFormatted: totalStakedInMor,
+          totalClaimedFormatted: totalClaimedInMor,
+          totalClaimed: totalClaimedInMor.toString(),
           mainnetProjectId: project.id,
         };
+
+
+        return projectData;
       });
       
       const arbitrumProjects = (arbitrumResponse.data?.buildersProjects || []).map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
         const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
+        const totalClaimedInMor = Number(project.totalClaimed || '0') / 1e18;
         const lockPeriodFormatted = formatTimePeriod(parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10));
-
-        // Explicitly convert potential Date objects to ISO strings, defaulting to empty string if null/undefined
-        const pStartsAt = project.startsAt;
-        const pClaimLockEnd = project.claimLockEnd;
 
         return {
           ...project,
-          startsAt: typeof pStartsAt === 'string' ? pStartsAt : (pStartsAt ? new Date(pStartsAt).toISOString() : ''),
-          claimLockEnd: typeof pClaimLockEnd === 'string' ? pClaimLockEnd : (pClaimLockEnd ? new Date(pClaimLockEnd).toISOString() : ''),
+          startsAt: typeof project.startsAt === 'string' ? project.startsAt : '',
+          claimLockEnd: typeof project.claimLockEnd === 'string' ? project.claimLockEnd : '',
           networks: ['Arbitrum'],
           network: 'Arbitrum',
           stakingCount: parseInt(project.totalUsers || '0', 10),
           lockPeriod: lockPeriodFormatted,
           minDeposit: minDepositInMor,
           totalStakedFormatted: totalStakedInMor,
+          totalClaimedFormatted: totalClaimedInMor,
+          totalClaimed: totalClaimedInMor.toString(),
           mainnetProjectId: project.id,
         };
       });
@@ -282,19 +292,24 @@ export const fetchBuildersAPI = async (
       
       // First process all combined projects to create builder objects
       combinedProjects.forEach(onChainProject => {
-        // Find matching Supabase data
+
+
         const matchingSupabaseBuilder = supabaseBuilders.find(b => b.name === onChainProject.name);
         
         if (matchingSupabaseBuilder) {
-          // This builder exists in Supabase, merge the data
           const mainnetLockPeriodSeconds = parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10);
           
+
+
           const builder = mergeBuilderData(matchingSupabaseBuilder, {
             id: onChainProject.id,
             totalStaked: onChainProject.totalStakedFormatted !== undefined 
               ? onChainProject.totalStakedFormatted 
-              : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0, 
-            minimalDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0, 
+              : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0,
+            totalClaimed: onChainProject.totalClaimedFormatted !== undefined 
+              ? onChainProject.totalClaimedFormatted 
+              : parseFloat(onChainProject.totalClaimed || '0') / 1e18 || 0,
+            minimalDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0,
             withdrawLockPeriodAfterDeposit: mainnetLockPeriodSeconds,
             withdrawLockPeriodRaw: mainnetLockPeriodSeconds,
             stakingCount: onChainProject.stakingCount || 0,
@@ -302,10 +317,12 @@ export const fetchBuildersAPI = async (
             network: onChainProject.network || 'Unknown',
             networks: onChainProject.networks || ['Unknown'],
             admin: onChainProject.admin,
-            image: onChainProject.image, 
+            image: onChainProject.image,
             website: onChainProject.website,
             startsAt: onChainProject.startsAt,
           });
+
+
           
           // Add a unique identifier for duplicate builders across networks
           if (duplicateBuilderNames.includes(onChainProject.name)) {
@@ -332,6 +349,9 @@ export const fetchBuildersAPI = async (
             totalStaked: onChainProject.totalStakedFormatted !== undefined 
               ? onChainProject.totalStakedFormatted 
               : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0,
+            totalClaimed: onChainProject.totalClaimedFormatted !== undefined
+              ? onChainProject.totalClaimedFormatted
+              : parseFloat(onChainProject.totalClaimed || '0') / 1e18 || 0,
             minDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0,
             lockPeriod: onChainProject.lockPeriod || '',
             stakingCount: onChainProject.stakingCount || 0,
@@ -414,6 +434,7 @@ export const fetchBuildersAPI = async (
         });
       }
       
+
       return mappedBuilders;
     }
 

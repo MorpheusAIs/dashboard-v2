@@ -55,6 +55,7 @@ export interface BuilderProject {
   description?: string;
   website?: string;
   totalStakedFormatted?: number;
+  totalClaimedFormatted?: number;
   builderUsers?: BuilderUser[];
   mainnetProjectId?: string; // Added for mainnet staking to pass proper contract ID
 }

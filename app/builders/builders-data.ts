@@ -2,6 +2,7 @@ import { BuilderDB } from '../lib/supabase';
 
 export interface Builder extends BuilderDB {
   totalStaked: number;
+  totalClaimed?: number;
   minimalDeposit?: string;
   withdrawLockPeriodAfterDeposit?: string;
   withdrawLockPeriodRaw?: number;
@@ -36,6 +37,7 @@ export const mergeBuilderData = (
   onChainData: {
     id?: string;
     totalStaked?: number;
+    totalClaimed?: number;
     minimalDeposit?: number;
     withdrawLockPeriodAfterDeposit?: number;
     withdrawLockPeriodRaw?: number;
@@ -50,13 +52,15 @@ export const mergeBuilderData = (
     startsAt?: string;
   }
 ): Builder => {
+
   // Admin data only comes from on-chain data since BuilderDB doesn't have this field
   const finalAdmin: string | null = (typeof onChainData.admin === 'string') ? onChainData.admin : null;
 
-  return {
+  const mergedBuilder = {
     ...builderDB,
     mainnetProjectId: onChainData.id || null,
     totalStaked: onChainData.totalStaked || 0,
+    totalClaimed: onChainData.totalClaimed || 0,
     minDeposit: onChainData.minimalDeposit || 0,
     minimalDeposit: onChainData.minimalDeposit?.toString(),
     withdrawLockPeriodAfterDeposit: onChainData.withdrawLockPeriodAfterDeposit?.toString(),
@@ -72,4 +76,7 @@ export const mergeBuilderData = (
     website: typeof onChainData.website === 'string' ? onChainData.website : builderDB.website,
     startsAt: onChainData.startsAt,
   };
+
+
+  return mergedBuilder;
 }; 

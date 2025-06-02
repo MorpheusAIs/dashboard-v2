@@ -151,10 +151,12 @@ export default function BuilderPage() {
     }
 
     if (foundBuilder) {
+
       const builderToSet: Builder = {
         ...foundBuilder,
         admin: foundBuilder.admin || null, 
       };
+
       setBuilder(builderToSet);
       
       // Set the appropriate subnetId based on network
@@ -726,11 +728,28 @@ export default function BuilderPage() {
         <div className={`grid grid-cols-1 md:grid-cols-4 gap-4`}>
           <div className="relative md:col-span-2">
             <MetricCard
-              title="Builder Stats"
+              title="Builder Stats (MOR)"
               metrics={[
-                { value: builder.totalStaked, label: "MOR" },
-                { value: builder.stakingCount || 0, label: "staking" }
+                { value: builder.totalStaked, label: "Staked" },
+                { value: builder.totalClaimed || 0, label: "Claimed" }
               ]}
+              autoFormatNumbers={true}
+            />
+            <GlowingEffect 
+              spread={40}
+              glow={true}
+              disabled={false}
+              proximity={64}
+              inactiveZone={0.01}
+              borderWidth={2}
+              borderRadius="rounded-xl"
+            />
+          </div>
+          
+          <div className="relative">
+            <MetricCard
+              title="Users staking"
+              metrics={[{ value: builder.stakingCount || 0, label: "All time" }]}
               autoFormatNumbers={true}
             />
             <GlowingEffect 
@@ -763,22 +782,6 @@ export default function BuilderPage() {
             />
           </div>
           
-          <div className="relative">
-            <MetricCard
-              title="Minimum Deposit"
-              metrics={[{ value: builder.minDeposit, label: "MOR" }]}
-              autoFormatNumbers={true}
-            />
-            <GlowingEffect 
-              spread={40}
-              glow={true}
-              disabled={false}
-              proximity={64}
-              inactiveZone={0.01}
-              borderWidth={2}
-              borderRadius="rounded-xl"
-            />
-          </div>
         </div>
 
         {/* Staking Actions */}
@@ -805,6 +808,7 @@ export default function BuilderPage() {
                 }
               }}
               maxAmount={tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0}
+              minDeposit={builder.minDeposit}
               tokenSymbol={tokenSymbol}
               buttonText={
                 !isCorrectNetwork()
@@ -881,7 +885,7 @@ export default function BuilderPage() {
         {/* Staking Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-bold">All staking addresses ({builder.stakingCount || 0})</CardTitle>
+            <CardTitle className="text-lg font-bold">Active staking addresses</CardTitle>
           </CardHeader>
           <CardContent>
             {stakingEntriesError ? (
