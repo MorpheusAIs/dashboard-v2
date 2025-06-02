@@ -39,12 +39,19 @@ const formatDate = (timestamp: number): string => {
 // Function to format wei to MOR tokens (with decimals for small amounts)
 const formatMOR = (weiAmount: string): number => {
   try {
+    // Handle empty or invalid input
+    if (!weiAmount || weiAmount === "0") return 0;
+    
     const amount = parseFloat(formatUnits(BigInt(weiAmount), 18));
+    
+    // Check for unreasonable values
+    if (!isFinite(amount) || amount < 0) return 0;
+    
     // If amount is less than 1, show up to 3 decimal places
     // Otherwise round to whole numbers as before
-    return amount < 1 ? parseFloat(amount.toFixed(2)) : Math.round(amount);
+    return amount < 1 ? parseFloat(amount.toFixed(3)) : Math.round(amount);
   } catch (error) {
-    console.error("Error formatting MOR:", error);
+    console.error("Error formatting MOR:", error, "Input:", weiAmount);
     return 0;
   }
 };
@@ -156,6 +163,8 @@ export default function BuilderPage() {
         ...foundBuilder,
         admin: foundBuilder.admin || null, 
       };
+
+
 
       setBuilder(builderToSet);
       
@@ -532,16 +541,31 @@ export default function BuilderPage() {
 
   const onWithdrawSubmit = async (amountUserWantsToWithdrawStr: string) => {
     console.log("########## ON WITHDRAW SUBMIT - User wants to withdraw:", amountUserWantsToWithdrawStr, "##########");
-    // Calculate builder min stake in MOR (assuming builder.minDeposit is MOR string/number)
-    const builderMinStake = builder?.minDeposit ? Number(builder.minDeposit) : 0;
+    
     const amountUserWantsToWithdraw = parseFloat(amountUserWantsToWithdrawStr);
-    if (!isNaN(amountUserWantsToWithdraw) && (userStakedAmount !== null)) {
-      const remainingAfterWithdraw = userStakedAmount - amountUserWantsToWithdraw;
-      if (remainingAfterWithdraw < builderMinStake) {
-        showAlert(`You must keep at least ${builderMinStake} ${tokenSymbol} staked. You can withdraw up to ${Math.max(userStakedAmount - builderMinStake, 0)} ${tokenSymbol}.`);
-        return;
-      }
+    
+    // Basic validation - ensure valid withdrawal amount
+    if (isNaN(amountUserWantsToWithdraw) || amountUserWantsToWithdraw <= 0) {
+      showAlert("Please enter a valid withdrawal amount greater than zero.");
+      return;
     }
+    
+    if (userStakedAmount === null || userStakedAmount <= 0) {
+      showAlert("You have no staked amount to withdraw.");
+      return;
+    }
+    
+    // Check if user is trying to withdraw more than they have staked
+    if (amountUserWantsToWithdraw > userStakedAmount) {
+      showAlert(`You cannot withdraw ${amountUserWantsToWithdraw.toFixed(6)} ${tokenSymbol} because you only have ${userStakedAmount.toFixed(6)} ${tokenSymbol} staked.`);
+      return;
+    }
+    
+    console.log("########## Withdrawal validation passed:", {
+      userStakedAmount,
+      amountUserWantsToWithdraw,
+      isWithdrawingAll: Math.abs(amountUserWantsToWithdraw - userStakedAmount) < 0.000001
+    });
 
     if (!isCorrectNetwork()) {
       console.log("########## Incorrect network. Requesting switch. ##########");
