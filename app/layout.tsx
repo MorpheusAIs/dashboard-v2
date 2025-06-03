@@ -23,6 +23,11 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Morpheus Dashboard",
   description: "Enter the Persistent Agentic Compute Delivery Network",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
   openGraph: {
     title: "Morpheus Dashboard",
     description: "Enter the Persistent Agentic Compute Delivery Network",
