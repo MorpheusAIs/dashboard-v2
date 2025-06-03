@@ -408,6 +408,9 @@ export default function BuilderPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hookProjectId]); // React to changes in the finalized hookProjectId (refreshStakingEntries is not needed here)
   
+  // Create a ref to store the approval refresh function
+  const refreshApprovalRef = useRef<((amount: string) => Promise<boolean> | boolean) | null>(null);
+  
   // Staking hook
   const stakingContractHookProps: UseStakingContractInteractionsProps = useMemo(() => ({
     subnetId: subnetId || undefined,
@@ -415,6 +418,7 @@ export default function BuilderPage() {
     onTxSuccess: () => {
       console.log("Transaction successful (stake/withdraw), refreshing staking table and current user staker data.");
       refreshStakingDataRef.current = true; // For the main staking table
+      const currentStakeAmount = stakeAmount; // Capture current stake amount
       setStakeAmount(""); // Clear stake input
       
       // Signal the StakingPositionCard to reset its withdrawal amount
@@ -428,15 +432,29 @@ export default function BuilderPage() {
         console.log("Calling refetchStakerDataForUser to refresh user's staked amount...");
         refetchStakerDataForUser().then(() => {
           console.log("Successfully refetched user staker data after transaction");
-        }).catch((error) => {
+        }).catch((error: unknown) => {
           console.error("Error refetching user staker data:", error);
         });
       } else {
         console.warn("refetchStakerDataForUser is not available");
       }
+      
+      // Force refresh approval state after successful transaction
+      // Use timeout to allow blockchain state to update
+      setTimeout(() => {
+        console.log("Refreshing approval state after successful transaction...");
+        if (refreshApprovalRef.current && currentStakeAmount && parseFloat(currentStakeAmount) > 0) {
+          try {
+            const result = refreshApprovalRef.current(currentStakeAmount);
+            console.log("Successfully refreshed approval state after transaction, result:", result);
+          } catch (error: unknown) {
+            console.error("Error refreshing approval state:", error);
+          }
+        }
+      }, 2000); // 2 second delay to allow blockchain state to update
     },
     lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
-  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser]);
+  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser, stakeAmount]);
 
   // Log subnet ID state for debugging
   useEffect(() => {
@@ -464,6 +482,11 @@ export default function BuilderPage() {
     handleWithdraw,
     checkAndUpdateApprovalNeeded
   } = useStakingContractInteractions(stakingContractHookProps);
+
+  // Set the ref to the actual function for use in the onTxSuccess callback
+  useEffect(() => {
+    refreshApprovalRef.current = checkAndUpdateApprovalNeeded;
+  }, [checkAndUpdateApprovalNeeded]);
 
   // Check if approval is needed when stake amount changes
   useEffect(() => {
