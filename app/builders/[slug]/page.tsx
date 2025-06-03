@@ -10,6 +10,7 @@ import { type BuildersUser, type SubnetUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
 import { StakingPositionCard } from "@/components/staking/staking-position-card";
+import { ClaimFormCard } from "@/components/staking/claim-form-card";
 import { StakingTable } from "@/components/staking-table";
 import { useStakingData, type UseStakingDataProps, type BuilderSubnetUser as StakingBuilderSubnetUser } from "@/hooks/use-staking-data";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
@@ -416,7 +417,7 @@ export default function BuilderPage() {
     subnetId: subnetId || undefined,
     networkChainId: chainId,
     onTxSuccess: () => {
-      console.log("Transaction successful (stake/withdraw), refreshing staking table and current user staker data.");
+      console.log("Transaction successful (stake/withdraw/claim), refreshing staking table and current user staker data.");
       refreshStakingDataRef.current = true; // For the main staking table
       const currentStakeAmount = stakeAmount; // Capture current stake amount
       setStakeAmount(""); // Clear stake input
@@ -438,6 +439,8 @@ export default function BuilderPage() {
       } else {
         console.warn("refetchStakerDataForUser is not available");
       }
+      
+
       
       // Force refresh approval state after successful transaction
       // Use timeout to allow blockchain state to update
@@ -475,18 +478,39 @@ export default function BuilderPage() {
     isApproving,
     isStaking,
     isWithdrawing,
+    isClaiming,
     isSubmitting,
+    claimableAmount,
     handleNetworkSwitch,
     handleApprove,
     handleStake,
     handleWithdraw,
-    checkAndUpdateApprovalNeeded
+    handleClaim,
+    checkAndUpdateApprovalNeeded,
+    refetchClaimableAmount
   } = useStakingContractInteractions(stakingContractHookProps);
 
   // Set the ref to the actual function for use in the onTxSuccess callback
   useEffect(() => {
     refreshApprovalRef.current = checkAndUpdateApprovalNeeded;
   }, [checkAndUpdateApprovalNeeded]);
+
+  // Refresh claimable amount after successful transactions
+  useEffect(() => {
+    // Use a timeout to allow blockchain state to update after successful transactions
+    const timer = setTimeout(() => {
+      if (refetchClaimableAmount) {
+        console.log("Refreshing claimable amount after transaction state change...");
+        refetchClaimableAmount().then(() => {
+          console.log("Successfully refreshed claimable amount");
+        }).catch((error: unknown) => {
+          console.error("Error refetching claimable amount:", error);
+        });
+      }
+    }, 3000); // 3 second delay to allow blockchain state to update
+
+    return () => clearTimeout(timer);
+  }, [userStakedAmount, refetchClaimableAmount]); // Trigger when user staked amount changes (indicating a successful transaction)
 
   // Check if approval is needed when stake amount changes
   useEffect(() => {
@@ -832,69 +856,107 @@ export default function BuilderPage() {
         </div>
 
         {/* Staking Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Stake Form */}
-          <div className="relative">
-            <StakingFormCard
-              title="Stake MOR"
-              value={stakeAmount}
-              onStake={onStakeSubmit}
-              onAmountChange={(value) => {
-                // Format value to one decimal place if possible
-                let formattedValue = value;
-                const parsed = parseFloat(value);
-                if (!isNaN(parsed)) {
-                  // Round to 1 decimal place
-                  formattedValue = (Math.floor(parsed * 10) / 10).toString();
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+          {/* Left column - 3/5 width, contains Stake and Claim forms */}
+          <div className="md:col-span-3 space-y-4">
+            {/* Stake Form */}
+            <div className="relative">
+              <StakingFormCard
+                title="Stake MOR"
+                value={stakeAmount}
+                onStake={onStakeSubmit}
+                onAmountChange={(value) => {
+                  // Format value to one decimal place if possible
+                  let formattedValue = value;
+                  const parsed = parseFloat(value);
+                  if (!isNaN(parsed)) {
+                    // Round to 1 decimal place
+                    formattedValue = (Math.floor(parsed * 10) / 10).toString();
+                  }
+                  
+                  setStakeAmount(formattedValue);
+                  // Force approval check every time amount changes
+                  if (formattedValue && parseFloat(formattedValue) > 0) {
+                    checkAndUpdateApprovalNeeded(formattedValue);
+                  }
+                }}
+                maxAmount={tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0}
+                minDeposit={builder.minDeposit}
+                tokenSymbol={tokenSymbol}
+                buttonText={
+                  !isCorrectNetwork()
+                    ? "Switch Network"
+                    : isStaking
+                    ? "Staking..."
+                    : isApproving
+                    ? "Approving..."
+                    : needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
+                    ? `Approve ${tokenSymbol}`
+                    : `Stake ${tokenSymbol}`
                 }
-                
-                setStakeAmount(formattedValue);
-                // Force approval check every time amount changes
-                if (formattedValue && parseFloat(formattedValue) > 0) {
-                  checkAndUpdateApprovalNeeded(formattedValue);
+                disableStaking={isSubmitting}
+                showWarning={
+                  !isCorrectNetwork() || 
+                  (needsApproval && !!stakeAmount && parseFloat(stakeAmount) > 0) ||
+                  (!!stakeAmount && parseFloat(stakeAmount) > (tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0))
                 }
-              }}
-              maxAmount={tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0}
-              minDeposit={builder.minDeposit}
-              tokenSymbol={tokenSymbol}
-              buttonText={
-                !isCorrectNetwork()
-                  ? "Switch Network"
-                  : isStaking
-                  ? "Staking..."
-                  : isApproving
-                  ? "Approving..."
-                  : needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
-                  ? `Approve ${tokenSymbol}`
-                  : `Stake ${tokenSymbol}`
-              }
-              disableStaking={isSubmitting}
-              showWarning={
-                !isCorrectNetwork() || 
-                (needsApproval && !!stakeAmount && parseFloat(stakeAmount) > 0) ||
-                (!!stakeAmount && parseFloat(stakeAmount) > (tokenBalance ? parseFloat(formatEther(tokenBalance)) : 0))
-              }
-              warningMessage={
-                !isCorrectNetwork() 
-                  ? `Please switch to ${networksToDisplay[0]} network to stake` 
-                  : needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
-                  ? `You need to approve ${tokenSymbol} spending first`
-                  : `Warning: You don't have enough ${tokenSymbol}`
-              }
-            />
-            <GlowingEffect 
-              spread={40}
-              glow={true}
-              disabled={false}
-              proximity={64}
-              inactiveZone={0.01}
-              borderWidth={2}
-              borderRadius="rounded-xl"
-            />
+                warningMessage={
+                  !isCorrectNetwork() 
+                    ? `Please switch to ${networksToDisplay[0]} network to stake` 
+                    : needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
+                    ? `You need to approve ${tokenSymbol} spending first`
+                    : `Warning: You don't have enough ${tokenSymbol}`
+                }
+              />
+              <GlowingEffect 
+                spread={40}
+                glow={true}
+                disabled={false}
+                proximity={64}
+                inactiveZone={0.01}
+                borderWidth={2}
+                borderRadius="rounded-xl"
+              />
+            </div>
+
+            {/* Claim Form */}
+            <div className="relative">
+              <ClaimFormCard
+                onClaim={async () => {
+                  if (!isCorrectNetwork()) {
+                    await handleNetworkSwitch();
+                    return;
+                  }
+                  
+                  console.log("Claim button clicked, calling handleClaim");
+                  await handleClaim();
+                }}
+                claimableAmount={claimableAmount ? parseFloat(formatEther(claimableAmount)) : 0}
+                tokenSymbol={tokenSymbol}
+                buttonText={
+                  !isCorrectNetwork()
+                    ? "Switch Network"
+                    : isClaiming
+                    ? "Claiming..."
+                    : "Claim all"
+                }
+                disableClaiming={!isCorrectNetwork() || isClaiming || !claimableAmount || claimableAmount === BigInt(0)}
+                isClaiming={isClaiming}
+              />
+              <GlowingEffect 
+                spread={40}
+                glow={true}
+                disabled={false}
+                proximity={64}
+                inactiveZone={0.01}
+                borderWidth={2}
+                borderRadius="rounded-xl"
+              />
+            </div>
           </div>
 
-          {/* Withdrawal Form */}
-          <div className="relative">
+          {/* Right column - 2/5 width, Your Position card spans full height */}
+          <div className="md:col-span-2 relative">
             <StakingPositionCard
               userStakedAmount={userStakedAmount || 0}
               timeUntilUnlock={timeLeft}

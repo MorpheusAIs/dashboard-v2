@@ -93,20 +93,20 @@ export function StakingPositionCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-8">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-400">Your staked amount:</span>
             <span className="text-gray-200">{userStakedAmount.toFixed(2)} {tokenSymbol}</span>
           </div>
           
           {showUnlockTime && timeUntilUnlock && (
-            <div className="flex justify-between text-sm mb-4">
+            <div className="flex justify-between text-sm mb-2">
               <span className="text-gray-400">Time until unlock:</span>
               <span className="text-gray-200">{timeUntilUnlock}</span>
             </div>
           )}
           
-          <div className="space-y-2">
+          <div className="space-y-2 pt-6">
             <Label htmlFor="withdraw-amount">Amount to withdraw</Label>
             <div className="relative">
               <Input

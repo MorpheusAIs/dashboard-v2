@@ -139,6 +139,21 @@ export const useStakingContractInteractions = ({
     }
   });
 
+  // Get claimable amount - different functions for mainnet vs testnet
+  const { data: claimableAmountData, refetch: refetchClaimableAmount, isFetching: isFetchingClaimableAmount } = useReadContract({
+    address: contractAddress,
+    abi: isTestnet ? BuilderSubnetsV2Abi : BuildersAbi,
+    functionName: isTestnet ? 'getStakerRewards' : 'getCurrentBuilderReward',
+    args: isTestnet 
+      ? [subnetId!, connectedAddress!] // testnet: getStakerRewards(subnetId, stakerAddress)
+      : [subnetId!], // mainnet: getCurrentBuilderReward(builderPoolId)
+    chainId: networkChainId,
+    query: {
+       enabled: isCorrectNetwork() && !!contractAddress && !!subnetId && !!connectedAddress,
+       staleTime: 5 * 60 * 1000, // 5 minutes
+    }
+  });
+
   // Fix: Log allowance data when it changes to debug mainnet approval issues
   useEffect(() => {
     if (allowanceData !== undefined && allowanceData !== null && !isTestnet) {
@@ -176,6 +191,35 @@ export const useStakingContractInteractions = ({
         
         toast.error("Staking Failed", { 
           id: "stake-tx", 
+          description: errorMessage 
+        });
+      }
+    }
+  });
+
+  const { data: claimTxResult, writeContract: writeClaim, isPending: isClaimPending, error: claimError, reset: resetClaimContract } = useWriteContract({
+    mutation: {
+      onError: (error) => {
+        console.error("Detailed claim error:", error);
+        let errorMessage = "Unknown error";
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          
+          // Try to extract the revert reason if available
+          const revertMatch = errorMessage.match(/reverted with reason string '([^']*)'/);
+          if (revertMatch && revertMatch[1]) {
+            errorMessage = `Contract reverted: ${revertMatch[1]}`;
+          }
+          
+          // Extract gas errors
+          if (errorMessage.includes("gas")) {
+            errorMessage = "Transaction would exceed gas limits. The contract function may be failing.";
+          }
+        }
+        
+        toast.error("Claim Failed", { 
+          id: "claim-tx", 
           description: errorMessage 
         });
       }
@@ -244,12 +288,14 @@ export const useStakingContractInteractions = ({
   const { isLoading: isStakeTxLoading, isSuccess: isStakeTxSuccess } = useWaitForTransactionReceipt({ hash: stakeTxResult });
   const { isLoading: isApproveTxLoading, isSuccess: isApproveTxSuccess } = useWaitForTransactionReceipt({ hash: approveTxResult });
   const { isLoading: isWithdrawTxLoading, isSuccess: isWithdrawTxSuccess } = useWaitForTransactionReceipt({ hash: withdrawTxResult });
+  const { isLoading: isClaimTxLoading, isSuccess: isClaimTxSuccess } = useWaitForTransactionReceipt({ hash: claimTxResult });
 
   // Combined Loading States
   const isApproving = isApprovePending || isApproveTxLoading;
   const isStaking = isStakePending || isStakeTxLoading;
   const isWithdrawing = isWithdrawPending || isWithdrawTxLoading;
-  const isAnyTxPending = isApproving || isStaking || isWithdrawing;
+  const isClaiming = isClaimPending || isClaimTxLoading;
+  const isAnyTxPending = isApproving || isStaking || isWithdrawing || isClaiming;
   const isSubmitting = isAnyTxPending || isNetworkSwitching;
 
   // Update state variables from read hook data
@@ -273,8 +319,8 @@ export const useStakingContractInteractions = ({
 
   // Update loading state for token data, balance, and allowance
   useEffect(() => {
-    setIsLoadingData(isFetchingToken || isFetchingSymbol || isFetchingBalance || isFetchingAllowance);
-  }, [isFetchingToken, isFetchingSymbol, isFetchingBalance, isFetchingAllowance]);
+    setIsLoadingData(isFetchingToken || isFetchingSymbol || isFetchingBalance || isFetchingAllowance || isFetchingClaimableAmount);
+  }, [isFetchingToken, isFetchingSymbol, isFetchingBalance, isFetchingAllowance, isFetchingClaimableAmount]);
 
   // Handle Approval Transaction Notifications
   useEffect(() => {
@@ -370,6 +416,44 @@ export const useStakingContractInteractions = ({
       resetWithdrawContract();
     }
   }, [isWithdrawPending, isWithdrawTxSuccess, withdrawTxResult, withdrawError, resetWithdrawContract, onTxSuccess, refetchBalance, networkChainId, isTestnet]);
+
+  // Handle Claim Transaction Notifications
+  useEffect(() => {
+    if (isClaimPending) {
+      toast.loading("Confirm claim in wallet...", { id: "claim-tx" });
+    }
+    if (isClaimTxSuccess) {
+      toast.success("Successfully claimed rewards!", {
+        id: "claim-tx",
+        description: `Tx: ${claimTxResult?.substring(0, 10)}...`,
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            const chain = getChainById(networkChainId, isTestnet ? 'testnet' : 'mainnet');
+            const explorerUrl = chain?.blockExplorers?.default.url;
+            if (explorerUrl && claimTxResult) {
+              window.open(`${explorerUrl}/tx/${claimTxResult}`, "_blank");
+            }
+          }
+        }
+      });
+      resetClaimContract();
+      // Refresh balance and claimable amount after claim
+      refetchBalance();
+      refetchClaimableAmount();
+      if (onTxSuccess) {
+        onTxSuccess();
+      }
+    }
+    if (claimError) {
+      const errorMsg = claimError?.message || "Claim failed.";
+      let displayError = errorMsg.split('(')[0].trim();
+      const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
+      if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
+      toast.error("Claim Failed", { id: "claim-tx", description: displayError });
+      resetClaimContract();
+    }
+  }, [isClaimPending, isClaimTxSuccess, claimTxResult, claimError, resetClaimContract, onTxSuccess, refetchBalance, refetchClaimableAmount, networkChainId, isTestnet]);
 
   // Network switching
   const handleNetworkSwitch = useCallback(async () => {
@@ -677,6 +761,66 @@ export const useStakingContractInteractions = ({
     }
   }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, networkChainId, isTestnet, writeWithdraw]);
 
+  // Handle claim
+  const handleClaim = useCallback(async () => {
+    if (!connectedAddress || !isCorrectNetwork()) {
+      toast.error("Cannot claim: Wallet or network issue.");
+      return false;
+    }
+    
+    if (!contractAddress) {
+      toast.error("Builder contract address not found.");
+      return false;
+    }
+
+    if (!subnetId) {
+      toast.error("Subnet ID is required for claiming.");
+      return false;
+    }
+
+    try {
+      // Get network name for better logging
+      const networkType = isTestnet ? 'testnet' : 'mainnet';
+      const networkName = isTestnet ? 'Arbitrum Sepolia' : 
+                         (networkChainId === 42161 ? 'Arbitrum' : 'Base');
+      
+      console.log(`${networkType.charAt(0).toUpperCase() + networkType.slice(1)} claim transaction parameters (${networkName}):`, {
+        subnetId,
+        contractAddress,
+        chainId: networkChainId,
+        networkName,
+        connectedAddress
+      });
+      
+      // Different claim function signatures for testnet vs mainnet
+      if (isTestnet) {
+        // Testnet: claim(bytes32 subnetId_, address stakerAddress_)
+        writeClaim({
+          address: contractAddress,
+          abi: BuilderSubnetsV2Abi,
+          functionName: 'claim',
+          args: [subnetId, connectedAddress],
+          chainId: networkChainId,
+        });
+      } else {
+        // Mainnet: claim(bytes32 builderPoolId_, address receiver_)
+        writeClaim({
+          address: contractAddress,
+          abi: BuildersAbi,
+          functionName: 'claim',
+          args: [subnetId, connectedAddress],
+          chainId: networkChainId,
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error in handleClaim:", error);
+      toast.error(`Failed to claim: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return false;
+    }
+  }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, networkChainId, isTestnet, writeClaim]);
+
   return {
     // State
     isCorrectNetwork,
@@ -688,9 +832,11 @@ export const useStakingContractInteractions = ({
     isApproving,
     isStaking,
     isWithdrawing,
+    isClaiming,
     isAnyTxPending,
     isSubmitting,
     allowance,
+    claimableAmount: claimableAmountData as bigint | undefined,
     // Format helpers
     formatBalance,
     getNetworkName,
@@ -699,7 +845,10 @@ export const useStakingContractInteractions = ({
     handleApprove,
     handleStake,
     handleWithdraw,
+    handleClaim,
     checkAndUpdateApprovalNeeded,
+    // Refetch functions
+    refetchClaimableAmount,
   };
 };
 

@@ -177,8 +177,8 @@ export function StakingFormCard({
         {title && <CardTitle className="text-lg font-bold">{title}</CardTitle>}
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
+      <CardContent className="pt-1 px-6 pb-3">
+        <div className="space-y-2">
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="stake-amount">Amount to stake</Label>
