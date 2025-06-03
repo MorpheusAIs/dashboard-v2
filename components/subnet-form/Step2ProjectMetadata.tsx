@@ -146,7 +146,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="metadata.website"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="metadata.website">Website</FormLabel>
+              <FormLabel htmlFor="metadata.website">Website *</FormLabel>
               <FormControl>
                 <Input id="metadata.website" type="url" placeholder="https://yourproject.com" {...field} />
               </FormControl>
@@ -158,7 +158,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="metadata.image"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="metadata.image">Logo URL (Optional)</FormLabel>
+              <FormLabel htmlFor="metadata.image">Logo URL</FormLabel>
               <FormControl>
                 <Input 
                   id="metadata.image"
@@ -189,7 +189,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="metadata.description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="metadata.description">Subnet Description</FormLabel>
+              <FormLabel htmlFor="metadata.description">Description</FormLabel>
               <FormControl>
                 <Textarea id="metadata.description" placeholder="Describe this subnet (max 800 characters)." {...field} rows={4} maxLength={800} />
               </FormControl>
@@ -202,12 +202,12 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
       {/* Additional Project Info */}
       <div className="space-y-4 pt-4">
         <h3 className="text-lg font-medium text-gray-100">Additional Project Info</h3>
-        <p className="text-sm text-gray-400 pb-2">Optional contact info & potential rewards (stored off-chain).</p>
+        <p className="text-sm text-gray-400 pb-2">* Mainnet only: Must fill in at least one contact field (stored off-chain).</p>
         <FormField
           control={form.control} name="projectOffChain.email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="projectOffChain.email">Contact Email (Optional)</FormLabel>
+              <FormLabel htmlFor="projectOffChain.email">Contact Email</FormLabel>
               <FormControl>
                 <Input id="projectOffChain.email" type="email" placeholder="contact@yourproject.com" {...field} value={field.value ?? ''}/>
               </FormControl>
@@ -219,7 +219,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="projectOffChain.discordLink"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="projectOffChain.discordLink">Discord Link (Optional)</FormLabel>
+              <FormLabel htmlFor="projectOffChain.discordLink">Discord Link</FormLabel>
               <FormControl>
                 <Input id="projectOffChain.discordLink" placeholder="https://discord.gg/yourserver" {...field} value={field.value ?? ''}/>
               </FormControl>
@@ -231,7 +231,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="projectOffChain.twitterLink"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="projectOffChain.twitterLink">X (Twitter) Link (Optional)</FormLabel>
+              <FormLabel htmlFor="projectOffChain.twitterLink">X (Twitter) Link</FormLabel>
               <FormControl>
                 <Input id="projectOffChain.twitterLink" placeholder="https://x.com/yourproject" {...field} value={field.value ?? ''} />
               </FormControl>
@@ -243,7 +243,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="projectOffChain.rewards"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Potential Rewards for Stakers (Optional)</FormLabel>
+              <FormLabel>Potential Rewards for Stakers</FormLabel>
               <FormControl>
                 <MultipleSelector
                   value={field.value}
