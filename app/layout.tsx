@@ -24,9 +24,9 @@ export const metadata: Metadata = {
   title: "Morpheus Dashboard",
   description: "Enter the Persistent Agentic Compute Delivery Network",
   icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
+    icon: "/logo-black.png",
+    shortcut: "/logo-black.png",
+    apple: "/logo-black.png",
   },
   openGraph: {
     title: "Morpheus Dashboard",
