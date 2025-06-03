@@ -1106,23 +1106,6 @@ export default function BuildersPage() {
       <div className="page-grid">
         <div className="relative">
           <MetricCard
-            title="Active Builders"
-            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
-            disableGlow={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
-
-        <div className="relative">
-          <MetricCard
             title="Total Staked"
             metrics={[{ value: totalMetrics.totalStaked, label: "MOR" }]}
             disableGlow={true}
@@ -1138,6 +1121,24 @@ export default function BuildersPage() {
             borderRadius="rounded-xl"
           />
         </div>
+        
+        <div className="relative">
+          <MetricCard
+            title="Active Builders"
+            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
+            disableGlow={true}
+          />
+          <GlowingEffect 
+            spread={40}
+            glow={true}
+            disabled={false}
+            proximity={64}
+            inactiveZone={0.01}
+            borderWidth={2}
+            borderRadius="rounded-xl"
+          />
+        </div>
+
 
         <div className="relative col-span-2">
           <MetricCard
