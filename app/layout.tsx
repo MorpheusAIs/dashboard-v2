@@ -31,7 +31,43 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Morpheus Dashboard",
     description: "Enter the Persistent Agentic Compute Delivery Network",
-    images: ['@opengraph.png'], // Assumes opengraph.png is in the app directory
+    url: "https://dashboard-v2-zeta.vercel.app", // Update with your actual domain
+    siteName: "Morpheus Dashboard",
+    type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: "/opengraph.png",
+        width: 1200,
+        height: 630,
+        alt: "Morpheus Dashboard - Enter the Persistent Agentic Compute Delivery Network",
+        type: "image/png",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Morpheus Dashboard",
+    description: "Enter the Persistent Agentic Compute Delivery Network",
+    site: "@MorpheusAIs",
+    creator: "@bowtiedswan",
+    images: [
+      {
+        url: "/opengraph.png",
+        alt: "Morpheus Dashboard - Enter the Persistent Agentic Compute Delivery Network",
+      },
+    ],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 }
 
