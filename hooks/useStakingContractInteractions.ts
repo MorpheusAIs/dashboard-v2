@@ -75,48 +75,72 @@ export const useStakingContractInteractions = ({
       // Set the builders contract address
       const addr = chain.contracts?.builders?.address;
       if (addr && isAddress(addr)) {
-        console.log(`Setting contract address for ${chain.name}:`, addr);
+        console.log(`✅ Setting contract address for ${chain.name} (chainId: ${networkChainId}):`, addr);
+        
+        // Special validation for Base network
+        if (networkChainId === 8453) {
+          const expectedBaseBuilders = '0x42bb446eae6dca7723a9ebdb81ea88afe77ef4b9';
+          if (addr.toLowerCase() !== expectedBaseBuilders.toLowerCase()) {
+            console.warn(`⚠️ Base builders contract mismatch! Expected: ${expectedBaseBuilders}, Got: ${addr}`);
+          } else {
+            console.log(`✅ Base builders contract correctly configured`);
+          }
+        }
+        
         setContractAddress(addr as Address);
       } else {
-        console.error(`Invalid or missing builders contract address for chain ${networkChainId}`);
+        console.error(`❌ Invalid or missing builders contract address for chain ${networkChainId}`);
       }
 
       // Also set the token address directly from configuration
       // This helps in case the contract call to get token address fails
       const tokenAddr = chain.contracts?.morToken?.address;
       if (tokenAddr && isAddress(tokenAddr)) {
-        console.log(`Setting token address from config for ${chain.name}:`, tokenAddr);
+        console.log(`✅ Setting token address from config for ${chain.name}:`, tokenAddr);
+        
+        // Special validation for Base network
+        if (networkChainId === 8453) {
+          const expectedBaseMOR = '0x7431ada8a591c955a994a21710752ef9b882b8e3';
+          if (tokenAddr.toLowerCase() !== expectedBaseMOR.toLowerCase()) {
+            console.warn(`⚠️ Base MOR token contract mismatch! Expected: ${expectedBaseMOR}, Got: ${tokenAddr}`);
+          } else {
+            console.log(`✅ Base MOR token contract correctly configured`);
+          }
+        }
+        
         setTokenAddress(tokenAddr as Address);
       }
     } else {
-      console.error(`Could not find chain configuration for chainId ${networkChainId}`);
+      console.error(`❌ Could not find chain configuration for chainId ${networkChainId}`);
     }
   }, [networkChainId, isTestnet, getChainById]);
 
-  // Get token address from contract
-  const { data: morTokenAddressData, isFetching: isFetchingToken } = useReadContract({
+  // Get token address from contract (skip for Base network as it doesn't have token() function)
+  const { data: morTokenAddressData, isFetching: isFetchingToken, error: tokenAddressError } = useReadContract({
     address: contractAddress,
     abi: getAbi(),
     functionName: 'token',
     chainId: networkChainId,
     query: {
-       enabled: isCorrectNetwork() && !!contractAddress,
+       enabled: isCorrectNetwork() && !!contractAddress && networkChainId !== 8453, // Skip for Base network
+       retry: networkChainId === 8453 ? 3 : 1, // More retries for Base network
     }
   });
 
   // Get token symbol
-  const { data: tokenSymbolData, isFetching: isFetchingSymbol } = useReadContract({
+  const { data: tokenSymbolData, isFetching: isFetchingSymbol, error: tokenSymbolError } = useReadContract({
     address: tokenAddress,
     abi: ERC20Abi,
     functionName: 'symbol',
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!tokenAddress,
+       retry: networkChainId === 8453 ? 3 : 1, // More retries for Base network
     }
   });
 
   // Get token balance
-  const { data: balanceData, refetch: refetchBalance, isFetching: isFetchingBalance } = useReadContract({
+  const { data: balanceData, refetch: refetchBalance, isFetching: isFetchingBalance, error: balanceError } = useReadContract({
     address: tokenAddress,
     abi: ERC20Abi,
     functionName: 'balanceOf',
@@ -124,11 +148,12 @@ export const useStakingContractInteractions = ({
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!tokenAddress && !!connectedAddress,
+       retry: networkChainId === 8453 ? 3 : 1, // More retries for Base network
     }
   });
 
   // Get token allowance
-  const { data: allowanceData, refetch: refetchAllowance, isFetching: isFetchingAllowance } = useReadContract({
+  const { data: allowanceData, refetch: refetchAllowance, isFetching: isFetchingAllowance, error: allowanceError } = useReadContract({
     address: tokenAddress,
     abi: ERC20Abi,
     functionName: 'allowance',
@@ -136,6 +161,7 @@ export const useStakingContractInteractions = ({
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!tokenAddress && !!connectedAddress && !!contractAddress,
+       retry: networkChainId === 8453 ? 3 : 1, // More retries for Base network
     }
   });
 
@@ -154,18 +180,37 @@ export const useStakingContractInteractions = ({
     }
   });
 
+  // Enhanced debugging with error logging for Base network issues
+  useEffect(() => {
+    // Log contract read errors for debugging
+    if (tokenAddressError && networkChainId === 8453) {
+      console.error(`🔴 Base network token address read error:`, tokenAddressError);
+    }
+    if (tokenSymbolError && networkChainId === 8453) {
+      console.error(`🔴 Base network token symbol read error:`, tokenSymbolError);
+    }
+    if (balanceError && networkChainId === 8453) {
+      console.error(`🔴 Base network balance read error:`, balanceError);
+    }
+    if (allowanceError && networkChainId === 8453) {
+      console.error(`🔴 Base network allowance read error:`, allowanceError);
+    }
+  }, [tokenAddressError, tokenSymbolError, balanceError, allowanceError, networkChainId]);
+
   // Fix: Log allowance data when it changes to debug mainnet approval issues
   useEffect(() => {
     if (allowanceData !== undefined && allowanceData !== null && !isTestnet) {
-      console.log(`Mainnet allowance data received (${networkChainId}):`, {
+      console.log(`💰 Mainnet allowance data received (${networkChainId}):`, {
         allowance: allowanceData.toString(),
         formattedAllowance: formatEther(allowanceData as bigint),
         tokenAddress,
         contractAddress,
-        connectedAddress
+        connectedAddress,
+        isCorrectNetwork: isCorrectNetwork(),
+        networkName: networkChainId === 8453 ? 'Base' : networkChainId === 42161 ? 'Arbitrum' : 'Unknown'
       });
     }
-  }, [allowanceData, isTestnet, networkChainId, tokenAddress, contractAddress, connectedAddress]);
+  }, [allowanceData, isTestnet, networkChainId, tokenAddress, contractAddress, connectedAddress, isCorrectNetwork]);
 
   // Contract Write Hooks
   const { data: stakeTxResult, writeContract: writeStake, isPending: isStakePending, error: stakeError, reset: resetStakeContract } = useWriteContract({
@@ -300,12 +345,17 @@ export const useStakingContractInteractions = ({
 
   // Update state variables from read hook data
   useEffect(() => {
-    if (morTokenAddressData && isAddress(morTokenAddressData as string)) {
-      console.log("Token address from contract:", morTokenAddressData);
+    // For Base network, we skip the contract call and already have token address from config
+    if (networkChainId === 8453) {
+      console.log("✅ Base network: Using token address from config (skipping contract call)");
+      // Token address already set from config in the earlier useEffect
+    } else if (morTokenAddressData && isAddress(morTokenAddressData as string)) {
+      console.log("✅ Token address from contract:", morTokenAddressData);
       setTokenAddress(morTokenAddressData as Address);
     } else if (morTokenAddressData) {
-      console.error("Invalid token address returned from contract:", morTokenAddressData);
+      console.error("❌ Invalid token address returned from contract:", morTokenAddressData);
     }
+    
     if (tokenSymbolData) {
       setTokenSymbol(tokenSymbolData as string);
     }
@@ -315,7 +365,7 @@ export const useStakingContractInteractions = ({
     if (allowanceData !== undefined) {
       setAllowance(allowanceData as bigint);
     }
-  }, [morTokenAddressData, tokenSymbolData, balanceData, allowanceData]);
+  }, [morTokenAddressData, tokenSymbolData, balanceData, allowanceData, networkChainId]);
 
   // Update loading state for token data, balance, and allowance
   useEffect(() => {
@@ -514,25 +564,39 @@ export const useStakingContractInteractions = ({
       const parsedAmount = parseEther(stakeAmount);
       const currentAllowance = allowance || BigInt(0);
       
-      // Check if we have sufficient allowance for this stake
-      const approvalNeeded = currentAllowance < parsedAmount;
+      // Enhanced approval logic for Base network (chainId 8453)
+      let approvalNeeded = false;
       
-      console.log(`Approval check on ${isTestnet ? 'testnet' : 'mainnet'} (chain ${networkChainId}):`, {
-        parsedAmount: parsedAmount.toString(),
-        currentAllowance: currentAllowance.toString(),
-        formattedAmount: formatEther(parsedAmount),
-        formattedAllowance: formatEther(currentAllowance),
-        needsApproval: approvalNeeded,
-        tokenAddress,
-        contractAddress
-      });
-      
-      // Special handling for Base mainnet - check if allowance is very low
-      if (!isTestnet && networkChainId === 8453 && 
-          currentAllowance < parsedAmount * BigInt(2)) {
-        console.log("Base mainnet detected with low allowance - approval needed");
-        setNeedsApproval(true);
-        return true;
+      if (networkChainId === 8453) {
+        // Base network: Be more strict with approval checking
+        // Require fresh approval if allowance is less than 2x the stake amount
+        // This helps with Base network approval issues
+        const minRequiredAllowance = parsedAmount * BigInt(2);
+        approvalNeeded = currentAllowance < minRequiredAllowance;
+        
+        console.log(`Base network approval check:`, {
+          parsedAmount: parsedAmount.toString(),
+          currentAllowance: currentAllowance.toString(),
+          minRequiredAllowance: minRequiredAllowance.toString(),
+          formattedAmount: formatEther(parsedAmount),
+          formattedAllowance: formatEther(currentAllowance),
+          formattedMinRequired: formatEther(minRequiredAllowance),
+          needsApproval: approvalNeeded,
+          networkChainId
+        });
+      } else {
+        // Standard approval check for other networks
+        approvalNeeded = currentAllowance < parsedAmount;
+        
+        console.log(`Standard approval check on ${isTestnet ? 'testnet' : 'mainnet'} (chain ${networkChainId}):`, {
+          parsedAmount: parsedAmount.toString(),
+          currentAllowance: currentAllowance.toString(),
+          formattedAmount: formatEther(parsedAmount),
+          formattedAllowance: formatEther(currentAllowance),
+          needsApproval: approvalNeeded,
+          tokenAddress,
+          contractAddress
+        });
       }
       
       setNeedsApproval(approvalNeeded);
@@ -568,8 +632,31 @@ export const useStakingContractInteractions = ({
       // Parse the amount to approve
       const parsedAmount = parseEther(amount);
       
-      // Use exact amount requested by user
-      const approvalAmount = parsedAmount;
+      // Enhanced approval strategy for Base network
+      let approvalAmount: bigint;
+      
+      if (networkChainId === 8453) {
+        // Base network: Approve a higher amount to reduce frequent re-approvals
+        // Use 10x the stake amount or minimum 1000 tokens, whichever is higher
+        const tenTimesParsedAmount = parsedAmount * BigInt(10);
+        const minimumApproval = parseEther("1000"); // 1000 tokens minimum
+        approvalAmount = tenTimesParsedAmount > minimumApproval ? tenTimesParsedAmount : minimumApproval;
+        
+        console.log(`Base network: Using enhanced approval strategy:`, {
+          requestedAmount: formatEther(parsedAmount),
+          tenTimesAmount: formatEther(tenTimesParsedAmount),
+          minimumApproval: formatEther(minimumApproval),
+          finalApprovalAmount: formatEther(approvalAmount)
+        });
+      } else {
+        // Other networks: Use exact amount requested by user
+        approvalAmount = parsedAmount;
+        
+        console.log(`Standard network: Using exact approval amount:`, {
+          requestedAmount: formatEther(parsedAmount),
+          approvalAmount: formatEther(approvalAmount)
+        });
+      }
       
       console.log(`Requesting approval for ${formatEther(approvalAmount)} ${tokenSymbol} to ${contractAddress}`);
       console.log("Using token contract:", tokenAddress);

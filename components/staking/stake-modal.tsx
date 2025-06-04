@@ -130,7 +130,7 @@ export function StakeModal({
     checkAndUpdateApprovalNeeded
   } = useStakingContractInteractions({
     subnetId: subnetId,
-    networkChainId: chainId,
+    networkChainId: targetNetworkInfo.chainId, // Use target network, not current wallet network
     onTxSuccess: () => {
       setStakeAmount("");
       onCloseAction();
