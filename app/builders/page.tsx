@@ -1121,7 +1121,7 @@ export default function BuildersPage() {
             borderRadius="rounded-xl"
           />
         </div>
-        
+
         <div className="relative">
           <MetricCard
             title="Active Builders"
@@ -1179,16 +1179,16 @@ export default function BuildersPage() {
                   Builders
                 </TabsTrigger>
                 <TabsTrigger
-                  value="subnets"
-                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
-                >
-                  Your Subnets
-                </TabsTrigger>
-                <TabsTrigger
                   value="participating"
                   className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
                 >
                   Staking in
+                </TabsTrigger>
+                <TabsTrigger
+                  value="subnets"
+                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+                >
+                  Your Subnets
                 </TabsTrigger>
               </TabsList>
             </div>
