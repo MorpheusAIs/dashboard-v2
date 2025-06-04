@@ -475,6 +475,7 @@ export default function BuilderPage() {
     tokenSymbol,
     tokenBalance,
     needsApproval,
+    isLoadingData,
     isApproving,
     isStaking,
     isWithdrawing,
@@ -518,6 +519,15 @@ export default function BuilderPage() {
       checkAndUpdateApprovalNeeded(stakeAmount);
     }
   }, [stakeAmount, checkAndUpdateApprovalNeeded]);
+
+  // Refresh approval state when user returns to the page or when allowance data loads
+  // This fixes the issue where interface keeps asking for approval after page reload
+  useEffect(() => {
+    if (stakeAmount && parseFloat(stakeAmount) > 0 && !isLoadingData) {
+      console.log("Refreshing approval state due to allowance data update");
+      checkAndUpdateApprovalNeeded(stakeAmount);
+    }
+  }, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]); // Added isLoadingData dependency
 
   // Debug useEffect for token approval states
   useEffect(() => {

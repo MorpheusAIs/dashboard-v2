@@ -379,7 +379,21 @@ export const useStakingContractInteractions = ({
     }
     if (isApproveTxSuccess) {
       toast.success("Approval successful!", { id: "approval-tx" });
-      refetchAllowance();
+      
+      // Improved allowance refresh for Base network and all networks
+      // Add a delay to ensure blockchain state is updated
+      const refreshAllowanceWithDelay = () => {
+        setTimeout(() => {
+          console.log("Refreshing allowance after successful approval...");
+          refetchAllowance().then(() => {
+            console.log("Successfully refreshed allowance after approval");
+          }).catch((error: unknown) => {
+            console.error("Error refreshing allowance after approval:", error);
+          });
+        }, 2000); // 2 second delay for Base network compatibility
+      };
+      
+      refreshAllowanceWithDelay();
       resetApproveContract();
     }
     if (approveError) {
@@ -564,40 +578,20 @@ export const useStakingContractInteractions = ({
       const parsedAmount = parseEther(stakeAmount);
       const currentAllowance = allowance || BigInt(0);
       
-      // Enhanced approval logic for Base network (chainId 8453)
-      let approvalNeeded = false;
+      // Standard approval check for all networks (including Base)
+      // Fixed: Use the same logic for all networks to avoid Base network issues
+      const approvalNeeded = currentAllowance < parsedAmount;
       
-      if (networkChainId === 8453) {
-        // Base network: Be more strict with approval checking
-        // Require fresh approval if allowance is less than 2x the stake amount
-        // This helps with Base network approval issues
-        const minRequiredAllowance = parsedAmount * BigInt(2);
-        approvalNeeded = currentAllowance < minRequiredAllowance;
-        
-        console.log(`Base network approval check:`, {
-          parsedAmount: parsedAmount.toString(),
-          currentAllowance: currentAllowance.toString(),
-          minRequiredAllowance: minRequiredAllowance.toString(),
-          formattedAmount: formatEther(parsedAmount),
-          formattedAllowance: formatEther(currentAllowance),
-          formattedMinRequired: formatEther(minRequiredAllowance),
-          needsApproval: approvalNeeded,
-          networkChainId
-        });
-      } else {
-        // Standard approval check for other networks
-        approvalNeeded = currentAllowance < parsedAmount;
-        
-        console.log(`Standard approval check on ${isTestnet ? 'testnet' : 'mainnet'} (chain ${networkChainId}):`, {
-          parsedAmount: parsedAmount.toString(),
-          currentAllowance: currentAllowance.toString(),
-          formattedAmount: formatEther(parsedAmount),
-          formattedAllowance: formatEther(currentAllowance),
-          needsApproval: approvalNeeded,
-          tokenAddress,
-          contractAddress
-        });
-      }
+      console.log(`Approval check on ${isTestnet ? 'testnet' : 'mainnet'} (chain ${networkChainId}):`, {
+        parsedAmount: parsedAmount.toString(),
+        currentAllowance: currentAllowance.toString(),
+        formattedAmount: formatEther(parsedAmount),
+        formattedAllowance: formatEther(currentAllowance),
+        needsApproval: approvalNeeded,
+        tokenAddress,
+        contractAddress,
+        networkName: networkChainId === 8453 ? 'Base' : networkChainId === 42161 ? 'Arbitrum' : 'Unknown'
+      });
       
       setNeedsApproval(approvalNeeded);
       return approvalNeeded;
@@ -638,6 +632,7 @@ export const useStakingContractInteractions = ({
       if (networkChainId === 8453) {
         // Base network: Approve a higher amount to reduce frequent re-approvals
         // Use 10x the stake amount or minimum 1000 tokens, whichever is higher
+        // Note: We still use enhanced approval amounts, but standard checking logic (fixed)
         const tenTimesParsedAmount = parsedAmount * BigInt(10);
         const minimumApproval = parseEther("1000"); // 1000 tokens minimum
         approvalAmount = tenTimesParsedAmount > minimumApproval ? tenTimesParsedAmount : minimumApproval;
