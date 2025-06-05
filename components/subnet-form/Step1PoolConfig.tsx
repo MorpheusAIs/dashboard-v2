@@ -7,7 +7,6 @@ import { ArbitrumSepoliaIcon } from './constants';
 import { zeroAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
-import { useNetwork } from "@/context/network-context";
 import { useBuilders } from "@/context/builders-context";
 
 import {
@@ -44,7 +43,6 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   const [subnetNameError, setSubnetNameError] = useState<string | null>(null);
   const form = useFormContext();
   const { address } = useAccount();
-  const { currentChainId } = useNetwork();
   const { builders } = useBuilders();
 
   const selectedChainId = form.watch("subnet.networkChainId");
@@ -105,16 +103,8 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
     }
   }, [builderPoolName, builderPoolDeposit, isMainnet, form]);
 
-  // Add network sync effect - only sync on initial load, not when user changes form selection
-  useEffect(() => {
-    if (currentChainId) {
-      const supportedChainIds = [arbitrumSepolia.id, arbitrum.id, base.id] as const;
-      // Only sync if this is the initial load (form has default value) and wallet network is supported
-      if (selectedChainId === arbitrumSepolia.id && currentChainId !== selectedChainId && supportedChainIds.includes(currentChainId as typeof supportedChainIds[number])) {
-        form.setValue("subnet.networkChainId", currentChainId as typeof supportedChainIds[number], { shouldValidate: true });
-      }
-    }
-  }, [currentChainId, form]); // Removed selectedChainId from deps to prevent sync on form changes
+  // Network sync removed - form now properly initializes with user's current network
+  // Users can freely select different networks, and "Switch to [network]" button will appear when needed
 
   // Determine the minimum value for the withdrawLockPeriod input
   let minWithdrawLockPeriodValue = 1; // Default for testnet (can be 1 day or 1 hour)
