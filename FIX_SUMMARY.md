@@ -173,8 +173,52 @@ if (!creationFee || creationFee === BigInt(0)) {
 - ✅ Button shows "Confirm & Create Subnet" (not "Approve MOR")
 - ✅ Goes straight to creation transaction (no approval popup)
 
+## Additional Fix: Network Dropdown Defaulting to "Network 0"
+
+### Problem
+The network selection dropdown was defaulting to "network 0" instead of the user's current wallet network.
+
+### Root Cause
+The form was hardcoded to initialize with Arbitrum Sepolia, and the sync effect was too restrictive, causing the dropdown to show invalid values.
+
+### Solution
+1. **Proper initialization**: Form now initializes with user's current wallet network if supported
+2. **Removed auto-sync**: Eliminated the sync effect that was overriding user selections
+3. **Graceful fallback**: Falls back to Arbitrum Sepolia if user's network is unsupported
+
+```typescript
+// Before: Hardcoded default
+defaultValues: {
+  subnet: {
+    networkChainId: arbitrumSepolia.id, // Always Arbitrum Sepolia
+  }
+}
+
+// After: Dynamic based on user's wallet
+const getInitialNetworkId = () => {
+  const supportedChainIds = [arbitrumSepolia.id, arbitrum.id, base.id] as const;
+  if (walletChainId && supportedChainIds.includes(walletChainId)) {
+    return walletChainId; // Use wallet network
+  }
+  return arbitrumSepolia.id; // Fallback
+};
+
+defaultValues: {
+  subnet: {
+    networkChainId: getInitialNetworkId(), // Dynamic initialization
+  }
+}
+```
+
+### Now Works Correctly:
+- ✅ Form initializes with user's current wallet network
+- ✅ No more "network 0" or invalid network display
+- ✅ Users can freely select different networks without interference
+- ✅ "Switch to [network]" button appears when wallet ≠ form selection
+
 ## Commits
 - `fix(form): Make builderPool fields truly optional to fix testnet form submission`
 - `fix(network): Allow manual network selection without auto-override`
 - `fix(approval): Use actual contract creation fee for mainnet approvals`
-- `fix(approval): Skip approval when fee is 0 to prevent 'Remove permission' popup` 
+- `fix(approval): Skip approval when fee is 0 to prevent 'Remove permission' popup`
+- `fix(network): Initialize form with user's wallet network, prevent network 0` 
