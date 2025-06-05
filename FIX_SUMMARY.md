@@ -91,11 +91,40 @@ if (data.subnet.networkChainId === arbitrum.id || data.subnet.networkChainId ===
 - ✅ Mainnet functionality should remain unchanged
 - ✅ Testnet form submission should now work
 
+## Additional Fix: Network Selection Override
+
+### Problem
+After the initial fix, a second issue was discovered: users couldn't manually select different networks in the form because an auto-sync effect was overriding their selections.
+
+### Root Cause
+An effect in `Step1PoolConfig.tsx` was automatically syncing the form's network selection to match the wallet's current network whenever either changed, preventing manual network selection.
+
+### Solution
+Modified the network sync effect to only run on initial load when the form still has the default value (Arbitrum Sepolia), allowing users to manually select different networks without being overridden.
+
+```typescript
+// Before: Always synced wallet → form
+useEffect(() => {
+  if (currentChainId !== selectedChainId && supportedChainIds.includes(currentChainId)) {
+    form.setValue("subnet.networkChainId", currentChainId);
+  }
+}, [currentChainId, selectedChainId, form]);
+
+// After: Only sync on initial load
+useEffect(() => {
+  if (selectedChainId === arbitrumSepolia.id && currentChainId !== selectedChainId && supportedChainIds.includes(currentChainId)) {
+    form.setValue("subnet.networkChainId", currentChainId);
+  }
+}, [currentChainId, form]); // Removed selectedChainId from deps
+```
+
 ## Files Modified
 - `components/subnet-form/schemas.ts`: Updated `builderPool` field definitions and `superRefine` validation
+- `components/subnet-form/Step1PoolConfig.tsx`: Fixed network auto-sync to allow manual selection
 
 ## Branch
 `feature/fix-testnet-form-submission`
 
-## Commit
-`fix(form): Make builderPool fields truly optional to fix testnet form submission` 
+## Commits
+- `fix(form): Make builderPool fields truly optional to fix testnet form submission`
+- `fix(network): Allow manual network selection without auto-override` 
