@@ -130,30 +130,51 @@ useEffect(() => {
 ### Problem
 On Base mainnet, clicking "Approve" showed MetaMask popup saying "Remove permission" instead of approving spending.
 
-### Root Cause
-The approval logic was using `creationFee || BigInt(0)` where `creationFee` was defaulted to `BigInt(0)` on mainnet. Approving 0 tokens means "revoke approval" in MetaMask, hence "Remove permission".
+### Root Cause Analysis
+1. **Wrong Contract Query**: Code tried to query `subnetCreationFeeAmount` on both testnet and mainnet
+2. **Different Contracts**: Testnet uses `BuilderSubnetsV2` (has fee function), mainnet uses `Builders` (no fee function)
+3. **Zero Fee Result**: Mainnet query failed, kept fee at `BigInt(0)`
+4. **MetaMask Interpretation**: Approving 0 tokens = "Remove permission/revoke approval"
 
-### Solution
-Fixed the logic to properly use the actual `subnetCreationFeeAmount` from the contract by updating the `creationFee` state when contract data is available.
+### Complete Solution
+1. **Only query fees on testnet** where the function exists
+2. **Skip approval entirely when fee is 0** (correct for mainnet - no creation fees)
+3. **Add safety checks** to prevent approving 0 tokens
 
 ```typescript
-// Before: Only logged the fee, didn't use it
-useEffect(() => {
-  if (subnetCreationFeeAmount !== undefined) {
-    console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
-  }
-}, [subnetCreationFeeAmount]);
+// Before: Queried fee on all networks using wrong ABI
+const { data: subnetCreationFeeAmount } = useReadContract({
+  abi: BuilderSubnetsV2Abi, // Wrong for mainnet
+  functionName: 'subnetCreationFeeAmount',
+  query: { enabled: !!builderContractAddress }
+});
 
-// After: Updates the state with actual contract fee
-useEffect(() => {
-  if (subnetCreationFeeAmount !== undefined) {
-    console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
-    setCreationFee(subnetCreationFeeAmount as bigint);
-  }
-}, [subnetCreationFeeAmount]);
+// After: Only query on testnet where function exists
+const isTestnet = selectedChainId === arbitrumSepolia.id;
+const { data: subnetCreationFeeAmount } = useReadContract({
+  abi: BuilderSubnetsV2Abi,
+  functionName: 'subnetCreationFeeAmount', 
+  query: { enabled: !!builderContractAddress && isTestnet }
+});
+
+// Before: Could try to approve 0 tokens
+return effectiveFee > BigInt(0) && effectiveAllowance < effectiveFee;
+
+// After: Skip approval when fee is 0
+if (!creationFee || creationFee === BigInt(0)) {
+  console.log("No approval needed - creation fee is 0 (likely mainnet)");
+  return false;
+}
 ```
+
+### Now On Base Mainnet:
+- ✅ Fee stays at 0 (correct - no creation fees for builder pools)
+- ✅ `needsApproval` = false (skips approval step)  
+- ✅ Button shows "Confirm & Create Subnet" (not "Approve MOR")
+- ✅ Goes straight to creation transaction (no approval popup)
 
 ## Commits
 - `fix(form): Make builderPool fields truly optional to fix testnet form submission`
 - `fix(network): Allow manual network selection without auto-override`
-- `fix(approval): Use actual contract creation fee for mainnet approvals` 
+- `fix(approval): Use actual contract creation fee for mainnet approvals`
+- `fix(approval): Skip approval when fee is 0 to prevent 'Remove permission' popup` 
