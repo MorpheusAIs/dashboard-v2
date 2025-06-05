@@ -125,6 +125,36 @@ useEffect(() => {
 ## Branch
 `feature/fix-testnet-form-submission`
 
+## Additional Fix: Unnecessary Token Approval
+
+### Problem
+After fixing the network selection, a third issue was discovered: on Base mainnet, users were seeing a "Remove permission" popup in MetaMask when the form requested token approval, even though subnet creation doesn't require any token transfers.
+
+### Root Cause
+The contract interaction hook was checking for token approval and defaulting to 0 tokens on mainnet, which MetaMask interprets as "removing permission" when you try to approve 0 tokens.
+
+### Solution
+Removed the entire approval flow since subnet creation (`createBuilderPool` and `createSubnet`) only requires network transaction fees (ETH), not token transfers.
+
+```typescript
+// Before: Complex approval checking
+useEffect(() => {
+  const checkNeedsApproval = () => {
+    const effectiveFee = creationFee || parseEther("0.1");
+    const effectiveAllowance = allowance || BigInt(0);
+    return effectiveFee > BigInt(0) && effectiveAllowance < effectiveFee;
+  };
+  setNeedsApproval(checkNeedsApproval());
+}, [creationFee, allowance]);
+
+// After: No approval needed
+useEffect(() => {
+  console.log("Subnet creation - no token approval required");
+  setNeedsApproval(false);
+}, []);
+```
+
 ## Commits
 - `fix(form): Make builderPool fields truly optional to fix testnet form submission`
-- `fix(network): Allow manual network selection without auto-override` 
+- `fix(network): Allow manual network selection without auto-override`
+- `fix(approval): Remove unnecessary token approval flow from subnet creation` 
