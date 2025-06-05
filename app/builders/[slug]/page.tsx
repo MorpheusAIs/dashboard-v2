@@ -91,6 +91,7 @@ export default function BuilderPage() {
   const [builder, setBuilder] = useState<Builder | null>(null);
   const [subnetId, setSubnetId] = useState<Address | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>("");
+  const [builderResolutionComplete, setBuilderResolutionComplete] = useState(false);
   
   // Local alert dialog state
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -120,6 +121,21 @@ export default function BuilderPage() {
     previousIsTestnetRef.current = isTestnet;
 
   }, [isTestnet, router]); // Re-run this effect if isTestnet or router instance changes.
+
+  // Effects to reset builder resolution state
+  useEffect(() => {
+    setBuilder(null);
+    setSubnetId(null);
+    setBuilderResolutionComplete(false);
+  }, [slug]);
+
+  useEffect(() => {
+    if (isLoading) { // If the main builders list starts loading
+      setBuilder(null);
+      setSubnetId(null);
+      setBuilderResolutionComplete(false);
+    }
+  }, [isLoading]);
 
   // useEffect to find builder and set its details
   useEffect(() => {
@@ -194,6 +210,7 @@ export default function BuilderPage() {
       setSubnetId(null);
       console.log("########## BUILDER NOT FOUND, SUBNET ID CLEARED ##########");
     }
+    setBuilderResolutionComplete(true);
   }, [slug, builders, isTestnet, buildersError, isLoading]);
 
   // Derive the projectId for useStakingData once builder is loaded
@@ -753,7 +770,7 @@ export default function BuilderPage() {
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
   
   // Loading state for the page should consider builder loading first
-  if (isLoading) { // This isLoading is from useBuilders()
+  if (isLoading || (!builderResolutionComplete && !buildersError)) {
     return <div className="p-8">Loading builder details...</div>;
   }
 
@@ -761,15 +778,22 @@ export default function BuilderPage() {
     return <div className="p-8 text-red-500">Error loading builder: {buildersError.message}</div>;
   }
 
-  if (!builder) {
+  if (!builder && builderResolutionComplete) {
     return <div className="p-8">Builder not found</div>;
+  }
+
+  // Final guard to ensure builder is non-null for TypeScript
+  if (!builder) {
+    // This state should ideally not be reached if the logic above is correct
+    // and "Builder not found" or other loading/error states were returned.
+    return <div className="p-8">Loading details or an unexpected error occurred...</div>;
   }
 
   return (
     <div className="page-container">
       {/* Network Switch Notification */}
       {showNetworkSwitchNotice && (
-        <div className="fixed top-4 right-4 bg-emerald-900/90 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-md transition-all duration-300 ease-in-out opacity-100 transform translate-y-0">
+        <div className="fixed top-4 right-4 bg-emerald-500/90 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-md transition-all duration-300 ease-in-out opacity-100 transform translate-y-0">
           <p>Switching to {networksToDisplay[0]} network to view this builder...</p>
         </div>
       )}
