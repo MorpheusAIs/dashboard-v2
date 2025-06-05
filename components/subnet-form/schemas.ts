@@ -115,8 +115,8 @@ export const formSchema = z.object({
     maxClaimLockEnd: z.date(),
   }),
   builderPool: z.object({ // For mainnet-specific fields that differ from 'subnet'
-    name: z.string().min(1, "Pool name is required."),
-    minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative"), 
+    name: z.string().optional(), // Made optional - validation handled in superRefine
+    minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // Made optional - validation handled in superRefine
   }).optional(), 
   metadata: metadataContractSchema,
   projectOffChain: projectOffChainSchema,
@@ -147,6 +147,7 @@ export const formSchema = z.object({
   // This example assumes 'subnet.name' is used for testnet and 'builderPool.name' for mainnet.
   // If you use a single 'name' field in the form that maps to different contract fields, adjust accordingly.
   if (data.subnet.networkChainId === arbitrum.id || data.subnet.networkChainId === base.id) {
+      // Mainnet validation: require builderPool fields
       if (!data.builderPool?.name || data.builderPool.name.trim() === "") {
           ctx.addIssue({
             path: ["builderPool", "name"], // Path to the mainnet name field
@@ -154,7 +155,15 @@ export const formSchema = z.object({
             code: z.ZodIssueCode.custom,
           });
       }
+      if (data.builderPool?.minimalDeposit === undefined || data.builderPool.minimalDeposit < 0) {
+          ctx.addIssue({
+            path: ["builderPool", "minimalDeposit"], // Path to the mainnet deposit field
+            message: "Minimal deposit is required for mainnet.",
+            code: z.ZodIssueCode.custom,
+          });
+      }
   } else { // Testnet
+      // Testnet validation: require subnet fields  
       if (!data.subnet.name || data.subnet.name.trim() === "") {
            ctx.addIssue({
             path: ["subnet", "name"], // Path to the testnet name field
