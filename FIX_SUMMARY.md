@@ -125,36 +125,35 @@ useEffect(() => {
 ## Branch
 `feature/fix-testnet-form-submission`
 
-## Additional Fix: Unnecessary Token Approval
+## Additional Fix: Mainnet Approval Issue
 
 ### Problem
-After fixing the network selection, a third issue was discovered: on Base mainnet, users were seeing a "Remove permission" popup in MetaMask when the form requested token approval, even though subnet creation doesn't require any token transfers.
+On Base mainnet, clicking "Approve" showed MetaMask popup saying "Remove permission" instead of approving spending.
 
 ### Root Cause
-The contract interaction hook was checking for token approval and defaulting to 0 tokens on mainnet, which MetaMask interprets as "removing permission" when you try to approve 0 tokens.
+The approval logic was using `creationFee || BigInt(0)` where `creationFee` was defaulted to `BigInt(0)` on mainnet. Approving 0 tokens means "revoke approval" in MetaMask, hence "Remove permission".
 
 ### Solution
-Removed the entire approval flow since subnet creation (`createBuilderPool` and `createSubnet`) only requires network transaction fees (ETH), not token transfers.
+Fixed the logic to properly use the actual `subnetCreationFeeAmount` from the contract by updating the `creationFee` state when contract data is available.
 
 ```typescript
-// Before: Complex approval checking
+// Before: Only logged the fee, didn't use it
 useEffect(() => {
-  const checkNeedsApproval = () => {
-    const effectiveFee = creationFee || parseEther("0.1");
-    const effectiveAllowance = allowance || BigInt(0);
-    return effectiveFee > BigInt(0) && effectiveAllowance < effectiveFee;
-  };
-  setNeedsApproval(checkNeedsApproval());
-}, [creationFee, allowance]);
+  if (subnetCreationFeeAmount !== undefined) {
+    console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
+  }
+}, [subnetCreationFeeAmount]);
 
-// After: No approval needed
+// After: Updates the state with actual contract fee
 useEffect(() => {
-  console.log("Subnet creation - no token approval required");
-  setNeedsApproval(false);
-}, []);
+  if (subnetCreationFeeAmount !== undefined) {
+    console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
+    setCreationFee(subnetCreationFeeAmount as bigint);
+  }
+}, [subnetCreationFeeAmount]);
 ```
 
 ## Commits
 - `fix(form): Make builderPool fields truly optional to fix testnet form submission`
 - `fix(network): Allow manual network selection without auto-override`
-- `fix(approval): Remove unnecessary token approval flow from subnet creation` 
+- `fix(approval): Use actual contract creation fee for mainnet approvals` 
