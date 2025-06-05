@@ -32,7 +32,7 @@ export const useSubnetContractInteractions = ({
   const [creationFee, setCreationFee] = useState<bigint | undefined>(undefined);
   const [tokenAddress, setTokenAddress] = useState<Address | undefined>(undefined);
   const [tokenSymbol, setTokenSymbol] = useState<string>(DEFAULT_TOKEN_SYMBOL);
-
+  const [allowance, setAllowance] = useState<bigint | undefined>(undefined);
   const [needsApproval, setNeedsApproval] = useState<boolean>(false);
   const [isLoadingFeeData, setIsLoadingFeeData] = useState<boolean>(true);
 
@@ -93,7 +93,16 @@ export const useSubnetContractInteractions = ({
     }
   });
 
-
+  const { data: allowanceData, refetch: refetchAllowance, isFetching: isFetchingAllowance } = useReadContract({
+    address: tokenAddress || FALLBACK_TOKEN_ADDRESS,
+    abi: ERC20Abi,
+    functionName: 'allowance',
+    args: [connectedAddress!, builderContractAddress!],
+    chainId: selectedChainId,
+    query: {
+       enabled: isCorrectNetwork() && !!tokenAddress && !!connectedAddress && !!builderContractAddress,
+    }
+  });
 
   // Contract Write Hooks
   const { data: writeTxResult, writeContract, isPending: isWritePending, error: writeError, reset: resetWriteContract } = useWriteContract({
@@ -218,18 +227,63 @@ export const useSubnetContractInteractions = ({
     if (tokenSymbolData) {
       setTokenSymbol(tokenSymbolData as string);
     }
-  }, [morTokenAddressData, tokenSymbolData]);
+    if (allowanceData !== undefined) {
+      setAllowance(allowanceData as bigint);
+    }
+  }, [morTokenAddressData, tokenSymbolData, allowanceData]);
 
   // Determine if approval is needed based on fee and allowance
   useEffect(() => {
-    // Subnet creation doesn't require token transfers, so no approval needed
-    console.log("Subnet creation - no token approval required");
-    setNeedsApproval(false);
-  }, []);
+    const checkNeedsApproval = () => {
+      const effectiveFee = creationFee || parseEther("0.1");
+      const effectiveAllowance = allowance || BigInt(0);
+      
+      console.log("Checking approval needs:", {
+        effectiveFee: effectiveFee.toString(),
+        effectiveAllowance: effectiveAllowance.toString(),
+        needsApproval: effectiveAllowance < effectiveFee
+      });
+      
+      return effectiveFee > BigInt(0) && effectiveAllowance < effectiveFee;
+    };
+    
+    setNeedsApproval(checkNeedsApproval());
+  }, [creationFee, allowance]);
 
+  // Refetch allowance when key dependencies change
+  useEffect(() => {
+    if (isCorrectNetwork() && tokenAddress && connectedAddress && builderContractAddress) {
+      console.log("Refetching allowance...");
+      refetchAllowance();
+    }
+  }, [
+    isCorrectNetwork,
+    tokenAddress,
+    connectedAddress,
+    builderContractAddress,
+    refetchAllowance,
+    selectedChainId
+  ]);
 
-
-
+  // Handle Approval Transaction Notifications
+  useEffect(() => {
+    if (isApprovePending) {
+      toast.loading("Confirm approval in wallet...", { id: "approval-tx" });
+    }
+    if (isApproveTxSuccess) {
+      toast.success("Approval successful!", { id: "approval-tx" });
+      refetchAllowance();
+      resetApproveContract();
+    }
+    if (approveError) {
+      const errorMsg = approveError?.message || "Approval failed.";
+      let displayError = errorMsg.split('(')[0].trim();
+      const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
+      if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
+      toast.error("Approval Failed", { id: "approval-tx", description: displayError });
+      resetApproveContract();
+    }
+  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance]);
 
   // Handle Subnet Creation Transaction Notifications
   useEffect(() => {
@@ -396,6 +450,8 @@ export const useSubnetContractInteractions = ({
   useEffect(() => {
     if (subnetCreationFeeAmount !== undefined && subnetCreationFeeAmount !== null) {
       console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
+      // Update the creation fee state with the actual contract fee
+      setCreationFee(subnetCreationFeeAmount as bigint);
     }
   }, [subnetCreationFeeAmount]);
 
