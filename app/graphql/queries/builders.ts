@@ -96,4 +96,82 @@ export const GET_ALL_BUILDERS_PROJECTS = `
       withdrawLockPeriodAfterDeposit
     }
   }
+`;
+
+// Query to get individual builder project data with user's staking info
+export const GET_USER_ACCOUNT_BUILDERS_PROJECT = `
+  query getUserAccountBuildersProject($address: Bytes = "", $project_id: Bytes = "") {
+    buildersUsers(where: {address: $address, buildersProject_: {id: $project_id}}) {
+      address
+      id
+      lastStake
+      staked
+      buildersProject {
+        admin
+        claimLockEnd
+        id
+        minimalDeposit
+        name
+        startsAt
+        totalClaimed
+        totalStaked
+        totalUsers
+        withdrawLockPeriodAfterDeposit
+        __typename
+      }
+      __typename
+    }
+  }
+`;
+
+// Query to get individual builder project data (without user info)
+export const GET_BUILDERS_PROJECT_BY_ID = `
+  query getBuildersProjectById($id: ID = "") {
+    buildersProject(id: $id) {
+      admin
+      claimLockEnd
+      id
+      minimalDeposit
+      name
+      startsAt
+      totalClaimed
+      totalStaked
+      totalUsers
+      withdrawLockPeriodAfterDeposit
+      __typename
+    }
+  }
+`;
+
+// Query to get individual builder subnet data (testnet)
+export const GET_BUILDER_SUBNET_BY_ID = `
+  query getBuilderSubnetById($id: ID = "") {
+    builderSubnet(id: $id) {
+      id
+      name
+      owner
+      minStake
+      fee
+      feeTreasury
+      startsAt
+      withdrawLockPeriodAfterStake
+      maxClaimLockEnd
+      slug
+      description
+      website
+      image
+      totalStaked
+      totalClaimed
+      totalUsers
+      builderUsers {
+        id
+        address
+        staked
+        claimed
+        claimLockEnd
+        lastStake
+      }
+      __typename
+    }
+  }
 `; 
