@@ -25,6 +25,7 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
+import { useBuilderPrefetch } from "@/hooks/use-builder-prefetch";
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -273,11 +274,19 @@ export default function BuildersPage() {
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
   
+  // Hook for prefetching builder data on hover
+  const { prefetchBuilderData } = useBuilderPrefetch();
+  
   // Handler for opening the stake modal
   const handleOpenStakeModal = useCallback((builder: Builder) => {
     setSelectedBuilder(builder);
     setStakeModalOpen(true);
   }, []);
+
+  // Handler for prefetching builder data on hover
+  const handleBuilderHover = useCallback((builder: Builder) => {
+    prefetchBuilderData(builder);
+  }, [prefetchBuilderData]);
 
   // Use the URL params hook
   const { getParam, setParam } = useUrlParams();
@@ -1244,6 +1253,7 @@ export default function BuildersPage() {
                     onRowClick={(builder) => {
                       window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`;
                     }}
+                    onRowHover={handleBuilderHover}
                   />
                 </div>
               </div>
@@ -1295,6 +1305,7 @@ export default function BuildersPage() {
                        // Link to builder/subnet detail page
                        window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}`; // Or /subnets/<id>
                     }}
+                    onRowHover={handleBuilderHover}
                   />
                 </div>
               </div>
@@ -1343,6 +1354,7 @@ export default function BuildersPage() {
                     onRowClick={(builder) => {
                       window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`;
                     }}
+                    onRowHover={(builder) => handleBuilderHover(builder)}
                   />
                 </div>
               </div>
