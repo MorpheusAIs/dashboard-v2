@@ -235,16 +235,22 @@ export const useSubnetContractInteractions = ({
   // Determine if approval is needed based on fee and allowance
   useEffect(() => {
     const checkNeedsApproval = () => {
-      const effectiveFee = creationFee || parseEther("0.1");
+      // If creation fee is 0 (mainnet), no approval needed
+      if (!creationFee || creationFee === BigInt(0)) {
+        console.log("No approval needed - creation fee is 0 (likely mainnet)");
+        return false;
+      }
+      
       const effectiveAllowance = allowance || BigInt(0);
+      const needsApproval = effectiveAllowance < creationFee;
       
       console.log("Checking approval needs:", {
-        effectiveFee: effectiveFee.toString(),
+        creationFee: creationFee.toString(),
         effectiveAllowance: effectiveAllowance.toString(),
-        needsApproval: effectiveAllowance < effectiveFee
+        needsApproval
       });
       
-      return effectiveFee > BigInt(0) && effectiveAllowance < effectiveFee;
+      return needsApproval;
     };
     
     setNeedsApproval(checkNeedsApproval());
@@ -436,24 +442,24 @@ export const useSubnetContractInteractions = ({
     };
   }, [writeTxResult, isWriteTxLoading, resetWriteContract, onTxSuccess]);
 
-  // Check for Subnet Creation Fee
+  // Check for Subnet Creation Fee - only on testnet (BuilderSubnetsV2 contract)
+  const isTestnet = selectedChainId === arbitrumSepolia.id;
   const { data: subnetCreationFeeAmount } = useReadContract({
     address: builderContractAddress as Address,
     abi: BuilderSubnetsV2Abi,
     functionName: 'subnetCreationFeeAmount',
     chainId: selectedChainId,
     query: {
-      enabled: !!builderContractAddress,
+      enabled: !!builderContractAddress && isTestnet, // Only query on testnet
     }
   });
 
   useEffect(() => {
-    if (subnetCreationFeeAmount !== undefined && subnetCreationFeeAmount !== null) {
-      console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
-      // Update the creation fee state with the actual contract fee
+    if (isTestnet && subnetCreationFeeAmount !== undefined && subnetCreationFeeAmount !== null) {
+      console.log("Testnet subnet creation fee amount:", subnetCreationFeeAmount.toString());
       setCreationFee(subnetCreationFeeAmount as bigint);
     }
-  }, [subnetCreationFeeAmount]);
+  }, [subnetCreationFeeAmount, isTestnet]);
 
   // Action Handlers
   const handleNetworkSwitch = useCallback(async () => {
@@ -485,12 +491,20 @@ export const useSubnetContractInteractions = ({
       return;
     }
 
+    // Safety check: Don't approve 0 tokens (causes "Remove permission" in MetaMask)
+    if (!creationFee || creationFee === BigInt(0)) {
+      console.error("Cannot approve 0 tokens - this would show 'Remove permission' in MetaMask");
+      toast.error("No approval needed - creation fee is 0.");
+      return;
+    }
+
     try {
+      console.log(`Approving ${creationFee.toString()} tokens for builder contract`);
       writeApprove({
         address: tokenAddress,
         abi: ERC20Abi,
         functionName: 'approve',
-        args: [builderContractAddress, creationFee || BigInt(0)],
+        args: [builderContractAddress, creationFee],
         chainId: selectedChainId,
         // Add explicit gas limit for Arbitrum Sepolia to prevent excessive estimates
         gas: selectedChainId === arbitrumSepolia.id ? BigInt(400000) : undefined,
