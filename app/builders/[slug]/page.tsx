@@ -16,6 +16,7 @@ import { useStakingData, type UseStakingDataProps, type BuilderSubnetUser as Sta
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { slugToBuilderName } from "@/app/utils/supabase-utils";
 import { useBuilders } from "@/context/builders-context";
+import { useIndividualBuilder } from "@/hooks/use-individual-builder";
 import { useChainId, useAccount, useReadContract } from 'wagmi';
 import { useNetwork } from "@/context/network-context";
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
@@ -80,6 +81,9 @@ export default function BuilderPage() {
   const isTestnet = chainId === arbitrumSepolia.id;
   const previousIsTestnetRef = useRef<boolean>();
   
+  // Use the new individual builder hook for faster loading
+  const { data: individualBuilder, isLoading: isLoadingIndividualBuilder, error: individualBuilderError } = useIndividualBuilder(slug as string);
+  
   const { switchToChain, isNetworkSwitching } = useNetwork();
   
   const [userStakedAmount, setUserStakedAmount] = useState<number | null>(null);
@@ -137,28 +141,70 @@ export default function BuilderPage() {
     }
   }, [isLoading]);
 
-  // useEffect to find builder and set its details
+  // useEffect to set builder data from individual builder hook or fallback to context
   useEffect(() => {
     if (typeof slug !== 'string') return;
     
-    console.log("########## EFFECT TO FIND BUILDER: slug, builders, isTestnet ##########", slug, builders, isTestnet);
-    
-    // Extract network from slug if present
-    const hasNetworkSuffix = slug.includes('-base') || slug.includes('-arbitrum');
-    const network = slug.includes('-base') ? 'Base' : 
-                   slug.includes('-arbitrum') ? 'Arbitrum' : undefined;
-    
-    // Extract base name without network suffix
-    const slugWithoutNetwork = hasNetworkSuffix 
-      ? slug.substring(0, slug.lastIndexOf('-'))
-      : slug;
-    
-    const builderNameFromSlug = slugToBuilderName(slugWithoutNetwork);
-    let foundBuilder: Builder | null | undefined = null;
-    
-    if (builders && builders.length > 0) {
-      // Find builder matching both name and network (if specified)
-      foundBuilder = builders.find(b => {
+    console.log("########## EFFECT TO SET BUILDER DATA ##########", {
+      slug,
+      individualBuilder,
+      isLoadingIndividualBuilder,
+      individualBuilderError,
+      builders,
+      isLoading
+    });
+
+    // First try to use individual builder data (fastest)
+    if (individualBuilder) {
+      console.log("########## USING INDIVIDUAL BUILDER DATA ##########", individualBuilder.name);
+      
+      const builderToSet: Builder = {
+        ...individualBuilder,
+        admin: individualBuilder.admin || null,
+      };
+
+      setBuilder(builderToSet);
+      
+      // Set the appropriate subnetId based on network
+      if (isTestnet) {
+        if (individualBuilder.id) {
+          setSubnetId(individualBuilder.id as Address);
+          console.log("########## INDIVIDUAL BUILDER TESTNET: SUBNET ID SET ##########", individualBuilder.id);
+        } else {
+          console.error("########## INDIVIDUAL BUILDER TESTNET: ID IS UNDEFINED ##########");
+          setSubnetId(null);
+        }
+      } else {
+        if (individualBuilder.mainnetProjectId) {
+          setSubnetId(individualBuilder.mainnetProjectId as Address);
+          console.log("########## INDIVIDUAL BUILDER MAINNET: SUBNET ID SET ##########", individualBuilder.mainnetProjectId);
+        } else {
+          console.error("########## INDIVIDUAL BUILDER MAINNET: mainnetProjectId IS UNDEFINED ##########");
+          setSubnetId(null);
+        }
+      }
+      
+      setBuilderResolutionComplete(true);
+      return;
+    }
+
+    // If individual builder hook failed, fall back to builders context
+    if (individualBuilderError && builders && builders.length > 0) {
+      console.log("########## INDIVIDUAL BUILDER FAILED, FALLING BACK TO CONTEXT ##########");
+      
+      // Extract network from slug if present
+      const hasNetworkSuffix = slug.includes('-base') || slug.includes('-arbitrum');
+      const network = slug.includes('-base') ? 'Base' : 
+                     slug.includes('-arbitrum') ? 'Arbitrum' : undefined;
+      
+      // Extract base name without network suffix
+      const slugWithoutNetwork = hasNetworkSuffix 
+        ? slug.substring(0, slug.lastIndexOf('-'))
+        : slug;
+      
+      const builderNameFromSlug = slugToBuilderName(slugWithoutNetwork);
+      
+      const foundBuilder = builders.find(b => {
         const nameMatches = b.name.toLowerCase() === builderNameFromSlug.toLowerCase();
         // If network is specified in the slug, require a network match
         if (network) {
@@ -167,51 +213,56 @@ export default function BuilderPage() {
         // Otherwise just match by name
         return nameMatches;
       });
-      
-      // Log for debugging
-      if (hasNetworkSuffix) {
-        console.log(`########## LOOKING FOR BUILDER WITH NAME '${builderNameFromSlug}' ON NETWORK '${network}' ##########`);
+
+      if (foundBuilder) {
+        const builderToSet: Builder = {
+          ...foundBuilder,
+          admin: foundBuilder.admin || null, 
+        };
+
+        setBuilder(builderToSet);
+        
+        // Set the appropriate subnetId based on network
+        if (isTestnet) {
+          if (foundBuilder.id) {
+            setSubnetId(foundBuilder.id as Address);
+            console.log("########## CONTEXT FALLBACK TESTNET: SUBNET ID SET ##########", foundBuilder.id);
+          } else {
+            console.error("########## CONTEXT FALLBACK TESTNET: ID IS UNDEFINED ##########");
+            setSubnetId(null);
+          }
+        } else {
+          if (foundBuilder.mainnetProjectId) {
+            setSubnetId(foundBuilder.mainnetProjectId as Address);
+            console.log("########## CONTEXT FALLBACK MAINNET: SUBNET ID SET ##########", foundBuilder.mainnetProjectId);
+          } else {
+            console.error("########## CONTEXT FALLBACK MAINNET: mainnetProjectId IS UNDEFINED ##########");
+            setSubnetId(null);
+          }
+        }
+        
+        setBuilderResolutionComplete(true);
+        return;
       }
     }
 
-    if (foundBuilder) {
-
-      const builderToSet: Builder = {
-        ...foundBuilder,
-        admin: foundBuilder.admin || null, 
-      };
-
-
-
-      setBuilder(builderToSet);
-      
-      // Set the appropriate subnetId based on network
-      if (isTestnet) {
-        // For testnet, use foundBuilder.id
-        if (foundBuilder.id) {
-          setSubnetId(foundBuilder.id as Address);
-          console.log("########## TESTNET: SUBNET ID SET FROM foundBuilder.id ##########", foundBuilder.id);
-        } else {
-          console.error("########## TESTNET: BUILDER ID IS UNDEFINED, CANNOT SET SUBNET ID ##########");
-          setSubnetId(null);
-        }
-      } else {
-        // For mainnet, use mainnetProjectId
-        if (foundBuilder.mainnetProjectId) {
-          setSubnetId(foundBuilder.mainnetProjectId as Address);
-          console.log("########## MAINNET: SUBNET ID SET FROM foundBuilder.mainnetProjectId ##########", foundBuilder.mainnetProjectId);
-        } else {
-          console.error("########## MAINNET: BUILDER mainnetProjectId IS UNDEFINED, CANNOT SET SUBNET ID ##########");
-          setSubnetId(null);
-        }
-      }
-    } else {
+    // If we're still loading individual builder, wait
+    if (isLoadingIndividualBuilder) {
+      console.log("########## WAITING FOR INDIVIDUAL BUILDER DATA ##########");
       setBuilder(null);
       setSubnetId(null);
-      console.log("########## BUILDER NOT FOUND, SUBNET ID CLEARED ##########");
+      setBuilderResolutionComplete(false);
+      return;
     }
-    setBuilderResolutionComplete(true);
-  }, [slug, builders, isTestnet, buildersError, isLoading]);
+
+    // If neither individual builder nor context has the builder, mark as not found
+    if (!individualBuilder && (!isLoading || builders)) {
+      console.log("########## BUILDER NOT FOUND ##########");
+      setBuilder(null);
+      setSubnetId(null);
+      setBuilderResolutionComplete(true);
+    }
+  }, [slug, individualBuilder, isLoadingIndividualBuilder, individualBuilderError, builders, isLoading, isTestnet]);
 
   // Derive the projectId for useStakingData once builder is loaded
   const hookProjectId = useMemo(() => {
@@ -769,13 +820,13 @@ export default function BuilderPage() {
   // Add state for network switch notification
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
   
-  // Loading state for the page should consider builder loading first
-  if (isLoading || (!builderResolutionComplete && !buildersError)) {
+  // Loading state for the page should consider individual builder loading first, then context
+  if (isLoadingIndividualBuilder || (!builderResolutionComplete && !individualBuilderError && !buildersError)) {
     return <div className="p-8">Loading builder details...</div>;
   }
 
-  if (buildersError) {
-    return <div className="p-8 text-red-500">Error loading builder: {buildersError.message}</div>;
+  if (individualBuilderError && buildersError) {
+    return <div className="p-8 text-red-500">Error loading builder: {individualBuilderError.message || buildersError.message}</div>;
   }
 
   if (!builder && builderResolutionComplete) {

@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { Builder } from '@/app/builders/builders-data';
 import { fetchGraphQL, getEndpointForNetwork } from '@/app/graphql/client';
-import { GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_USERS } from '@/app/graphql/queries/builders';
+import { GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_USERS, GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDER_SUBNET_BY_NAME } from '@/app/graphql/queries/builders';
 import { useChainId } from 'wagmi';
 import { arbitrumSepolia } from 'wagmi/chains';
 
@@ -29,7 +29,45 @@ export function useBuilderPrefetch() {
     const endpoint = getEndpointForNetwork(network);
 
     try {
-      // Create a unique query key for this builder's staking data
+      // 1. Prefetch individual builder data (this is the key addition!)
+      const builderQueryKey = [
+        'individual-builder-data',
+        {
+          builderName: builder.name,
+          isTestnet,
+          network
+        }
+      ];
+
+      await queryClient.prefetchQuery({
+        queryKey: builderQueryKey,
+        queryFn: async () => {
+          console.log(`[useBuilderPrefetch] Fetching individual builder data for ${builder.name}`);
+
+          if (isTestnet) {
+            // Testnet: Get builder subnet by name
+            const response = await fetchGraphQL(
+              endpoint,
+              "getBuilderSubnetByName",
+              GET_BUILDER_SUBNET_BY_NAME,
+              { name: builder.name }
+            ) as { data: unknown };
+            return response.data;
+          } else {
+            // Mainnet: Get builder project by name
+            const response = await fetchGraphQL(
+              endpoint,
+              "getBuildersProjectsByName", 
+              GET_BUILDERS_PROJECT_BY_NAME,
+              { name: builder.name }
+            ) as { data: unknown };
+            return response.data;
+          }
+        },
+        staleTime: 10 * 60 * 1000, // Consider builder data fresh for 10 minutes
+      });
+
+      // 2. Prefetch staking data
       const stakingQueryKey = [
         'builder-staking-data',
         {
@@ -41,77 +79,48 @@ export function useBuilderPrefetch() {
       ];
 
       // Check if we already have this data cached
-      const existingData = queryClient.getQueryData(stakingQueryKey);
-      if (existingData) {
-        console.log(`[useBuilderPrefetch] Data already cached for ${builder.name}`);
-        return;
+      const existingStakingData = queryClient.getQueryData(stakingQueryKey);
+      if (!existingStakingData) {
+        await queryClient.prefetchQuery({
+          queryKey: stakingQueryKey,
+          queryFn: async () => {
+            console.log(`[useBuilderPrefetch] Fetching staking data for ${builder.name} (${isTestnet ? 'testnet' : 'mainnet'})`);
+
+            if (isTestnet) {
+              // Testnet query
+              const response = await fetchGraphQL(
+                endpoint,
+                "getBuilderSubnetUsers",
+                GET_BUILDER_SUBNET_USERS,
+                {
+                  first: 10, // Prefetch first 10 entries
+                  skip: 0,
+                  builderSubnetId: projectId,
+                  orderBy: 'staked',
+                  orderDirection: 'desc'
+                }
+              ) as { data: unknown };
+              return response.data;
+            } else {
+              // Mainnet query
+              const response = await fetchGraphQL(
+                endpoint,
+                "getBuildersProjectUsers",
+                GET_BUILDERS_PROJECT_USERS,
+                {
+                  first: 10, // Prefetch first 10 entries
+                  skip: 0,
+                  buildersProjectId: projectId,
+                  orderBy: 'staked',
+                  orderDirection: 'desc'
+                }
+              ) as { data: unknown };
+              return response.data;
+            }
+          },
+          staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+        });
       }
-
-      // Prefetch the staking data
-      await queryClient.prefetchQuery({
-        queryKey: stakingQueryKey,
-        queryFn: async () => {
-          console.log(`[useBuilderPrefetch] Fetching staking data for ${builder.name} (${isTestnet ? 'testnet' : 'mainnet'})`);
-
-          if (isTestnet) {
-            // Testnet query
-            const response = await fetchGraphQL(
-              endpoint,
-              "getBuilderSubnetUsers",
-              GET_BUILDER_SUBNET_USERS,
-              {
-                first: 10, // Prefetch first 10 entries
-                skip: 0,
-                builderSubnetId: projectId,
-                orderBy: 'staked',
-                orderDirection: 'desc'
-              }
-            ) as { data: unknown };
-            return response.data;
-          } else {
-            // Mainnet query
-            const response = await fetchGraphQL(
-              endpoint,
-              "getBuildersProjectUsers",
-              GET_BUILDERS_PROJECT_USERS,
-              {
-                first: 10, // Prefetch first 10 entries
-                skip: 0,
-                buildersProjectId: projectId,
-                orderBy: 'staked',
-                orderDirection: 'desc'
-              }
-            ) as { data: unknown };
-            return response.data;
-          }
-        },
-        staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-      });
-
-      // Also prefetch builder-specific metrics if needed
-      const metricsQueryKey = [
-        'builder-metrics',
-        {
-          projectId,
-          isTestnet,
-          builderName: builder.name
-        }
-      ];
-
-      await queryClient.prefetchQuery({
-        queryKey: metricsQueryKey,
-        queryFn: async () => {
-          // This could fetch additional builder metrics like total staked, user count, etc.
-          // For now, we'll just return the basic builder data
-          return {
-            totalStaked: builder.totalStaked,
-            stakingCount: builder.stakingCount,
-            minDeposit: builder.minDeposit,
-            lockPeriod: builder.lockPeriod
-          };
-        },
-        staleTime: 10 * 60 * 1000, // Consider metrics fresh for 10 minutes
-      });
 
       console.log(`[useBuilderPrefetch] Successfully prefetched data for ${builder.name}`);
 
@@ -126,8 +135,24 @@ export function useBuilderPrefetch() {
     await Promise.allSettled(promises);
   }, [prefetchBuilderData]);
 
-  // Get cached data for a builder
-  const getCachedBuilderData = useCallback((builder: Builder) => {
+  // Get cached individual builder data
+  const getCachedBuilderData = useCallback((builderName: string) => {
+    const network = isTestnet ? 'Arbitrum Sepolia' : 'Base';
+    
+    const builderQueryKey = [
+      'individual-builder-data',
+      {
+        builderName,
+        isTestnet,
+        network
+      }
+    ];
+
+    return queryClient.getQueryData(builderQueryKey);
+  }, [queryClient, isTestnet]);
+
+  // Get cached staking data for a builder
+  const getCachedStakingData = useCallback((builder: Builder) => {
     const projectId = isTestnet ? builder.id : builder.mainnetProjectId;
     if (!projectId) return null;
 
@@ -149,6 +174,7 @@ export function useBuilderPrefetch() {
   return {
     prefetchBuilderData,
     prefetchBuilders,
-    getCachedBuilderData
+    getCachedBuilderData,
+    getCachedStakingData
   };
 } 
