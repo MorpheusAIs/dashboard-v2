@@ -33,7 +33,7 @@ export function useIndividualBuilder(slug: string) {
       {
         builderName: builderNameFromSlug,
         isTestnet,
-        network: network || (isTestnet ? 'Arbitrum Sepolia' : 'Base'),
+                 network: network || (isTestnet ? 'Arbitrum Sepolia' : 'Base'), // Default to Base if no network specified on mainnet
         slug
       }
     ],

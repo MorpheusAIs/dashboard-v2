@@ -16,36 +16,32 @@ export function useBuilderPrefetch() {
 
     console.log(`[useBuilderPrefetch] Prefetching data for builder: ${builder.name}`);
 
-    // Determine the project ID to use for queries
-    const projectId = isTestnet ? builder.id : builder.mainnetProjectId;
-    
-    if (!projectId) {
-      console.warn(`[useBuilderPrefetch] No project ID available for ${builder.name} on ${isTestnet ? 'testnet' : 'mainnet'}`);
-      return;
-    }
+    // For testnet, only prefetch on Arbitrum Sepolia
+    if (isTestnet) {
+      const projectId = builder.id;
+      if (!projectId) {
+        console.warn(`[useBuilderPrefetch] No project ID available for ${builder.name} on testnet`);
+        return;
+      }
 
-    // Determine the network for the query
-    const network = builder.networks?.[0] || (isTestnet ? 'Arbitrum Sepolia' : 'Base');
-    const endpoint = getEndpointForNetwork(network);
+      const network = 'Arbitrum Sepolia';
+      const endpoint = getEndpointForNetwork(network);
 
-    try {
-      // 1. Prefetch individual builder data (this is the key addition!)
-      const builderQueryKey = [
-        'individual-builder-data',
-        {
-          builderName: builder.name,
-          isTestnet,
-          network
-        }
-      ];
+      try {
+        // Prefetch individual builder data
+        const builderQueryKey = [
+          'individual-builder-data',
+          {
+            builderName: builder.name,
+            isTestnet,
+            network
+          }
+        ];
 
-      await queryClient.prefetchQuery({
-        queryKey: builderQueryKey,
-        queryFn: async () => {
-          console.log(`[useBuilderPrefetch] Fetching individual builder data for ${builder.name}`);
-
-          if (isTestnet) {
-            // Testnet: Get builder subnet by name
+        await queryClient.prefetchQuery({
+          queryKey: builderQueryKey,
+          queryFn: async () => {
+            console.log(`[useBuilderPrefetch] Fetching individual builder data for ${builder.name} on ${network}`);
             const response = await fetchGraphQL(
               endpoint,
               "getBuilderSubnetByName",
@@ -53,47 +49,33 @@ export function useBuilderPrefetch() {
               { name: builder.name }
             ) as { data: unknown };
             return response.data;
-          } else {
-            // Mainnet: Get builder project by name
-            const response = await fetchGraphQL(
-              endpoint,
-              "getBuildersProjectsByName", 
-              GET_BUILDERS_PROJECT_BY_NAME,
-              { name: builder.name }
-            ) as { data: unknown };
-            return response.data;
+          },
+          staleTime: 10 * 60 * 1000,
+        });
+
+        // Prefetch staking data
+        const stakingQueryKey = [
+          'builder-staking-data',
+          {
+            projectId,
+            isTestnet,
+            network,
+            builderName: builder.name
           }
-        },
-        staleTime: 10 * 60 * 1000, // Consider builder data fresh for 10 minutes
-      });
+        ];
 
-      // 2. Prefetch staking data
-      const stakingQueryKey = [
-        'builder-staking-data',
-        {
-          projectId,
-          isTestnet,
-          network,
-          builderName: builder.name
-        }
-      ];
-
-      // Check if we already have this data cached
-      const existingStakingData = queryClient.getQueryData(stakingQueryKey);
-      if (!existingStakingData) {
-        await queryClient.prefetchQuery({
-          queryKey: stakingQueryKey,
-          queryFn: async () => {
-            console.log(`[useBuilderPrefetch] Fetching staking data for ${builder.name} (${isTestnet ? 'testnet' : 'mainnet'})`);
-
-            if (isTestnet) {
-              // Testnet query
+        const existingStakingData = queryClient.getQueryData(stakingQueryKey);
+        if (!existingStakingData) {
+          await queryClient.prefetchQuery({
+            queryKey: stakingQueryKey,
+            queryFn: async () => {
+              console.log(`[useBuilderPrefetch] Fetching staking data for ${builder.name} on ${network}`);
               const response = await fetchGraphQL(
                 endpoint,
                 "getBuilderSubnetUsers",
                 GET_BUILDER_SUBNET_USERS,
                 {
-                  first: 10, // Prefetch first 10 entries
+                  first: 10,
                   skip: 0,
                   builderSubnetId: projectId,
                   orderBy: 'staked',
@@ -101,14 +83,81 @@ export function useBuilderPrefetch() {
                 }
               ) as { data: unknown };
               return response.data;
-            } else {
-              // Mainnet query
+            },
+            staleTime: 5 * 60 * 1000,
+          });
+        }
+
+        console.log(`[useBuilderPrefetch] Successfully prefetched data for ${builder.name} on ${network}`);
+      } catch (error) {
+        console.error(`[useBuilderPrefetch] Error prefetching data for ${builder.name} on ${network}:`, error);
+      }
+      return;
+    }
+
+    // For mainnet, prefetch for all networks the builder is deployed on
+    const networks = builder.networks?.filter(net => net === 'Arbitrum' || net === 'Base') || ['Base'];
+    const projectId = builder.mainnetProjectId;
+    
+    if (!projectId) {
+      console.warn(`[useBuilderPrefetch] No mainnet project ID available for ${builder.name}`);
+      return;
+    }
+
+    console.log(`[useBuilderPrefetch] Prefetching for ${builder.name} on networks: ${networks.join(', ')}`);
+
+    const prefetchPromises = networks.map(async (network) => {
+      const endpoint = getEndpointForNetwork(network);
+
+      try {
+        // Prefetch individual builder data for this network
+        const builderQueryKey = [
+          'individual-builder-data',
+          {
+            builderName: builder.name,
+            isTestnet,
+            network
+          }
+        ];
+
+        await queryClient.prefetchQuery({
+          queryKey: builderQueryKey,
+          queryFn: async () => {
+            console.log(`[useBuilderPrefetch] Fetching individual builder data for ${builder.name} on ${network}`);
+            const response = await fetchGraphQL(
+              endpoint,
+              "getBuildersProjectsByName", 
+              GET_BUILDERS_PROJECT_BY_NAME,
+              { name: builder.name }
+            ) as { data: unknown };
+            return response.data;
+          },
+          staleTime: 10 * 60 * 1000,
+        });
+
+        // Prefetch staking data for this network
+        const stakingQueryKey = [
+          'builder-staking-data',
+          {
+            projectId,
+            isTestnet,
+            network,
+            builderName: builder.name
+          }
+        ];
+
+        const existingStakingData = queryClient.getQueryData(stakingQueryKey);
+        if (!existingStakingData) {
+          await queryClient.prefetchQuery({
+            queryKey: stakingQueryKey,
+            queryFn: async () => {
+              console.log(`[useBuilderPrefetch] Fetching staking data for ${builder.name} on ${network}`);
               const response = await fetchGraphQL(
                 endpoint,
                 "getBuildersProjectUsers",
                 GET_BUILDERS_PROJECT_USERS,
                 {
-                  first: 10, // Prefetch first 10 entries
+                  first: 10,
                   skip: 0,
                   buildersProjectId: projectId,
                   orderBy: 'staked',
@@ -116,17 +165,18 @@ export function useBuilderPrefetch() {
                 }
               ) as { data: unknown };
               return response.data;
-            }
-          },
-          staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-        });
+            },
+            staleTime: 5 * 60 * 1000,
+          });
+        }
+
+        console.log(`[useBuilderPrefetch] Successfully prefetched data for ${builder.name} on ${network}`);
+      } catch (error) {
+        console.error(`[useBuilderPrefetch] Error prefetching data for ${builder.name} on ${network}:`, error);
       }
+    });
 
-      console.log(`[useBuilderPrefetch] Successfully prefetched data for ${builder.name}`);
-
-    } catch (error) {
-      console.error(`[useBuilderPrefetch] Error prefetching data for ${builder.name}:`, error);
-    }
+    await Promise.allSettled(prefetchPromises);
   }, [queryClient, isTestnet]);
 
   // Prefetch multiple builders (useful for prefetching visible builders)
@@ -136,8 +186,8 @@ export function useBuilderPrefetch() {
   }, [prefetchBuilderData]);
 
   // Get cached individual builder data
-  const getCachedBuilderData = useCallback((builderName: string) => {
-    const network = isTestnet ? 'Arbitrum Sepolia' : 'Base';
+  const getCachedBuilderData = useCallback((builderName: string, builderNetwork?: string) => {
+    const network = isTestnet ? 'Arbitrum Sepolia' : (builderNetwork || 'Base');
     
     const builderQueryKey = [
       'individual-builder-data',
@@ -151,12 +201,15 @@ export function useBuilderPrefetch() {
     return queryClient.getQueryData(builderQueryKey);
   }, [queryClient, isTestnet]);
 
-  // Get cached staking data for a builder
-  const getCachedStakingData = useCallback((builder: Builder) => {
+  // Get cached staking data for a builder on a specific network
+  const getCachedStakingData = useCallback((builder: Builder, specificNetwork?: string) => {
     const projectId = isTestnet ? builder.id : builder.mainnetProjectId;
     if (!projectId) return null;
 
-    const network = builder.networks?.[0] || (isTestnet ? 'Arbitrum Sepolia' : 'Base');
+    // Use the specified network, or default appropriately
+    const network = specificNetwork || 
+                   (isTestnet ? 'Arbitrum Sepolia' : 
+                   (builder.networks?.[0] || 'Base'));
     
     const stakingQueryKey = [
       'builder-staking-data',
