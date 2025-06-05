@@ -7,6 +7,7 @@ import { ArbitrumSepoliaIcon } from './constants';
 import { zeroAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { useNetwork } from "@/context/network-context";
 import { useBuilders } from "@/context/builders-context";
 
 import {
@@ -43,6 +44,7 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   const [subnetNameError, setSubnetNameError] = useState<string | null>(null);
   const form = useFormContext();
   const { address } = useAccount();
+  const { currentChainId } = useNetwork();
   const { builders } = useBuilders();
 
   const selectedChainId = form.watch("subnet.networkChainId");
@@ -103,8 +105,23 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
     }
   }, [builderPoolName, builderPoolDeposit, isMainnet, form]);
 
-  // Network sync removed - form now properly initializes with user's current network
-  // Users can freely select different networks, and "Switch to [network]" button will appear when needed
+  // Sync form network when user changes wallet network (but not when they change form dropdown)
+  const [lastWalletChainId, setLastWalletChainId] = useState<number | undefined>(currentChainId);
+  
+  useEffect(() => {
+    if (currentChainId && currentChainId !== lastWalletChainId) {
+      const supportedChainIds = [arbitrumSepolia.id, arbitrum.id, base.id] as const;
+      
+      // Only sync if wallet changed to a supported network
+      if (supportedChainIds.includes(currentChainId as typeof supportedChainIds[number])) {
+        console.log(`Wallet network changed to ${currentChainId}, updating form`);
+        form.setValue("subnet.networkChainId", currentChainId as typeof supportedChainIds[number], { shouldValidate: true });
+      }
+      
+      // Update last known wallet chain ID
+      setLastWalletChainId(currentChainId);
+    }
+  }, [currentChainId, lastWalletChainId, form]);
 
   // Determine the minimum value for the withdrawLockPeriod input
   let minWithdrawLockPeriodValue = 1; // Default for testnet (can be 1 day or 1 hour)
