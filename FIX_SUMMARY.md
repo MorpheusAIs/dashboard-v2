@@ -183,7 +183,7 @@ The form was hardcoded to initialize with Arbitrum Sepolia, and the sync effect 
 
 ### Solution
 1. **Proper initialization**: Form now initializes with user's current wallet network if supported
-2. **Removed auto-sync**: Eliminated the sync effect that was overriding user selections
+2. **Smart wallet sync**: Added intelligent sync that responds to wallet network changes but doesn't interfere with manual form selections
 3. **Graceful fallback**: Falls back to Arbitrum Sepolia if user's network is unsupported
 
 ```typescript
@@ -210,15 +210,34 @@ defaultValues: {
 }
 ```
 
+### How Smart Sync Works:
+```typescript
+// Track wallet network changes (not form changes)
+const [lastWalletChainId, setLastWalletChainId] = useState(currentChainId);
+
+useEffect(() => {
+  if (currentChainId && currentChainId !== lastWalletChainId) {
+    // Only sync if wallet changed to supported network
+    if (supportedChainIds.includes(currentChainId)) {
+      form.setValue("subnet.networkChainId", currentChainId);
+    }
+    setLastWalletChainId(currentChainId);
+  }
+}, [currentChainId, lastWalletChainId, form]);
+```
+
 ### Now Works Correctly:
 - ✅ Form initializes with user's current wallet network
-- ✅ No more "network 0" or invalid network display
+- ✅ No more "network 0" or invalid network display  
 - ✅ Users can freely select different networks without interference
 - ✅ "Switch to [network]" button appears when wallet ≠ form selection
+- ✅ **NEW**: Form updates when user changes network from wallet connector (AppKit/WalletConnect)
+- ✅ **NEW**: Manual form selections are never overridden by wallet sync
 
 ## Commits
 - `fix(form): Make builderPool fields truly optional to fix testnet form submission`
 - `fix(network): Allow manual network selection without auto-override`
 - `fix(approval): Use actual contract creation fee for mainnet approvals`
 - `fix(approval): Skip approval when fee is 0 to prevent 'Remove permission' popup`
-- `fix(network): Initialize form with user's wallet network, prevent network 0` 
+- `fix(network): Initialize form with user's wallet network, prevent network 0`
+- `feat(network): Add smart wallet network sync - responds to wallet network changes` 
