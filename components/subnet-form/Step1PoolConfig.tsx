@@ -105,15 +105,23 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
     }
   }, [builderPoolName, builderPoolDeposit, isMainnet, form]);
 
-  // Add network sync effect
+  // Sync form network when user changes wallet network (but not when they change form dropdown)
+  const [lastWalletChainId, setLastWalletChainId] = useState<number | undefined>(currentChainId);
+  
   useEffect(() => {
-    if (currentChainId) {
+    if (currentChainId && currentChainId !== lastWalletChainId) {
       const supportedChainIds = [arbitrumSepolia.id, arbitrum.id, base.id] as const;
-      if (currentChainId !== selectedChainId && supportedChainIds.includes(currentChainId as typeof supportedChainIds[number])) {
+      
+      // Only sync if wallet changed to a supported network
+      if (supportedChainIds.includes(currentChainId as typeof supportedChainIds[number])) {
+        console.log(`Wallet network changed to ${currentChainId}, updating form`);
         form.setValue("subnet.networkChainId", currentChainId as typeof supportedChainIds[number], { shouldValidate: true });
       }
+      
+      // Update last known wallet chain ID
+      setLastWalletChainId(currentChainId);
     }
-  }, [currentChainId, selectedChainId, form]);
+  }, [currentChainId, lastWalletChainId, form]);
 
   // Determine the minimum value for the withdrawLockPeriod input
   let minWithdrawLockPeriodValue = 1; // Default for testnet (can be 1 day or 1 hour)

@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { RiProgress4Fill } from "@remixicon/react";
@@ -25,7 +25,7 @@ import ProgressStepper from "@/components/subnet-form/ProgressStepper";
 import useSubnetContractInteractions from "@/hooks/useSubnetContractInteractions";
 
 // Import network config
-import { arbitrumSepolia } from 'wagmi/chains';
+import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
 
 // Import useBalance hook
 import { useBalance } from 'wagmi';
@@ -37,7 +37,16 @@ export default function NewSubnetPage() {
   const [hasValidationError, setHasValidationError] = useState(false);
   const router = useRouter();
   const { address: connectedAddress } = useAccount();
-  // const walletChainId = useChainId(); // Make sure walletChainId is available here
+  const walletChainId = useChainId();
+
+  // Determine the initial network: use wallet network if supported, otherwise default to Arbitrum Sepolia
+  const getInitialNetworkId = () => {
+    const supportedChainIds = [arbitrumSepolia.id, arbitrum.id, base.id] as const;
+    if (walletChainId && supportedChainIds.includes(walletChainId as typeof supportedChainIds[number])) {
+      return walletChainId;
+    }
+    return arbitrumSepolia.id; // Fallback to Arbitrum Sepolia
+  };
 
   // --- Form Setup --- //
   const form = useForm<FormData>({
@@ -48,7 +57,7 @@ export default function NewSubnetPage() {
         minStake: 0.001,
         fee: 0,
         feeTreasury: undefined as unknown as `0x${string}` | undefined,
-        networkChainId: arbitrumSepolia.id,
+        networkChainId: getInitialNetworkId(),
         withdrawLockPeriod: 7,
         withdrawLockUnit: "days",
         startsAt: new Date(),
