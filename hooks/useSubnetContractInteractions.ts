@@ -384,8 +384,10 @@ export const useSubnetContractInteractions = ({
             toast.success("Project details synced successfully!", { id: "supabase-sync" });
             
             // Add the subnet name to local cache for immediate visibility
-            addNewlyCreatedSubnet(submittedFormData.subnet.name, networkName);
-            console.log(`[useSubnetContractInteractions] Added "${submittedFormData.subnet.name}" to newly created subnets cache`);
+            if (connectedAddress) {
+              addNewlyCreatedSubnet(submittedFormData.subnet.name, networkName, connectedAddress);
+              console.log(`[useSubnetContractInteractions] Added "${submittedFormData.subnet.name}" to newly created subnets cache with admin ${connectedAddress}`);
+            }
           } catch (dbError) {
             console.error("Failed to insert builder data into Supabase:", dbError);
             toast.error("Database Sync Failed", {

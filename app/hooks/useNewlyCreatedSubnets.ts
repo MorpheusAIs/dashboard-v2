@@ -4,6 +4,7 @@ interface NewlyCreatedSubnet {
   name: string;
   createdAt: number; // timestamp
   network: string;
+  adminAddress: string; // Store the creator's address
 }
 
 const STORAGE_KEY = 'newly_created_subnets';
@@ -42,11 +43,12 @@ export const useNewlyCreatedSubnets = () => {
   }, []);
 
   // Add a new subnet name to the cache
-  const addNewlyCreatedSubnet = (name: string, network: string) => {
+  const addNewlyCreatedSubnet = (name: string, network: string, adminAddress: string) => {
     const newEntry: NewlyCreatedSubnet = {
       name,
       createdAt: Date.now(),
-      network
+      network,
+      adminAddress
     };
 
     setNewlyCreatedSubnets(prev => {
@@ -94,10 +96,17 @@ export const useNewlyCreatedSubnets = () => {
     return newlyCreatedSubnets.map(subnet => subnet.name);
   };
 
+  // Get the admin address for a specific subnet name
+  const getNewlyCreatedSubnetAdmin = (subnetName: string): string | null => {
+    const subnet = newlyCreatedSubnets.find(s => s.name === subnetName);
+    return subnet?.adminAddress || null;
+  };
+
   return {
     newlyCreatedSubnets,
     addNewlyCreatedSubnet,
     cleanupExistingSubnets,
-    getNewlyCreatedSubnetNames
+    getNewlyCreatedSubnetNames,
+    getNewlyCreatedSubnetAdmin
   };
 }; 

@@ -15,7 +15,7 @@ export const useAllBuildersQuery = () => {
   const { supabaseBuilders, supabaseBuildersLoaded, error: supabaseError } = useSupabaseBuilders();
   const { userAddress, isAuthenticated } = useAuth(); // Get userAddress and isAuthenticated
   const { data: morlordBuilderNames, isLoading: isLoadingMorlordBuilders } = useMorlordBuilders(); // Add the Morlord hook
-  const { getNewlyCreatedSubnetNames, cleanupExistingSubnets } = useNewlyCreatedSubnets(); // Add the newly created subnets hook
+  const { getNewlyCreatedSubnetNames, cleanupExistingSubnets, getNewlyCreatedSubnetAdmin } = useNewlyCreatedSubnets(); // Add the newly created subnets hook
 
   // Safe access to lengths for logging
   const morlordNamesLength = Array.isArray(morlordBuilderNames) ? morlordBuilderNames.length : 0;
@@ -141,7 +141,8 @@ export const useAllBuildersQuery = () => {
         isTestnet, 
         combinedBuilders, 
         supabaseBuildersLoaded, 
-        isAuthenticated ? userAddress : ""
+        isAuthenticated ? userAddress : "",
+        getNewlyCreatedSubnetAdmin // Pass the function to get admin addresses for newly created subnets
       );
       
       console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);

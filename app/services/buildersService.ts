@@ -44,7 +44,8 @@ export const fetchBuildersAPI = async (
   isTestnet: boolean, 
   supabaseBuilders: BuilderDB[] | null, 
   supabaseBuildersLoaded: boolean, 
-  userAddress?: string | null // Added userAddress as an optional parameter
+  userAddress?: string | null, // Added userAddress as an optional parameter
+  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null // Function to get admin address for newly created subnets
 ): Promise<Builder[]> => {
   console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
   console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
@@ -390,6 +391,12 @@ export const fetchBuildersAPI = async (
         
         // Add these builders to the mapped list with default on-chain values
         supabaseOnlyBuilders.forEach(builderDB => {
+          // Check if this is a newly created subnet and get its admin address
+          const newlyCreatedAdmin = getNewlyCreatedSubnetAdmin ? getNewlyCreatedSubnetAdmin(builderDB.name) : null;
+          const adminAddress = newlyCreatedAdmin || ""; // Use cached admin address if available
+          
+          console.log(`[API] Mainnet: Processing Supabase-only builder "${builderDB.name}" with admin: ${adminAddress || 'none'}`);
+          
           const builder = mergeBuilderData(builderDB, {
             id: "",
             totalStaked: 0,
@@ -398,9 +405,9 @@ export const fetchBuildersAPI = async (
             withdrawLockPeriodRaw: 0,
             stakingCount: 0,
             lockPeriod: '',
-            network: 'Unknown',
-            networks: ['Unknown'],
-            admin: "",
+            network: builderDB.networks?.[0] || 'Unknown',
+            networks: builderDB.networks || ['Unknown'],
+            admin: adminAddress, // Use the admin address from cache if this is a newly created subnet
           });
           
           mappedBuilders.push(builder);
