@@ -372,4 +372,43 @@ export const GET_USER_STAKED_BUILDERS = gql`
       }
     }
   }
+`;
+
+// Query to get individual builder project data with user's staking info
+export const GET_USER_ACCOUNT_BUILDERS_PROJECT = gql`
+  ${BUILDER_PROJECT_FRAGMENT}
+  query getUserAccountBuildersProject($address: Bytes = "", $project_id: Bytes = "") {
+    buildersUsers(where: {address: $address, buildersProject_: {id: $project_id}}) {
+      address
+      id
+      lastStake
+      staked
+      buildersProject {
+        ...BuilderProject
+      }
+      __typename
+    }
+  }
+`;
+
+// Query to get individual builder project data (without user info)
+export const GET_BUILDERS_PROJECT_BY_ID = gql`
+  ${BUILDER_PROJECT_FRAGMENT}
+  query getBuildersProjectById($id: ID = "") {
+    buildersProject(id: $id) {
+      ...BuilderProject
+      __typename
+    }
+  }
+`;
+
+// Query to get individual builder subnet data (testnet)
+export const GET_BUILDER_SUBNET_BY_ID = gql`
+  ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
+  query getBuilderSubnetById($id: ID = "") {
+    builderSubnet(id: $id) {
+      ...BuilderSubnetDefault
+      __typename
+    }
+  }
 `; 

@@ -6,6 +6,7 @@ import { Builder } from '@/app/builders/builders-data'; // For return type
 import { useAuth } from '@/context/auth-context'; // Added to get userAddress
 import { useMorlordBuilders } from './useMorlordBuilders'; // Import the new hook
 import { BuilderDB } from '@/app/lib/supabase';
+import { useNewlyCreatedSubnets } from './useNewlyCreatedSubnets';
 
 export const useAllBuildersQuery = () => {
   console.log('[useAllBuildersQuery] Hook initialized');
@@ -14,10 +15,12 @@ export const useAllBuildersQuery = () => {
   const { supabaseBuilders, supabaseBuildersLoaded, error: supabaseError } = useSupabaseBuilders();
   const { userAddress, isAuthenticated } = useAuth(); // Get userAddress and isAuthenticated
   const { data: morlordBuilderNames, isLoading: isLoadingMorlordBuilders } = useMorlordBuilders(); // Add the Morlord hook
+  const { getNewlyCreatedSubnetNames, cleanupExistingSubnets } = useNewlyCreatedSubnets(); // Add the newly created subnets hook
 
   // Safe access to lengths for logging
   const morlordNamesLength = Array.isArray(morlordBuilderNames) ? morlordBuilderNames.length : 0;
   const supabaseBuildersLength = Array.isArray(supabaseBuilders) ? supabaseBuilders.length : 0;
+  const newlyCreatedNamesLength = getNewlyCreatedSubnetNames().length;
 
   console.log(`[useAllBuildersQuery] Dependencies: 
     isTestnet: ${isTestnet}
@@ -25,6 +28,7 @@ export const useAllBuildersQuery = () => {
     isLoadingMorlordBuilders: ${isLoadingMorlordBuilders}
     morlordBuilderNames length: ${morlordNamesLength}
     supabaseBuilders length: ${supabaseBuildersLength}
+    newlyCreatedNames length: ${newlyCreatedNamesLength}
   `);
 
   // Include userAddress and morlordBuilderNames in the queryKey for refetching
@@ -58,35 +62,45 @@ export const useAllBuildersQuery = () => {
       let combinedBuilders = supabaseBuilders ? [...supabaseBuilders] : [];
       
       if (!isTestnet && Array.isArray(morlordBuilderNames) && morlordBuilderNames.length > 0) {
-        console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names`);
+        const newlyCreatedNames = getNewlyCreatedSubnetNames();
+        
+        // Combine morlord names with newly created names
+        const allOfficialNames = [...morlordBuilderNames, ...newlyCreatedNames];
+        
+        console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names and ${newlyCreatedNames.length} newly created names`);
+        
+        // Clean up any newly created names that now appear in morlord data
+        if (newlyCreatedNames.length > 0) {
+          cleanupExistingSubnets(morlordBuilderNames);
+        }
         
         // Log the names from Supabase
         const supabaseNames = supabaseBuilders?.map(b => b.name) || [];
         console.log(`[useAllBuildersQuery] Supabase builder names:`, supabaseNames);
         
-        // Identify which builders are in Supabase but not in Morlord
+        // Identify which builders are in Supabase but not in the combined official list (Morlord + newly created)
         const supabaseOnlyBuilders = supabaseBuilders?.filter(builder => 
-          !morlordBuilderNames.includes(builder.name)
+          !allOfficialNames.includes(builder.name)
         ) || [];
         
         if (supabaseOnlyBuilders.length > 0) {
           const supabaseOnlyNames = supabaseOnlyBuilders.map(b => b.name);
-          console.log(`[useAllBuildersQuery] Found ${supabaseOnlyBuilders.length} builders in Supabase that are NOT in Morlord list:`, supabaseOnlyNames);
+          console.log(`[useAllBuildersQuery] Found ${supabaseOnlyBuilders.length} builders in Supabase that are NOT in official list:`, supabaseOnlyNames);
         } else {
-          console.log('[useAllBuildersQuery] All Supabase builders are also in the Morlord list');
+          console.log('[useAllBuildersQuery] All Supabase builders are also in the official list');
         }
         
-        // Identify which builders are in Morlord but not in Supabase
-        const morlordOnlyNames = morlordBuilderNames.filter(name => 
+        // Identify which builders are in the official list but not in Supabase
+        const officialOnlyNames = allOfficialNames.filter(name => 
           !supabaseNames.includes(name)
         );
         
-        if (morlordOnlyNames.length > 0) {
-          console.log(`[useAllBuildersQuery] Found ${morlordOnlyNames.length} builders in Morlord list that are NOT in Supabase:`, morlordOnlyNames);
+        if (officialOnlyNames.length > 0) {
+          console.log(`[useAllBuildersQuery] Found ${officialOnlyNames.length} builders in official list that are NOT in Supabase:`, officialOnlyNames);
           
           // Create basic builder objects for these missing builders and add them to the combined list
           const currentDate = new Date().toISOString();
-          const morlordOnlyBuilders = morlordOnlyNames.map(name => {
+          const officialOnlyBuilders = officialOnlyNames.map((name: string) => {
             // Create a minimal BuilderDB object for each missing builder
             const builder: BuilderDB = {
               id: `morlord-${name.replace(/\s+/g, '-').toLowerCase()}`, // Generate a temporary ID
@@ -111,13 +125,13 @@ export const useAllBuildersQuery = () => {
           });
           
           // Add these to the combined list
-          combinedBuilders = [...combinedBuilders, ...morlordOnlyBuilders];
-          console.log(`[useAllBuildersQuery] Added ${morlordOnlyBuilders.length} builders from Morlord API that weren't in Supabase`);
+          combinedBuilders = [...combinedBuilders, ...officialOnlyBuilders];
+          console.log(`[useAllBuildersQuery] Added ${officialOnlyBuilders.length} builders from official API that weren't in Supabase`);
         } else {
-          console.log('[useAllBuildersQuery] All Morlord builders are also in Supabase');
+          console.log('[useAllBuildersQuery] All official builders are also in Supabase');
         }
       } else {
-        console.log('[useAllBuildersQuery] Not enough data to analyze builders (either Morlord or Supabase data missing)');
+        console.log('[useAllBuildersQuery] Not enough data to analyze builders (either official data or Supabase data missing)');
       }
       
       // Pass the COMBINED list of builders to fetchBuildersAPI

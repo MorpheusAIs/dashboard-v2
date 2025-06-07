@@ -17,6 +17,7 @@ import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '
 import { FormData } from '@/components/subnet-form/schemas';
 import { BuildersService } from '@/app/services/builders.service'; // Import BuildersService
 import { BuilderDB } from '@/app/lib/supabase'; // Import BuilderDB type
+import { useNewlyCreatedSubnets } from '@/app/hooks/useNewlyCreatedSubnets'; // Import the new hook
 
 export interface UseSubnetContractInteractionsProps {
   selectedChainId: number;
@@ -40,6 +41,7 @@ export const useSubnetContractInteractions = ({
   const { address: connectedAddress } = useAccount();
   const walletChainId = useChainId();
   const { switchToChain } = useNetwork();
+  const { addNewlyCreatedSubnet } = useNewlyCreatedSubnets();
 
   // Helper Functions
   const isCorrectNetwork = useCallback(() => {
@@ -380,6 +382,10 @@ export const useSubnetContractInteractions = ({
             toast.info("Syncing project details with database...", { id: "supabase-sync" });
             await BuildersService.addBuilder(newBuilderData);
             toast.success("Project details synced successfully!", { id: "supabase-sync" });
+            
+            // Add the subnet name to local cache for immediate visibility
+            addNewlyCreatedSubnet(submittedFormData.subnet.name, networkName);
+            console.log(`[useSubnetContractInteractions] Added "${submittedFormData.subnet.name}" to newly created subnets cache`);
           } catch (dbError) {
             console.error("Failed to insert builder data into Supabase:", dbError);
             toast.error("Database Sync Failed", {
