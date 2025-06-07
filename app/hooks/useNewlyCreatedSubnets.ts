@@ -21,23 +21,38 @@ export const useNewlyCreatedSubnets = () => {
 
   // Load from localStorage on mount
   useEffect(() => {
+    console.log('[useNewlyCreatedSubnets] Hook mounted, attempting to load from localStorage');
+    console.log('[useNewlyCreatedSubnets] Storage key:', STORAGE_KEY);
+    
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
+      console.log('[useNewlyCreatedSubnets] Raw localStorage value:', stored);
+      
       if (stored) {
         const parsed: NewlyCreatedSubnet[] = JSON.parse(stored);
+        console.log('[useNewlyCreatedSubnets] Parsed data:', parsed);
+        
         // Filter out expired entries (older than 15 minutes)
         const now = Date.now();
-        const validEntries = parsed.filter(entry => 
-          now - entry.createdAt < CACHE_DURATION
-        );
+        const validEntries = parsed.filter(entry => {
+          const age = now - entry.createdAt;
+          const isValid = age < CACHE_DURATION;
+          console.log(`[useNewlyCreatedSubnets] Entry "${entry.name}": age=${Math.round(age/1000)}s, valid=${isValid}`);
+          return isValid;
+        });
+        
+        console.log('[useNewlyCreatedSubnets] Valid entries after filtering:', validEntries);
         
         if (validEntries.length !== parsed.length) {
           // Some entries expired, update storage
           localStorage.setItem(STORAGE_KEY, JSON.stringify(validEntries));
+          console.log('[useNewlyCreatedSubnets] Updated localStorage after filtering expired entries');
         }
         
         setNewlyCreatedSubnets(validEntries);
         console.log(`[useNewlyCreatedSubnets] Loaded ${validEntries.length} cached subnet names from localStorage`);
+      } else {
+        console.log('[useNewlyCreatedSubnets] No stored data found in localStorage');
       }
     } catch (error) {
       console.error('[useNewlyCreatedSubnets] Error loading from localStorage:', error);

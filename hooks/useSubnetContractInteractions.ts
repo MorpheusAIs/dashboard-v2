@@ -295,34 +295,57 @@ export const useSubnetContractInteractions = ({
 
   // Handle Subnet Creation Transaction Notifications
   useEffect(() => {
+    console.log("[useSubnetContractInteractions] Transaction state changed:", {
+      isWritePending,
+      isWriteTxSuccess,
+      isWriteTxError,
+      writeTxResult,
+      hasSubmittedFormData: !!submittedFormData,
+      onTxSuccessExists: !!onTxSuccess
+    });
+    
     if (isWritePending) {
       toast.loading("Confirm creation in wallet...", { id: "subnet-tx" });
     }
     if (isWriteTxSuccess) {
+      console.log("[useSubnetContractInteractions] Transaction successful! Processing...");
       toast.success("Subnet created successfully!", {
         id: "subnet-tx",
         description: `Tx: ${writeTxResult?.substring(0, 10)}...`,
-        action: {
-          label: "View on Explorer",
-          onClick: () => {
-            const explorerUrl = SUPPORTED_CHAINS[selectedChainId]?.blockExplorers?.default.url;
-            if (explorerUrl && writeTxResult) {
-              window.open(`${explorerUrl}/tx/${writeTxResult}`, "_blank");
-            }
-          }
-        }
+        duration: 5000,
       });
+
       resetWriteContract();
-      // Note: Don't call onTxSuccess here for mainnet - let it be called after Supabase insertion
-      // For testnet, call it since there's no Supabase insertion
+      
+      // IMMEDIATELY populate cache before redirect
       const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
-      if (!isMainnet) {
-        setSubmittedFormData(null); // Clear form data for testnet
-        if (onTxSuccess) {
-          setTimeout(() => onTxSuccess(), 3000);
+      console.log("[useSubnetContractInteractions] Is mainnet?", isMainnet, "Selected chain:", selectedChainId);
+      
+      if (isMainnet && submittedFormData && connectedAddress) {
+        const networkName = getNetworkName(selectedChainId);
+        console.log("[useSubnetContractInteractions] Populating cache BEFORE redirect with:", {
+          subnetName: submittedFormData.subnet.name,
+          networkName,
+          connectedAddress,
+          addNewlyCreatedSubnetExists: !!addNewlyCreatedSubnet
+        });
+        
+        // Add to cache immediately so it's available for queries
+        if (addNewlyCreatedSubnet) {
+          addNewlyCreatedSubnet(submittedFormData.subnet.name, networkName, connectedAddress);
+          console.log("[useSubnetContractInteractions] Cache populated BEFORE redirect");
         }
       }
-      // For mainnet, keep submittedFormData for Supabase insertion
+      
+      // Call onTxSuccess (redirect) after cache is populated
+      if (onTxSuccess) {
+        console.log("[useSubnetContractInteractions] Transaction successful, calling onTxSuccess with cache populated");
+        
+        setTimeout(() => {
+          console.log("[useSubnetContractInteractions] Executing redirect without localStorage refresh flag");
+          onTxSuccess();
+        }, isMainnet ? 1000 : 3000); // Shorter delay since cache is already populated
+      }
     }
     if (writeError) {
       const errorMsg = writeError?.message || "Subnet creation failed.";
@@ -354,14 +377,21 @@ export const useSubnetContractInteractions = ({
 
   // Effect to handle Supabase insertion after successful transaction
   useEffect(() => {
+    console.log("[useSubnetContractInteractions] Supabase insertion effect triggered:", {
+      isWriteTxSuccess,
+      hasSubmittedFormData: !!submittedFormData,
+      writeTxResult,
+      onTxSuccessExists: !!onTxSuccess
+    });
+    
     const insertIntoSupabase = async () => {
       if (isWriteTxSuccess && submittedFormData && writeTxResult) {
         const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
-        console.log(`Transaction successful (Tx: ${writeTxResult}). Checking if mainnet for Supabase insert...`, { selectedChainId, isMainnet });
+        console.log(`[useSubnetContractInteractions] Transaction successful (Tx: ${writeTxResult}). Checking if mainnet for Supabase insert...`, { selectedChainId, isMainnet });
 
         if (isMainnet) {
           const networkName = getNetworkName(selectedChainId);
-          console.log(`Mainnet detected (${networkName}). Preparing data for Supabase...`);
+          console.log(`[useSubnetContractInteractions] Mainnet detected (${networkName}). Preparing data for Supabase...`);
 
           const newBuilderData: Partial<BuilderDB> = {
             name: submittedFormData.subnet.name,
@@ -382,56 +412,43 @@ export const useSubnetContractInteractions = ({
             reward_types_detail: [],
           };
 
-          console.log("Data to insert into Supabase:", newBuilderData);
+          console.log("[useSubnetContractInteractions] Data to insert into Supabase:", newBuilderData);
 
           try {
             toast.info("Syncing project details with database...", { id: "supabase-sync" });
             await BuildersService.addBuilder(newBuilderData);
-            toast.success("Project details synced successfully!", { id: "supabase-sync" });
-            
-            // Add the subnet name to local cache for immediate visibility
-            if (connectedAddress) {
-              addNewlyCreatedSubnet(submittedFormData.subnet.name, networkName, connectedAddress);
-              console.log(`[useSubnetContractInteractions] Added "${submittedFormData.subnet.name}" to newly created subnets cache with admin ${connectedAddress}`);
-            }
-          } catch (dbError) {
-            console.error("Failed to insert builder data into Supabase:", dbError);
-            toast.error("Database Sync Failed", {
-              id: "supabase-sync",
-              description: dbError instanceof Error ? dbError.message : "Could not save project details."
+            toast.success("Project details synced successfully!", { 
+              id: "supabase-sync"
             });
-            // Don't block navigation if DB insert fails, but log error
-            console.log("[useSubnetContractInteractions] Supabase insertion failed, but still redirecting...");
-            // Clear submitted data and trigger redirect even on DB error
-            setSubmittedFormData(null);
-            if (onTxSuccess) {
-              setTimeout(() => {
-                console.log("[useSubnetContractInteractions] Executing redirect after DB error");
-                onTxSuccess();
-              }, 1000);
-            }
-            return; // Exit early to avoid duplicate redirect
+            
+            // Cache was already populated before redirect, so no need to add again
+            console.log("[useSubnetContractInteractions] Supabase insertion successful, cache already populated");
+            
+          } catch (dbError) {
+            console.error("[useSubnetContractInteractions] Supabase insertion failed:", dbError);
+            toast.error("Failed to sync project details with database", { id: "supabase-sync" });
+            // Don't block user experience if DB insert fails, cache and redirect already happened
+            console.log("[useSubnetContractInteractions] Supabase insertion failed, but navigation already happened");
           }
         } else {
-          console.log("Not a mainnet chain, skipping Supabase insertion.");
+          console.log("[useSubnetContractInteractions] Not a mainnet chain, skipping Supabase insertion.");
         }
 
-        // Clear submitted data and trigger original success callback (navigation)
+        // Clear submitted data - redirect already happened immediately after transaction
+        console.log("[useSubnetContractInteractions] Supabase insertion complete, clearing form data");
         setSubmittedFormData(null);
-        if (onTxSuccess) {
-           console.log("[useSubnetContractInteractions] Supabase insertion complete, redirecting in 2 seconds...");
-           // Longer delay to ensure Supabase insertion and cache updates are complete
-           setTimeout(() => {
-             console.log("[useSubnetContractInteractions] Executing redirect with refresh=true");
-             onTxSuccess();
-           }, 2000);
-        }
+      } else {
+        console.log("[useSubnetContractInteractions] Supabase insertion effect triggered but conditions not met:", {
+          isWriteTxSuccess,
+          hasSubmittedFormData: !!submittedFormData,
+          writeTxResult
+        });
       }
     };
 
     insertIntoSupabase();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWriteTxSuccess, submittedFormData, selectedChainId, writeTxResult, getNetworkName, onTxSuccess]); // Add dependencies
+  }, [isWriteTxSuccess, submittedFormData, selectedChainId, writeTxResult, getNetworkName, onTxSuccess, addNewlyCreatedSubnet, connectedAddress]); // Add dependencies
 
   // Update loading state for token data and allowance
   useEffect(() => {
@@ -544,7 +561,17 @@ export const useSubnetContractInteractions = ({
     }
   }, [isCorrectNetwork, tokenAddress, connectedAddress, builderContractAddress, writeApprove, creationFee, selectedChainId]);
 
-  const handleCreateSubnet = useCallback(async (data: FormData) => {
+  const handleCreateSubnet = async (formData: FormData) => {
+    console.log("[useSubnetContractInteractions] handleCreateSubnet called with data:", formData);
+    console.log("[useSubnetContractInteractions] Current selectedChainId:", selectedChainId);
+    
+    // Store form data for later use (mainly for Supabase insertion on mainnet)
+    setSubmittedFormData(formData);
+    console.log("[useSubnetContractInteractions] Form data stored for later use");
+
+    const isTestnet = selectedChainId === arbitrumSepolia.id;
+    console.log("[useSubnetContractInteractions] Is testnet?", isTestnet);
+
     const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
 
     if (!connectedAddress || !isCorrectNetwork()) {
@@ -564,23 +591,23 @@ export const useSubnetContractInteractions = ({
       // console.log(`Setting startsAt to 1 hour in the future for contract: ${new Date(Number(startsAtTimestamp) * 1000).toISOString()}`);
 
       if (isMainnet) {
-        const poolName = data.builderPool?.name || data.subnet.name || `UniquePool-${Date.now()}`; // Name from form
+        const poolName = formData.builderPool?.name || formData.subnet.name || `UniquePool-${Date.now()}`; // Name from form
         const adminAddress = connectedAddress;
         const poolStart = startsAtTimestamp.toString(); // From "now + 1hr"
 
         // These now come directly from validated form data
         const withdrawLock = calculateSecondsForLockPeriod(
-          data.subnet.withdrawLockPeriod,
-          data.subnet.withdrawLockUnit
+          formData.subnet.withdrawLockPeriod,
+          formData.subnet.withdrawLockUnit
         ).toString();
 
         const claimLock = BigInt(
-          getUnixTime(data.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // Default if not set
+          getUnixTime(formData.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // Default if not set
         ).toString();
 
         // Form validation should ensure this meets contract's practical minimum (e.g. >= 0.01)
         const minDeposit = parseEther(
-          (data.builderPool?.minimalDeposit ?? data.subnet.minStake ?? 0.01).toString() // Fallback to 0.01 if form values are missing
+          (formData.builderPool?.minimalDeposit ?? formData.subnet.minStake ?? 0.01).toString() // Fallback to 0.01 if form values are missing
         ).toString();
 
         const dynamicBuilderPoolTuple = [
@@ -598,29 +625,29 @@ export const useSubnetContractInteractions = ({
 
       } else {
         // Testnet logic (as corrected previously)
-        const testnetSubnetName = data.subnet.name || `TestNetSubnet-${Date.now()}`;
-        const testnetSlug = data.metadata.slug || testnetSubnetName.toLowerCase().replace(/\s+/g, '-');
+        const testnetSubnetName = formData.subnet.name || `TestNetSubnet-${Date.now()}`;
+        const testnetSlug = formData.metadata.slug || testnetSubnetName.toLowerCase().replace(/\s+/g, '-');
 
         const subnetStruct = {
           name: testnetSubnetName,
           owner: connectedAddress as `0x${string}`,
           // Form validation should ensure minStake is appropriate for testnet (e.g. >= 0.001)
-          minStake: parseEther((data.subnet.minStake || 0.001).toString()),
-          fee: BigInt(data.subnet.fee || 0),
-          feeTreasury: (data.subnet.feeTreasury || connectedAddress) as `0x${string}`,
+          minStake: parseEther((formData.subnet.minStake || 0.001).toString()),
+          fee: BigInt(formData.subnet.fee || 0),
+          feeTreasury: (formData.subnet.feeTreasury || connectedAddress) as `0x${string}`,
           startsAt: startsAtTimestamp,
           withdrawLockPeriodAfterStake: calculateSecondsForLockPeriod(
-            data.subnet.withdrawLockPeriod,
-            data.subnet.withdrawLockUnit
+            formData.subnet.withdrawLockPeriod,
+            formData.subnet.withdrawLockUnit
           ),
-          maxClaimLockEnd: BigInt(getUnixTime(data.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))),
+          maxClaimLockEnd: BigInt(getUnixTime(formData.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))),
         };
 
         const metadataStruct = {
           slug: testnetSlug,
-          description: data.metadata.description || "Testnet subnet description",
-          website: data.metadata.website || "https://example.com",
-          image: data.metadata.image || ""
+          description: formData.metadata.description || "Testnet subnet description",
+          website: formData.metadata.website || "https://example.com",
+          image: formData.metadata.image || ""
         };
 
         console.log("Creating subnet (Testnet) with DYNAMIC parameters:", subnetStruct, metadataStruct);
@@ -634,22 +661,11 @@ export const useSubnetContractInteractions = ({
         });
       }
 
-      setSubmittedFormData(data);
-      
     } catch (error) {
       console.error("Error preparing createSubnet/createBuilderPool transaction:", error);
       toast.error("Error preparing transaction: " + (error instanceof Error ? error.message : "Unknown error"), { id: "subnet-tx" });
     }
-  }, [
-    connectedAddress,
-    isCorrectNetwork,
-    builderContractAddress,
-    writeContract,
-    selectedChainId,
-    calculateSecondsForLockPeriod,
-    arbitrum.id, 
-    base.id,     
-  ]);
+  };
 
   return {
     // State

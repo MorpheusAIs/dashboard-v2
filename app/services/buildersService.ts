@@ -170,12 +170,12 @@ export const fetchBuildersAPI = async (
       });
     } else { // Mainnet logic
       if (!supabaseBuildersLoaded || !supabaseBuilders || supabaseBuilders.length === 0) {
-        console.log('[API] Mainnet: Supabase builders not ready or empty. Returning empty array.');
+        // console.log('[API] Mainnet: Supabase builders not ready or empty. Returning empty array.');
         return [];
       }
       
       const builderNames = supabaseBuilders.map(b => b.name);
-      console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering from Supabase.`);
+      // console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering from Supabase.`);
       
       const commonVariables = {
         orderBy: "totalStaked",
@@ -193,7 +193,7 @@ export const fetchBuildersAPI = async (
         throw new Error(`[API] Could not get Apollo clients for Base or Arbitrum`);
       }
       
-      console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum.');
+      // console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum.');
       
       const [baseResponse, arbitrumResponse] = await Promise.all([
         baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
@@ -263,14 +263,14 @@ export const fetchBuildersAPI = async (
         };
       });
 
-      console.log('[API] Mainnet: Fetched from Base:', baseProjects.length, 'projects');
-      console.log('[API] Mainnet: Fetched from Arbitrum:', arbitrumProjects.length, 'projects');
+      // console.log('[API] Mainnet: Fetched from Base:', baseProjects.length, 'projects');
+      // console.log('[API] Mainnet: Fetched from Arbitrum:', arbitrumProjects.length, 'projects');
       
       combinedProjects = [...baseProjects, ...arbitrumProjects];
-      console.log('[API] Mainnet: Combined projects:', combinedProjects.length);
+      // console.log('[API] Mainnet: Combined projects:', combinedProjects.length);
 
       if (!supabaseBuilders) {
-        console.warn("[API] Mainnet: supabaseBuilders is null at merging stage. Returning empty Builder array.");
+        // console.warn("[API] Mainnet: supabaseBuilders is null at merging stage. Returning empty Builder array.");
         return [];
       }
 
@@ -284,9 +284,9 @@ export const fetchBuildersAPI = async (
         .filter(([, count]) => count > 1)
         .map(([name]) => name);
 
-      if (duplicateBuilderNames.length > 0) {
-        console.log('[API] Mainnet: Found builders deployed on multiple networks:', duplicateBuilderNames);
-      }
+      // if (duplicateBuilderNames.length > 0) {
+      //   console.log('[API] Mainnet: Found builders deployed on multiple networks:', duplicateBuilderNames);
+      // }
 
       // NEW APPROACH: Map from combined projects to preserve network information
       const mappedBuilders: Builder[] = [];
@@ -335,7 +335,7 @@ export const fetchBuildersAPI = async (
         } else {
           // This is an on-chain builder that doesn't exist in Supabase
           // Create a minimal builder object
-          console.log(`[API] Mainnet: Found on-chain builder '${onChainProject.name}' on ${onChainProject.network} not in Supabase`);
+          // console.log(`[API] Mainnet: Found on-chain builder '${onChainProject.name}' on ${onChainProject.network} not in Supabase`);
           
           const currentDate = new Date().toISOString();
           const builder: Builder = {
@@ -387,7 +387,7 @@ export const fetchBuildersAPI = async (
       const supabaseOnlyBuilders = supabaseBuilders.filter(b => !onChainBuilderNames.includes(b.name));
       
       if (supabaseOnlyBuilders.length > 0) {
-        console.log(`[API] Mainnet: Found ${supabaseOnlyBuilders.length} builders in Supabase without on-chain data`);
+        // console.log(`[API] Mainnet: Found ${supabaseOnlyBuilders.length} builders in Supabase without on-chain data`);
         
         // Add these builders to the mapped list with default on-chain values
         supabaseOnlyBuilders.forEach(builderDB => {
@@ -395,7 +395,7 @@ export const fetchBuildersAPI = async (
           const newlyCreatedAdmin = getNewlyCreatedSubnetAdmin ? getNewlyCreatedSubnetAdmin(builderDB.name) : null;
           const adminAddress = newlyCreatedAdmin || ""; // Use cached admin address if available
           
-          console.log(`[API] Mainnet: Processing Supabase-only builder "${builderDB.name}" with admin: ${adminAddress || 'none'}`);
+          // console.log(`[API] Mainnet: Processing Supabase-only builder "${builderDB.name}" with admin: ${adminAddress || 'none'}`);
           
           const builder = mergeBuilderData(builderDB, {
             id: "",

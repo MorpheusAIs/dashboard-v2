@@ -15,7 +15,7 @@ export const useMorlordBuilders = () => {
       try {
         // Use our API route instead of calling the external API directly
         // This helps avoid CORS issues
-        console.log('[useMorlordBuilders] Fetching data from /api/builders');
+        // console.log('[useMorlordBuilders] Fetching data from /api/builders');
         const response = await fetch('/api/builders');
         
         if (!response.ok) {
@@ -25,7 +25,7 @@ export const useMorlordBuilders = () => {
         
         const builderNames: string[] = await response.json();
         
-        console.log(`[useMorlordBuilders] Fetched ${builderNames.length} builder names:`, builderNames);
+        // console.log(`[useMorlordBuilders] Fetched ${builderNames.length} builder names:`, builderNames);
         return builderNames;
       } catch (error) {
         console.error('[useMorlordBuilders] Error fetching builders:', error);

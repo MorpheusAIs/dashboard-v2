@@ -30,7 +30,6 @@ import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
 // Import useBalance hook
 import { useBalance } from 'wagmi';
 
-
 export default function NewSubnetPage() {
   // --- State --- //
   const [currentStep, setCurrentStep] = useState(1);
@@ -73,7 +72,7 @@ export default function NewSubnetPage() {
     mode: "onChange",
   });
 
-  // Get the selected chain ID from the form
+    // Get the selected chain ID from the form
   const selectedChainId = form.watch("subnet.networkChainId");
 
   // --- Balance Check --- //
@@ -104,8 +103,17 @@ export default function NewSubnetPage() {
   } = useSubnetContractInteractions({ 
     selectedChainId,
     onTxSuccess: () => {
-      console.log("[NewSubnetPage] onTxSuccess triggered, redirecting to builders page with refresh=true");
-      router.push('/builders?tab=subnets&sort=totalStaked-desc&refresh=true');
+      console.log("[NewSubnetPage] onTxSuccess triggered, redirecting to builders page");
+      console.log("[NewSubnetPage] Current window location before redirect:", window.location.href);
+      const redirectUrl = '/builders?tab=subnets&sort=totalStaked-desc';
+      console.log("[NewSubnetPage] Redirecting to:", redirectUrl);
+      
+      // Try using window.location.href instead of router.push to test timing
+      console.log("[NewSubnetPage] Using window.location.href for redirect");
+      window.location.href = redirectUrl;
+      
+      // Alternative: Use router.push (comment out window.location.href and uncomment this)
+      // router.push(redirectUrl);
     }
   });
 
@@ -199,9 +207,16 @@ export default function NewSubnetPage() {
         handleApprove();
       } else {
         console.log("Calling form.handleSubmit(handleCreateSubnet)...");
+        console.log("Current form values:", form.getValues());
+        console.log("Form validation state:", {
+          isValid: form.formState.isValid,
+          errors: form.formState.errors
+        });
         form.handleSubmit((data) => {
           console.log("Form data submitted to handleCreateSubnet:", data);
           handleCreateSubnet(data);
+        }, (errors) => {
+          console.error("Form submission failed validation:", errors);
         })();
       }
     } else {

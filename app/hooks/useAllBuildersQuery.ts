@@ -54,8 +54,8 @@ export const useAllBuildersQuery = () => {
   return useQuery<Builder[], Error>({ 
     queryKey: queryKey,
     queryFn: async () => {
-      console.log('[useAllBuildersQuery] Query function executing with key:', JSON.stringify(queryKey));
-      console.log('[useAllBuildersQuery] Current newly created subnets:', newlyCreatedNames);
+      // console.log('[useAllBuildersQuery] Query function executing with key:', JSON.stringify(queryKey));
+      // console.log('[useAllBuildersQuery] Current newly created subnets:', newlyCreatedNames);
       
       if (!isTestnet && supabaseError) {
         console.warn('[useAllBuildersQuery] Supabase error detected on mainnet:', supabaseError);
@@ -70,7 +70,7 @@ export const useAllBuildersQuery = () => {
         // Combine morlord names with newly created names
         const allOfficialNames = [...morlordBuilderNames, ...newlyCreatedNames];
         
-        console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names and ${newlyCreatedNames.length} newly created names`);
+        // console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names and ${newlyCreatedNames.length} newly created names`);
         
         // Clean up any newly created names that now appear in morlord data
         if (newlyCreatedNames.length > 0) {
@@ -79,19 +79,19 @@ export const useAllBuildersQuery = () => {
         
         // Log the names from Supabase
         const supabaseNames = supabaseBuilders?.map(b => b.name) || [];
-        console.log(`[useAllBuildersQuery] Supabase builder names:`, supabaseNames);
+        // console.log(`[useAllBuildersQuery] Supabase builder names:`, supabaseNames);
         
         // Identify which builders are in Supabase but not in the combined official list (Morlord + newly created)
-        const supabaseOnlyBuilders = supabaseBuilders?.filter(builder => 
-          !allOfficialNames.includes(builder.name)
-        ) || [];
+        // const supabaseOnlyBuilders = supabaseBuilders?.filter(builder => 
+        //   !allOfficialNames.includes(builder.name)
+        // ) || [];
         
-        if (supabaseOnlyBuilders.length > 0) {
-          const supabaseOnlyNames = supabaseOnlyBuilders.map(b => b.name);
-          console.log(`[useAllBuildersQuery] Found ${supabaseOnlyBuilders.length} builders in Supabase that are NOT in official list:`, supabaseOnlyNames);
-        } else {
-          console.log('[useAllBuildersQuery] All Supabase builders are also in the official list');
-        }
+        // if (supabaseOnlyBuilders.length > 0) {
+        //   const supabaseOnlyNames = supabaseOnlyBuilders.map(b => b.name);
+        //   console.log(`[useAllBuildersQuery] Found ${supabaseOnlyBuilders.length} builders in Supabase that are NOT in official list:`, supabaseOnlyNames);
+        // } else {
+        //   console.log('[useAllBuildersQuery] All Supabase builders are also in the official list');
+        // }
         
         // Identify which builders are in the official list but not in Supabase
         const officialOnlyNames = allOfficialNames.filter(name => 
@@ -99,7 +99,7 @@ export const useAllBuildersQuery = () => {
         );
         
         if (officialOnlyNames.length > 0) {
-          console.log(`[useAllBuildersQuery] Found ${officialOnlyNames.length} builders in official list that are NOT in Supabase:`, officialOnlyNames);
+          // console.log(`[useAllBuildersQuery] Found ${officialOnlyNames.length} builders in official list that are NOT in Supabase:`, officialOnlyNames);
           
           // Create basic builder objects for these missing builders and add them to the combined list
           const currentDate = new Date().toISOString();
@@ -129,7 +129,7 @@ export const useAllBuildersQuery = () => {
           
           // Add these to the combined list
           combinedBuilders = [...combinedBuilders, ...officialOnlyBuilders];
-          console.log(`[useAllBuildersQuery] Added ${officialOnlyBuilders.length} builders from official API that weren't in Supabase`);
+          // console.log(`[useAllBuildersQuery] Added ${officialOnlyBuilders.length} builders from official API that weren't in Supabase`);
         } else {
           console.log('[useAllBuildersQuery] All official builders are also in Supabase');
         }
@@ -138,7 +138,7 @@ export const useAllBuildersQuery = () => {
       }
       
       // Pass the COMBINED list of builders to fetchBuildersAPI
-      console.log(`[useAllBuildersQuery] Calling fetchBuildersAPI with ${combinedBuilders.length} COMBINED builders from both Supabase and Morlord`);
+      // console.log(`[useAllBuildersQuery] Calling fetchBuildersAPI with ${combinedBuilders.length} COMBINED builders from both Supabase and Morlord`);
       
       const result = await fetchBuildersAPI(
         isTestnet, 
@@ -148,7 +148,7 @@ export const useAllBuildersQuery = () => {
         getNewlyCreatedSubnetAdmin // Pass the function to get admin addresses for newly created subnets
       );
       
-      console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);
+      // console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);
       return result;
     },
     enabled: isEnabled,

@@ -133,6 +133,7 @@ function formatUnlockTime(claimLockEnd?: string | number | bigint | null): strin
 function BuilderModalWrapper() {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const { isAdmin } = useAuth();
+  const { refreshData } = useBuilders(); // Get refreshData for debug button
   
   return (
     <div className="flex gap-4 items-center">
@@ -144,6 +145,20 @@ function BuilderModalWrapper() {
           Bulk registration
         </button>
       )}
+      
+      {/* Debug refresh button */}
+      <button 
+        onClick={() => {
+          console.log("[Debug] Manual refresh triggered");
+          refreshData().then(() => {
+            console.log("[Debug] Manual refresh completed");
+          });
+        }}
+        className="copy-button copy-button-secondary mb-4"
+        style={{ backgroundColor: '#ff6b6b' }}
+      >
+        🔄 Debug Refresh
+      </button>
       
       <Link href="/builders/newsubnet">
         <button
@@ -269,9 +284,22 @@ const getBuilderSlug = (builder: Builder, duplicateNames: string[]) => {
 };
 
 export default function BuildersPage() {
+
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
+  
+  // Add state to prevent multiple cache-triggered refreshes
+  const [hasTriggeredCacheRefresh, setHasTriggeredCacheRefresh] = useState(false);
+  
+  // Debug logging for component lifecycle
+  console.log("[BuildersPage] Component render - Lifecycle checkpoint");
+  
+  // IMMEDIATE cache check (not in useEffect)
+  const cachedSubnetsImmediate = localStorage.getItem('newly_created_subnets');
+  if (cachedSubnetsImmediate) {
+    console.log("[BuildersPage] IMMEDIATE CACHE CHECK - Found cache:", JSON.parse(cachedSubnetsImmediate));
+  }
   
   // Handler for opening the stake modal
   const handleOpenStakeModal = useCallback((builder: Builder) => {
@@ -318,39 +346,43 @@ export default function BuildersPage() {
   // Temporary fallback values for testing
   const userAdminSubnets = useMemo<Builder[] | null>(() => {
     if (!isAuthenticated || !userAddress || !builders) return null;
-    return builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
+    const adminSubnets = builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
+    console.log(`[BuildersPage] userAdminSubnets calculation:`, {
+      totalBuilders: builders.length,
+      userAddress,
+      adminSubnets: adminSubnets.length,
+      subnetNames: adminSubnets.map(s => s.name)
+    });
+    return adminSubnets;
   }, [isAuthenticated, userAddress, builders]);
 
   const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
 
   // Initialize tab state from URL or use default
   const [activeTab, setActiveTab] = useState(() => {
-    return getParam('tab') || 'builders';
+    const tabFromUrl = getParam('tab') || 'builders';
+    console.log("[BuildersPage] Initial activeTab from URL:", tabFromUrl);
+    return tabFromUrl;
   });
-
-  // useEffect to refresh data if 'refresh=true' is in URL
+  
+  // Debug activeTab changes
   useEffect(() => {
-    if (getParam('refresh') === 'true') {
-      console.log("Refresh param found, calling refreshData and switching to subnets tab");
-      
-      // Switch to the subnets tab to show the new subnet
-      if (getParam('tab') === 'subnets') {
-        setActiveTab('subnets');
-      }
-      
-      // Call refresh with additional logging
-      refreshData().then(() => {
-        console.log("Data refreshed successfully, removing refresh param from URL");
-        console.log("Current builders count:", builders.length);
-        console.log("Current userAdminSubnets count:", userAdminSubnets?.length || 0);
-        setParam('refresh', null); // Use setParam with null to remove
-      }).catch((error) => {
-        console.error("Error during refresh:", error);
-        setParam('refresh', null); // Remove param even on error
-      });
+    console.log("[BuildersPage] activeTab changed to:", activeTab);
+  }, [activeTab]);
+  
+  // Debug refreshData availability
+  useEffect(() => {
+    console.log("[BuildersPage] refreshData function availability:", !!refreshData);
+  }, [refreshData]);
+  
+  // Force check cache on every render (for debugging)
+  useEffect(() => {
+    console.log("[BuildersPage] EVERY RENDER - activeTab:", activeTab, "hasTriggeredCacheRefresh:", hasTriggeredCacheRefresh);
+    const cachedSubnets = localStorage.getItem('newly_created_subnets');
+    if (cachedSubnets) {
+      console.log("[BuildersPage] EVERY RENDER - Cache found:", JSON.parse(cachedSubnets));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getParam, refreshData, setParam, builders.length, userAdminSubnets?.length]); // Updated dependencies
+  });
 
   // Convert context sorting to the format expected by the UI (for Builders tab)
   const sorting = useMemo(() => {
@@ -800,7 +832,7 @@ export default function BuildersPage() {
       return matchesName && matchesNetwork && matchesStatus;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userAdminSubnets, yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter, userAddress]); // userAddress is needed for filtering
+  }, [userAdminSubnets, yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter, userAddress]);
   // --- END MODIFY Filter logic ---
 
   // For your subnets filters, initialize from URL only if values exist
@@ -1112,6 +1144,52 @@ export default function BuildersPage() {
     }
     return "0"; // Or 'N/A' or some other placeholder
   }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
+
+  // Check for cached subnets when on subnets tab
+  useEffect(() => {
+    console.log(`[BuildersPage] useEffect triggered with activeTab: ${activeTab}, hasTriggeredCacheRefresh: ${hasTriggeredCacheRefresh}`);
+    
+    // Reset flag when switching away from subnets tab
+    if (activeTab !== 'subnets') {
+      if (hasTriggeredCacheRefresh) {
+        console.log("[BuildersPage] Resetting cache refresh flag (left subnets tab)");
+        setHasTriggeredCacheRefresh(false);
+      }
+      return;
+    }
+    
+    // Only check when on subnets tab and haven't triggered refresh yet
+    if (activeTab === 'subnets' && !hasTriggeredCacheRefresh) {
+      const cachedSubnets = localStorage.getItem('newly_created_subnets');
+      console.log(`[BuildersPage] Checking for cached subnets:`, {
+        hasCachedSubnets: !!cachedSubnets,
+        cacheContent: cachedSubnets ? JSON.parse(cachedSubnets) : null
+      });
+      
+      if (cachedSubnets) {
+        try {
+          const parsed = JSON.parse(cachedSubnets);
+          if (parsed && parsed.length > 0) {
+            console.log(`[BuildersPage] Found ${parsed.length} cached subnets, triggering refresh!`);
+            
+            // Set flag to prevent repeated refreshes
+            setHasTriggeredCacheRefresh(true);
+            
+            // Trigger refresh but don't clear cache - let hooks consume it
+            refreshData().then(() => {
+              console.log("[BuildersPage] Cache-triggered refresh completed successfully");
+            }).catch((error) => {
+              console.error("[BuildersPage] Cache-triggered refresh failed:", error);
+            });
+          }
+        } catch (e) {
+          console.error("[BuildersPage] Error parsing cached subnets:", e);
+        }
+      } else {
+        console.log("[BuildersPage] No cached subnets found");
+      }
+    }
+  }, [activeTab, hasTriggeredCacheRefresh, refreshData]);
 
   return (
     <div className="page-container">
