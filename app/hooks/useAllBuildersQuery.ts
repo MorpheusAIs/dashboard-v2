@@ -31,14 +31,16 @@ export const useAllBuildersQuery = () => {
     newlyCreatedNames length: ${newlyCreatedNamesLength}
   `);
 
-  // Include userAddress and morlordBuilderNames in the queryKey for refetching
+  // Include userAddress, morlordBuilderNames, and newly created subnets in the queryKey for refetching
+  const newlyCreatedNames = getNewlyCreatedSubnetNames();
   const queryKey: QueryKey = [
     'builders', 
     { 
       isTestnet, 
       supabaseBuildersLoaded, 
       userAddress: isAuthenticated ? userAddress : null,
-      morlordBuilderNamesLoaded: !isLoadingMorlordBuilders && !!morlordBuilderNames
+      morlordBuilderNamesLoaded: !isLoadingMorlordBuilders && !!morlordBuilderNames,
+      newlyCreatedSubnets: newlyCreatedNames.join(',') // Include newly created subnets in key
     }
   ];
 
@@ -52,7 +54,8 @@ export const useAllBuildersQuery = () => {
   return useQuery<Builder[], Error>({ 
     queryKey: queryKey,
     queryFn: async () => {
-      console.log('[useAllBuildersQuery] Query function executing');
+      console.log('[useAllBuildersQuery] Query function executing with key:', JSON.stringify(queryKey));
+      console.log('[useAllBuildersQuery] Current newly created subnets:', newlyCreatedNames);
       
       if (!isTestnet && supabaseError) {
         console.warn('[useAllBuildersQuery] Supabase error detected on mainnet:', supabaseError);

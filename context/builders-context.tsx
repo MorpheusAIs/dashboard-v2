@@ -117,8 +117,19 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   }, [builders]);
   
   const refreshData = useCallback(async () => {
-    console.log("[BuildersContext] refreshData called. Invalidating 'builders' query.");
-    await queryClient.invalidateQueries({ queryKey: ['builders'] });
+    console.log("[BuildersContext] refreshData called. Invalidating all builder-related queries.");
+    
+    // Invalidate all builder-related queries
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['builders'] }),
+      queryClient.invalidateQueries({ queryKey: ['supabaseBuilders'] }),
+      queryClient.invalidateQueries({ queryKey: ['morlordBuilders'] }),
+    ]);
+    
+    // Force refetch the main builders query
+    await queryClient.refetchQueries({ queryKey: ['builders'] });
+    
+    console.log("[BuildersContext] All builder queries invalidated and refetched.");
   }, [queryClient]);
 
   return (

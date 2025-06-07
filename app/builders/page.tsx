@@ -331,14 +331,26 @@ export default function BuildersPage() {
   // useEffect to refresh data if 'refresh=true' is in URL
   useEffect(() => {
     if (getParam('refresh') === 'true') {
-      console.log("Refresh param found, calling refreshData");
+      console.log("Refresh param found, calling refreshData and switching to subnets tab");
+      
+      // Switch to the subnets tab to show the new subnet
+      if (getParam('tab') === 'subnets') {
+        setActiveTab('subnets');
+      }
+      
+      // Call refresh with additional logging
       refreshData().then(() => {
-        console.log("Data refreshed, removing refresh param from URL");
+        console.log("Data refreshed successfully, removing refresh param from URL");
+        console.log("Current builders count:", builders.length);
+        console.log("Current userAdminSubnets count:", userAdminSubnets?.length || 0);
         setParam('refresh', null); // Use setParam with null to remove
+      }).catch((error) => {
+        console.error("Error during refresh:", error);
+        setParam('refresh', null); // Remove param even on error
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getParam, refreshData, setParam]); // Updated dependencies
+  }, [getParam, refreshData, setParam, builders.length, userAdminSubnets?.length]); // Updated dependencies
 
   // Convert context sorting to the format expected by the UI (for Builders tab)
   const sorting = useMemo(() => {

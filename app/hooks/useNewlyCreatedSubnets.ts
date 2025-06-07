@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface NewlyCreatedSubnet {
   name: string;
@@ -16,6 +17,7 @@ const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
  */
 export const useNewlyCreatedSubnets = () => {
   const [newlyCreatedSubnets, setNewlyCreatedSubnets] = useState<NewlyCreatedSubnet[]>([]);
+  const queryClient = useQueryClient();
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -64,6 +66,10 @@ export const useNewlyCreatedSubnets = () => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         console.log(`[useNewlyCreatedSubnets] Added "${name}" to cache (${network})`);
+        
+        // Trigger query invalidation to refetch data with new subnet
+        queryClient.invalidateQueries({ queryKey: ['builders'] });
+        console.log(`[useNewlyCreatedSubnets] Invalidated builders queries for new subnet "${name}"`);
       } catch (error) {
         console.error('[useNewlyCreatedSubnets] Error saving to localStorage:', error);
       }

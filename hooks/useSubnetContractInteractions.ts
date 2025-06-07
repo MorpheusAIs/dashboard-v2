@@ -403,7 +403,8 @@ export const useSubnetContractInteractions = ({
         // Clear submitted data and trigger original success callback (navigation)
         setSubmittedFormData(null);
         if (onTxSuccess) {
-           setTimeout(() => onTxSuccess(), 1000); // Short delay after toasts
+           // Longer delay to ensure Supabase insertion and cache updates are complete
+           setTimeout(() => onTxSuccess(), 2000);
         }
       }
     };
