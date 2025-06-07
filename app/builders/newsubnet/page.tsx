@@ -103,7 +103,10 @@ export default function NewSubnetPage() {
     handleCreateSubnet
   } = useSubnetContractInteractions({ 
     selectedChainId,
-    onTxSuccess: () => router.push('/builders?tab=subnets&sort=totalStaked-desc&refresh=true')
+    onTxSuccess: () => {
+      console.log("[NewSubnetPage] onTxSuccess triggered, redirecting to builders page with refresh=true");
+      router.push('/builders?tab=subnets&sort=totalStaked-desc&refresh=true');
+    }
   });
 
   // --- Action Handlers --- //

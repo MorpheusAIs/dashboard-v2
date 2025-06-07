@@ -313,10 +313,16 @@ export const useSubnetContractInteractions = ({
         }
       });
       resetWriteContract();
-      setSubmittedFormData(null); // Clear form data on success
-      if (onTxSuccess) {
-        setTimeout(() => onTxSuccess(), 3000);
+      // Note: Don't call onTxSuccess here for mainnet - let it be called after Supabase insertion
+      // For testnet, call it since there's no Supabase insertion
+      const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
+      if (!isMainnet) {
+        setSubmittedFormData(null); // Clear form data for testnet
+        if (onTxSuccess) {
+          setTimeout(() => onTxSuccess(), 3000);
+        }
       }
+      // For mainnet, keep submittedFormData for Supabase insertion
     }
     if (writeError) {
       const errorMsg = writeError?.message || "Subnet creation failed.";
@@ -395,6 +401,16 @@ export const useSubnetContractInteractions = ({
               description: dbError instanceof Error ? dbError.message : "Could not save project details."
             });
             // Don't block navigation if DB insert fails, but log error
+            console.log("[useSubnetContractInteractions] Supabase insertion failed, but still redirecting...");
+            // Clear submitted data and trigger redirect even on DB error
+            setSubmittedFormData(null);
+            if (onTxSuccess) {
+              setTimeout(() => {
+                console.log("[useSubnetContractInteractions] Executing redirect after DB error");
+                onTxSuccess();
+              }, 1000);
+            }
+            return; // Exit early to avoid duplicate redirect
           }
         } else {
           console.log("Not a mainnet chain, skipping Supabase insertion.");
@@ -403,8 +419,12 @@ export const useSubnetContractInteractions = ({
         // Clear submitted data and trigger original success callback (navigation)
         setSubmittedFormData(null);
         if (onTxSuccess) {
+           console.log("[useSubnetContractInteractions] Supabase insertion complete, redirecting in 2 seconds...");
            // Longer delay to ensure Supabase insertion and cache updates are complete
-           setTimeout(() => onTxSuccess(), 2000);
+           setTimeout(() => {
+             console.log("[useSubnetContractInteractions] Executing redirect with refresh=true");
+             onTxSuccess();
+           }, 2000);
         }
       }
     };
