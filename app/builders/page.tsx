@@ -274,30 +274,6 @@ export default function BuildersPage() {
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
   
-  // Check for newly created subnet and trigger refresh
-  useEffect(() => {
-    const newSubnetData = localStorage.getItem('new_subnet_created');
-    if (newSubnetData) {
-      try {
-        const { name, timestamp } = JSON.parse(newSubnetData);
-        // Only process if created within last 5 minutes (to avoid stale data)
-        if (Date.now() - timestamp < 5 * 60 * 1000) {
-          console.log('[BuildersPage] New subnet detected:', name, 'triggering refresh');
-          // Clear the localStorage first
-          localStorage.removeItem('new_subnet_created');
-          // Trigger refresh to fetch the new subnet
-          refreshData();
-        } else {
-          // Remove stale data
-          localStorage.removeItem('new_subnet_created');
-        }
-      } catch (e) {
-        console.error('[BuildersPage] Error parsing new subnet data:', e);
-        localStorage.removeItem('new_subnet_created');
-      }
-    }
-  }, []); // Empty dependency array - runs once on mount
-  
   // Handler for opening the stake modal
   const handleOpenStakeModal = useCallback((builder: Builder) => {
     setSelectedBuilder(builder);
@@ -333,6 +309,30 @@ export default function BuildersPage() {
     totalMetrics,
 
   } = useBuilders();
+
+  // Check for newly created subnet and trigger refresh
+  useEffect(() => {
+    const newSubnetData = localStorage.getItem('new_subnet_created');
+    if (newSubnetData) {
+      try {
+        const { name, timestamp } = JSON.parse(newSubnetData);
+        // Only process if created within last 5 minutes (to avoid stale data)
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          console.log('[BuildersPage] New subnet detected:', name, 'triggering refresh');
+          // Clear the localStorage first
+          localStorage.removeItem('new_subnet_created');
+          // Trigger refresh to fetch the new subnet
+          refreshData();
+        } else {
+          // Remove stale data
+          localStorage.removeItem('new_subnet_created');
+        }
+      } catch (e) {
+        console.error('[BuildersPage] Error parsing new subnet data:', e);
+        localStorage.removeItem('new_subnet_created');
+      }
+    }
+  }, [refreshData]); // Include refreshData in dependencies
 
   // Get auth state
   const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
