@@ -13,6 +13,8 @@ import { useBuilders } from "@/context/builders-context";
 import { useAuth } from "@/context/auth-context";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { DataFilters } from "@/components/ui/data-filters";
+import { useChainId } from 'wagmi';
+import { arbitrumSepolia } from 'wagmi/chains';
 import { 
   HoverCard,
   HoverCardContent,
@@ -269,7 +271,19 @@ const getBuilderSlug = (builder: Builder, duplicateNames: string[]) => {
 };
 
 export default function BuildersPage() {
-
+  // Get chain ID to determine testnet vs mainnet
+  const chainId = useChainId();
+  const isTestnet = chainId === arbitrumSepolia.id;
+  
+  // Helper function to get the appropriate subnet ID for URLs
+  const getSubnetId = (builder: Builder): string => {
+    if (isTestnet) {
+      return builder.id || '';
+    } else {
+      return builder.mainnetProjectId || builder.id || '';
+    }
+  };
+  
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
@@ -434,7 +448,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`}
+                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -557,7 +571,7 @@ export default function BuildersPage() {
         ),
       },
     ],
-    [handleOpenStakeModal, duplicateBuilderNames]
+    [handleOpenStakeModal, duplicateBuilderNames, getSubnetId]
   );
 
   // Define columns for the subnets table
@@ -604,7 +618,7 @@ export default function BuildersPage() {
               <div className="flex items-center gap-2">
                 <Link 
                   // Assuming subnets might have a different detail page or use slug like builders
-                  href={`/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}`} // Or potentially /subnets/<id> if that page exists
+                  href={`/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}`} // Or potentially /subnets/<id> if that page exists
                   className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                 >
                   {subnet.name}
@@ -768,7 +782,7 @@ export default function BuildersPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [handleOpenStakeModal, duplicateBuilderNames, userAddress]
+    [handleOpenStakeModal, duplicateBuilderNames, userAddress, getSubnetId]
   );
   // --- END MODIFY subnetsColumns ---
 
@@ -964,7 +978,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`}
+                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -1112,7 +1126,7 @@ export default function BuildersPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [handleOpenStakeModal, duplicateBuilderNames, userAddress]
+    [handleOpenStakeModal, duplicateBuilderNames, userAddress, getSubnetId]
   );
 
   // Calculate Avg MOR Staked for Community Stats
@@ -1268,7 +1282,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`;
+                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`;
                     }}
                   />
                 </div>
@@ -1319,7 +1333,7 @@ export default function BuildersPage() {
                     noResultsMessage="No subnets administered by you were found." // Updated message
                     onRowClick={(subnet) => {
                        // Link to builder/subnet detail page
-                       window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}`; // Or /subnets/<id>
+                       window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}`; // Or /subnets/<id>
                     }}
                   />
                 </div>
@@ -1367,7 +1381,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage={isAuthenticated && userAddress ? "You have not staked in any builders on mainnet networks." : "No participating builders found."}
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}`;
+                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`;
                     }}
                   />
                 </div>

@@ -28,6 +28,7 @@ import { testnetChains, mainnetChains } from '@/config/networks';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useUrlParams } from '@/lib/utils/url-params';
 
 // Type for user in formatStakingEntry
 type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
@@ -74,6 +75,7 @@ console.log("########## BUILDER PAGE COMPONENT RENDERED ##########"); // Top-lev
 export default function BuilderPage() {
   const { slug } = useParams();
   const router = useRouter();
+  const { getParam } = useUrlParams();
   const { builders, isLoading, error: buildersError } = useBuilders();
   const chainId = useChainId();
   const { address: userAddress } = useAccount();
@@ -127,34 +129,58 @@ export default function BuilderPage() {
     
     console.log("########## EFFECT TO FIND BUILDER: slug, builders, isTestnet ##########", slug, builders, isTestnet);
     
-    // Extract network from slug if present
-    const hasNetworkSuffix = slug.includes('-base') || slug.includes('-arbitrum');
-    const network = slug.includes('-base') ? 'Base' : 
-                   slug.includes('-arbitrum') ? 'Arbitrum' : undefined;
+    // Get subnet_id from URL params - prioritize this over slug-based matching
+    const subnetIdFromUrl = getParam('subnet_id');
+    console.log("########## SUBNET_ID FROM URL: ##########", subnetIdFromUrl);
     
-    // Extract base name without network suffix
-    const slugWithoutNetwork = hasNetworkSuffix 
-      ? slug.substring(0, slug.lastIndexOf('-'))
-      : slug;
-    
-    const builderNameFromSlug = slugToBuilderName(slugWithoutNetwork);
     let foundBuilder: Builder | null | undefined = null;
     
     if (builders && builders.length > 0) {
-      // Find builder matching both name and network (if specified)
-      foundBuilder = builders.find(b => {
-        const nameMatches = b.name.toLowerCase() === builderNameFromSlug.toLowerCase();
-        // If network is specified in the slug, require a network match
-        if (network) {
-          return nameMatches && b.network === network;
+      // First try to find by subnet_id if available
+      if (subnetIdFromUrl) {
+        foundBuilder = builders.find(b => {
+          // Check both id (testnet) and mainnetProjectId (mainnet)
+          return b.id === subnetIdFromUrl || b.mainnetProjectId === subnetIdFromUrl;
+        });
+        
+        if (foundBuilder) {
+          console.log("########## BUILDER FOUND BY SUBNET_ID ##########", foundBuilder.name);
+        } else {
+          console.log("########## NO BUILDER FOUND WITH SUBNET_ID ##########", subnetIdFromUrl);
         }
-        // Otherwise just match by name
-        return nameMatches;
-      });
+      }
       
-      // Log for debugging
-      if (hasNetworkSuffix) {
-        console.log(`########## LOOKING FOR BUILDER WITH NAME '${builderNameFromSlug}' ON NETWORK '${network}' ##########`);
+      // If not found by subnet_id, fall back to slug-based matching
+      if (!foundBuilder) {
+        console.log("########## FALLING BACK TO SLUG-BASED MATCHING ##########");
+        
+        // Extract network from slug if present
+        const hasNetworkSuffix = slug.includes('-base') || slug.includes('-arbitrum');
+        const network = slug.includes('-base') ? 'Base' : 
+                       slug.includes('-arbitrum') ? 'Arbitrum' : undefined;
+        
+        // Extract base name without network suffix
+        const slugWithoutNetwork = hasNetworkSuffix 
+          ? slug.substring(0, slug.lastIndexOf('-'))
+          : slug;
+        
+        const builderNameFromSlug = slugToBuilderName(slugWithoutNetwork);
+        
+        // Find builder matching both name and network (if specified)
+        foundBuilder = builders.find(b => {
+          const nameMatches = b.name.toLowerCase() === builderNameFromSlug.toLowerCase();
+          // If network is specified in the slug, require a network match
+          if (network) {
+            return nameMatches && b.network === network;
+          }
+          // Otherwise just match by name
+          return nameMatches;
+        });
+        
+        // Log for debugging
+        if (hasNetworkSuffix) {
+          console.log(`########## LOOKING FOR BUILDER WITH NAME '${builderNameFromSlug}' ON NETWORK '${network}' ##########`);
+        }
       }
     }
 
@@ -194,7 +220,7 @@ export default function BuilderPage() {
       setSubnetId(null);
       console.log("########## BUILDER NOT FOUND, SUBNET ID CLEARED ##########");
     }
-  }, [slug, builders, isTestnet, buildersError, isLoading]);
+  }, [slug, builders, isTestnet, buildersError, isLoading, getParam]);
 
   // Derive the projectId for useStakingData once builder is loaded
   const hookProjectId = useMemo(() => {
