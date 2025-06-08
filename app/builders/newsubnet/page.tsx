@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useAccount, useChainId } from 'wagmi';
-import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { RiProgress4Fill } from "@remixicon/react";
 import { AlertCircle } from 'lucide-react';
@@ -34,7 +33,6 @@ export default function NewSubnetPage() {
   // --- State --- //
   const [currentStep, setCurrentStep] = useState(1);
   const [hasValidationError, setHasValidationError] = useState(false);
-  const router = useRouter();
   const { address: connectedAddress } = useAccount();
   const walletChainId = useChainId();
 
