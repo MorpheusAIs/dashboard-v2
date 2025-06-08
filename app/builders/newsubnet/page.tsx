@@ -103,17 +103,22 @@ export default function NewSubnetPage() {
   } = useSubnetContractInteractions({ 
     selectedChainId,
     onTxSuccess: () => {
-      console.log("[NewSubnetPage] onTxSuccess triggered, redirecting to builders page");
-      console.log("[NewSubnetPage] Current window location before redirect:", window.location.href);
-      const redirectUrl = '/builders?tab=subnets&sort=totalStaked-desc';
-      console.log("[NewSubnetPage] Redirecting to:", redirectUrl);
+      // Get the subnet name based on network type
+      const isTestnet = selectedChainId === arbitrumSepolia.id;
+      const subnetName = isTestnet 
+        ? form.getValues("subnet.name")
+        : form.getValues("builderPool.name");
       
-      // Try using window.location.href instead of router.push to test timing
-      console.log("[NewSubnetPage] Using window.location.href for redirect");
-      window.location.href = redirectUrl;
+      // Store the new subnet name in localStorage for the builders page to pick up
+      if (subnetName) {
+        localStorage.setItem('new_subnet_created', JSON.stringify({
+          name: subnetName,
+          timestamp: Date.now()
+        }));
+      }
       
-      // Alternative: Use router.push (comment out window.location.href and uncomment this)
-      // router.push(redirectUrl);
+      // Navigate to builders page with subnets tab
+      window.location.href = '/builders?tab=subnets';
     }
   });
 

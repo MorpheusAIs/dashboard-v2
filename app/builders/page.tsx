@@ -133,7 +133,6 @@ function formatUnlockTime(claimLockEnd?: string | number | bigint | null): strin
 function BuilderModalWrapper() {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const { isAdmin } = useAuth();
-  const { refreshData } = useBuilders(); // Get refreshData for debug button
   
   return (
     <div className="flex gap-4 items-center">
@@ -145,20 +144,6 @@ function BuilderModalWrapper() {
           Bulk registration
         </button>
       )}
-      
-      {/* Debug refresh button */}
-      <button 
-        onClick={() => {
-          console.log("[Debug] Manual refresh triggered");
-          refreshData().then(() => {
-            console.log("[Debug] Manual refresh completed");
-          });
-        }}
-        className="copy-button copy-button-secondary mb-4"
-        style={{ backgroundColor: '#ff6b6b' }}
-      >
-        🔄 Debug Refresh
-      </button>
       
       <Link href="/builders/newsubnet">
         <button
@@ -289,17 +274,29 @@ export default function BuildersPage() {
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
   const [selectedBuilder, setSelectedBuilder] = useState<Builder | null>(null);
   
-  // Add state to prevent multiple cache-triggered refreshes
-  const [hasTriggeredCacheRefresh, setHasTriggeredCacheRefresh] = useState(false);
-  
-  // Debug logging for component lifecycle
-  console.log("[BuildersPage] Component render - Lifecycle checkpoint");
-  
-  // IMMEDIATE cache check (not in useEffect)
-  const cachedSubnetsImmediate = localStorage.getItem('newly_created_subnets');
-  if (cachedSubnetsImmediate) {
-    console.log("[BuildersPage] IMMEDIATE CACHE CHECK - Found cache:", JSON.parse(cachedSubnetsImmediate));
-  }
+  // Check for newly created subnet and trigger refresh
+  useEffect(() => {
+    const newSubnetData = localStorage.getItem('new_subnet_created');
+    if (newSubnetData) {
+      try {
+        const { name, timestamp } = JSON.parse(newSubnetData);
+        // Only process if created within last 5 minutes (to avoid stale data)
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          console.log('[BuildersPage] New subnet detected:', name, 'triggering refresh');
+          // Clear the localStorage first
+          localStorage.removeItem('new_subnet_created');
+          // Trigger refresh to fetch the new subnet
+          refreshData();
+        } else {
+          // Remove stale data
+          localStorage.removeItem('new_subnet_created');
+        }
+      } catch (e) {
+        console.error('[BuildersPage] Error parsing new subnet data:', e);
+        localStorage.removeItem('new_subnet_created');
+      }
+    }
+  }, []); // Empty dependency array - runs once on mount
   
   // Handler for opening the stake modal
   const handleOpenStakeModal = useCallback((builder: Builder) => {
@@ -365,24 +362,7 @@ export default function BuildersPage() {
     return tabFromUrl;
   });
   
-  // Debug activeTab changes
-  useEffect(() => {
-    console.log("[BuildersPage] activeTab changed to:", activeTab);
-  }, [activeTab]);
-  
-  // Debug refreshData availability
-  useEffect(() => {
-    console.log("[BuildersPage] refreshData function availability:", !!refreshData);
-  }, [refreshData]);
-  
-  // Force check cache on every render (for debugging)
-  useEffect(() => {
-    console.log("[BuildersPage] EVERY RENDER - activeTab:", activeTab, "hasTriggeredCacheRefresh:", hasTriggeredCacheRefresh);
-    const cachedSubnets = localStorage.getItem('newly_created_subnets');
-    if (cachedSubnets) {
-      console.log("[BuildersPage] EVERY RENDER - Cache found:", JSON.parse(cachedSubnets));
-    }
-  });
+
 
   // Convert context sorting to the format expected by the UI (for Builders tab)
   const sorting = useMemo(() => {
@@ -1145,51 +1125,7 @@ export default function BuildersPage() {
     return "0"; // Or 'N/A' or some other placeholder
   }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
 
-  // Check for cached subnets when on subnets tab
-  useEffect(() => {
-    console.log(`[BuildersPage] useEffect triggered with activeTab: ${activeTab}, hasTriggeredCacheRefresh: ${hasTriggeredCacheRefresh}`);
-    
-    // Reset flag when switching away from subnets tab
-    if (activeTab !== 'subnets') {
-      if (hasTriggeredCacheRefresh) {
-        console.log("[BuildersPage] Resetting cache refresh flag (left subnets tab)");
-        setHasTriggeredCacheRefresh(false);
-      }
-      return;
-    }
-    
-    // Only check when on subnets tab and haven't triggered refresh yet
-    if (activeTab === 'subnets' && !hasTriggeredCacheRefresh) {
-      const cachedSubnets = localStorage.getItem('newly_created_subnets');
-      console.log(`[BuildersPage] Checking for cached subnets:`, {
-        hasCachedSubnets: !!cachedSubnets,
-        cacheContent: cachedSubnets ? JSON.parse(cachedSubnets) : null
-      });
-      
-      if (cachedSubnets) {
-        try {
-          const parsed = JSON.parse(cachedSubnets);
-          if (parsed && parsed.length > 0) {
-            console.log(`[BuildersPage] Found ${parsed.length} cached subnets, triggering refresh!`);
-            
-            // Set flag to prevent repeated refreshes
-            setHasTriggeredCacheRefresh(true);
-            
-            // Trigger refresh but don't clear cache - let hooks consume it
-            refreshData().then(() => {
-              console.log("[BuildersPage] Cache-triggered refresh completed successfully");
-            }).catch((error) => {
-              console.error("[BuildersPage] Cache-triggered refresh failed:", error);
-            });
-          }
-        } catch (e) {
-          console.error("[BuildersPage] Error parsing cached subnets:", e);
-        }
-      } else {
-        console.log("[BuildersPage] No cached subnets found");
-      }
-    }
-  }, [activeTab, hasTriggeredCacheRefresh, refreshData]);
+
 
   return (
     <div className="page-container">
