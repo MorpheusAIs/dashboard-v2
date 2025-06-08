@@ -276,13 +276,13 @@ export default function BuildersPage() {
   const isTestnet = chainId === arbitrumSepolia.id;
   
   // Helper function to get the appropriate subnet ID for URLs
-  const getSubnetId = (builder: Builder): string => {
+  const getSubnetId = useCallback((builder: Builder): string => {
     if (isTestnet) {
       return builder.id || '';
     } else {
       return builder.mainnetProjectId || builder.id || '';
     }
-  };
+  }, [isTestnet]);
   
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
@@ -324,6 +324,30 @@ export default function BuildersPage() {
 
   } = useBuilders();
 
+  // Check for newly created subnet and trigger refresh
+  useEffect(() => {
+    const newSubnetData = localStorage.getItem('new_subnet_created');
+    if (newSubnetData) {
+      try {
+        const { name, timestamp } = JSON.parse(newSubnetData);
+        // Only process if created within last 5 minutes (to avoid stale data)
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          console.log('[BuildersPage] New subnet detected:', name, 'triggering refresh');
+          // Clear the localStorage first
+          localStorage.removeItem('new_subnet_created');
+          // Trigger refresh to fetch the new subnet
+          refreshData();
+        } else {
+          // Remove stale data
+          localStorage.removeItem('new_subnet_created');
+        }
+      } catch (e) {
+        console.error('[BuildersPage] Error parsing new subnet data:', e);
+        localStorage.removeItem('new_subnet_created');
+      }
+    }
+  }, [refreshData]); // Include refreshData in dependencies
+
   // Get auth state
   const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
 
@@ -333,27 +357,26 @@ export default function BuildersPage() {
   // Temporary fallback values for testing
   const userAdminSubnets = useMemo<Builder[] | null>(() => {
     if (!isAuthenticated || !userAddress || !builders) return null;
-    return builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
+    const adminSubnets = builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
+    console.log(`[BuildersPage] userAdminSubnets calculation:`, {
+      totalBuilders: builders.length,
+      userAddress,
+      adminSubnets: adminSubnets.length,
+      subnetNames: adminSubnets.map(s => s.name)
+    });
+    return adminSubnets;
   }, [isAuthenticated, userAddress, builders]);
 
   const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
 
   // Initialize tab state from URL or use default
   const [activeTab, setActiveTab] = useState(() => {
-    return getParam('tab') || 'builders';
+    const tabFromUrl = getParam('tab') || 'builders';
+    console.log("[BuildersPage] Initial activeTab from URL:", tabFromUrl);
+    return tabFromUrl;
   });
+  
 
-  // useEffect to refresh data if 'refresh=true' is in URL
-  useEffect(() => {
-    if (getParam('refresh') === 'true') {
-      console.log("Refresh param found, calling refreshData");
-      refreshData().then(() => {
-        console.log("Data refreshed, removing refresh param from URL");
-        setParam('refresh', null); // Use setParam with null to remove
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getParam, refreshData, setParam]); // Updated dependencies
 
   // Convert context sorting to the format expected by the UI (for Builders tab)
   const sorting = useMemo(() => {
@@ -803,7 +826,7 @@ export default function BuildersPage() {
       return matchesName && matchesNetwork && matchesStatus;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userAdminSubnets, yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter, userAddress]); // userAddress is needed for filtering
+  }, [userAdminSubnets, yourSubnetsNameFilter, yourSubnetsNetworkFilter, statusFilter, userAddress]);
   // --- END MODIFY Filter logic ---
 
   // For your subnets filters, initialize from URL only if values exist
@@ -1115,6 +1138,8 @@ export default function BuildersPage() {
     }
     return "0"; // Or 'N/A' or some other placeholder
   }, [totalMetrics.totalStaked, totalMetrics.totalStaking]);
+
+
 
   return (
     <div className="page-container">

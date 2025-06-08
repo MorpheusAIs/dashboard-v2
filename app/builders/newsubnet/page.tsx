@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useAccount, useChainId } from 'wagmi';
-import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { RiProgress4Fill } from "@remixicon/react";
 import { AlertCircle } from 'lucide-react';
@@ -30,12 +29,10 @@ import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
 // Import useBalance hook
 import { useBalance } from 'wagmi';
 
-
 export default function NewSubnetPage() {
   // --- State --- //
   const [currentStep, setCurrentStep] = useState(1);
   const [hasValidationError, setHasValidationError] = useState(false);
-  const router = useRouter();
   const { address: connectedAddress } = useAccount();
   const walletChainId = useChainId();
 
@@ -73,7 +70,7 @@ export default function NewSubnetPage() {
     mode: "onChange",
   });
 
-  // Get the selected chain ID from the form
+    // Get the selected chain ID from the form
   const selectedChainId = form.watch("subnet.networkChainId");
 
   // --- Balance Check --- //
@@ -103,7 +100,24 @@ export default function NewSubnetPage() {
     handleCreateSubnet
   } = useSubnetContractInteractions({ 
     selectedChainId,
-    onTxSuccess: () => router.push('/builders?tab=subnets&sort=totalStaked-desc&refresh=true')
+    onTxSuccess: () => {
+      // Get the subnet name based on network type
+      const isTestnet = selectedChainId === arbitrumSepolia.id;
+      const subnetName = isTestnet 
+        ? form.getValues("subnet.name")
+        : form.getValues("builderPool.name");
+      
+      // Store the new subnet name in localStorage for the builders page to pick up
+      if (subnetName) {
+        localStorage.setItem('new_subnet_created', JSON.stringify({
+          name: subnetName,
+          timestamp: Date.now()
+        }));
+      }
+      
+      // Navigate to builders page with subnets tab
+      window.location.href = '/builders?tab=subnets';
+    }
   });
 
   // --- Action Handlers --- //
@@ -196,9 +210,16 @@ export default function NewSubnetPage() {
         handleApprove();
       } else {
         console.log("Calling form.handleSubmit(handleCreateSubnet)...");
+        console.log("Current form values:", form.getValues());
+        console.log("Form validation state:", {
+          isValid: form.formState.isValid,
+          errors: form.formState.errors
+        });
         form.handleSubmit((data) => {
           console.log("Form data submitted to handleCreateSubnet:", data);
           handleCreateSubnet(data);
+        }, (errors) => {
+          console.error("Form submission failed validation:", errors);
         })();
       }
     } else {
