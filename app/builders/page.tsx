@@ -276,13 +276,13 @@ export default function BuildersPage() {
   const isTestnet = chainId === arbitrumSepolia.id;
   
   // Helper function to get the appropriate subnet ID for URLs
-  const getSubnetId = (builder: Builder): string => {
+  const getSubnetId = useCallback((builder: Builder): string => {
     if (isTestnet) {
       return builder.id || '';
     } else {
       return builder.mainnetProjectId || builder.id || '';
     }
-  };
+  }, [isTestnet]);
   
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
