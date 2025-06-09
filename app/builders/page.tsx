@@ -277,12 +277,18 @@ export default function BuildersPage() {
   
   // Helper function to get the appropriate subnet ID for URLs
   const getSubnetId = useCallback((builder: Builder): string => {
-    if (isTestnet) {
+    // Check the builder's actual network, not the user's wallet network
+    const builderIsOnTestnet = builder.networks && 
+      builder.networks.some(network => network === "Arbitrum Sepolia");
+    
+    if (builderIsOnTestnet) {
+      // For testnet: use builder.id (the on-chain subnet contract address)
       return builder.id || '';
     } else {
+      // For mainnet: use mainnetProjectId (the on-chain project contract address)
       return builder.mainnetProjectId || builder.id || '';
     }
-  }, [isTestnet]);
+  }, []);
   
   // Add state for stake modal
   const [stakeModalOpen, setStakeModalOpen] = useState(false);
@@ -448,7 +454,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`}
+                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -618,7 +624,7 @@ export default function BuildersPage() {
               <div className="flex items-center gap-2">
                 <Link 
                   // Assuming subnets might have a different detail page or use slug like builders
-                  href={`/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}`} // Or potentially /subnets/<id> if that page exists
+                  href={`/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}&network=${encodeURIComponent(subnet.networks?.[0] || subnet.network || '')}`} // Or potentially /subnets/<id> if that page exists
                   className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                 >
                   {subnet.name}
@@ -978,7 +984,7 @@ export default function BuildersPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Link 
-                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`}
+                        href={`/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`}
                         className="font-medium text-gray-200 hover:text-emerald-400 transition-colors"
                       >
                         {builder.name}
@@ -1282,7 +1288,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage="No builders found."
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`;
+                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
                     }}
                   />
                 </div>
@@ -1333,7 +1339,7 @@ export default function BuildersPage() {
                     noResultsMessage="No subnets administered by you were found." // Updated message
                     onRowClick={(subnet) => {
                        // Link to builder/subnet detail page
-                       window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}`; // Or /subnets/<id>
+                       window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}&network=${encodeURIComponent(subnet.networks?.[0] || subnet.network || '')}`; // Or /subnets/<id>
                     }}
                   />
                 </div>
@@ -1381,7 +1387,7 @@ export default function BuildersPage() {
                     loadingRows={6}
                     noResultsMessage={isAuthenticated && userAddress ? "You have not staked in any builders on mainnet networks." : "No participating builders found."}
                     onRowClick={(builder) => {
-                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}`;
+                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
                     }}
                   />
                 </div>

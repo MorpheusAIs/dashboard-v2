@@ -239,20 +239,33 @@ export default function BuilderPage() {
     }
   }, [builder, isTestnet]);
 
-  // Use the networks from the builder data, or default based on current chainId
+  // Use the networks from the URL parameter first, then builder data, or default based on current chainId
   const networksToDisplay = useMemo(() => {
+    // First priority: check for network parameter in URL
+    const networkFromUrl = getParam('network');
+    if (networkFromUrl) {
+      console.log('[BuilderPage] Using network from URL parameter:', networkFromUrl);
+      return [networkFromUrl];
+    }
+    
+    // Second priority: use builder's defined networks
     if (builder?.networks && builder.networks.length > 0) {
+      console.log('[BuilderPage] Using networks from builder data:', builder.networks);
       return builder.networks;
     }
     
+    // Last resort: fallback to user's wallet network
     if (isTestnet) {
+      console.log('[BuilderPage] Fallback to testnet network');
       return ['Arbitrum Sepolia'];
     } else if (chainId === 42161) {
+      console.log('[BuilderPage] Fallback to Arbitrum network');
       return ['Arbitrum'];
     } else {
+      console.log('[BuilderPage] Fallback to Base network');
       return ['Base'];
     }
-  }, [builder, isTestnet, chainId]);
+  }, [getParam, builder, isTestnet, chainId]);
   
   // Get contract address from configuration based on current chain ID
   const contractAddress = useMemo<Address | undefined>(() => {
