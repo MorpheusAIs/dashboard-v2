@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "update-wiki": "node scripts/update-wiki.js",
+    "update-wiki-simple": "bash scripts/update-wiki.sh"
   },
   "dependencies": {
     "@apollo/client": "^3.13.2",
