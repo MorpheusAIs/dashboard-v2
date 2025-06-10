@@ -4,6 +4,8 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useState } from "react";
+import { EditSubnetModal } from "./edit-subnet-modal";
+import { Builder } from "@/app/builders/builders-data";
 
 // Helper function to extract domain from URL
 const extractDomain = (url: string): string => {
@@ -65,6 +67,8 @@ export interface ProjectHeaderProps {
   onBack?: () => void;
   backPath?: string;
   children?: React.ReactNode;
+  builder?: Builder | null;
+  showEditButton?: boolean;
 }
 
 export function ProjectHeader({
@@ -78,9 +82,19 @@ export function ProjectHeader({
   onBack,
   backPath,
   children,
+  builder,
+  showEditButton = false,
 }: ProjectHeaderProps) {
+  
+  // Debug log to see the builder data being passed
+  console.log('[ProjectHeader] Builder data:', builder);
+  console.log('[ProjectHeader] Builder ID:', builder?.id);
+  console.log('[ProjectHeader] Show edit button:', showEditButton);
+  
   // Track image loading error
   const [imageError, setImageError] = useState(false);
+  // Track edit modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   // Check if image is valid
   const hasValidImage = (() => {
@@ -154,73 +168,97 @@ export function ProjectHeader({
   };
 
   return (
-    <div className="flex items-start gap-6">
-      {renderBackButton()}
-      
-      <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
-        {hasValidImage ? (
-          <div className="relative size-24">
-            <Image
-              src={imagePath!.startsWith('http') ? imagePath! : imagePath!.startsWith('/') ? imagePath! : `/${imagePath!}`}
-              alt={name}
-              fill
-              sizes="96px"
-              className="object-cover"
-              onError={() => {
-                setImageError(true);
-              }}
-            />
-          </div>
-        ) : (
-          <div className="flex items-center justify-center size-24 bg-emerald-700 text-white text-4xl font-medium">
-            {firstLetter}
-          </div>
-        )}
-      </div>
-      
-      <div className="flex-1">
-        <h1 className="text-2xl font-bold text-gray-100 mb-2">{name}</h1>
+    <>
+      <div className="flex items-start gap-6">
+        {renderBackButton()}
         
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex -space-x-1">
-            {networks.map((network: string) => (
-              <div key={network} className="relative">
-                <NetworkIcon name={network.toLowerCase()} size={24} />
-              </div>
-            ))}
-          </div>
-          
-          {rewardType && (
-            <>
-              <span className="text-gray-400">|</span>
-              <span className="text-gray-300">{rewardType}</span>
-            </>
-          )}
-          
-          {website && (
-            <>
-              <span className="text-gray-400">|</span>
-              <a 
-                href={website} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3 flex items-center gap-1"
-              >
-                {extractDomain(website)}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </>
+        <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
+          {hasValidImage ? (
+            <div className="relative size-24">
+              <Image
+                src={imagePath!.startsWith('http') ? imagePath! : imagePath!.startsWith('/') ? imagePath! : `/${imagePath!}`}
+                alt={name}
+                fill
+                sizes="96px"
+                className="object-cover"
+                onError={() => {
+                  setImageError(true);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center size-24 bg-emerald-700 text-white text-4xl font-medium">
+              {firstLetter}
+            </div>
           )}
         </div>
         
-        {description && (
-          <p className="text-gray-400 max-w-2xl">
-            {description}
-          </p>
-        )}
-        
-        {children}
+        <div className="flex-1">
+          <div className="flex items-start justify-between">
+            <h1 className="text-2xl font-bold text-gray-100 mb-2">{name}</h1>
+            
+            {showEditButton && builder && (
+              <button 
+                onClick={() => setIsEditModalOpen(true)}
+                className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2"
+              >
+                Edit subnet
+              </button>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex -space-x-1">
+              {networks.map((network: string) => (
+                <div key={network} className="relative">
+                  <NetworkIcon name={network.toLowerCase()} size={24} />
+                </div>
+              ))}
+            </div>
+            
+            {rewardType && (
+              <>
+                <span className="text-gray-400">|</span>
+                <span className="text-gray-300">{rewardType}</span>
+              </>
+            )}
+            
+            {website && (
+              <>
+                <span className="text-gray-400">|</span>
+                <a 
+                  href={website} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3 flex items-center gap-1"
+                >
+                  {extractDomain(website)}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </>
+            )}
+          </div>
+          
+          {description && (
+            <p className="text-gray-400 max-w-2xl">
+              {description}
+            </p>
+          )}
+          
+          {children}
+        </div>
       </div>
-    </div>
+      
+      {/* Edit Subnet Modal */}
+      <EditSubnetModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        builder={builder || null}
+        onSave={() => {
+          // The modal will handle refreshing the builders data
+          console.log("Subnet metadata updated successfully");
+        }}
+      />
+    </>
   );
 } 

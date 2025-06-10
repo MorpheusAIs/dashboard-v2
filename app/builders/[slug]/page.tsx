@@ -17,6 +17,7 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { slugToBuilderName } from "@/app/utils/supabase-utils";
 import { useBuilders } from "@/context/builders-context";
 import { useChainId, useAccount, useReadContract } from 'wagmi';
+import { useAuth } from "@/context/auth-context";
 import { useNetwork } from "@/context/network-context";
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
 import { MetricCard } from "@/components/metric-card";
@@ -79,6 +80,7 @@ export default function BuilderPage() {
   const { builders, isLoading, error: buildersError } = useBuilders();
   const chainId = useChainId();
   const { address: userAddress } = useAccount();
+  const { userAddress: authUserAddress } = useAuth();
   const isTestnet = chainId === arbitrumSepolia.id;
   const previousIsTestnetRef = useRef<boolean>();
   
@@ -842,6 +844,8 @@ export default function BuilderPage() {
           rewardType={builder.reward_types?.[0] || ""}
           backButton={true}
           backPath="/builders"
+          builder={builder}
+          showEditButton={!!(authUserAddress && builder.admin && authUserAddress.toLowerCase() === builder.admin.toLowerCase())}
         />
 
         {/* Staking Stats */}
