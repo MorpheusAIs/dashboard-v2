@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BuildersService } from '@/app/services/builders.service';
 import { BuilderDB } from '@/app/lib/supabase';
+import { Builder } from '@/app/builders/builders-data';
 
 export interface SupabaseBuildersData {
   supabaseBuilders: BuilderDB[];
@@ -68,7 +69,7 @@ export const useSupabaseBuilders = (): SupabaseBuildersData => {
             }
             
             // Map over existing builders and update any that match the Supabase data
-            const updatedCache = (oldData as any[]).map(existingBuilder => {
+            const updatedCache = (oldData as Builder[]).map(existingBuilder => {
               // Find matching builder in the fresh Supabase data
               const updatedSupabaseBuilder = updatedBuilders.find(sb => sb.id === existingBuilder.id);
               

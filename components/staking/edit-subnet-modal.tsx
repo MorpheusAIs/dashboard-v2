@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useBuilders } from "@/context/builders-context";
 import { Builder } from "@/app/builders/builders-data";
 import { toast } from "sonner";
-import { useQueryClient } from '@tanstack/react-query';
 
 // Add URL validation function
 const isValidUrl = (url: string): boolean => {
@@ -46,7 +45,6 @@ export interface EditSubnetModalProps {
 
 export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: EditSubnetModalProps) {
   const { rewardTypes } = useBuilders();
-  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   
   console.log('[EditSubnetModal] Available reward types:', rewardTypes);
@@ -107,7 +105,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
     setWebsite(builder.website || "");
     setImageSrc(builder.image_src || "");
     setRewardType(builder.reward_types?.[0] || "");
-  }, [builder?.id, builder?.description, builder?.website, builder?.image_src, builder?.reward_types, isOpen]);
+  }, [builder, isOpen]);
 
   const handleSave = async () => {
     console.log('[EditSubnetModal] Save handler called');

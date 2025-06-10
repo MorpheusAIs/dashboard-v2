@@ -252,7 +252,7 @@ export function ProjectHeader({
       {/* Edit Subnet Modal */}
       <EditSubnetModal
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onCloseAction={() => setIsEditModalOpen(false)}
         builder={builder || null}
         onSave={() => {
           // The modal will handle refreshing the builders data
