@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  console.log('[API ROUTE] PATCH /api/builders route called');
+  console.log(`[API ROUTE] PATCH /api/builders route called at ${new Date().toISOString()}`);
   
   try {
     const requestData = await request.json();
@@ -145,7 +145,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    console.log('[API ROUTE] Updating builder with ID:', id);
+    console.log(`[API ROUTE] Updating builder with ID: ${id} at ${new Date().toISOString()}`);
     console.log('[API ROUTE] Update data:', updateData);
 
     // Add updated_at timestamp
@@ -170,7 +170,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    console.log('[API ROUTE] Builder updated successfully in Supabase:', data);
+    console.log(`[API ROUTE] Builder updated successfully in Supabase at ${new Date().toISOString()}:`, data);
     return NextResponse.json(data);
 
   } catch (error) {
