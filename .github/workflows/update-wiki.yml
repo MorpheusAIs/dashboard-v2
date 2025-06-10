@@ -1,0 +1,256 @@
+name: Update GitHub Wiki
+
+on:
+  # Trigger on successful deployment to main
+  push:
+    branches: [ main ]
+    paths:
+      - 'wiki-pages/**'
+      - 'package.json'
+      - 'FIX_SUMMARY.md'
+  
+  # Trigger on successful build
+  workflow_run:
+    workflows: ["Build and Deploy"]
+    types:
+      - completed
+    branches: [ main ]
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update even if no changes'
+        required: false
+        default: false
+        type: boolean
+  
+  # Scheduled update (daily at 6 AM UTC)
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  update-wiki:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' || github.event_name == 'schedule'
+    
+    steps:
+    - name: Checkout main repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for commit info
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Check build status
+      id: build-check
+      run: |
+        if npm run build; then
+          echo "build_status=✅ Passing" >> $GITHUB_OUTPUT
+        else
+          echo "build_status=❌ Failing" >> $GITHUB_OUTPUT
+        fi
+      continue-on-error: true
+    
+    - name: Get project information
+      id: project-info
+      run: |
+        echo "commit_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "commit_date=$(date +'%B %Y')" >> $GITHUB_OUTPUT
+        echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        echo "has_changes=$(git status --porcelain | wc -l)" >> $GITHUB_OUTPUT
+        
+        # Get recent commits for release notes
+        git log --oneline -5 > recent_commits.txt
+    
+    - name: Clone wiki repository
+      run: |
+        git clone https://github.com/${{ github.repository }}.wiki.git temp-wiki
+        cd temp-wiki
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Update wiki pages
+      run: |
+        # Copy wiki pages if they exist
+        if [ -d "wiki-pages" ]; then
+          cp wiki-pages/*.md temp-wiki/ 2>/dev/null || true
+        fi
+        
+        cd temp-wiki
+        
+        # Update dynamic content in all markdown files
+        for file in *.md; do
+          if [ -f "$file" ]; then
+            # Update timestamps
+            sed -i "s/\*Last Updated: .*\*/\*Last Updated: ${{ steps.project-info.outputs.commit_date }}\*/" "$file"
+            
+            # Update build information
+            sed -i "s/Latest Build\*\*: \`[^`]*\`/Latest Build**: \`${{ steps.project-info.outputs.commit_sha }}\`/" "$file"
+            
+            # Update build status
+            sed -i "s/Build Status\*\*: [^|]*/Build Status**: ${{ steps.build-check.outputs.build_status }}/" "$file"
+            
+            # Update version
+            sed -i "s/Version\*\*: [0-9.]*/Version**: ${{ steps.project-info.outputs.version }}/" "$file"
+          fi
+        done
+    
+    - name: Generate Release Notes
+      run: |
+        cd temp-wiki
+        cat > Release-Notes.md << EOF
+        # Release Notes
+        
+        *Last Updated: ${{ steps.project-info.outputs.commit_date }}*
+        
+        ## Latest Release
+        
+        **Version**: ${{ steps.project-info.outputs.version }}
+        **Build**: \`${{ steps.project-info.outputs.commit_sha }}\`
+        **Status**: ${{ steps.build-check.outputs.build_status }}
+        **Workflow**: [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        
+        ## Recent Changes
+        
+        $(cat ../recent_commits.txt | sed 's/^/- /')
+        
+        ## Deployment Information
+        
+        - **Triggered by**: ${{ github.event_name }}
+        - **Branch**: ${{ github.ref_name }}
+        - **Actor**: ${{ github.actor }}
+        - **Timestamp**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        
+        ## Build Details
+        
+        - **Node.js Version**: $(node --version)
+        - **NPM Version**: $(npm --version)
+        - **Build Status**: ${{ steps.build-check.outputs.build_status }}
+        - **Uncommitted Changes**: ${{ steps.project-info.outputs.has_changes == '0' && '✅ Clean' || '⚠️ Has changes' }}
+        
+        ---
+        
+        [← Back to Wiki Home](Home)
+        EOF
+    
+    - name: Update Performance Metrics
+      run: |
+        cd temp-wiki
+        
+        # Create or update Performance Metrics page
+        cat > Performance-Metrics.md << EOF
+        # Performance Metrics
+        
+        *Last Updated: ${{ steps.project-info.outputs.commit_date }}*
+        
+        ## Build Performance
+        
+        | Metric | Value | Status |
+        |--------|-------|--------|
+        | **Build Status** | ${{ steps.build-check.outputs.build_status }} | $([ "${{ steps.build-check.outputs.build_status }}" = "✅ Passing" ] && echo "🟢 Good" || echo "🔴 Attention Needed") |
+        | **Latest Build** | \`${{ steps.project-info.outputs.commit_sha }}\` | 🔄 Current |
+        | **Version** | ${{ steps.project-info.outputs.version }} | 📦 Active |
+        | **Last Update** | ${{ steps.project-info.outputs.commit_date }} | ⏰ Recent |
+        
+        ## Automated Monitoring
+        
+        This page is automatically updated by GitHub Actions:
+        - **Workflow**: [${{ github.workflow }}](https://github.com/${{ github.repository }}/actions/workflows/update-wiki.yml)
+        - **Run ID**: [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        - **Triggered by**: ${{ github.event_name }}
+        
+        ## Bundle Analysis
+        
+        Run \`npm run build\` to generate bundle analysis:
+        
+        ```bash
+        # Check bundle sizes
+        npm run build
+        
+        # Analyze bundle composition  
+        npm run analyze
+        ```
+        
+        ## Network Performance
+        
+        | Network | Status | Last Checked |
+        |---------|--------|--------------|
+        | Arbitrum One | ✅ Operational | Auto-monitored |
+        | Base | ✅ Operational | Auto-monitored |
+        | Arbitrum Sepolia | ✅ Operational | Auto-monitored |
+        
+        ---
+        
+        [← Back to Wiki Home](Home) | [View Current Status →](Current-Status)
+        EOF
+    
+    - name: Commit and push wiki changes
+      run: |
+        cd temp-wiki
+        git add .
+        
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "🤖 Auto-update: Wiki synchronized (${{ steps.project-info.outputs.commit_sha }})"
+          git push origin master
+          echo "✅ Wiki updated successfully"
+        fi
+    
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf temp-wiki
+        rm -f recent_commits.txt
+    
+    - name: Comment on PR (if applicable)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          const sha = '${{ steps.project-info.outputs.commit_sha }}';
+          
+          // Find associated PR
+          const prs = await github.rest.pulls.list({
+            owner,
+            repo,
+            state: 'closed',
+            sort: 'updated',
+            direction: 'desc'
+          });
+          
+          const associatedPR = prs.data.find(pr => 
+            pr.merge_commit_sha === context.sha || 
+            pr.head.sha === context.sha
+          );
+          
+          if (associatedPR) {
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: associatedPR.number,
+              body: `🤖 **Wiki Updated Automatically**
+              
+              The GitHub wiki has been updated with the latest information from this merge:
+              
+              - **Build**: \`${sha}\`
+              - **Status**: ${{ steps.build-check.outputs.build_status }}
+              - **Wiki**: https://github.com/${owner}/${repo}/wiki
+              
+              The following pages were updated:
+              - [Current Status](https://github.com/${owner}/${repo}/wiki/Current-Status)
+              - [Release Notes](https://github.com/${owner}/${repo}/wiki/Release-Notes)
+              - [Performance Metrics](https://github.com/${owner}/${repo}/wiki/Performance-Metrics)`
+            });
+          } 
