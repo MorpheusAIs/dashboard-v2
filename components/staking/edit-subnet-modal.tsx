@@ -228,7 +228,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-xl font-bold text-emerald-400">
             Edit {builder?.name} metadata
           </DialogTitle>
           <DialogDescription>
