@@ -655,9 +655,18 @@ export default function BuildersPage() {
         id: "description",
         header: "Description",
         accessorKey: "description",
-        cell: (subnet) => ( // Use description from Builder
-          <span className="text-gray-300">{subnet.description}</span>
-        ),
+        cell: (subnet) => { // Use description from Builder
+          const description = subnet.description || '';
+          const truncatedDescription = description.length > 80 
+            ? description.substring(0, 80) + '...' 
+            : description;
+          
+          return (
+            <span className="text-gray-300" title={description}>
+              {truncatedDescription}
+            </span>
+          );
+        },
       },
       {
         id: "status",

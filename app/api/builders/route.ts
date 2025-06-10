@@ -127,4 +127,57 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function PATCH(request: NextRequest) {
+  console.log(`[API ROUTE] PATCH /api/builders route called at ${new Date().toISOString()}`);
+  
+  try {
+    const requestData = await request.json();
+    const { id, ...updateData } = requestData;
+
+    // Validate required fields
+    if (!id) {
+      console.error('[API ROUTE] Missing required field: id');
+      return NextResponse.json(
+        { error: "Builder ID is required for updates." },
+        { status: 400 }
+      );
+    }
+
+    console.log(`[API ROUTE] Updating builder with ID: ${id} at ${new Date().toISOString()}`);
+    console.log('[API ROUTE] Update data:', updateData);
+
+    // Add updated_at timestamp
+    const dataToUpdate = {
+      ...updateData,
+      updated_at: new Date().toISOString()
+    };
+
+    // Update using service client (bypasses RLS)
+    const { data, error } = await supabaseService
+      .from('builders')
+      .update(dataToUpdate)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[API ROUTE] Error updating builder in Supabase:', error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    console.log(`[API ROUTE] Builder updated successfully in Supabase at ${new Date().toISOString()}:`, data);
+    return NextResponse.json(data);
+
+  } catch (error) {
+    console.error('[API ROUTE] Error in PATCH builders API route:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 } 
