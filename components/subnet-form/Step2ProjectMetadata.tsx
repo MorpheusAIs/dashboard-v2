@@ -191,7 +191,12 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
             <FormItem>
               <FormLabel htmlFor="metadata.description">Description</FormLabel>
               <FormControl>
-                <Textarea id="metadata.description" placeholder="Describe this subnet (max 800 characters)." {...field} rows={4} maxLength={800} />
+                <div className="relative">
+                  <Textarea id="metadata.description" placeholder="Describe this subnet (max 200 characters)." {...field} rows={4} maxLength={200} />
+                  <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-background/80 px-1 rounded">
+                    {(field.value || '').length}/200
+                  </div>
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>

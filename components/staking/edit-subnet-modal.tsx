@@ -238,13 +238,19 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
           {/* Description field */}
           <div className="grid gap-2">
             <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Enter subnet description..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
+            <div className="relative">
+              <Textarea
+                id="description"
+                placeholder="Enter subnet description..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={200}
+                rows={3}
+              />
+              <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-background/80 px-1 rounded">
+                {description.length}/200
+              </div>
+            </div>
           </div>
 
           {/* Website URL field */}
