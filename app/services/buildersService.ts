@@ -174,8 +174,32 @@ export const fetchBuildersAPI = async (
         return [];
       }
       
-      const builderNames = supabaseBuilders.map(b => b.name);
-      // console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering from Supabase.`);
+      // FIXED: Use ALL builders (including Morlord-only ones), not just original Supabase
+      let builderNames = supabaseBuilders.map(b => b.name);
+      
+      // FIX: Handle name mismatch between Morlord API and GraphQL subgraphs
+      // Morlord API uses "Protection and Capital Incentive" 
+      // But Arbitrum GraphQL uses "Protection and Capital Incentives Program"
+      const nameMapping: Record<string, string[]> = {
+        "Protection and Capital Incentive": [
+          "Protection and Capital Incentive", // Base version
+          "Protection and Capital Incentives Program" // Arbitrum version  
+        ]
+      };
+      
+      // Expand builder names to include GraphQL variations
+      const expandedBuilderNames: string[] = [];
+      builderNames.forEach(name => {
+        expandedBuilderNames.push(name);
+        if (nameMapping[name]) {
+          expandedBuilderNames.push(...nameMapping[name]);
+        }
+      });
+      
+      // Remove duplicates
+      builderNames = Array.from(new Set(expandedBuilderNames));
+      
+      console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
       
       const commonVariables = {
         orderBy: "totalStaked",
@@ -208,10 +232,15 @@ export const fetchBuildersAPI = async (
         })
       ]);
 
-      // DEBUGGING LOGS FOR MAINNET PARTICIPATION
-      console.log("[Mainnet Participation Check] userAddress:", userAddress);
-      console.log("[Mainnet Participation Check] Base buildersUsers from GQL:", JSON.stringify(baseResponse.data?.buildersUsers, null, 2));
-      console.log("[Mainnet Participation Check] Arbitrum buildersUsers from GQL:", JSON.stringify(arbitrumResponse.data?.buildersUsers, null, 2));
+
+
+      // Helper function to normalize GraphQL names back to Morlord API names
+      const normalizeBuilderName = (graphqlName: string): string => {
+        if (graphqlName === "Protection and Capital Incentives Program") {
+          return "Protection and Capital Incentive";
+        }
+        return graphqlName;
+      };
 
       const baseProjects = (baseResponse.data?.buildersProjects || []).map((project): BuilderProject => {
 
@@ -224,6 +253,7 @@ export const fetchBuildersAPI = async (
 
         const projectData = {
           ...project,
+          name: normalizeBuilderName(project.name), // Normalize the name
           startsAt: typeof project.startsAt === 'string' ? project.startsAt : '',
           claimLockEnd: typeof project.claimLockEnd === 'string' ? project.claimLockEnd : '',
           networks: ['Base'],
@@ -249,6 +279,7 @@ export const fetchBuildersAPI = async (
 
         return {
           ...project,
+          name: normalizeBuilderName(project.name), // Normalize the name
           startsAt: typeof project.startsAt === 'string' ? project.startsAt : '',
           claimLockEnd: typeof project.claimLockEnd === 'string' ? project.claimLockEnd : '',
           networks: ['Arbitrum'],
@@ -446,10 +477,7 @@ export const fetchBuildersAPI = async (
     }
 
   } catch (e) {
-    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-    console.error('!!!!!!!!!! fetchBuildersAPI ENCOUNTERED AN ERROR !!!!!!!!!!');
-    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-    console.error('[API] Error fetching builder data inside fetchBuildersAPI catch block:', e);
+    console.error('[API] Error fetching builder data:', e);
     throw e instanceof Error ? e : new Error('An unknown error occurred while fetching builder data via API service');
   }
 }; 
