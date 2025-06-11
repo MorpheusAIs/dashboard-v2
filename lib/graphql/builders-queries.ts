@@ -372,7 +372,7 @@ export const GET_USER_STAKED_BUILDERS = gql`
       }
     }
   }
-`;
+ `;
 
 // Query to get individual builder project data with user's staking info
 export const GET_USER_ACCOUNT_BUILDERS_PROJECT = gql`
