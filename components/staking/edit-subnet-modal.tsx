@@ -44,7 +44,7 @@ export interface EditSubnetModalProps {
 }
 
 export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: EditSubnetModalProps) {
-  const { rewardTypes } = useBuilders();
+  const { rewardTypes, refreshData } = useBuilders();
   const [isLoading, setIsLoading] = useState(false);
   
   console.log('[EditSubnetModal] Available reward types:', rewardTypes);
@@ -267,7 +267,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
         "Subnet metadata updated successfully";
       toast.success(successMessage);
       
-      console.log('[EditSubnetModal] Calling onSave callback...');
+      console.log('[EditSubnetModal] Calling onSave callback and refreshing cache...');
       // Call the onSave callback if provided
       try {
         if (onSave) {
@@ -275,6 +275,17 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
         }
       } catch (callbackError) {
         console.error('[EditSubnetModal] Error in onSave callback:', callbackError);
+      }
+      
+      // Refresh builders cache to ensure the new/updated subnet is properly merged
+      // This is especially important for temporary morlord IDs that need to be replaced
+      try {
+        console.log('[EditSubnetModal] Refreshing builders cache...');
+        await refreshData();
+        console.log('[EditSubnetModal] Cache refresh completed successfully');
+      } catch (refreshError) {
+        console.error('[EditSubnetModal] Error refreshing cache:', refreshError);
+        // Don't fail the save operation if cache refresh fails
       }
       
     } catch (error) {
@@ -285,16 +296,16 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
       console.log('[EditSubnetModal] Setting isLoading to false');
       setIsLoading(false);
       
-      // Handle cache update and modal close after API completes
+      // Handle modal close after API completes
       if (saveSuccessful) {
-        console.log('[EditSubnetModal] Save successful, closing modal (real-time updates will handle cache)');
+        console.log('[EditSubnetModal] Save successful, closing modal after cache refresh');
         
-        // Close the modal immediately - Supabase real-time subscription will update the cache
+        // Close the modal after cache refresh
         setTimeout(() => {
           console.log(`[EditSubnetModal] Closing modal at ${new Date().toISOString()}`);
           handleClose();
           console.log(`[EditSubnetModal] === SAVE PROCESS COMPLETED === ${new Date().toISOString()}`);
-        }, 100); // Small delay to ensure UI updates
+        }, 200); // Small delay to ensure cache refresh and UI updates complete
       }
     }
   };
