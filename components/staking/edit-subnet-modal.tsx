@@ -153,26 +153,82 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
 
       console.log('[EditSubnetModal] Has changes:', hasChanges);
 
-      // Update the builder using the API route (bypasses RLS)
-      const updateData = {
-        id: builder.id,
-        description: description.trim() || null,
-        website: website.trim() || null,
-        image_src: imageSrc.trim() || null,
-        ...(rewardType && { reward_types: [rewardType] })
-      };
+      // Detect if this is a temporary morlord ID (subnet not yet in Supabase)
+      const isTempMorlordId = builder.id.startsWith('morlord-');
+      const httpMethod = isTempMorlordId ? 'POST' : 'PATCH';
       
-      console.log(`[EditSubnetModal] === STARTING SAVE PROCESS === ${new Date().toISOString()}`);
-      console.log('[EditSubnetModal] Form data being sent:', updateData);
+      console.log(`[EditSubnetModal] Using ${httpMethod} method for ${isTempMorlordId ? 'new subnet creation' : 'existing subnet update'}`);
+
+      // Prepare data based on method
+      interface CreateBuilderData {
+        name: string;
+        networks: string[];
+        description: string | null;
+        long_description: string | null;
+        website: string | null;
+        image_src: string | null;
+        reward_types: string[];
+        tags: string[];
+        github_url: string | null;
+        twitter_url: string | null;
+        discord_url: string | null;
+        contributors: number;
+        github_stars: number;
+        reward_types_detail: string[];
+      }
+      
+      interface UpdateBuilderData {
+        id: string;
+        description?: string | null;
+        website?: string | null;
+        image_src?: string | null;
+        reward_types?: string[];
+      }
+      
+      let requestData: CreateBuilderData | UpdateBuilderData;
+      
+      if (isTempMorlordId) {
+        // For POST (creating new subnet): include name and required fields
+        const extractedName = builder.id.replace(/^morlord-/, '').replace(/-/g, ' ');
+        requestData = {
+          name: extractedName,
+          networks: builder.networks || ['Base'], // Use builder's networks or default to Base
+          description: description.trim() || null,
+          long_description: description.trim() || null,
+          website: website.trim() || null,
+          image_src: imageSrc.trim() || null,
+          reward_types: rewardType ? [rewardType] : [],
+          // Set other required fields with defaults
+          tags: [],
+          github_url: null,
+          twitter_url: null,
+          discord_url: null,
+          contributors: 0,
+          github_stars: 0,
+          reward_types_detail: [],
+        };
+      } else {
+        // For PATCH (updating existing subnet): only include the fields to update
+        requestData = {
+          id: builder.id,
+          description: description.trim() || null,
+          website: website.trim() || null,
+          image_src: imageSrc.trim() || null,
+          ...(rewardType && { reward_types: [rewardType] })
+        };
+      }
+      
+      console.log(`[EditSubnetModal] === STARTING ${httpMethod} PROCESS === ${new Date().toISOString()}`);
+      console.log('[EditSubnetModal] Request data being sent:', requestData);
       console.log('[EditSubnetModal] API endpoint: /api/builders');
-      console.log('[EditSubnetModal] HTTP method: PATCH');
+      console.log(`[EditSubnetModal] HTTP method: ${httpMethod}`);
 
       const response = await fetch('/api/builders', {
-        method: 'PATCH',
+        method: httpMethod,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updateData),
+        body: JSON.stringify(requestData),
       });
 
       console.log(`[EditSubnetModal] API response received: ${response.status} at ${new Date().toISOString()}`);
@@ -193,17 +249,23 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
           errorMessage = "You don't have permission to edit this subnet.";
         } else if (response.status === 500) {
           errorMessage = `Server error: ${errorData.error || 'Unknown error occurred'}`;
+        } else if (response.status === 400 && isTempMorlordId) {
+          errorMessage = `Error creating subnet: ${errorData.error || 'Invalid data provided'}`;
         }
         
-        toast.error(`Failed to update subnet metadata: ${errorMessage}`);
+        const actionText = isTempMorlordId ? 'create subnet metadata' : 'update subnet metadata';
+        toast.error(`Failed to ${actionText}: ${errorMessage}`);
         return;
       }
 
       const data = await response.json();
-      console.log(`[EditSubnetModal] API update successful at ${new Date().toISOString()}, updated data:`, data);
+      console.log(`[EditSubnetModal] API ${httpMethod} successful at ${new Date().toISOString()}, data:`, data);
       saveSuccessful = true;
 
-      toast.success("Subnet metadata updated successfully");
+      const successMessage = isTempMorlordId ? 
+        "Subnet metadata created successfully" : 
+        "Subnet metadata updated successfully";
+      toast.success(successMessage);
       
       console.log('[EditSubnetModal] Calling onSave callback...');
       // Call the onSave callback if provided
@@ -217,7 +279,8 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
       
     } catch (error) {
       console.error('[EditSubnetModal] Error in save process:', error);
-      toast.error("Failed to update subnet metadata");
+      const actionText = builder.id.startsWith('morlord-') ? 'create subnet metadata' : 'update subnet metadata';
+      toast.error(`Failed to ${actionText}`);
     } finally {
       console.log('[EditSubnetModal] Setting isLoading to false');
       setIsLoading(false);

@@ -19,12 +19,7 @@ interface MorlordBuilder {
   [key: string]: string | number;
 }
 
-// Helper function to extract builder name from temporary morlord ID
-const extractBuilderNameFromMorlordId = (tempId: string): string => {
-  // Original mapping: name.replace(/\s+/g, '-').toLowerCase() 
-  // So to reverse: remove morlord- prefix, replace hyphens with spaces
-  return tempId.replace(/^morlord-/, '').replace(/-/g, ' ');
-};
+
 
 export async function GET() {
   console.log('[API ROUTE] /api/builders route called');
@@ -152,139 +147,42 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    console.log(`[API ROUTE] Updating builder with ID: ${id} at ${new Date().toISOString()}`);
+    // Validate that this is a real UUID (not a temporary morlord ID)
+    if (id.startsWith('morlord-')) {
+      console.error('[API ROUTE] Temporary morlord IDs should use POST to create new records, not PATCH');
+      return NextResponse.json(
+        { error: "Use POST method to create new builder records for temporary IDs." },
+        { status: 400 }
+      );
+    }
+
+    console.log(`[API ROUTE] Updating builder with UUID: ${id} at ${new Date().toISOString()}`);
     console.log('[API ROUTE] Update data:', updateData);
 
-    // Check if this is a temporary morlord ID (pattern: morlord-*)
-    const isTempMorlordId = id.startsWith('morlord-');
-    
-    if (isTempMorlordId) {
-      console.log(`[API ROUTE] Detected temporary morlord ID: ${id}`);
-      
-      // Extract the builder name from the temporary ID
-      const builderName = extractBuilderNameFromMorlordId(id);
-      console.log(`[API ROUTE] Extracted builder name: "${builderName}"`);
-      
-      // Validate the extracted name
-      if (!builderName || builderName.trim().length === 0) {
-        console.error('[API ROUTE] Invalid temporary ID format - could not extract builder name');
-        return NextResponse.json(
-          { error: "Invalid temporary builder ID format" },
-          { status: 400 }
-        );
-      }
-      
-      // First check if a builder with this name already exists (case-insensitive)
-      const { data: existingBuilder, error: findError } = await supabaseService
-        .from('builders')
-        .select('*')
-        .filter('name', 'ilike', builderName) // Case-insensitive exact match
-        .single();
-      
-      if (findError && findError.code !== 'PGRST116') { // PGRST116 is "not found" error
-        console.error('[API ROUTE] Error checking for existing builder:', findError);
-        return NextResponse.json(
-          { error: `Error checking for existing builder: ${findError.message}` },
-          { status: 500 }
-        );
-      }
-      
-      if (existingBuilder) {
-        console.log(`[API ROUTE] Found existing builder with name "${builderName}", updating it`);
-        
-        // Add updated_at timestamp
-        const dataToUpdate = {
-          ...updateData,
-          updated_at: new Date().toISOString()
-        };
-        
-        // Update the existing builder using its real ID
-        const { data, error } = await supabaseService
-          .from('builders')
-          .update(dataToUpdate)
-          .eq('id', existingBuilder.id)
-          .select()
-          .single();
-        
-        if (error) {
-          console.error('[API ROUTE] Error updating existing builder in Supabase:', error);
-          return NextResponse.json(
-            { error: error.message },
-            { status: 500 }
-          );
-        }
-        
-        console.log(`[API ROUTE] Existing builder updated successfully at ${new Date().toISOString()}:`, data);
-        return NextResponse.json(data);
-      } else {
-        console.log(`[API ROUTE] Builder "${builderName}" not found in database, creating it first`);
-        
-        // Create the builder first with minimal required data
-        const dataToInsert: Omit<BuilderDB, 'id' | 'created_at' | 'updated_at'> = {
-          name: builderName,
-          networks: ['Base'], // Default network
-          description: updateData.description || null,
-          long_description: updateData.description || null,
-          image_src: updateData.image_src || null,
-          tags: [],
-          github_url: null,
-          twitter_url: null,
-          discord_url: null,
-          contributors: 0,
-          github_stars: 0,
-          reward_types: updateData.reward_types || [],
-          reward_types_detail: [],
-          website: updateData.website || null,
-        };
-        
-        console.log('[API ROUTE] Creating new builder with data:', dataToInsert);
-        
-        const { data: newBuilder, error: insertError } = await supabaseService
-          .from('builders')
-          .insert(dataToInsert)
-          .select()
-          .single();
-        
-        if (insertError) {
-          console.error('[API ROUTE] Error creating new builder in Supabase:', insertError);
-          return NextResponse.json(
-            { error: `Error creating builder: ${insertError.message}` },
-            { status: 500 }
-          );
-        }
-        
-        console.log(`[API ROUTE] New builder created successfully at ${new Date().toISOString()}:`, newBuilder);
-        return NextResponse.json(newBuilder);
-      }
-    } else {
-      // Original logic for real UUIDs
-      console.log(`[API ROUTE] Processing real UUID: ${id}`);
-      
-      // Add updated_at timestamp
-      const dataToUpdate = {
-        ...updateData,
-        updated_at: new Date().toISOString()
-      };
+    // Add updated_at timestamp
+    const dataToUpdate = {
+      ...updateData,
+      updated_at: new Date().toISOString()
+    };
 
-      // Update using service client (bypasses RLS)
-      const { data, error } = await supabaseService
-        .from('builders')
-        .update(dataToUpdate)
-        .eq('id', id)
-        .select()
-        .single();
+    // Update using service client (bypasses RLS)
+    const { data, error } = await supabaseService
+      .from('builders')
+      .update(dataToUpdate)
+      .eq('id', id)
+      .select()
+      .single();
 
-      if (error) {
-        console.error('[API ROUTE] Error updating builder in Supabase:', error);
-        return NextResponse.json(
-          { error: error.message },
-          { status: 500 }
-        );
-      }
-
-      console.log(`[API ROUTE] Builder updated successfully in Supabase at ${new Date().toISOString()}:`, data);
-      return NextResponse.json(data);
+    if (error) {
+      console.error('[API ROUTE] Error updating builder in Supabase:', error);
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
     }
+
+    console.log(`[API ROUTE] Builder updated successfully in Supabase at ${new Date().toISOString()}:`, data);
+    return NextResponse.json(data);
 
   } catch (error) {
     console.error('[API ROUTE] Error in PATCH builders API route:', error);
