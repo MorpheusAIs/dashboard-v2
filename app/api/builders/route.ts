@@ -174,11 +174,11 @@ export async function PATCH(request: NextRequest) {
         );
       }
       
-      // First check if a builder with this name already exists
+      // First check if a builder with this name already exists (case-insensitive)
       const { data: existingBuilder, error: findError } = await supabaseService
         .from('builders')
         .select('*')
-        .eq('name', builderName)
+        .filter('name', 'ilike', builderName) // Case-insensitive exact match
         .single();
       
       if (findError && findError.code !== 'PGRST116') { // PGRST116 is "not found" error
