@@ -7,6 +7,7 @@ import { useAuth } from '@/context/auth-context'; // Added to get userAddress
 import { useMorlordBuilders } from './useMorlordBuilders'; // Import the new hook
 import { BuilderDB } from '@/app/lib/supabase';
 import { useNewlyCreatedSubnets } from './useNewlyCreatedSubnets';
+import { useMemo } from 'react';
 
 export const useAllBuildersQuery = () => {
   console.log('[useAllBuildersQuery] Hook initialized');
@@ -22,6 +23,13 @@ export const useAllBuildersQuery = () => {
   const supabaseBuildersLength = Array.isArray(supabaseBuilders) ? supabaseBuilders.length : 0;
   const newlyCreatedNamesLength = getNewlyCreatedSubnetNames().length;
 
+  // Create a hash of supabase builder names to detect changes
+  const supabaseBuilderNamesHash = useMemo(() => {
+    if (!supabaseBuilders?.length) return '';
+    const names = supabaseBuilders.map(b => b.name).sort().join(',');
+    return btoa(names); // Simple base64 encoding as hash
+  }, [supabaseBuilders]);
+
   console.log(`[useAllBuildersQuery] Dependencies: 
     isTestnet: ${isTestnet}
     supabaseBuildersLoaded: ${supabaseBuildersLoaded}
@@ -29,10 +37,12 @@ export const useAllBuildersQuery = () => {
     morlordBuilderNames length: ${morlordNamesLength}
     supabaseBuilders length: ${supabaseBuildersLength}
     newlyCreatedNames length: ${newlyCreatedNamesLength}
+    supabaseBuilderNamesHash: ${supabaseBuilderNamesHash.substring(0, 8)}...
   `);
 
   // Include userAddress, morlordBuilderNames, and newly created subnets in the queryKey for refetching
   const newlyCreatedNames = getNewlyCreatedSubnetNames();
+  
   const queryKey: QueryKey = [
     'builders', 
     { 
@@ -40,7 +50,8 @@ export const useAllBuildersQuery = () => {
       supabaseBuildersLoaded, 
       userAddress: isAuthenticated ? userAddress : null,
       morlordBuilderNamesLoaded: !isLoadingMorlordBuilders && !!morlordBuilderNames,
-      newlyCreatedSubnets: newlyCreatedNames.join(',') // Include newly created subnets in key
+      newlyCreatedSubnets: newlyCreatedNames.join(','), // Include newly created subnets in key
+      supabaseBuilderNamesHash, // Include hash of supabase builder names
     }
   ];
 
@@ -81,32 +92,23 @@ export const useAllBuildersQuery = () => {
         const supabaseNames = supabaseBuilders?.map(b => b.name) || [];
         // console.log(`[useAllBuildersQuery] Supabase builder names:`, supabaseNames);
         
-        // Identify which builders are in Supabase but not in the combined official list (Morlord + newly created)
-        // const supabaseOnlyBuilders = supabaseBuilders?.filter(builder => 
-        //   !allOfficialNames.includes(builder.name)
-        // ) || [];
-        
-        // if (supabaseOnlyBuilders.length > 0) {
-        //   const supabaseOnlyNames = supabaseOnlyBuilders.map(b => b.name);
-        //   console.log(`[useAllBuildersQuery] Found ${supabaseOnlyBuilders.length} builders in Supabase that are NOT in official list:`, supabaseOnlyNames);
-        // } else {
-        //   console.log('[useAllBuildersQuery] All Supabase builders are also in the official list');
-        // }
-        
         // Identify which builders are in the official list but not in Supabase
         const officialOnlyNames = allOfficialNames.filter(name => 
-          !supabaseNames.includes(name)
+          !supabaseNames.some(supabaseName => supabaseName.toLowerCase() === name.toLowerCase())
         );
         
         if (officialOnlyNames.length > 0) {
-          // console.log(`[useAllBuildersQuery] Found ${officialOnlyNames.length} builders in official list that are NOT in Supabase:`, officialOnlyNames);
+          console.log(`[useAllBuildersQuery] Found ${officialOnlyNames.length} builders in official list that are NOT in Supabase:`, officialOnlyNames);
           
           // Create basic builder objects for these missing builders and add them to the combined list
           const currentDate = new Date().toISOString();
           const officialOnlyBuilders = officialOnlyNames.map((name: string) => {
             // Create a minimal BuilderDB object for each missing builder
+            const tempId = `morlord-${name.replace(/\s+/g, '-').toLowerCase()}`;
+            console.log(`[useAllBuildersQuery] Creating temporary builder for "${name}" with ID: ${tempId}`);
+            
             const builder: BuilderDB = {
-              id: `morlord-${name.replace(/\s+/g, '-').toLowerCase()}`, // Generate a temporary ID
+              id: tempId, // Generate a temporary ID
               name: name,
               description: ``,
               long_description: '',
@@ -129,7 +131,7 @@ export const useAllBuildersQuery = () => {
           
           // Add these to the combined list
           combinedBuilders = [...combinedBuilders, ...officialOnlyBuilders];
-          // console.log(`[useAllBuildersQuery] Added ${officialOnlyBuilders.length} builders from official API that weren't in Supabase`);
+          console.log(`[useAllBuildersQuery] Added ${officialOnlyBuilders.length} temporary builders from official API that weren't in Supabase`);
         } else {
           console.log('[useAllBuildersQuery] All official builders are also in Supabase');
         }
