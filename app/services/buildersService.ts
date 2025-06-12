@@ -45,7 +45,8 @@ export const fetchBuildersAPI = async (
   supabaseBuilders: BuilderDB[] | null, 
   supabaseBuildersLoaded: boolean, 
   userAddress?: string | null, // Added userAddress as an optional parameter
-  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null // Function to get admin address for newly created subnets
+  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null, // Function to get admin address for newly created subnets
+  allAvailableBuilderNames?: string[] // Add parameter to pass all available names for GraphQL query
 ): Promise<Builder[]> => {
   console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
   console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
@@ -174,8 +175,18 @@ export const fetchBuildersAPI = async (
         return [];
       }
       
-      // FIXED: Use ALL builders (including Morlord-only ones), not just original Supabase
-      let builderNames = supabaseBuilders.map(b => b.name);
+      // Use ALL available builder names for GraphQL query, not just Supabase names
+      // This ensures on-chain data is retrieved even after creating Supabase records
+      let builderNames: string[];
+      
+      if (allAvailableBuilderNames && allAvailableBuilderNames.length > 0) {
+        builderNames = [...allAvailableBuilderNames];
+        console.log(`[API] Mainnet: Using all available builder names for GraphQL query (${builderNames.length} names)`);
+      } else {
+        // Fallback to Supabase names if no external list provided
+        builderNames = supabaseBuilders.map(b => b.name);
+        console.log(`[API] Mainnet: Fallback to Supabase names only (${builderNames.length} names)`);
+      }
       
       // FIX: Handle name mismatch between Morlord API and GraphQL subgraphs
       // Morlord API uses "Protection and Capital Incentive" 
@@ -199,7 +210,8 @@ export const fetchBuildersAPI = async (
       // Remove duplicates
       builderNames = Array.from(new Set(expandedBuilderNames));
       
-      console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
+      console.log(`[API] Mainnet: Final GraphQL query will use ${builderNames.length} builder names (includes name variations)`);
+      console.log(`[API] Mainnet: Builder names for GraphQL query:`, builderNames);
       
       const commonVariables = {
         orderBy: "totalStaked",
@@ -217,7 +229,7 @@ export const fetchBuildersAPI = async (
         throw new Error(`[API] Could not get Apollo clients for Base or Arbitrum`);
       }
       
-      // console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum.');
+      console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum with names:', builderNames);
       
       const [baseResponse, arbitrumResponse] = await Promise.all([
         baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
@@ -232,7 +244,7 @@ export const fetchBuildersAPI = async (
         })
       ]);
 
-
+      console.log(`[API] Mainnet: GraphQL responses - Base: ${baseResponse.data?.buildersProjects?.length || 0} projects, Arbitrum: ${arbitrumResponse.data?.buildersProjects?.length || 0} projects`);
 
       // Helper function to normalize GraphQL names back to Morlord API names
       const normalizeBuilderName = (graphqlName: string): string => {
@@ -294,11 +306,11 @@ export const fetchBuildersAPI = async (
         };
       });
 
-      // console.log('[API] Mainnet: Fetched from Base:', baseProjects.length, 'projects');
-      // console.log('[API] Mainnet: Fetched from Arbitrum:', arbitrumProjects.length, 'projects');
+      console.log('[API] Mainnet: Fetched from Base:', baseProjects.length, 'projects');
+      console.log('[API] Mainnet: Fetched from Arbitrum:', arbitrumProjects.length, 'projects');
       
       combinedProjects = [...baseProjects, ...arbitrumProjects];
-      // console.log('[API] Mainnet: Combined projects:', combinedProjects.length);
+      console.log('[API] Mainnet: Combined on-chain projects:', combinedProjects.length);
 
       if (!supabaseBuilders) {
         // console.warn("[API] Mainnet: supabaseBuilders is null at merging stage. Returning empty Builder array.");
@@ -325,10 +337,12 @@ export const fetchBuildersAPI = async (
       // First process all combined projects to create builder objects
       combinedProjects.forEach(onChainProject => {
 
+        console.log(`[API] Mainnet: Processing on-chain project "${onChainProject.name}" on ${onChainProject.network}`);
 
-        const matchingSupabaseBuilder = supabaseBuilders.find(b => b.name === onChainProject.name);
+        const matchingSupabaseBuilder = supabaseBuilders.find(b => b.name.toLowerCase() === onChainProject.name.toLowerCase());
         
         if (matchingSupabaseBuilder) {
+          console.log(`[API] Mainnet: Found matching Supabase builder for "${onChainProject.name}"`);
           const mainnetLockPeriodSeconds = parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10);
           
 
@@ -366,7 +380,7 @@ export const fetchBuildersAPI = async (
         } else {
           // This is an on-chain builder that doesn't exist in Supabase
           // Create a minimal builder object
-          // console.log(`[API] Mainnet: Found on-chain builder '${onChainProject.name}' on ${onChainProject.network} not in Supabase`);
+          console.log(`[API] Mainnet: Found on-chain builder '${onChainProject.name}' on ${onChainProject.network} not in Supabase`);
           
           const currentDate = new Date().toISOString();
           const builder: Builder = {
@@ -415,10 +429,10 @@ export const fetchBuildersAPI = async (
       
       // Process any remaining Supabase builders that weren't found on-chain
       const onChainBuilderNames = combinedProjects.map(p => p.name);
-      const supabaseOnlyBuilders = supabaseBuilders.filter(b => !onChainBuilderNames.includes(b.name));
+      const supabaseOnlyBuilders = supabaseBuilders.filter(b => !onChainBuilderNames.some(name => name.toLowerCase() === b.name.toLowerCase()));
       
       if (supabaseOnlyBuilders.length > 0) {
-        // console.log(`[API] Mainnet: Found ${supabaseOnlyBuilders.length} builders in Supabase without on-chain data`);
+        console.log(`[API] Mainnet: Found ${supabaseOnlyBuilders.length} builders in Supabase without on-chain data:`, supabaseOnlyBuilders.map(b => b.name));
         
         // Add these builders to the mapped list with default on-chain values
         supabaseOnlyBuilders.forEach(builderDB => {
@@ -426,7 +440,7 @@ export const fetchBuildersAPI = async (
           const newlyCreatedAdmin = getNewlyCreatedSubnetAdmin ? getNewlyCreatedSubnetAdmin(builderDB.name) : null;
           const adminAddress = newlyCreatedAdmin || ""; // Use cached admin address if available
           
-          // console.log(`[API] Mainnet: Processing Supabase-only builder "${builderDB.name}" with admin: ${adminAddress || 'none'}`);
+          console.log(`[API] Mainnet: Processing Supabase-only builder "${builderDB.name}" with admin: ${adminAddress || 'none'}`);
           
           const builder = mergeBuilderData(builderDB, {
             id: "",

@@ -75,11 +75,32 @@ export const useAllBuildersQuery = () => {
       // Start with supabase builders
       let combinedBuilders = supabaseBuilders ? [...supabaseBuilders] : [];
       
+      // Collect ALL available builder names for GraphQL query
+      let allAvailableBuilderNames: string[] = [];
+      
       if (!isTestnet && Array.isArray(morlordBuilderNames) && morlordBuilderNames.length > 0) {
         const newlyCreatedNames = getNewlyCreatedSubnetNames();
         
-        // Combine morlord names with newly created names
+        // Combine ALL sources of builder names for GraphQL query
+        const supabaseNames = supabaseBuilders?.map(b => b.name) || [];
         const allOfficialNames = [...morlordBuilderNames, ...newlyCreatedNames];
+        
+        // Create comprehensive list for GraphQL query (no duplicates)
+        allAvailableBuilderNames = Array.from(new Set([
+          ...supabaseNames,
+          ...allOfficialNames
+        ]));
+        
+        console.log(`[useAllBuildersQuery] Collected all available names for GraphQL query:`, {
+          supabaseNames: supabaseNames.length,
+          morlordNames: morlordBuilderNames.length,
+          newlyCreatedNames: newlyCreatedNames.length,
+          totalUnique: allAvailableBuilderNames.length,
+          allNames: allAvailableBuilderNames
+        });
+        
+        // Combine morlord names with newly created names
+        const allOfficialNamesForCombining = [...morlordBuilderNames, ...newlyCreatedNames];
         
         // console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names and ${newlyCreatedNames.length} newly created names`);
         
@@ -89,11 +110,10 @@ export const useAllBuildersQuery = () => {
         }
         
         // Log the names from Supabase
-        const supabaseNames = supabaseBuilders?.map(b => b.name) || [];
         // console.log(`[useAllBuildersQuery] Supabase builder names:`, supabaseNames);
         
         // Identify which builders are in the official list but not in Supabase
-        const officialOnlyNames = allOfficialNames.filter(name => 
+        const officialOnlyNames = allOfficialNamesForCombining.filter(name => 
           !supabaseNames.some(supabaseName => supabaseName.toLowerCase() === name.toLowerCase())
         );
         
@@ -137,20 +157,23 @@ export const useAllBuildersQuery = () => {
         }
       } else {
         console.log('[useAllBuildersQuery] Not enough data to analyze builders (either official data or Supabase data missing)');
+        // For testnet or when no morlord data, just use supabase names
+        allAvailableBuilderNames = supabaseBuilders?.map(b => b.name) || [];
       }
       
-      // Pass the COMBINED list of builders to fetchBuildersAPI
-      // console.log(`[useAllBuildersQuery] Calling fetchBuildersAPI with ${combinedBuilders.length} COMBINED builders from both Supabase and Morlord`);
+      // Pass the COMBINED list of builders and ALL available names to fetchBuildersAPI
+      console.log(`[useAllBuildersQuery] Calling fetchBuildersAPI with ${combinedBuilders.length} combined builders and ${allAvailableBuilderNames.length} names for GraphQL query`);
       
       const result = await fetchBuildersAPI(
         isTestnet, 
         combinedBuilders, 
         supabaseBuildersLoaded, 
         isAuthenticated ? userAddress : "",
-        getNewlyCreatedSubnetAdmin // Pass the function to get admin addresses for newly created subnets
+        getNewlyCreatedSubnetAdmin, // Pass the function to get admin addresses for newly created subnets
+        allAvailableBuilderNames // Pass all available names for GraphQL query
       );
       
-      // console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);
+      console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);
       return result;
     },
     enabled: isEnabled,
