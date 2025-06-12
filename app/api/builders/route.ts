@@ -19,6 +19,13 @@ interface MorlordBuilder {
   [key: string]: string | number;
 }
 
+// Helper function to extract builder name from temporary morlord ID
+const extractBuilderNameFromMorlordId = (tempId: string): string => {
+  // Original mapping: name.replace(/\s+/g, '-').toLowerCase() 
+  // So to reverse: remove morlord- prefix, replace hyphens with spaces
+  return tempId.replace(/^morlord-/, '').replace(/-/g, ' ');
+};
+
 export async function GET() {
   console.log('[API ROUTE] /api/builders route called');
   
@@ -155,10 +162,17 @@ export async function PATCH(request: NextRequest) {
       console.log(`[API ROUTE] Detected temporary morlord ID: ${id}`);
       
       // Extract the builder name from the temporary ID
-      // Original mapping: name.replace(/\s+/g, '-').toLowerCase() 
-      // So to reverse: remove morlord- prefix, replace hyphens with spaces
-      const builderName = id.replace(/^morlord-/, '').replace(/-/g, ' ');
-      console.log(`[API ROUTE] Extracted builder name: ${builderName}`);
+      const builderName = extractBuilderNameFromMorlordId(id);
+      console.log(`[API ROUTE] Extracted builder name: "${builderName}"`);
+      
+      // Validate the extracted name
+      if (!builderName || builderName.trim().length === 0) {
+        console.error('[API ROUTE] Invalid temporary ID format - could not extract builder name');
+        return NextResponse.json(
+          { error: "Invalid temporary builder ID format" },
+          { status: 400 }
+        );
+      }
       
       // First check if a builder with this name already exists
       const { data: existingBuilder, error: findError } = await supabaseService

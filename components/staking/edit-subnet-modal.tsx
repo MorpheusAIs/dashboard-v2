@@ -181,7 +181,21 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, onSave }: Edit
       if (!response.ok) {
         const errorData = await response.json();
         console.error('[EditSubnetModal] API error response:', errorData);
-        toast.error(`Failed to update subnet metadata: ${errorData.error || response.statusText}`);
+        
+        // Provide more specific error messages for common issues
+        let errorMessage = errorData.error || response.statusText;
+        
+        if (errorData.error && errorData.error.includes('invalid input syntax for type uuid')) {
+          errorMessage = "This subnet has an invalid ID format. This has been fixed - please try again.";
+        } else if (response.status === 404) {
+          errorMessage = "Subnet not found. It may have been deleted or you may not have permission to edit it.";
+        } else if (response.status === 403) {
+          errorMessage = "You don't have permission to edit this subnet.";
+        } else if (response.status === 500) {
+          errorMessage = `Server error: ${errorData.error || 'Unknown error occurred'}`;
+        }
+        
+        toast.error(`Failed to update subnet metadata: ${errorMessage}`);
         return;
       }
 
