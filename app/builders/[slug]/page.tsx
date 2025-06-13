@@ -77,7 +77,7 @@ export default function BuilderPage() {
   const { slug } = useParams();
   const router = useRouter();
   const { getParam } = useUrlParams();
-  const { builders, isLoading, error: buildersError } = useBuilders();
+  const { builders, isLoading, error: buildersError, refreshData } = useBuilders();
   const chainId = useChainId();
   const { address: userAddress } = useAccount();
   const { userAddress: authUserAddress } = useAuth();
@@ -481,7 +481,16 @@ export default function BuilderPage() {
         console.warn("refetchStakerDataForUser is not available");
       }
       
-
+      // Refresh builders data to update totalStaked amounts in "Your Subnets" table
+      // Use timeout to allow blockchain state to propagate
+      setTimeout(() => {
+        console.log("Refreshing builders data after successful transaction to update totalStaked amounts...");
+        refreshData().then(() => {
+          console.log("Successfully refreshed builders data after transaction");
+        }).catch((error: unknown) => {
+          console.error("Error refreshing builders data:", error);
+        });
+      }, 3000); // 3 second delay to allow blockchain state to update and propagate
       
       // Force refresh approval state after successful transaction
       // Use timeout to allow blockchain state to update
@@ -498,7 +507,7 @@ export default function BuilderPage() {
       }, 2000); // 2 second delay to allow blockchain state to update
     },
     lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
-  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser, stakeAmount]);
+  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser, stakeAmount, refreshData]);
 
   // Log subnet ID state for debugging
   useEffect(() => {
