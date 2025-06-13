@@ -9,7 +9,7 @@ import { GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_USERS } from "@/app/grap
 import { type BuildersUser, type SubnetUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
-import { StakingPositionCard } from "@/components/staking/staking-position-card";
+import { WithdrawalPositionCard } from "@/components/staking/withdrawal-position-card";
 import { ClaimFormCard } from "@/components/staking/claim-form-card";
 import { StakingTable } from "@/components/staking-table";
 import { useStakingData, type UseStakingDataProps, type BuilderSubnetUser as StakingBuilderSubnetUser } from "@/hooks/use-staking-data";
@@ -463,7 +463,7 @@ export default function BuilderPage() {
       const currentStakeAmount = stakeAmount; // Capture current stake amount
       setStakeAmount(""); // Clear stake input
       
-      // Signal the StakingPositionCard to reset its withdrawal amount
+      // Signal the WithdrawalPositionCard to reset its withdrawal amount
       if (window && window.document) {
         const resetWithdrawEvent = new CustomEvent('reset-withdraw-form');
         window.document.dispatchEvent(resetWithdrawEvent);
@@ -711,8 +711,8 @@ export default function BuilderPage() {
   // Effect to listen for the reset-withdraw-form event
   useEffect(() => {
     const handleResetWithdrawForm = () => {
-      // This code is for demonstration - since we can't directly reset StakingPositionCard's state
-      // Another approach would be to pass a resetWithdrawAmount prop to StakingPositionCard
+      // This code is for demonstration - since we can't directly reset WithdrawalPositionCard's state
+      // Another approach would be to pass a resetWithdrawAmount prop to WithdrawalPositionCard
       console.log("Should reset withdrawal form now");
     };
     
@@ -1010,8 +1010,9 @@ export default function BuilderPage() {
 
           {/* Right column - 2/5 width, Your Position card spans full height */}
           <div className="md:col-span-2 relative">
-            <StakingPositionCard
+            <WithdrawalPositionCard
               userStakedAmount={userStakedAmount || 0}
+              rawStakedAmount={rawStakedAmount || undefined}
               timeUntilUnlock={timeLeft}
               onWithdraw={onWithdrawSubmit}
               disableWithdraw={!userStakedAmount || timeLeft !== "Unlocked" || isWithdrawing}

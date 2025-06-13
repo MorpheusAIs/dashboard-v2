@@ -8,7 +8,7 @@ import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
 import { SubnetUser, BuildersUser } from "@/app/graphql/types";
 import { ProjectHeader } from "@/components/staking/project-header";
 import { StakingFormCard } from "@/components/staking/staking-form-card";
-import { StakingPositionCard } from "@/components/staking/staking-position-card";
+import { WithdrawalPositionCard } from "@/components/staking/withdrawal-position-card";
 import { StakingTable } from "@/components/staking-table";
 import { useStakingData } from "@/hooks/use-staking-data";
 import Link from "next/link";
@@ -227,7 +227,7 @@ export default function ComputeSubnetPage() {
 
             {userStakedAmount > 0 && (
               <div className="mt-4">
-                <StakingPositionCard
+                <WithdrawalPositionCard
                   userStakedAmount={userStakedAmount}
                   onWithdraw={handleWithdraw}
                   showUnlockTime={false}

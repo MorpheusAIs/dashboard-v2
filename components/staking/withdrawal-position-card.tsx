@@ -9,11 +9,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { formatUnits } from "viem";
 
-export interface StakingPositionCardProps {
+export interface WithdrawalPositionCardProps {
   title?: string;
   description?: string;
   userStakedAmount: number;
+  rawStakedAmount?: bigint; // Add raw staked amount for accurate MAX button
   timeUntilUnlock?: string;
   onWithdraw: (amount: string) => void;
   disableWithdraw?: boolean;
@@ -24,10 +26,11 @@ export interface StakingPositionCardProps {
   tokenSymbol?: string;
 }
 
-export function StakingPositionCard({
+export function WithdrawalPositionCard({
   title = "Your Position",
   description = "",
   userStakedAmount,
+  rawStakedAmount,
   timeUntilUnlock,
   onWithdraw,
   disableWithdraw = false,
@@ -36,7 +39,7 @@ export function StakingPositionCard({
   additionalInfo,
   isWithdrawing = false,
   tokenSymbol = "MOR",
-}: StakingPositionCardProps) {
+}: WithdrawalPositionCardProps) {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
   // Handle input change with TWO decimal place formatting (updated from 1)
@@ -76,11 +79,18 @@ export function StakingPositionCard({
   };
 
   const setMaxAmount = () => {
-    // Use exact amount with 2 decimal precision (no rounding/flooring)
-    const formattedMaxAmount = userStakedAmount > 0
-      ? userStakedAmount.toFixed(2)
-      : "0";
-    setWithdrawAmount(formattedMaxAmount);
+    // Use raw staked amount for accurate MAX button to avoid rounding issues
+    if (rawStakedAmount && rawStakedAmount > BigInt(0)) {
+      // Convert raw amount to string with full precision, then format to reasonable decimals
+      const exactAmount = formatUnits(rawStakedAmount, 18);
+      setWithdrawAmount(exactAmount);
+    } else {
+      // Fallback to formatted amount if raw amount is not available
+      const formattedMaxAmount = userStakedAmount > 0
+        ? userStakedAmount.toFixed(2)
+        : "0";
+      setWithdrawAmount(formattedMaxAmount);
+    }
   };
 
   const isAmountExceedingBalance = parseFloat(withdrawAmount) > userStakedAmount;
@@ -95,7 +105,7 @@ export function StakingPositionCard({
       <CardContent>
         <div className="space-y-8">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-400">Your staked amount:</span>
+            <span className="text-gray-400">Your deposited amount:</span>
             <span className="text-gray-200">{userStakedAmount.toFixed(2)} {tokenSymbol}</span>
           </div>
           
@@ -133,7 +143,7 @@ export function StakingPositionCard({
             </div>
             {isAmountExceedingBalance && (
               <p className="text-yellow-400 text-sm">
-                You are trying to withdraw more {tokenSymbol} than you have staked.
+                You are trying to withdraw more {tokenSymbol} than you have deposited.
               </p>
             )}
             {isAmountInvalid && withdrawAmount !== "" && (
