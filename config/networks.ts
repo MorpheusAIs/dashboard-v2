@@ -1,8 +1,8 @@
 import { arbitrum, arbitrumSepolia, base, mainnet, sepolia } from 'wagmi/chains';
 import type { Chain, ChainContract } from 'viem';
 
-// Network environment types
-export type NetworkEnvironment = 'mainnet' | 'testnet';
+// Network environment types - now includes local_test for Anvil forks
+export type NetworkEnvironment = 'mainnet' | 'testnet' | 'local_test';
 
 // Contract addresses by network type
 export interface ContractAddresses {
@@ -169,25 +169,78 @@ export const mainnetChains: Record<string, ChainConfig> = {
   }
 };
 
-// API URLs by environment
+// Local Test Configuration for Anvil Forks
+export const localTestChains: Record<string, ChainConfig> = {
+  arbitrum: {
+    ...arbitrum,
+    name: 'Arbitrum (Local Fork)',
+    rpcUrls: {
+      default: {
+        http: ['http://127.0.0.1:8545']
+      },
+      public: {
+        http: ['http://127.0.0.1:8545']
+      }
+    },
+    contracts: {
+      morToken: toContract('0x36fE2E7a1c19F7Be268272540E9A4aB306686506'),
+      builders: toContract('0xEA02B7528F2f07B0F6Eb485C56d182B311B80284'),
+      // Add other contracts as needed
+    },
+    isL2: true,
+    layerZeroEndpointId: 110,
+  },
+  base: {
+    ...base,
+    name: 'Base (Local Fork)',
+    rpcUrls: {
+      default: {
+        http: ['http://127.0.0.1:8546']
+      },
+      public: {
+        http: ['http://127.0.0.1:8546']
+      }
+    },
+    contracts: {
+      morToken: toContract('0x7511fAE41153Fad8A569d7Ebdcc76c120D3d5AAb'),
+      builders: toContract('0x17073Da1E92008eAE64cd5D3e8129F7928D3b362'),
+    },
+    isL2: true,
+  }
+};
+
+// API URLs by environment - add local_test
 export const apiUrls = {
   mainnet: {
     graphql: 'https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest'
   },
   testnet: {
     graphql: 'https://api.studio.thegraph.com/query/73688/kkk/version/latest'
+  },
+  local_test: {
+    // For local testing, we can use the testnet GraphQL endpoint or mock data
+    graphql: 'https://api.studio.thegraph.com/query/73688/kkk/version/latest'
   }
 };
 
 // Get all chains for an environment
 export const getChains = (environment: NetworkEnvironment) => {
-  return environment === 'mainnet' ? Object.values(mainnetChains) : Object.values(testnetChains);
+  switch (environment) {
+    case 'mainnet':
+      return Object.values(mainnetChains);
+    case 'testnet':
+      return Object.values(testnetChains);
+    case 'local_test':
+      return Object.values(localTestChains);
+    default:
+      return Object.values(mainnetChains);
+  }
 };
 
 // Get a specific chain by id
 export const getChainById = (chainId: number, environment: NetworkEnvironment) => {
-  const chains = environment === 'mainnet' ? mainnetChains : testnetChains;
-  return Object.values(chains).find(chain => chain.id === chainId);
+  const chains = getChains(environment);
+  return chains.find(chain => chain.id === chainId);
 };
 
 // Get contract address for a specific chain
@@ -208,17 +261,62 @@ export const getLayerZeroEndpointId = (chainId: number, environment: NetworkEnvi
 
 // Get all L1 chains
 export const getL1Chains = (environment: NetworkEnvironment) => {
-  const chains = environment === 'mainnet' ? mainnetChains : testnetChains;
-  return Object.values(chains).filter(chain => chain.isL1);
+  const chains = getChains(environment);
+  return chains.filter(chain => chain.isL1);
 };
 
 // Get all L2 chains
 export const getL2Chains = (environment: NetworkEnvironment) => {
-  const chains = environment === 'mainnet' ? mainnetChains : testnetChains;
-  return Object.values(chains).filter(chain => chain.isL2);
+  const chains = getChains(environment);
+  return chains.filter(chain => chain.isL2);
 };
 
 // Get GraphQL API URL for the environment
 export const getGraphQLApiUrl = (environment: NetworkEnvironment) => {
   return apiUrls[environment].graphql;
+};
+
+// Auto-detect environment based on RPC URL
+export const detectEnvironmentFromRpcUrl = (rpcUrl?: string): NetworkEnvironment => {
+  if (!rpcUrl) return 'mainnet';
+  
+  // Check for local/localhost URLs
+  if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
+    return 'local_test';
+  }
+  
+  // Check for known testnet RPC URLs
+  if (rpcUrl.includes('sepolia') || rpcUrl.includes('goerli')) {
+    return 'testnet';
+  }
+  
+  // Default to mainnet
+  return 'mainnet';
+};
+
+// Helper to detect if we're connected to a local RPC
+export const isLocalRpc = (rpcUrl?: string): boolean => {
+  if (!rpcUrl) return false;
+  return rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1');
+};
+
+// Get environment-appropriate chain for a given chain ID
+export const getEnvironmentForChainAndRpc = (chainId: number, rpcUrl?: string): NetworkEnvironment => {
+  // First check if it's a local RPC
+  if (isLocalRpc(rpcUrl)) {
+    // For local RPCs, check if we have a local configuration for this chain ID
+    const localChain = Object.values(localTestChains).find(chain => chain.id === chainId);
+    if (localChain) {
+      return 'local_test';
+    }
+  }
+  
+  // Check testnet chains
+  const testnetChain = Object.values(testnetChains).find(chain => chain.id === chainId);
+  if (testnetChain) {
+    return 'testnet';
+  }
+  
+  // Default to mainnet
+  return 'mainnet';
 }; 
