@@ -24,6 +24,7 @@ export interface WithdrawalPositionCardProps {
   additionalInfo?: React.ReactNode;
   isWithdrawing?: boolean;
   tokenSymbol?: string;
+  compactMode?: boolean;
 }
 
 export function WithdrawalPositionCard({
@@ -39,6 +40,7 @@ export function WithdrawalPositionCard({
   additionalInfo,
   isWithdrawing = false,
   tokenSymbol = "MOR",
+  compactMode = false,
 }: WithdrawalPositionCardProps) {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   
@@ -102,22 +104,36 @@ export function WithdrawalPositionCard({
         <CardTitle className="text-lg font-bold">{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-8">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-gray-400">Your deposited amount:</span>
-            <span className="text-gray-200">{userStakedAmount.toFixed(2)} {tokenSymbol}</span>
-          </div>
-          
-          {showUnlockTime && timeUntilUnlock && (
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-400">Time until unlock:</span>
-              <span className="text-gray-200">{timeUntilUnlock}</span>
+      <CardContent className={compactMode ? "pt-1 px-3 pb-3" : "pb-6 pt-2"}>
+        <div className={compactMode ? "space-y-2" : "space-y-8"}>
+          {/* Only show these rows in non-compact mode */}
+          {!compactMode && (
+            <div className="flex flex-col space-y-2">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-gray-400">Your deposited amount:</span>
+                <span className="text-gray-200">{userStakedAmount.toFixed(2)} {tokenSymbol}</span>
+              </div>
+              
+              {showUnlockTime && timeUntilUnlock && (
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-400">Time until unlock:</span>
+                  <span className="text-gray-200">{timeUntilUnlock}</span>
+                </div>
+              )}
             </div>
           )}
           
-          <div className="space-y-2 pt-6">
-            <Label htmlFor="withdraw-amount">Amount to withdraw</Label>
+          <div className={`space-y-2 ${compactMode ? "pt-0" : "pt-[67px]"}`}>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="withdraw-amount">Amount to withdraw</Label>
+              {/* In compact mode, show time until unlock on the right side */}
+              {compactMode && showUnlockTime && timeUntilUnlock && (
+                <div className="text-sm text-gray-400">
+                  <span className="text-gray-500">Time until unlock:</span>{" "}
+                  <span className="text-gray-300">{timeUntilUnlock}</span>
+                </div>
+              )}
+            </div>
             <div className="relative">
               <Input
                 id="withdraw-amount"
@@ -128,9 +144,15 @@ export function WithdrawalPositionCard({
                 value={withdrawAmount}
                 onChange={handleAmountChange}
                 disabled={disableWithdraw}
-                className="pr-16" // Reduced padding since we're removing the balance display
+                className={compactMode ? "pr-32" : "pr-16"} // More padding in compact mode for deposited amount + max button
               />
               <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+                {/* In compact mode, show deposited amount inside the input field */}
+                {compactMode && userStakedAmount > 0 && (
+                  <span className="text-xs text-gray-400 mr-2">
+                    {userStakedAmount.toFixed(1)} {tokenSymbol}
+                  </span>
+                )}
                 <button
                   type="button"
                   className="h-8 px-2 text-xs copy-button-secondary"
@@ -151,11 +173,9 @@ export function WithdrawalPositionCard({
                 Withdrawal amount must be greater than zero.
               </p>
             )}
-          </div>
-          
           <Button 
             onClick={handleWithdraw}
-            className="w-full"
+            className="w-full mt-2!"
             variant="outline"
             disabled={disableWithdraw || !withdrawAmount || isWithdrawing || isAmountExceedingBalance || isAmountInvalid}
           >
@@ -163,6 +183,8 @@ export function WithdrawalPositionCard({
           </Button>
           
           {additionalInfo}
+          </div>
+          
         </div>
       </CardContent>
     </Card>

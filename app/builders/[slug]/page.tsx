@@ -918,10 +918,11 @@ export default function BuilderPage() {
         </div>
 
         {/* Staking Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
-          {/* Left column - 3/5 width, contains Stake and Claim forms */}
-          <div className="md:col-span-3 space-y-4">
-            {/* Stake Form */}
+        {(() => {
+          const isAdmin = authUserAddress && builder.admin && authUserAddress.toLowerCase() === builder.admin.toLowerCase();
+          
+          // Stake Form Component
+          const StakeFormWithGlow = (
             <div className="relative">
               <StakingFormCard
                 title="Stake MOR"
@@ -980,8 +981,10 @@ export default function BuilderPage() {
                 borderRadius="rounded-xl"
               />
             </div>
+          );
 
-            {/* Claim Form */}
+          // Claim Form Component (only for admins)
+          const ClaimFormWithGlow = isAdmin ? (
             <div className="relative">
               <ClaimFormCard
                 onClaim={async () => {
@@ -1015,44 +1018,64 @@ export default function BuilderPage() {
                 borderRadius="rounded-xl"
               />
             </div>
-          </div>
+          ) : null;
 
-          {/* Right column - 2/5 width, Your Position card spans full height */}
-          <div className="md:col-span-2 relative">
-            <WithdrawalPositionCard
-              userStakedAmount={userStakedAmount || 0}
-              rawStakedAmount={rawStakedAmount || undefined}
-              timeUntilUnlock={timeLeft}
-              onWithdraw={onWithdrawSubmit}
-              disableWithdraw={!userStakedAmount || timeLeft !== "Unlocked" || isWithdrawing}
-              isWithdrawing={isWithdrawing}
-              tokenSymbol={tokenSymbol}
-              withdrawButtonText={
-                !isCorrectNetwork()
-                  ? "Switch Network"
-                  : isWithdrawing
-                  ? "Withdrawing..."
-                  : "Withdraw MOR"
-              }
-              // description={
-              //   timeLeft !== "Unlocked"
-              //     ? `Your funds are locked until ${timeLeft} from now.`
-              //     : userStakedAmount
-              //     ? `You can withdraw up to ${Math.max(userStakedAmount - (builder?.minDeposit ? Number(builder.minDeposit) : 0), 0)} ${tokenSymbol}.`
-              //     : `You have no staked tokens to withdraw.`
-              // }
-            />
-            <GlowingEffect 
-              spread={40}
-              glow={true}
-              disabled={false}
-              proximity={64}
-              inactiveZone={0.01}
-              borderWidth={2}
-              borderRadius="rounded-xl"
-            />
-          </div>
-        </div>
+          // Withdrawal Position Card Component
+          const WithdrawalCardWithGlow = (
+            <div className="relative">
+              <WithdrawalPositionCard
+                userStakedAmount={userStakedAmount || 0}
+                rawStakedAmount={rawStakedAmount || undefined}
+                timeUntilUnlock={timeLeft}
+                onWithdraw={onWithdrawSubmit}
+                disableWithdraw={!userStakedAmount || timeLeft !== "Unlocked" || isWithdrawing}
+                isWithdrawing={isWithdrawing}
+                tokenSymbol={tokenSymbol}
+                withdrawButtonText={
+                  !isCorrectNetwork()
+                    ? "Switch Network"
+                    : isWithdrawing
+                    ? "Withdrawing..."
+                    : "Withdraw MOR"
+                }
+                compactMode={!isAdmin}
+              />
+              <GlowingEffect 
+                spread={40}
+                glow={true}
+                disabled={false}
+                proximity={64}
+                inactiveZone={0.01}
+                borderWidth={2}
+                borderRadius="rounded-xl"
+              />
+            </div>
+          );
+
+          // Render layout based on admin status
+          if (isAdmin) {
+            // Admin layout - 3/5 and 2/5 split with claim form
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+                <div className="md:col-span-3 space-y-4">
+                  {StakeFormWithGlow}
+                  {ClaimFormWithGlow}
+                </div>
+                <div className="md:col-span-2">
+                  {WithdrawalCardWithGlow}
+                </div>
+              </div>
+            );
+          } else {
+            // Non-admin layout - 1/2 and 1/2 split without claim form
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {StakeFormWithGlow}
+                {WithdrawalCardWithGlow}
+              </div>
+            );
+          }
+        })()}
 
         {/* Staking Table */}
         <Card>
