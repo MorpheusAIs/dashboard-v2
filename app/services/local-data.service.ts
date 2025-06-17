@@ -122,14 +122,21 @@ export function useLocalContractData(environment: NetworkEnvironment, chainId?: 
             toBlock: 'latest',
           });
 
-          const newSubnetIds = new Set(discoveredSubnetIds);
           subnetLogs.forEach((log: SubnetCreatedLog) => {
-            if (log.args?.subnetId) {
-              newSubnetIds.add(log.args.subnetId);
-              console.log(`📝 Found subnet: ${log.args.name} (${log.args.subnetId})`);
+            const subnetId = log.args?.subnetId;
+            if (subnetId) {
+              setDiscoveredSubnetIds(prev => {
+                if (prev.has(subnetId)) return prev; // no change
+                const updated = new Set(prev);
+                updated.add(subnetId);
+                return updated;
+              });
+
+              // Safely log the name if present
+              const namePart = log.args?.name ? `: ${log.args.name}` : '';
+              console.log(`📝 Found subnet${namePart} (${subnetId})`);
             }
           });
-          setDiscoveredSubnetIds(newSubnetIds);
 
         } catch (subnetErr) {
           console.log('ℹ️ No SubnetCreated events found, trying BuilderPoolCreated...', subnetErr);
@@ -148,14 +155,18 @@ export function useLocalContractData(environment: NetworkEnvironment, chainId?: 
             toBlock: 'latest',
           });
 
-          const newPoolIds = new Set(discoveredPoolIds);
           poolLogs.forEach((log: BuilderPoolCreatedLog) => {
-            if (log.args?.builderPoolId) {
-              newPoolIds.add(log.args.builderPoolId);
-              console.log(`📝 Found pool: ${log.args.builderPoolId}`);
+            const poolId = log.args?.builderPoolId;
+            if (poolId) {
+              setDiscoveredPoolIds(prev => {
+                if (prev.has(poolId)) return prev;
+                const updated = new Set(prev);
+                updated.add(poolId);
+                return updated;
+              });
+              console.log(`📝 Found pool: ${poolId}`);
             }
           });
-          setDiscoveredPoolIds(newPoolIds);
         }
       }
     } catch (err) {
@@ -164,7 +175,7 @@ export function useLocalContractData(environment: NetworkEnvironment, chainId?: 
     } finally {
       setLoading(false);
     }
-  }, [publicClient, buildersAddress, isLocalTest, chainId, discoveredSubnetIds, discoveredPoolIds]);
+  }, [publicClient, buildersAddress, isLocalTest, chainId]);
 
   // Read subnet data from contract
   const readSubnetData = useCallback(async (subnetId: string): Promise<LocalSubnet | null> => {
