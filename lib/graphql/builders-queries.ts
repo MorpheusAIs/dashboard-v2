@@ -64,8 +64,8 @@ export const BUILDER_SUBNET_DEFAULT_FRAGMENT = gql`
 export const GET_BUILDERS_PROJECTS = gql`
   ${BUILDER_PROJECT_FRAGMENT}
   query getBuildersProjects(
-    $first: Int = 10
-    $skip: Int = 10
+    $first: Int = 1000
+    $skip: Int = 0
     $orderBy: BuildersProject_orderBy
     $orderDirection: OrderDirection
   ) {
@@ -141,7 +141,7 @@ export const GET_BUILDERS_COUNTERS = gql`
 export const COMBINED_BUILDERS_LIST = gql`
   ${BUILDER_PROJECT_FRAGMENT}
   query combinedBuildersList(
-    $first: Int = 100
+    $first: Int = 1000
     $skip: Int = 0
     $orderBy: BuildersProject_orderBy
     $orderDirection: OrderDirection
@@ -183,6 +183,7 @@ export const COMBINED_BUILDERS_LIST = gql`
 export const COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS = gql`
   ${BUILDER_PROJECT_FRAGMENT}
   query combinedBuildersListFilteredByPredefinedBuilders(
+    $first: Int = 1000,
     $orderBy: String,
     $orderDirection: String,
     $usersOrderBy: String,
@@ -191,6 +192,7 @@ export const COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS = gql`
     $address: String = ""
   ) {
     buildersProjects(
+      first: $first
       orderBy: $orderBy
       orderDirection: $orderDirection
       where: {name_in: $name_in}
@@ -231,7 +233,7 @@ export const COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS_TESTNET = gq
     $address: Bytes = ""
   ) {
     builderSubnets(
-      first: 100
+      first: 1000
       skip: 0
       orderBy: $orderBy
       orderDirection: $orderDirection
@@ -292,7 +294,7 @@ export const GET_ALL_BUILDER_SUBNETS = gql`
 export const GET_ADMIN_BUILDER_SUBNETS = gql`
   ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
   query getAdminBuilderSubnets($owner: Bytes = "") {
-    builderSubnets(where: { owner: $owner }) {
+    builderSubnets(first: 1000, where: { owner: $owner }) {
       ...BuilderSubnetDefault
     }
   }
@@ -304,6 +306,7 @@ export const GET_PARTICIPATING_BUILDER_SUBNETS = gql`
   ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
   query getParticipatingBuilderSubnets($address: Bytes = "") {
     builderUsers(
+      first: 1000,
       where: { address: $address, staked_gt: "0" }
     ) {
       ...BuilderUserDefault
@@ -319,8 +322,8 @@ export const COMBINED_BUILDER_SUBNETS = gql`
   ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
   ${BUILDER_USER_DEFAULT_FRAGMENT}
   query combinedBuilderSubnets(
-    $first: Int = 10, 
-    $skip: Int = 10, 
+    $first: Int = 1000, 
+    $skip: Int = 0, 
     $orderBy: BuilderSubnet_orderBy, 
     $orderDirection: OrderDirection, 
     $usersOrderBy: BuilderUser_orderBy, 
@@ -360,6 +363,7 @@ export const GET_USER_STAKED_BUILDERS = gql`
   ${BUILDER_PROJECT_FRAGMENT}
   query getUserStakedBuilders($address: String = "") {
     buildersUsers(
+      first: 1000,
       where: { address: $address, staked_gt: "0" }
     ) {
       id

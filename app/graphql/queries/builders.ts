@@ -37,8 +37,8 @@ export const GET_BUILDER_SUBNET_BY_NAME = `
 
 export const GET_BUILDERS_PROJECT_USERS = `
   query getBuildersProjectUsers(
-    $first: Int = 10
-    $skip: Int = 10
+    $first: Int = 50
+    $skip: Int = 0
     $buildersProjectId: Bytes = ""
     $orderBy: String = "staked"
     $orderDirection: String = "desc"
@@ -61,8 +61,8 @@ export const GET_BUILDERS_PROJECT_USERS = `
 // New query to get builder subnet users for testnet
 export const GET_BUILDER_SUBNET_USERS = `
   query getBuilderSubnetUsers(
-    $first: Int = 10
-    $skip: Int = 10
+    $first: Int = 50
+    $skip: Int = 0
     $builderSubnetId: Bytes = ""
     $orderBy: String = "staked"
     $orderDirection: String = "desc"
