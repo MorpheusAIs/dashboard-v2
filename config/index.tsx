@@ -1,7 +1,6 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { cookieStorage, createStorage } from 'wagmi';
 import { mainnet, arbitrum, base, arbitrumSepolia } from 'wagmi/chains';
-import { defineChain } from 'viem';
 // import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
@@ -15,49 +14,52 @@ const metadata = {
   icons: ['https://morpheus.reown.com/favicon.ico']
 };
 
-// Define local test chains for Anvil forks
-const localArbitrum = defineChain({
-  id: 42161,
-  name: 'Arbitrum (Local Fork)',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'Ether',
-    symbol: 'ETH',
-  },
-  rpcUrls: {
-    default: {
-      http: ['http://127.0.0.1:8545'],
-    },
-  },
-  blockExplorers: {
-    default: { name: 'Arbiscan', url: 'https://arbiscan.io' },
-  },
-  testnet: false,
-});
-
-const localBase = defineChain({
-  id: 8453,
-  name: 'Base (Local Fork)',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'Ether',
-    symbol: 'ETH',
-  },
-  rpcUrls: {
-    default: {
-      http: ['http://127.0.0.1:8546'],
-    },
-  },
-  blockExplorers: {
-    default: { name: 'BaseScan', url: 'https://basescan.org' },
-  },
-  testnet: false,
-});
+// Helper to ensure string arrays for RPC URLs
+const ensureStringArray = (urlOrUrls: string | readonly string[] | unknown): string[] => {
+  if (typeof urlOrUrls === 'string') {
+    return [urlOrUrls];
+  }
+  if (Array.isArray(urlOrUrls)) {
+    return [...urlOrUrls] as string[];
+  }
+  return [];
+};
 
 // Create a function to get the config for a specific environment
 export const getWagmiConfig = () => {
-  // Include all chains Wagmi needs to be aware of, including local test chains
-  const chains = [mainnet, arbitrum, base, arbitrumSepolia, localArbitrum, localBase] as const;
+  // Single chain definition per ID - extend with local RPC URLs
+  const arbitrumWithLocal = {
+    ...arbitrum,
+    rpcUrls: {
+      default: {
+        http: [
+          'https://arbitrum-one.publicnode.com',  // Production RPC first
+          'http://127.0.0.1:8545'                 // Local fork RPC as fallback
+        ]
+      },
+      public: {
+        http: ['https://arbitrum-one.publicnode.com']
+      }
+    }
+  } as const;
+
+  const baseWithLocal = {
+    ...base,
+    rpcUrls: {
+      default: {
+        http: [
+          ...ensureStringArray(base.rpcUrls.default.http),  // Production RPCs first
+          'http://127.0.0.1:8546'                           // Local fork RPC as fallback
+        ]
+      },
+      public: {
+        http: ensureStringArray(base.rpcUrls.default.http)
+      }
+    }
+  } as const;
+
+  // Single chain array with no duplicates
+  const chains = [mainnet, arbitrumWithLocal, baseWithLocal, arbitrumSepolia] as const;
 
   return defaultWagmiConfig({
     chains,
