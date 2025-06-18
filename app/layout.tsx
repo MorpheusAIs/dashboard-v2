@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Morpheus Dashboard",
     description: "Enter the Persistent Agentic Compute Delivery Network",
-    url: "https://dashboard-v2-zeta.vercel.app", // Update with your actual domain
+    url: "https://builders.mor.org/",
     siteName: "Morpheus Dashboard",
     type: "website",
     locale: "en_US",
