@@ -1,6 +1,7 @@
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
+import { GoogleAnalytics } from '@next/third-parties/google'
 import { RootLayoutContent } from "@/components/root-layout"
 import { headers } from "next/headers"
 import { cookieToInitialState } from "wagmi"
@@ -88,6 +89,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
+        <GoogleAnalytics gaId='G-RTZPQB9Y3J' />
         <Providers initialState={initialState}>
           <RootLayoutContent>{children}</RootLayoutContent>
         </Providers>
