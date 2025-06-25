@@ -6,10 +6,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Info } from "lucide-react" // Import Info icon
 import NumberFlow from '@number-flow/react' // Import NumberFlow
 import { GlowingEffect } from "@/components/ui/glowing-effect" // Import GlowingEffect
-import { useMemo, useState, useEffect } from "react"
-import { gql, useQuery, DocumentNode } from "@apollo/client" // Added DocumentNode
+import { useMemo, useState, useEffect, useCallback } from "react"
+import { gql, DocumentNode } from "@apollo/client" // Added DocumentNode
+import { print } from "graphql" // Import print to convert DocumentNode to string
 import { ethers } from "ethers" // Import ethers for BigNumber formatting
-import { ApolloClient, InMemoryCache } from '@apollo/client' // Added ApolloClient, InMemoryCache
 
 // Import Modals
 import { DepositModal } from "@/components/capital/DepositModal";
@@ -21,7 +21,6 @@ import { DepositStethChart, type DataPoint } from "@/components/capital/DepositS
 
 // Import Context and Config
 import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext";
-import { getGraphQLApiUrl, NetworkEnvironment } from "@/config/networks"; // Import config helper
 import { useNetwork } from "@/context/network-context"; // <-- Import useNetwork
 import { mainnet } from "wagmi/chains"; // <-- Import mainnet
 
@@ -43,19 +42,19 @@ const getEndOfDayTimestamps = (startDate: Date, endDate: Date): number[] => {
 };
 
 // Constructs the multi-alias GraphQL query string
-const buildDepositsQuery = (/* poolId: string, - No longer needed */ timestamps: number[]): DocumentNode => { 
+const buildDepositsQuery = (timestamps: number[]): DocumentNode => { 
   let queryBody = '';
   timestamps.forEach((ts, index) => {
     queryBody += `
       d${index}: poolInteractions(
         first: 1
         orderDirection: desc
-        where: { timestamp_lte: "${ts}", pool: "0x00" } # Changed pool ID format
+        where: { timestamp_lte: "${ts}", pool: "0x00" }
         orderBy: timestamp
       ) {
         totalStaked
         timestamp 
-        # __typename # Optionally add if needed later
+        __typename
       }
     `;
   });
@@ -98,113 +97,240 @@ function CapitalPageContent() {
   const [chartData, setChartData] = useState<DataPoint[]>([]); // Use imported DataPoint type
   const [chartLoading, setChartLoading] = useState<boolean>(true);
   const [chartError, setChartError] = useState<string | null>(null);
+  const [isLoadingHistorical, setIsLoadingHistorical] = useState<boolean>(false);
 
-  // Determine Subgraph URL based on environment
-  const subgraphUrl = useMemo(() => {
-    // Use a default if networkEnv isn't ready? Or rely on skip in useQuery.
-    return networkEnv ? getGraphQLApiUrl(networkEnv as NetworkEnvironment) : undefined; 
-  }, [networkEnv]);
+    // Generate timestamps for recent data (last 15 months) and historical data
+  const { recentTimestamps, historicalTimestamps, hasHistoricalData } = useMemo(() => {
+    if (!poolInfo?.payoutStart) {
+      return { recentTimestamps: [], historicalTimestamps: [], hasHistoricalData: false };
+    }
 
-  // Create Apollo Client instance based on the subgraph URL
-  const apolloClient = useMemo(() => {
-    if (!subgraphUrl) return null; // Return null if URL isn't available
-    console.log("Creating Apollo Client for URL:", subgraphUrl); // Debug log
+    const now = new Date();
+    const fifteenMonthsAgo = new Date();
+    fifteenMonthsAgo.setMonth(fifteenMonthsAgo.getMonth() - 15);
+    
+    const poolStartDate = new Date(Number(poolInfo.payoutStart) * 1000);
+    
+    // Recent data: last 15 months or from pool start if less than 15 months old
+    const recentStartDate = fifteenMonthsAgo > poolStartDate ? fifteenMonthsAgo : poolStartDate;
+    const recentTimestamps = getEndOfDayTimestamps(recentStartDate, now);
+    
+    // Historical data: from pool start to 15 months ago (if there's a gap)
+    const historicalTimestamps = fifteenMonthsAgo > poolStartDate 
+      ? getEndOfDayTimestamps(poolStartDate, fifteenMonthsAgo)
+      : [];
+    
+    return {
+      recentTimestamps,
+      historicalTimestamps,
+      hasHistoricalData: historicalTimestamps.length > 0
+    };
+  }, [poolInfo?.payoutStart]);
+
+  const RECENT_DEPOSITS_QUERY = useMemo(() => buildDepositsQuery(recentTimestamps), [recentTimestamps]);
+  const HISTORICAL_DEPOSITS_QUERY = useMemo(() => 
+    historicalTimestamps.length > 0 ? buildDepositsQuery(historicalTimestamps) : null, 
+    [historicalTimestamps]
+  );
+
+  // Fetch recent chart data
+  const fetchRecentData = useCallback(async () => {
+    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0) {
+      return null;
+    }
+
     try {
-      return new ApolloClient({
-        uri: subgraphUrl,
-        cache: new InMemoryCache(),
+      const response = await fetch('/api/capital', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: print(RECENT_DEPOSITS_QUERY),
+          variables: {},
+          networkEnv,
+        }),
       });
-    } catch (e) {
-        console.error("Failed to create Apollo Client:", e);
-        return null;
-    }
-  }, [subgraphUrl]);
 
-  // Define query variables - poolId variable is no longer passed to buildDepositsQuery
-  // const poolId = "0"; 
-  const startDate = useMemo(() => poolInfo?.payoutStart ? new Date(Number(poolInfo.payoutStart) * 1000) : new Date(0), [poolInfo?.payoutStart]);
-  const endDate = useMemo(() => new Date(), []); 
-
-  // Generate timestamps and the query document
-  const endOfDayTimestamps = useMemo(() => getEndOfDayTimestamps(startDate, endDate), [startDate, endDate]);
-  const DEPOSITS_QUERY = useMemo(() => buildDepositsQuery(/* poolId, */ endOfDayTimestamps), [endOfDayTimestamps]); // Removed poolId dependency
-
-  // Fetch data using Apollo useQuery
-  const { loading: apolloLoading, error: apolloError, data: apolloData } = useQuery(DEPOSITS_QUERY, {
-     client: apolloClient ?? undefined, 
-     skip: !apolloClient || endOfDayTimestamps.length === 0 || networkEnv === 'testnet', // <-- Skip on testnet
-     fetchPolicy: "cache-and-network", 
-  });
-
-  // Effect to process fetched data
-  useEffect(() => {
-    setChartLoading(apolloLoading);
-    if (apolloError) {
-      console.error("Error fetching chart data:", apolloError);
-      setChartError(`Failed to load chart data: ${apolloError.message}`);
-      setChartData([]);
-    } else if (apolloData && endOfDayTimestamps.length > 0) {
-      try {
-        let lastTotalStakedWei = ethers.BigNumber.from(0); // Track the last valid BigNumber value
-        const processedData = endOfDayTimestamps.map((timestampSec, index) => {
-          const dayKey = `d${index}`;
-          const interactionData = apolloData[dayKey]?.[0];
-          let currentTotalStakedWei = lastTotalStakedWei; // Default to previous day's value
-
-          if (interactionData && interactionData.totalStaked != null && interactionData.totalStaked !== '') {
-            const rawValue = interactionData.totalStaked;
-            try {
-              currentTotalStakedWei = ethers.BigNumber.from(rawValue);
-            } catch (parseError: unknown) { // Use unknown or Error
-              // Log the error message
-              const errorMessage = (parseError instanceof Error) ? parseError.message : String(parseError);
-              console.warn(
-                `Error parsing totalStaked for day ${index} (timestamp ${timestampSec}): Value='${rawValue}'. Error: ${errorMessage}. Using previous value.`
-              );
-              // Keep currentTotalStakedWei as lastTotalStakedWei (already set as default)
-              if (index === 0) {
-                currentTotalStakedWei = ethers.BigNumber.from(0);
-              }
-            }
-          } else {
-            // Handle cases where interactionData or totalStaked is missing/null/empty
-            // Use the previous day's value (already default), log if needed
-            // console.log(`Using previous value for day ${index} due to missing/empty totalStaked`);
-            if (index === 0) { // Ensure first day defaults to 0 if data is missing
-                 currentTotalStakedWei = ethers.BigNumber.from(0);
-            }
-          }
-          
-          lastTotalStakedWei = currentTotalStakedWei; 
-
-          const depositValue = parseFloat(ethers.utils.formatEther(currentTotalStakedWei));
-          
-          return {
-            date: new Date(timestampSec * 1000).toISOString(), 
-            deposits: depositValue,
-          };
-        });
-        setChartData(processedData);
-        setChartError(null);
-      } catch (processingError: unknown) { // Use unknown or Error
-         const errorMessage = (processingError instanceof Error) ? processingError.message : String(processingError);
-         console.error("Error processing chart data:", processingError); // Keep original object for full context
-         setChartError(`Failed to process chart data: ${errorMessage}`);
-         setChartData([]);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } else if (!apolloLoading) {
-       // Handle case where data is null/undefined but not loading/error
-       setChartData([]); 
-    }
-  }, [apolloData, apolloLoading, apolloError, endOfDayTimestamps, networkEnv]);
 
-  // Handle case where client couldn't be created (e.g., bad URL)
+      const result = await response.json();
+      
+      if (result.errors) {
+        throw new Error(result.errors[0]?.message || 'GraphQL error');
+      }
+
+      return { data: result.data, timestamps: recentTimestamps };
+    } catch (error) {
+      console.error('Error fetching recent chart data:', error);
+      throw error;
+    }
+  }, [networkEnv, recentTimestamps, RECENT_DEPOSITS_QUERY]);
+
+  // Fetch historical chart data
+  const fetchHistoricalData = useCallback(async () => {
+    if (!networkEnv || networkEnv === 'testnet' || !HISTORICAL_DEPOSITS_QUERY || historicalTimestamps.length === 0) {
+      return null;
+    }
+
+    try {
+      const response = await fetch('/api/capital', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: print(HISTORICAL_DEPOSITS_QUERY),
+          variables: {},
+          networkEnv,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.errors) {
+        throw new Error(result.errors[0]?.message || 'GraphQL error');
+      }
+
+      return { data: result.data, timestamps: historicalTimestamps };
+    } catch (error) {
+      console.error('Error fetching historical chart data:', error);
+      throw error;
+    }
+  }, [networkEnv, historicalTimestamps, HISTORICAL_DEPOSITS_QUERY]);
+
+  // Process data into chart format
+  const processDataPoints = useCallback((data: Record<string, Array<{ totalStaked: string }>>, timestamps: number[]) => {
+    let lastTotalStakedWei = ethers.BigNumber.from(0);
+    
+    return timestamps.map((timestampSec: number, index: number) => {
+      const dayKey = `d${index}`;
+      const interactionData = data[dayKey]?.[0];
+      let currentTotalStakedWei = lastTotalStakedWei;
+
+      if (interactionData && interactionData.totalStaked != null && interactionData.totalStaked !== '') {
+        const rawValue = interactionData.totalStaked;
+        try {
+          currentTotalStakedWei = ethers.BigNumber.from(rawValue);
+        } catch (parseError: unknown) {
+          const errorMessage = (parseError instanceof Error) ? parseError.message : String(parseError);
+          console.warn(
+            `Error parsing totalStaked for day ${index} (timestamp ${timestampSec}): Value='${rawValue}'. Error: ${errorMessage}. Using previous value.`
+          );
+          if (index === 0) {
+            currentTotalStakedWei = ethers.BigNumber.from(0);
+          }
+        }
+      } else {
+        if (index === 0) {
+          currentTotalStakedWei = ethers.BigNumber.from(0);
+        }
+      }
+      
+      lastTotalStakedWei = currentTotalStakedWei;
+      const depositValue = parseFloat(ethers.utils.formatEther(currentTotalStakedWei));
+      
+      return {
+        date: new Date(timestampSec * 1000).toISOString(), 
+        deposits: depositValue,
+        timestamp: timestampSec,
+      };
+    });
+  }, []);
+
+  // Main effect to handle recent data loading
   useEffect(() => {
-     if (!apolloClient && subgraphUrl) { // If URL exists but client failed
-        setChartError("Failed to initialize data connection.");
+    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0) {
+      setChartLoading(false);
+      return;
+    }
+
+    setChartLoading(true);
+    setChartError(null);
+
+    fetchRecentData()
+      .then((result) => {
+        if (result?.data && result.timestamps.length > 0) {
+          try {
+            const processedData = processDataPoints(result.data, result.timestamps);
+            // Remove timestamp property for chart display
+            const chartData = processedData.map((item) => ({ 
+              date: item.date, 
+              deposits: item.deposits 
+            }));
+            setChartData(chartData);
+            setChartError(null);
+          } catch (processingError: unknown) {
+            const errorMessage = (processingError instanceof Error) ? processingError.message : String(processingError);
+            console.error("Error processing recent chart data:", processingError);
+            setChartError(`Failed to process chart data: ${errorMessage}`);
+            setChartData([]);
+          }
+        } else {
+          setChartData([]);
+        }
         setChartLoading(false);
-     }
-  }, [apolloClient, subgraphUrl]);
+      })
+      .catch((error) => {
+        console.error('Error fetching recent chart data:', error);
+        setChartError(`Failed to load chart data: ${error.message}`);
+        setChartData([]);
+        setChartLoading(false);
+      });
+  }, [networkEnv, recentTimestamps, fetchRecentData, processDataPoints]);
+
+  // Effect to load historical data in background after recent data loads
+  useEffect(() => {
+    if (!hasHistoricalData || chartLoading || networkEnv === 'testnet') {
+      return;
+    }
+
+    setIsLoadingHistorical(true);
+
+    fetchHistoricalData()
+      .then((result) => {
+        if (result?.data && result.timestamps.length > 0) {
+          try {
+            const historicalDataPoints = processDataPoints(result.data, result.timestamps);
+            
+            // Merge with existing data
+            setChartData(currentData => {
+              const allDataPoints = [...historicalDataPoints, ...currentData.map((item, index) => ({
+                ...item,
+                timestamp: recentTimestamps[index]
+              }))];
+              
+              // Sort by timestamp and remove duplicates
+              allDataPoints.sort((a, b) => a.timestamp - b.timestamp);
+              const uniqueDataPoints = allDataPoints.filter((point, index, arr) => 
+                index === 0 || point.timestamp !== arr[index - 1].timestamp
+              );
+              
+                             // Return chart data without timestamp property  
+               return uniqueDataPoints.map((item) => ({ 
+                 date: item.date, 
+                 deposits: item.deposits 
+               }));
+            });
+          } catch (processingError: unknown) {
+            console.error("Error processing historical chart data:", processingError);
+          }
+        }
+        setIsLoadingHistorical(false);
+      })
+      .catch((error) => {
+        console.error('Error fetching historical chart data:', error);
+        setIsLoadingHistorical(false);
+      });
+  }, [hasHistoricalData, chartLoading, networkEnv, fetchHistoricalData, processDataPoints, recentTimestamps]);
+
+
 
   const isUserSectionLoading = isLoadingUserData;
 
@@ -284,9 +410,16 @@ function CapitalPageContent() {
              {chartLoading && <div className="flex justify-center items-center h-[400px] lg:h-full"><p>Loading Chart...</p></div>}
              {chartError && <div className="flex justify-center items-center h-[400px] lg:h-full text-red-500"><p>{chartError}</p></div>}
              {!chartLoading && !chartError && chartData.length > 0 && (
-               <DepositStethChart 
-                  data={chartData} 
-               />
+               <div className="relative h-full">
+                 <DepositStethChart 
+                    data={chartData} 
+                 />
+                 {isLoadingHistorical && (
+                   <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
+                     Loading historical data...
+                   </div>
+                 )}
+               </div>
              )}
              {!chartLoading && !chartError && chartData.length === 0 && (
                 <div className="flex flex-col justify-center items-center h-[400px] lg:h-full text-center"> {/* Use flex-col and text-center */} 
