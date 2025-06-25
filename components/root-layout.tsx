@@ -19,6 +19,7 @@ import { usePathname } from "next/navigation"
 import { useChainId } from 'wagmi'
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
+import { CowSwapModal } from "./cowswap-modal"
 import { builders } from "@/app/builders/builders-data"
 
 function getPageInfo(pathname: string) {
@@ -90,7 +91,7 @@ export function RootLayoutContent({
 
           {/* Center section */}
           <div className="flex-1 flex justify-center gap-4">
-            {isTestnet && <TestnetIndicator />}
+            {isTestnet ? <TestnetIndicator /> : <CowSwapModal />}
           </div>
 
           {/* Right section */}
