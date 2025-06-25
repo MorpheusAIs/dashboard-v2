@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { CowSwapWidget } from '@cowprotocol/widget-react'
 import { CowSwapWidgetParams, TradeType, TokenInfo } from '@cowprotocol/widget-lib'
+import { useWalletClient } from 'wagmi'
 
 const customTokens: TokenInfo[] = [
   {
@@ -74,7 +75,7 @@ const params: CowSwapWidgetParams = {
     "info": "#6c757d",
     "success": "#09ce9e"
   },
-  "standaloneMode": true,
+  "standaloneMode": false,
   "disableToastMessages": false,
   "disableProgressBar": false,
   "hideBridgeInfo": false,
@@ -86,6 +87,10 @@ const params: CowSwapWidgetParams = {
 
 export function CowSwapModal() {
   const [isOpen, setIsOpen] = useState(false)
+  const { data: walletClient } = useWalletClient()
+
+  // Get the EIP-1193 provider from the wallet client
+  const provider = walletClient ? (walletClient as unknown as { transport?: { provider?: unknown } })?.transport?.provider : undefined
 
   return (
     <>
@@ -105,16 +110,16 @@ export function CowSwapModal() {
           />
           
           {/* Modal content - just the widget */}
-          <div className="relative z-10 w-[450px] max-w-[90vw]">
+          <div className="relative z-10 w-[450px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar">
             {/* Close button */}
             <button
               onClick={() => setIsOpen(false)}
-              className="absolute -top-4 -right-4 z-20 w-8 h-8 rounded-full bg-gray-800 text-white hover:bg-gray-700 flex items-center justify-center"
+              className="absolute -top-1 -right-1 z-20 w-8 h-6 rounded-lg bg-black/50 text-white hover:bg-black/20 flex items-center justify-center"
             >
               ✕
             </button>
             
-            <CowSwapWidget params={params} />
+            <CowSwapWidget params={params} provider={provider} />
           </div>
         </div>
       )}
