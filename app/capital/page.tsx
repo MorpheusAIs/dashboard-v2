@@ -43,6 +43,20 @@ const getEndOfDayTimestamps = (startDate: Date, endDate: Date): number[] => {
 
 // Constructs the multi-alias GraphQL query string
 const buildDepositsQuery = (timestamps: number[]): DocumentNode => { 
+  // Handle empty timestamps array to avoid empty GraphQL query
+  if (!timestamps || timestamps.length === 0) {
+    return gql`
+      query GetEndOfDayDeposits {
+        # Placeholder query when no timestamps available
+        _meta {
+          block {
+            number
+          }
+        }
+      }
+    `;
+  }
+
   let queryBody = '';
   timestamps.forEach((ts, index) => {
     queryBody += `
@@ -127,7 +141,10 @@ function CapitalPageContent() {
     };
   }, [poolInfo?.payoutStart]);
 
-  const RECENT_DEPOSITS_QUERY = useMemo(() => buildDepositsQuery(recentTimestamps), [recentTimestamps]);
+  const RECENT_DEPOSITS_QUERY = useMemo(() => 
+    recentTimestamps.length > 0 ? buildDepositsQuery(recentTimestamps) : null, 
+    [recentTimestamps]
+  );
   const HISTORICAL_DEPOSITS_QUERY = useMemo(() => 
     historicalTimestamps.length > 0 ? buildDepositsQuery(historicalTimestamps) : null, 
     [historicalTimestamps]
@@ -135,7 +152,7 @@ function CapitalPageContent() {
 
   // Fetch recent chart data
   const fetchRecentData = useCallback(async () => {
-    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0) {
+    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0 || !RECENT_DEPOSITS_QUERY) {
       return null;
     }
 
@@ -160,6 +177,11 @@ function CapitalPageContent() {
       
       if (result.errors) {
         throw new Error(result.errors[0]?.message || 'GraphQL error');
+      }
+
+      // Check if this is a placeholder query response (no actual data)
+      if (result.data && result.data._meta && !Object.keys(result.data).some(key => key.startsWith('d'))) {
+        return null;
       }
 
       return { data: result.data, timestamps: recentTimestamps };
@@ -196,6 +218,11 @@ function CapitalPageContent() {
       
       if (result.errors) {
         throw new Error(result.errors[0]?.message || 'GraphQL error');
+      }
+
+      // Check if this is a placeholder query response (no actual data)
+      if (result.data && result.data._meta && !Object.keys(result.data).some(key => key.startsWith('d'))) {
+        return null;
       }
 
       return { data: result.data, timestamps: historicalTimestamps };
