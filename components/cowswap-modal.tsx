@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { CowSwapWidget } from '@cowprotocol/widget-react'
 import { CowSwapWidgetParams, TradeType, TokenInfo } from '@cowprotocol/widget-lib'
-import { useWalletClient } from 'wagmi'
+import { useWalletClient, useAccount } from 'wagmi'
 
 const customTokens: TokenInfo[] = [
   {
@@ -88,9 +88,37 @@ const params: CowSwapWidgetParams = {
 export function CowSwapModal() {
   const [isOpen, setIsOpen] = useState(false)
   const { data: walletClient } = useWalletClient()
+  const { isConnected } = useAccount()
 
-  // Get the EIP-1193 provider from the wallet client
-  const provider = walletClient ? (walletClient as unknown as { transport?: { provider?: unknown } })?.transport?.provider : undefined
+  // Get the EIP-1193 provider with better fallback logic
+  const provider = (() => {
+    // If no wallet is connected, use standalone mode
+    if (!isConnected || !walletClient) {
+      return undefined;
+    }
+
+    try {
+      // Try to get provider from transport
+      if (walletClient.transport && 'provider' in walletClient.transport) {
+        return (walletClient.transport as unknown as { provider: unknown }).provider;
+      }
+      
+      // Fallback to window.ethereum if available
+      if (typeof window !== 'undefined' && (window as { ethereum?: unknown }).ethereum) {
+        return (window as { ethereum?: unknown }).ethereum;
+      }
+    } catch (error) {
+      console.warn('Failed to get provider from wallet client:', error);
+    }
+
+    return undefined;
+  })();
+
+  // Dynamic params based on provider availability
+  const widgetParams = {
+    ...params,
+    standaloneMode: !provider // Use standalone mode if no provider available
+  };
 
   return (
     <>
@@ -98,7 +126,7 @@ export function CowSwapModal() {
         className="copy-button-base text-sm px-4 py-1 hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-105 transition-all duration-300"
         onClick={() => setIsOpen(true)}
       >
-        Get MOR
+        Buy MOR
       </button>
       
       {isOpen && (
@@ -110,16 +138,8 @@ export function CowSwapModal() {
           />
           
           {/* Modal content - just the widget */}
-          <div className="relative z-10 w-[450px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar">
-            {/* Close button */}
-            <button
-              onClick={() => setIsOpen(false)}
-              className="absolute -top-1 -right-1 z-20 w-8 h-6 rounded-lg bg-black/50 text-white hover:bg-black/20 flex items-center justify-center"
-            >
-              ✕
-            </button>
-            
-            <CowSwapWidget params={params} provider={provider} />
+          <div className="relative z-10 w-[450px] max-w-[90vw] max-h-[90vh] overflow-y-auto custom-scrollbar"> 
+            <CowSwapWidget params={widgetParams} provider={provider} />
           </div>
         </div>
       )}
