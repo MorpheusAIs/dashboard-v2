@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { formatUnits, parseUnits } from "viem";
 
 import { Dialog, DialogPortal, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -33,8 +33,9 @@ export function DepositModal({
     stEthBalance,
     deposit,
     approveStEth,
-    needsApproval,
+    checkAndUpdateApprovalNeeded,
     isProcessingDeposit,
+    isApprovalSuccess,
     activeModal,
     setActiveModal
     // Removed isLoadingBalances, isLoadingAllowance as they aren't directly used here
@@ -53,8 +54,42 @@ export function DepositModal({
     }
   }, [amount]);
 
-  // Replaced wagmi hooks with context values/actions
-  const showApprovalButton = useMemo(() => needsApproval(amount), [needsApproval, amount]);
+  // State to track approval status dynamically
+  const [currentlyNeedsApproval, setCurrentlyNeedsApproval] = useState(false);
+  // Track if we've already processed the current approval success
+  const [processedApprovalSuccess, setProcessedApprovalSuccess] = useState(false);
+  
+  // Comprehensive approval status checking function
+  const checkApprovalStatus = useCallback(async () => {
+    if (amount && parseFloat(amount) > 0 && userAddress) {
+      const needsApproval = await checkAndUpdateApprovalNeeded(amount);
+      setCurrentlyNeedsApproval(needsApproval);
+    } else {
+      setCurrentlyNeedsApproval(false);
+    }
+  }, [amount, userAddress, checkAndUpdateApprovalNeeded]);
+
+  // Check approval status when relevant dependencies change
+  useEffect(() => {
+    checkApprovalStatus();
+    // Reset the processed flag when dependencies change
+    setProcessedApprovalSuccess(false);
+  }, [checkApprovalStatus]);
+
+  // Recheck approval status when approval transaction is confirmed
+  useEffect(() => {
+    if (isApprovalSuccess && amount && parseFloat(amount) > 0 && !processedApprovalSuccess) {
+      // Mark this approval success as processed
+      setProcessedApprovalSuccess(true);
+      // Wait a bit for the blockchain state to update, then recheck
+      setTimeout(() => {
+        checkApprovalStatus();
+      }, 1000);
+    }
+  }, [isApprovalSuccess, amount, processedApprovalSuccess, checkApprovalStatus]);
+  
+  // Use the dynamic approval status
+  const showApprovalButton = currentlyNeedsApproval;
 
   // Validation (using context data)
   const validationError = useMemo(() => {
@@ -80,6 +115,7 @@ export function DepositModal({
     try {
       if (showApprovalButton) {
         await approveStEth();
+        // Don't proceed with deposit immediately - let the approval success effect handle the recheck
       } else {
         await deposit(amount); 
         // Context action now handles closing on success
@@ -96,9 +132,9 @@ export function DepositModal({
     if (!isOpen) {
       setAmount("");
       setFormError(null);
+      setCurrentlyNeedsApproval(false);
+      setProcessedApprovalSuccess(false);
     }
-    // Optionally reset when opening too if needed
-    // if (isOpen) { ... }
   }, [isOpen]);
 
   return (
@@ -117,10 +153,10 @@ export function DepositModal({
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label htmlFor="deposit-amount" className="text-sm font-medium">
-                  Amount (stETH/wstETH)
+                  Amount
                 </Label>
                 <span className="text-xs text-gray-400">
-                  Balance: {stEthBalance !== undefined ? formatUnits(stEthBalance, 18) : 'Loading...'} stETH
+                  Balance: {stEthBalance !== undefined ? Number(formatUnits(stEthBalance, 18)).toFixed(3) : 'Loading...'} stETH
                 </span>
               </div>
               <div className="relative">

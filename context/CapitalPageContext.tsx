@@ -140,6 +140,7 @@ interface CapitalContextState {
   isProcessingClaim: boolean;
   isProcessingWithdraw: boolean;
   isProcessingChangeLock: boolean;
+  isApprovalSuccess: boolean;
 
   // Action Functions
   deposit: (amount: string) => Promise<void>;
@@ -150,6 +151,7 @@ interface CapitalContextState {
   
   // Misc
   needsApproval: (amount: string) => boolean;
+  checkAndUpdateApprovalNeeded: (amount: string) => Promise<boolean>;
 
   // Modal State
   activeModal: ActiveModal;
@@ -401,6 +403,22 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentAllowance]);
 
+  const checkAndUpdateApprovalNeeded = useCallback(async (amountString: string): Promise<boolean> => {
+    try {
+      const amountBigInt = amountString ? parseUnits(amountString, 18) : BigInt(0);
+      if (amountBigInt <= BigInt(0)) return false;
+      
+      // Refetch the current allowance to get the latest value
+      const { data: latestAllowance } = await refetchAllowance();
+      const currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+      
+      return currentAllowanceValue < amountBigInt;
+    } catch (error) {
+      console.error("Error checking approval status:", error);
+      return false; 
+    }
+  }, [refetchAllowance]);
+
   // --- Formatted Data ---
   const totalDepositedFormatted = formatBigInt(totalDepositedData, 18, 2);
   const userDepositFormatted = formatBigInt(userData?.deposited, 18, 2);
@@ -463,26 +481,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       if (!poolContractAddress || !l1ChainId) throw new Error("Deposit prerequisites not met");
       const amountBigInt = parseUnits(amountString, 18);
       if (amountBigInt <= BigInt(0)) throw new Error("Invalid deposit amount");
-      // Add minimal stake check if desired
-
-      // Approval check inside the deposit function for atomicity
-      if (needsApproval(amountString)) {
-          try {
-              await approveStEth();
-              toast.info("Approval submitted. Please confirm deposit again after approval.");
-              return;
-          } catch (err) {
-              // Error handled in approveStEth, just log maybe?
-              console.error("Approval error during deposit flow:", err); // Log unused err
-              return;
-          }
-      }
       
       await handleTransaction(() => stakeAsync({
           address: poolContractAddress,
           abi: ERC1967ProxyAbi,
           functionName: 'stake',
-          args: [PUBLIC_POOL_ID, amountBigInt, zeroAddress],
+          args: [PUBLIC_POOL_ID, amountBigInt, BigInt(0), zeroAddress],
           chainId: l1ChainId,
       }), {
           loading: "Requesting deposit...",
@@ -688,6 +692,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isProcessingClaim,
     isProcessingWithdraw,
     isProcessingChangeLock,
+    isApprovalSuccess,
 
     // Action Functions
     deposit,
@@ -698,6 +703,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     
     // Misc
     needsApproval,
+    checkAndUpdateApprovalNeeded,
     triggerMultiplierEstimation,
     estimatedMultiplierValue,
     isSimulatingMultiplier,
@@ -720,8 +726,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     stEthBalanceFormatted,
     canWithdraw, canClaim,
     isLoadingGlobalData, isLoadingUserData, isLoadingBalances, isLoadingAllowance,
-    isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock,
-    deposit, claim, withdraw, changeLock, approveStEth, needsApproval, 
+    isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock, isApprovalSuccess,
+    deposit, claim, withdraw, changeLock, approveStEth, needsApproval, checkAndUpdateApprovalNeeded,
     triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier,
     activeModal, setActiveModal
   ]);
