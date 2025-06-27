@@ -106,16 +106,30 @@ export function WithdrawModal({
                   id="withdraw-amount"
                   placeholder="0.0"
                   value={amount}
-                  onChange={(e) => { setAmount(e.target.value); setFormError(null); }}
+                  onChange={(e) => {
+                    // Only allow numbers and decimal point
+                    const value = e.target.value;
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      setAmount(value);
+                      setFormError(null);
+                    }
+                  }}
                   className={`bg-background border-gray-700 pr-28 ${formError ? 'border-red-500' : ''}`}
-                  type="number"
-                  step="any"
+                  type="text" // Changed from "number" to "text" for better control
+                  inputMode="decimal" // Suggests a decimal keypad on mobile
+                  pattern="[0-9]*[.]?[0-9]*" // HTML5 pattern for numbers only
                   required
                   min="0"
                   disabled={isProcessingWithdraw || !canWithdraw}
+                  onKeyDown={(e) => {
+                    // Prevent 'e', '-', '+' keys
+                    if (['e', 'E', '-', '+'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 space-x-2">
-                  <span className="text-sm text-gray-400">{depositedAmount} stETH</span>
+                  <span className="text-sm text-gray-400">{parseFloat(depositedAmount).toFixed(2)} stETH</span>
                   <Button
                     type="button"
                     variant="secondary"
