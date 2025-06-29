@@ -1,11 +1,28 @@
 'use client'
 
+import { useNetwork } from '@/context/network-context'
+import { useNetworkInfo } from '@/app/hooks/useNetworkInfo'
+
 export function TestnetIndicator() {
+  const { environment, isLocalTest } = useNetwork()
+  const { rpcUrl } = useNetworkInfo()
+  
+  if (environment === 'mainnet') {
+    return null
+  }
+
+  if (isLocalTest) {
+    return (
+      <div className="fixed top-0 left-0 right-0 bg-orange-500 text-white text-center py-1 px-4 text-sm font-medium z-50">
+        🛠️ LOCAL TEST MODE - Connected to Anvil Fork
+        {rpcUrl && <span className="ml-2 text-xs opacity-75">({rpcUrl})</span>}
+      </div>
+    )
+  }
+
   return (
-    <div className="flex items-center px-2 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-medium text-emerald-400 bg-emerald-400/10 rounded-full whitespace-nowrap">
-      <span className="hidden sm:inline">Connected to</span>
-      <span className="sm:hidden">Connected to</span>
-      <span className="ml-1">Testnet</span>
+    <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-black text-center py-1 px-4 text-sm font-medium z-50">
+      ⚠️ TESTNET MODE - You are on a test network
     </div>
   )
 } 
