@@ -197,7 +197,7 @@ export function StakingTable({
                 </TableCell>
                 
                 {showColumn('amount') && (
-                  <TableCell>{entry.amount.toLocaleString()} MOR</TableCell>
+                  <TableCell>{entry.amount.toLocaleString()}</TableCell>
                 )}
                 
                 {showColumn('claimed') && (
