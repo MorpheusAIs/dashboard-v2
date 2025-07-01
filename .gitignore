@@ -53,3 +53,6 @@ hooks/.useSubnetContractInteractions.ts.swp
 package-lock.json
 .vercelignore
 package-lock.json
+
+
+create-web3-template/
