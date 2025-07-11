@@ -62,10 +62,10 @@ export function ChartSection() {
   return (
     <>
         {/* 4x4 Grid Layout */}
-        <div className="grid grid-cols-4 gap-4 h-full" style={{ gridTemplateRows: '120px 1fr' }}>
+        <div className="grid grid-cols-4 gap-x-4 gap-y-2 h-full" style={{ gridTemplateRows: '120px 1fr' }}>
           {/* Row 1: 4 Metric Cards */}
           {metricCards.map((card, index) => (
-            <div key={index} className="col-span-1 h-full">
+            <div key={index} className="col-span-1">
               <MetricCardMinimal {...card} />
             </div>
           ))}
