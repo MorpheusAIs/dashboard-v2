@@ -54,7 +54,7 @@ export function UserAssetsPanel() {
 
   // Mock data for metrics (in a real app, these would come from context/API)
   const metricsData = {
-    stakedValue: hasStakedAssets ? "$324,691" : "$0",
+    stakedValue: hasStakedAssets ? "324,691" : "0",
     totalMorStaked: hasStakedAssets ? "3,326.57" : "0",
     dailyEmissionsEarned: hasStakedAssets ? "104.82" : "0",
     lifetimeEmissionsEarned: hasStakedAssets ? "19,677" : "0",
