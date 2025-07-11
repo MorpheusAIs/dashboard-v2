@@ -14,16 +14,18 @@ interface MetricCardMinimalProps {
   disableGlow?: boolean
   autoFormatNumbers?: boolean // Auto format numbers (show decimals only for values < 1)
   showInfo?: boolean // Show info icon
+  isGreen?: boolean // If true, shows emerald-400 color
 }
 
-export function MetricCardMinimal({ 
-  title, 
+export function MetricCardMinimal({
+  title,
   value,
   label,
   isUSD = false,
-  className = "", 
+  className = "",
   disableGlow = false,
   autoFormatNumbers = false,
+  isGreen = false,
 //   showInfo = true
 }: MetricCardMinimalProps) {
 
@@ -63,14 +65,14 @@ export function MetricCardMinimal({
           <CardDescription className="text-sm text-gray-400">
             {title}
           </CardDescription>
-          <CardTitle className="text-lg font-semibold text-gray-200 tabular-nums @[200px]/card:text-xl">
-            {isUSD && <span className="text-gray-200">$</span>}
+          <CardTitle className={`text-lg font-semibold tabular-nums @[200px]/card:text-xl ${isGreen ? "text-emerald-400" : "text-gray-200"}`}>
+            {isUSD && <span>$</span>}
             {isNumericString(value) ? (
               <NumberFlow value={getNumericValue(formatValue(value))} />
             ) : (
               formatValue(value)
             )}
-            {label && <span className="text-xs text-gray-200 font-normal ml-1">{label}</span>}
+            {label && <span className="text-xs font-normal ml-1">{label}</span>}
           </CardTitle>
         </CardHeader>
       </Card>
