@@ -72,7 +72,7 @@ export function MetricCardMinimal({
             ) : (
               formatValue(value)
             )}
-            {label && <span className="text-xs font-normal ml-1">{label}</span>}
+            {label && <span className="text-xs font-semibold ml-1">{label}</span>}
           </CardTitle>
         </CardHeader>
       </Card>
