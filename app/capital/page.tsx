@@ -1,5 +1,10 @@
 "use client"
 
+import { useEffect, useState, useRef } from "react";
+import { useNetwork } from "@/context/network-context";
+import { useChainId } from "wagmi";
+import { mainnet } from "wagmi/chains";
+
 // Import Modals (updated to kebab-case)
 import { DepositModal } from "@/components/capital/deposit-modal";
 import { WithdrawModal } from "@/components/capital/withdraw-modal";
@@ -11,6 +16,7 @@ import { CapitalInfoPanel } from "@/components/capital/capital-info-panel";
 import { ChartSection } from "@/components/capital/chart-section";
 import { UserAssetsPanel } from "@/components/capital/user-assets-panel";
 import { ReferralPanel } from "@/components/capital/referral-panel";
+import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 
 // Import Context and Config
 import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext";
@@ -26,10 +32,41 @@ function CapitalPageContent() {
     userData,
     currentUserMultiplierData,
     poolInfo,
+    isLoadingUserData,
   } = useCapitalContext();
+
+  const { switchToChain, isNetworkSwitching } = useNetwork();
+  const chainId = useChainId();
+  const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
+  const networkSwitchAttempted = useRef(false);
+
+  useEffect(() => {
+    // We want to be on mainnet for the capital page.
+    const shouldSwitch = chainId !== mainnet.id;
+
+    if (shouldSwitch && !isLoadingUserData && !networkSwitchAttempted.current && !isNetworkSwitching) {
+      console.log(`Auto-switching network to Ethereum Mainnet (chainId: ${mainnet.id}) for Capital page.`);
+      
+      networkSwitchAttempted.current = true;
+      setShowNetworkSwitchNotice(true);
+      
+      const timer = setTimeout(() => {
+        switchToChain(mainnet.id);
+        setTimeout(() => {
+          setShowNetworkSwitchNotice(false);
+        }, 3000);
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [chainId, switchToChain, isNetworkSwitching, isLoadingUserData]);
 
   return (
     <div className="page-container">
+      <NetworkSwitchNotification 
+        show={showNetworkSwitchNotice}
+        networkName="Ethereum Mainnet"
+      />
       {/* --- New Top Row: Grid Layout --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8"> 
         
