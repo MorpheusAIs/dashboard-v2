@@ -13,6 +13,7 @@ export function ChartSection() {
     chartError,
     isLoadingHistorical,
     totalDepositsMOR,
+    totalValueLockedUSD,
     currentDailyRewardMOR,
     avgApyRate,
     activeStakers,
@@ -23,9 +24,9 @@ export function ChartSection() {
 
   const metricCards = [
     {
-      title: "Total Deposits",
-      value: totalDepositsMOR,
-      label: "MOR",
+      title: "Total Value Locked",
+      value: totalValueLockedUSD,
+      isUSD: true,
       autoFormatNumbers: true,
       className: "",
       disableGlow: true,

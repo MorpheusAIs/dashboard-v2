@@ -6,6 +6,7 @@ import { ethers } from "ethers";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { getEndOfDayTimestamps, buildDepositsQuery } from "@/app/graphql/queries/capital";
+import { getTokenPrice } from "@/app/services/token-price.service";
 
 export interface DataPoint {
   date: string;
@@ -22,6 +23,15 @@ export function useCapitalChartData() {
   const [chartLoading, setChartLoading] = useState<boolean>(true);
   const [chartError, setChartError] = useState<string | null>(null);
   const [isLoadingHistorical, setIsLoadingHistorical] = useState<boolean>(false);
+  const [stethPrice, setStethPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    async function fetchPrice() {
+      const price = await getTokenPrice('staked-ether', 'usd');
+      setStethPrice(price);
+    }
+    fetchPrice();
+  }, []);
 
   // Generate timestamps for recent data (last 15 months) and historical data
   const { recentTimestamps, historicalTimestamps, hasHistoricalData } = useMemo(() => {
@@ -271,6 +281,14 @@ export function useCapitalChartData() {
     const lastDeposit = chartData[chartData.length - 1]?.deposits || 0;
     return Math.floor(lastDeposit).toLocaleString();
   }, [chartData]);
+
+  const totalValueLockedUSD = useMemo(() => {
+    if (!stethPrice || chartData.length === 0) return "0";
+    const lastDeposit = chartData[chartData.length - 1]?.deposits || 0;
+    const usdValue = lastDeposit * stethPrice;
+    return Math.floor(usdValue).toLocaleString();
+  }, [chartData, stethPrice]);
+
   const currentDailyRewardMOR = "2,836"; // Placeholder for Current Daily Reward in MOR
   const avgApyRate = "15.37%"; // Placeholder for Average APY Rate
   const activeStakers = "240"; // Placeholder for Active Stakers
@@ -281,6 +299,7 @@ export function useCapitalChartData() {
     chartError,
     isLoadingHistorical,
     totalDepositsMOR,
+    totalValueLockedUSD,
     currentDailyRewardMOR,
     avgApyRate,
     activeStakers,
