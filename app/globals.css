@@ -201,9 +201,18 @@ input[type=number] {
     @apply relative min-h-[60vh];
   }
 
+  .panel-gradient-base {
+    @apply bg-gradient-to-bl from-white/[0.04] to-transparent opacity-100 
+    transition-all duration-300 group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent;
+  }
+
   /* Base card styles */
   .card-base {
     @apply rounded-xl border border-white/[0.08] p-6 relative overflow-hidden;
+  }
+
+  .card-minimal {
+    @apply rounded-xl border border-white/[0.08] p-2 relative overflow-hidden;
   }
 
   .card-container {
