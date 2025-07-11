@@ -10,6 +10,7 @@ import { ChangeLockModal } from "@/components/capital/change-lock-modal";
 import { CapitalInfoPanel } from "@/components/capital/capital-info-panel";
 import { ChartSection } from "@/components/capital/chart-section";
 import { UserAssetsPanel } from "@/components/capital/user-assets-panel";
+import { ReferralPanel } from "@/components/capital/referral-panel";
 
 // Import Context and Config
 import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext";
@@ -40,10 +41,13 @@ function CapitalPageContent() {
           <ChartSection />
         </div>
 
-      </div> {/* End of Top Row Grid */}
+      </div> 
 
       {/* User Assets Panel */}
       <UserAssetsPanel />
+
+      {/* Referral Panel */}
+      <ReferralPanel />
 
       {/* Render Modals */}
       <DepositModal minimalStake={poolInfo?.minimalStake} />

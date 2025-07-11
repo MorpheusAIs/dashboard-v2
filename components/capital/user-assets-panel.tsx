@@ -310,13 +310,22 @@ export function UserAssetsPanel() {
             {/* Header with title and stake button */}
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">My Position</h2>
-              <button
-                className="copy-button-base"
-                onClick={() => setActiveModal('deposit')}
-                disabled={!userAddress}
-              >
-                Stake
-              </button>
+              <div className="flex flex-row items-center space-x-2">
+                <button
+                    className="copy-button-base"
+                    onClick={() => setActiveModal('deposit')}
+                    disabled={!userAddress}
+                >
+                    Stake
+                </button>
+                <button
+                    className="copy-button-secondary font-medium px-4 py-2 rounded-lg"
+                    onClick={() => setActiveModal('deposit')}
+                    disabled={!userAddress}
+                >
+                    Claim all
+                </button>
+              </div>
             </div>
 
             {/* Metric Cards */}
