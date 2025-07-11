@@ -42,23 +42,7 @@ export function useInteractiveChart(initialData: DataPoint[] = []) {
             const sortedData = [...initialData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             setData(sortedData);
             setOriginalData(sortedData);
-            // Set initial view to the default selectedRange
-            if (sortedData.length > 0) {
-                const lastDataPoint = sortedData[sortedData.length - 1];
-                const endDate = new Date(lastDataPoint.date);
-                let startDate = new Date(sortedData[0].date);
-
-                if (selectedRange === '1m') { // Default range
-                    startDate = new Date(endDate);
-                    startDate.setMonth(endDate.getMonth() - 1);
-                }
-                const firstDataPointDate = new Date(sortedData[0].date);
-                if (startDate < firstDataPointDate) {
-                    startDate = firstDataPointDate;
-                }
-                setStartTime(startDate.toISOString());
-                setEndTime(endDate.toISOString());
-            }
+            // The other useEffect will handle setting the initial time range
         }
     }, [initialData]);
 
@@ -172,11 +156,11 @@ export function useInteractiveChart(initialData: DataPoint[] = []) {
     }, [originalData, startTime, endTime, handleReset]);
     
     useEffect(() => {
-        if (!originalData || originalData.length === 0 || selectedRange === 'max') return;
+        if (!originalData || originalData.length === 0) return;
 
         const lastDataPoint = originalData[originalData.length - 1];
         const endDate = new Date(lastDataPoint.date);
-        let startDate = new Date(originalData[0].date);
+        let startDate: Date;
 
         if (selectedRange === '7d') {
             startDate = new Date(endDate);
@@ -187,6 +171,8 @@ export function useInteractiveChart(initialData: DataPoint[] = []) {
         } else if (selectedRange === '3m') {
             startDate = new Date(endDate);
             startDate.setMonth(endDate.getMonth() - 3);
+        } else { // This handles 'max'
+            startDate = new Date(originalData[0].date);
         }
 
         const firstDataPointDate = new Date(originalData[0].date);
