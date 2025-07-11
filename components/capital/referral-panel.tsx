@@ -7,7 +7,7 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 import { toast } from "sonner";
 
 export function ReferralPanel() {
-  const { userAddress } = useCapitalContext();
+  const { userAddress, setActiveModal } = useCapitalContext();
   const [isCopying, setIsCopying] = useState(false);
 
   // Generate referral link
@@ -33,7 +33,8 @@ export function ReferralPanel() {
   // Mock data - in a real app, this would come from context/API
   const referralData = {
     totalReferrals: "14",
-    rewardsEarned: "67.34",
+    lifetimeRewards: "157.09",
+    claimableRewards: "67.34",
   };
 
   return (
@@ -51,11 +52,20 @@ export function ReferralPanel() {
         <div className="section-content group relative">
           <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent" />
           <div className="p-4 md:p-6">
-            {/* Header */}
-            <h2 className="text-2xl font-bold text-white mb-6">Referrals</h2>
+            {/* Header with button */}
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Referrals</h2>
+              <button
+                className="copy-button-secondary font-medium px-4 py-2 rounded-lg"
+                onClick={() => setActiveModal('claim')}
+                disabled={!userAddress || parseFloat(referralData.claimableRewards) <= 0}
+              >
+                Claim Rewards
+              </button>
+            </div>
 
             {/* Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               {/* Total Referrals */}
               <div className="col-span-1">
                 <MetricCardMinimal
@@ -66,11 +76,23 @@ export function ReferralPanel() {
                 />
               </div>
 
-              {/* Referral Rewards Earned */}
+              {/* Lifetime Rewards */}
               <div className="col-span-1">
                 <MetricCardMinimal
-                  title="Referral Rewards Earned"
-                  value={referralData.rewardsEarned}
+                  title="Lifetime Rewards"
+                  value={referralData.lifetimeRewards}
+                  label="MOR"
+                  disableGlow={true}
+                  autoFormatNumbers={true}
+                  className="h-full"
+                />
+              </div>
+
+              {/* Claimable Rewards */}
+              <div className="col-span-1">
+                <MetricCardMinimal
+                  title="Claimable Rewards"
+                  value={referralData.claimableRewards}
                   label="MOR"
                   disableGlow={true}
                   autoFormatNumbers={true}
@@ -80,7 +102,7 @@ export function ReferralPanel() {
 
               {/* Referral Link */}
               <div className="col-span-1">
-                <div className="card-minimal group relative p-4 h-full flex flex-col">
+                <div className="card-minimal group relative p-4 h-full flex flex-col justify-center">
                   <div className="text-sm text-gray-400 mb-2">My Referral Link</div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-gray-200 truncate flex-1 font-mono text-sm">
