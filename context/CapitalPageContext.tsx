@@ -378,9 +378,70 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [poolInfo, userData]);
 
   const claimUnlockTimestamp = useMemo(() => {
-    if (!poolInfo?.payoutStart || !poolInfo.claimLockPeriod || !poolLimits?.claimLockPeriodAfterClaim || !poolLimits.claimLockPeriodAfterStake || !userData?.lastStake || !userData.lastClaim || userData.claimLockEnd === undefined) return undefined;
-    return maxBigInt(userData.claimLockEnd, poolInfo.payoutStart + poolInfo.claimLockPeriod, userData.lastClaim + poolLimits.claimLockPeriodAfterClaim, userData.lastStake + poolLimits.claimLockPeriodAfterStake);
-  }, [poolInfo, poolLimits, userData]);
+    // Debug logging for claim unlock calculation
+    console.log("🔍 Debug: Calculating claimUnlockTimestamp", {
+      poolInfo: poolInfo ? {
+        payoutStart: poolInfo.payoutStart?.toString(),
+        claimLockPeriod: poolInfo.claimLockPeriod?.toString()
+      } : "undefined",
+      poolLimits: poolLimits ? {
+        claimLockPeriodAfterClaim: poolLimits.claimLockPeriodAfterClaim?.toString(),
+        claimLockPeriodAfterStake: poolLimits.claimLockPeriodAfterStake?.toString()
+      } : "undefined",
+      userData: userData ? {
+        lastStake: userData.lastStake?.toString(),
+        lastClaim: userData.lastClaim?.toString(),
+        claimLockEnd: userData.claimLockEnd?.toString()
+      } : "undefined",
+      currentUserRewardData: currentUserRewardData?.toString(),
+      userAddress,
+      chainId,
+      networkEnv,
+      l1ChainId,
+      poolContractAddress
+    });
+
+    if (
+      !poolInfo?.payoutStart ||
+      !poolInfo.claimLockPeriod ||
+      !poolLimits?.claimLockPeriodAfterClaim ||
+      !poolLimits.claimLockPeriodAfterStake ||
+      !userData?.lastStake ||
+      !userData.lastClaim ||
+      userData.claimLockEnd === undefined
+    ) {
+      console.log("❌ claimUnlockTimestamp is undefined due to missing data:", {
+        hasPayoutStart: !!poolInfo?.payoutStart,
+        hasClaimLockPeriod: !!poolInfo?.claimLockPeriod,
+        hasClaimLockPeriodAfterClaim: !!poolLimits?.claimLockPeriodAfterClaim,
+        hasClaimLockPeriodAfterStake: !!poolLimits?.claimLockPeriodAfterStake,
+        hasLastStake: !!userData?.lastStake,
+        hasLastClaim: !!userData?.lastClaim,
+        hasClaimLockEnd: userData?.claimLockEnd !== undefined
+      });
+      return undefined;
+    }
+    
+    const result = maxBigInt(
+      userData.claimLockEnd,
+      poolInfo.payoutStart + poolInfo.claimLockPeriod,
+      userData.lastClaim + poolLimits.claimLockPeriodAfterClaim,
+      userData.lastStake + poolLimits.claimLockPeriodAfterStake
+    );
+    
+    console.log("✅ claimUnlockTimestamp calculated:", {
+      result: result.toString(),
+      formatted: new Date(Number(result) * 1000).toISOString(),
+      components: {
+        claimLockEnd: userData.claimLockEnd.toString(),
+        payoutStartPlusLock: (poolInfo.payoutStart + poolInfo.claimLockPeriod).toString(),
+        lastClaimPlusLock: (userData.lastClaim + poolLimits.claimLockPeriodAfterClaim).toString(),
+        lastStakePlusLock: (userData.lastStake + poolLimits.claimLockPeriodAfterStake).toString()
+      }
+    });
+    
+    return result;
+  }, [poolInfo, poolLimits, userData, currentUserRewardData, userAddress, chainId, networkEnv, l1ChainId, poolContractAddress]);
 
   // --- Eligibility Checks ---
   const canWithdraw = useMemo(() => {
@@ -389,8 +450,18 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [withdrawUnlockTimestamp, userData?.deposited, currentTimestampSeconds]);
 
   const canClaim = useMemo(() => {
-    if (!claimUnlockTimestamp || !currentUserRewardData || currentUserRewardData === BigInt(0)) return false;
-    return currentTimestampSeconds >= claimUnlockTimestamp;
+    const result = !(!claimUnlockTimestamp || !currentUserRewardData || currentUserRewardData === BigInt(0)) && 
+                   currentTimestampSeconds >= claimUnlockTimestamp;
+    
+    console.log("🔍 Debug: canClaim calculation", {
+      claimUnlockTimestamp: claimUnlockTimestamp?.toString(),
+      currentUserRewardData: currentUserRewardData?.toString(),
+      currentTimestampSeconds: currentTimestampSeconds.toString(),
+      timeComparison: claimUnlockTimestamp ? `${currentTimestampSeconds} >= ${claimUnlockTimestamp} = ${currentTimestampSeconds >= claimUnlockTimestamp}` : "N/A",
+      canClaim: result
+    });
+    
+    return result;
   }, [claimUnlockTimestamp, currentUserRewardData, currentTimestampSeconds]);
 
   const needsApproval = useCallback((amountString: string): boolean => {
@@ -516,12 +587,16 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       if (amountBigInt <= BigInt(0)) throw new Error("Invalid withdraw amount");
       if (userData?.deposited && amountBigInt > userData.deposited) throw new Error("Insufficient deposited balance");
 
+      // Set a safe gas limit based on direct contract call experience (adjust as needed)
+      const SAFE_WITHDRAW_GAS_LIMIT = BigInt(1200000); // <-- Adjust this value if needed
+
       await handleTransaction(() => withdrawAsync({
           address: poolContractAddress,
           abi: ERC1967ProxyAbi,
           functionName: 'withdraw',
           args: [PUBLIC_POOL_ID, amountBigInt],
           chainId: l1ChainId,
+          gas: SAFE_WITHDRAW_GAS_LIMIT,
       }), {
           loading: "Requesting withdrawal...",
           success: `Successfully withdrew ${amountString} stETH/wstETH!`, 
