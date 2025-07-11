@@ -137,7 +137,7 @@ export function DepositStethChart({
     const [isSelecting, setIsSelecting] = useState(false);
     const chartRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null); // Ref for the direct parent div
-    const [chartHeight, setChartHeight] = useState(410); // Default height
+    const [chartHeight, setChartHeight] = useState(310); // Default height
     const [selectedRange, setSelectedRange] = useState<'7d' | '1m' | '3m' | 'max'>('1m'); // Set default to '1m'
 
     // Threshold for switching height (adjust as needed)
@@ -363,7 +363,7 @@ export function DepositStethChart({
             for (const entry of entries) {
                 const width = entry.contentRect.width;
                 // Set height based on width threshold
-                setChartHeight(width < SIDEBAR_COLLAPSE_WIDTH_THRESHOLD ? 460 : 410);
+                setChartHeight(width < SIDEBAR_COLLAPSE_WIDTH_THRESHOLD ? 380 : 310);
             }
         });
 
