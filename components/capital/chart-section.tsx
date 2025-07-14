@@ -12,7 +12,6 @@ export function ChartSection() {
     chartLoading,
     chartError,
     isLoadingHistorical,
-    totalDepositsMOR,
     totalValueLockedUSD,
     currentDailyRewardMOR,
     avgApyRate,
