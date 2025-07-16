@@ -27,8 +27,8 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
-
 import { StakeModal } from "@/components/staking/stake-modal";
+import { LocalDataDebug } from '@/components/debug/local-data-debug';
 
 // Interfaces
 // interface UserSubnet {
@@ -1157,261 +1157,266 @@ export default function BuildersPage() {
 
 
   return (
-    <div className="page-container">
-      <div className="page-grid">
-        <div className="relative">
-          <MetricCard
-            title="Total Staked"
-            metrics={[{ value: totalMetrics.totalStaked, label: "MOR" }]}
-            disableGlow={true}
-            autoFormatNumbers={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
-
-        <div className="relative">
-          <MetricCard
-            title="Active Builders"
-            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
-            disableGlow={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
-
-
-        <div className="relative col-span-2">
-          <MetricCard
-            className="col-span-2"
-            title="Community Stats"
-            metrics={[
-              { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
-              { value: avgMorStakedPerUser, label: "Avg MOR / Staker" }
-            ]}
-            disableGlow={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
-      </div>
-
-      <div className="page-section">
-        <Tabs 
-          value={activeTab} 
-          onValueChange={handleTabChange}
-          className="w-full"
-        >
-          <div className="flex justify-between items-center align-middle mb-4">
-            <div className="flex flex-row items-center gap-4 align-middle">
-              <h2 className="flex section-title">Explore</h2>
-              <TabsList className="flex h-auto rounded-none border-b border-gray-800 bg-transparent p-0 -mt-3">
-                <TabsTrigger
-                  value="builders"
-                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
-                >
-                  Builders
-                </TabsTrigger>
-                <TabsTrigger
-                  value="participating"
-                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
-                >
-                  Staking in
-                </TabsTrigger>
-                <TabsTrigger
-                  value="subnets"
-                  className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
-                >
-                  Your Subnets
-                </TabsTrigger>
-              </TabsList>
-            </div>
-            <BuilderModalWrapper />
-          </div>
-          
-          <div className="section-content group">
-            <TabsContent value="builders">
-              <div className="section-body p-2">
-                {/* Filters for builders */}
-                <DataFilters
-                  nameFilter={nameFilter}
-                  onNameFilterChange={(value) => {
-                    setNameFilter(value);
-                    setParam('name', value || null);
-                  }}
-                  nameFilterLabel="Name"
-                  nameFilterPlaceholder="Search subnet name"
-                  
-                  networkFilter={networkFilter}
-                  onNetworkFilterChange={(value) => {
-                    setNetworkFilter(value);
-                    setParam('network', value === 'all' ? null : value);
-                  }}
-                  showNetworkFilter={true}
-                  
-                  selectFilter={rewardTypeFilter}
-                  onSelectFilterChange={(value) => {
-                    setRewardTypeFilter(value);
-                    setParam('rewardType', value === 'all' ? null : value);
-                  }}
-                  selectFilterLabel="Reward Type"
-                  selectFilterPlaceholder="Select type"
-                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))}
-                  showSelectFilter={true}
-                />
-
-                <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
-                  <DataTable
-                    columns={buildersColumns}
-                    data={filteredBuilders}
-                    isLoading={isLoading}
-                    sorting={sorting}
-                    onSortingChange={(columnId: string) => {
-                      setSorting(columnId);
-                      // Determine the direction based on current state
-                      const newDirection = columnId === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc';
-                      // Update URL parameter
-                      setParam('sort', `${columnId}-${newDirection}`);
-                    }}
-                    loadingRows={6}
-                    noResultsMessage="No builders found."
-                    onRowClick={(builder) => {
-                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
-                    }}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-            
-            {/* --- MODIFY Your Subnets Tab Content --- */}
-            <TabsContent value="subnets">
-              <div className="section-body p-2">
-                {/* Filters for your subnets */}
-                <DataFilters
-                  nameFilter={yourSubnetsNameFilter}
-                  onNameFilterChange={(value) => {
-                    setYourSubnetsNameFilter(value);
-                    setParam('subnet_name', value || null);
-                  }}
-                  nameFilterLabel="Name"
-                  nameFilterPlaceholder="Search subnet name"
-                  
-                  networkFilter={yourSubnetsNetworkFilter}
-                  onNetworkFilterChange={(value) => {
-                    setYourSubnetsNetworkFilter(value);
-                    setParam('subnet_network', value === 'all' ? null : value);
-                  }}
-                  showNetworkFilter={true}
-                  
-                  selectFilter={statusFilter}
-                  onSelectFilterChange={(value) => {
-                    setStatusFilter(value);
-                    setParam('subnet_status', value === 'all' ? null : value);
-                  }}
-                  selectFilterLabel="Status"
-                  selectFilterPlaceholder="Select status"
-                  selectFilterOptions={[ // Filters based on calculated Active/Pending
-                    { value: "active", label: "Active" },
-                    { value: "pending", label: "Pending" },
-                    // { value: "inactive", label: "Inactive" }, // Add if needed later
-                  ]}
-                  showSelectFilter={true}
-                />
-
-                <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
-                  <DataTable
-                    columns={subnetsColumns} // Use updated columns
-                    data={filteredUserAdminSubnets} // Use filtered real data
-                    isLoading={isLoadingUserAdminSubnets} // Use loading state from context
-                    loadingRows={6}
-                    noResultsMessage="No subnets administered by you were found." // Updated message
-                    onRowClick={(subnet) => {
-                       // Link to builder/subnet detail page
-                       window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}&network=${encodeURIComponent(subnet.networks?.[0] || subnet.network || '')}`; // Or /subnets/<id>
-                    }}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-            {/* --- END MODIFY Your Subnets Tab Content --- */}
-
-
-            {/* Participating Tab Content */}
-            <TabsContent value="participating">
-              <div className="section-body p-2">
-                {/* Filters for participating */}
-                <DataFilters
-                  nameFilter={participatingNameFilter}
-                  onNameFilterChange={(value) => {
-                    setParticipatingNameFilter(value);
-                    setParam('participating_name', value || null);
-                  }}
-                  nameFilterLabel="Name"
-                  nameFilterPlaceholder="Search subnet name"
-                  
-                  networkFilter={participatingNetworkFilter}
-                  onNetworkFilterChange={(value) => {
-                    setParticipatingNetworkFilter(value);
-                    setParam('participating_network', value === 'all' ? null : value);
-                  }}
-                  showNetworkFilter={true}
-                  
-                  selectFilter={participatingTypeFilter}
-                  onSelectFilterChange={(value) => {
-                    setParticipatingTypeFilter(value);
-                    setParam('participating_type', value === 'all' ? null : value);
-                  }}
-                  selectFilterLabel="Reward Type"
-                  selectFilterPlaceholder="Select type"
-                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))} // Use rewardTypes from context if needed here too
-                  showSelectFilter={false}
-                />
-
-                <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
-                  <DataTable
-                    columns={participatingColumns as unknown as Column<Builder>[]} 
-                    data={filteredParticipatingBuilders} // Use the new dynamic list
-                    isLoading={isLoadingAuth || isLoadingUserStakedBuilders} // Use loading state from new hook
-                    loadingRows={6}
-                    noResultsMessage={isAuthenticated && userAddress ? "You have not staked in any builders on mainnet networks." : "No participating builders found."}
-                    onRowClick={(builder) => {
-                      window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
-                    }}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-          </div>
-        </Tabs>
-      </div>
+    <div className="space-y-6">
+      {/* Local Data Debug - only shows in local_test mode */}
+      <LocalDataDebug />
       
-      {/* Stake Modal */}
-      <StakeModal 
-        isOpen={stakeModalOpen} 
-        onCloseAction={() => setStakeModalOpen(false)} 
-        selectedBuilder={selectedBuilder}
-      />
+      <div className="page-container">
+        <div className="page-grid">
+          <div className="relative">
+            <MetricCard
+              title="Total Staked"
+              metrics={[{ value: totalMetrics.totalStaked, label: "MOR" }]}
+              disableGlow={true}
+              autoFormatNumbers={true}
+            />
+            <GlowingEffect 
+              spread={40}
+              glow={true}
+              disabled={false}
+              proximity={64}
+              inactiveZone={0.01}
+              borderWidth={2}
+              borderRadius="rounded-xl"
+            />
+          </div>
+
+          <div className="relative">
+            <MetricCard
+              title="Active Builders"
+              metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
+              disableGlow={true}
+            />
+            <GlowingEffect 
+              spread={40}
+              glow={true}
+              disabled={false}
+              proximity={64}
+              inactiveZone={0.01}
+              borderWidth={2}
+              borderRadius="rounded-xl"
+            />
+          </div>
+
+
+          <div className="relative col-span-2">
+            <MetricCard
+              className="col-span-2"
+              title="Community Stats"
+              metrics={[
+                { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
+                { value: avgMorStakedPerUser, label: "Avg MOR / Staker" }
+              ]}
+              disableGlow={true}
+            />
+            <GlowingEffect 
+              spread={40}
+              glow={true}
+              disabled={false}
+              proximity={64}
+              inactiveZone={0.01}
+              borderWidth={2}
+              borderRadius="rounded-xl"
+            />
+          </div>
+        </div>
+
+        <div className="page-section">
+          <Tabs 
+            value={activeTab} 
+            onValueChange={handleTabChange}
+            className="w-full"
+          >
+            <div className="flex justify-between items-center align-middle mb-4">
+              <div className="flex flex-row items-center gap-4 align-middle">
+                <h2 className="flex section-title">Explore</h2>
+                <TabsList className="flex h-auto rounded-none border-b border-gray-800 bg-transparent p-0 -mt-3">
+                  <TabsTrigger
+                    value="builders"
+                    className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+                  >
+                    Builders
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="participating"
+                    className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+                  >
+                    Staking in
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="subnets"
+                    className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+                  >
+                    Your Subnets
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              <BuilderModalWrapper />
+            </div>
+            
+            <div className="section-content group">
+              <TabsContent value="builders">
+                <div className="section-body p-2">
+                  {/* Filters for builders */}
+                  <DataFilters
+                    nameFilter={nameFilter}
+                    onNameFilterChange={(value) => {
+                      setNameFilter(value);
+                      setParam('name', value || null);
+                    }}
+                    nameFilterLabel="Name"
+                    nameFilterPlaceholder="Search subnet name"
+                    
+                    networkFilter={networkFilter}
+                    onNetworkFilterChange={(value) => {
+                      setNetworkFilter(value);
+                      setParam('network', value === 'all' ? null : value);
+                    }}
+                    showNetworkFilter={true}
+                    
+                    selectFilter={rewardTypeFilter}
+                    onSelectFilterChange={(value) => {
+                      setRewardTypeFilter(value);
+                      setParam('rewardType', value === 'all' ? null : value);
+                    }}
+                    selectFilterLabel="Reward Type"
+                    selectFilterPlaceholder="Select type"
+                    selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))}
+                    showSelectFilter={true}
+                  />
+
+                  <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
+                    <DataTable
+                      columns={buildersColumns}
+                      data={filteredBuilders}
+                      isLoading={isLoading}
+                      sorting={sorting}
+                      onSortingChange={(columnId: string) => {
+                        setSorting(columnId);
+                        // Determine the direction based on current state
+                        const newDirection = columnId === sortColumn && sortDirection === 'asc' ? 'desc' : 'asc';
+                        // Update URL parameter
+                        setParam('sort', `${columnId}-${newDirection}`);
+                      }}
+                      loadingRows={6}
+                      noResultsMessage="No builders found."
+                      onRowClick={(builder) => {
+                        window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
+                      }}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+              
+              {/* --- MODIFY Your Subnets Tab Content --- */}
+              <TabsContent value="subnets">
+                <div className="section-body p-2">
+                  {/* Filters for your subnets */}
+                  <DataFilters
+                    nameFilter={yourSubnetsNameFilter}
+                    onNameFilterChange={(value) => {
+                      setYourSubnetsNameFilter(value);
+                      setParam('subnet_name', value || null);
+                    }}
+                    nameFilterLabel="Name"
+                    nameFilterPlaceholder="Search subnet name"
+                    
+                    networkFilter={yourSubnetsNetworkFilter}
+                    onNetworkFilterChange={(value) => {
+                      setYourSubnetsNetworkFilter(value);
+                      setParam('subnet_network', value === 'all' ? null : value);
+                    }}
+                    showNetworkFilter={true}
+                    
+                    selectFilter={statusFilter}
+                    onSelectFilterChange={(value) => {
+                      setStatusFilter(value);
+                      setParam('subnet_status', value === 'all' ? null : value);
+                    }}
+                    selectFilterLabel="Status"
+                    selectFilterPlaceholder="Select status"
+                    selectFilterOptions={[ // Filters based on calculated Active/Pending
+                      { value: "active", label: "Active" },
+                      { value: "pending", label: "Pending" },
+                      // { value: "inactive", label: "Inactive" }, // Add if needed later
+                    ]}
+                    showSelectFilter={true}
+                  />
+
+                  <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
+                    <DataTable
+                      columns={subnetsColumns} // Use updated columns
+                      data={filteredUserAdminSubnets} // Use filtered real data
+                      isLoading={isLoadingUserAdminSubnets} // Use loading state from context
+                      loadingRows={6}
+                      noResultsMessage="No subnets administered by you were found." // Updated message
+                      onRowClick={(subnet) => {
+                         // Link to builder/subnet detail page
+                         window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}&network=${encodeURIComponent(subnet.networks?.[0] || subnet.network || '')}`; // Or /subnets/<id>
+                      }}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+              {/* --- END MODIFY Your Subnets Tab Content --- */}
+
+
+              {/* Participating Tab Content */}
+              <TabsContent value="participating">
+                <div className="section-body p-2">
+                  {/* Filters for participating */}
+                  <DataFilters
+                    nameFilter={participatingNameFilter}
+                    onNameFilterChange={(value) => {
+                      setParticipatingNameFilter(value);
+                      setParam('participating_name', value || null);
+                    }}
+                    nameFilterLabel="Name"
+                    nameFilterPlaceholder="Search subnet name"
+                    
+                    networkFilter={participatingNetworkFilter}
+                    onNetworkFilterChange={(value) => {
+                      setParticipatingNetworkFilter(value);
+                      setParam('participating_network', value === 'all' ? null : value);
+                    }}
+                    showNetworkFilter={true}
+                    
+                    selectFilter={participatingTypeFilter}
+                    onSelectFilterChange={(value) => {
+                      setParticipatingTypeFilter(value);
+                      setParam('participating_type', value === 'all' ? null : value);
+                    }}
+                    selectFilterLabel="Reward Type"
+                    selectFilterPlaceholder="Select type"
+                    selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))} // Use rewardTypes from context if needed here too
+                    showSelectFilter={false}
+                  />
+
+                  <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
+                    <DataTable
+                      columns={participatingColumns as unknown as Column<Builder>[]} 
+                      data={filteredParticipatingBuilders} // Use the new dynamic list
+                      isLoading={isLoadingAuth || isLoadingUserStakedBuilders} // Use loading state from new hook
+                      loadingRows={6}
+                      noResultsMessage={isAuthenticated && userAddress ? "You have not staked in any builders on mainnet networks." : "No participating builders found."}
+                      onRowClick={(builder) => {
+                        window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
+                      }}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+        
+        {/* Stake Modal */}
+        <StakeModal 
+          isOpen={stakeModalOpen} 
+          onCloseAction={() => setStakeModalOpen(false)} 
+          selectedBuilder={selectedBuilder}
+        />
+      </div>
     </div>
   );
 }

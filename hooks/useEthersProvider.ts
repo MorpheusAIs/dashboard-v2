@@ -82,4 +82,22 @@ export function useEthersSigner({ chainId }: { chainId?: number } = {}) {
     () => (walletClient ? walletClientToSigner(walletClient) : undefined),
     [walletClient],
   )
+}
+
+// Hook to get current RPC URL information (simplified version)
+export function useRpcInfo() {
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  
+  return React.useMemo(() => {
+    const isWalletConnected = !!walletClient;
+    const chainId = publicClient?.chain?.id;
+    
+    // Note: RPC URL detection is handled in the network context
+    // This hook provides basic connection information
+    return {
+      isWalletConnected,
+      chainId,
+    };
+  }, [publicClient, walletClient]);
 } 

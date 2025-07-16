@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { useConfig, useAccount, useConnect, useSwitchChain } from 'wagmi';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { useConfig, useAccount, useConnect, useSwitchChain, usePublicClient } from 'wagmi';
 import { arbitrumSepolia, mainnet, arbitrum, base } from 'wagmi/chains';
-import { NetworkEnvironment, apiUrls, getChains, getChainById, getL1Chains, getL2Chains } from '../config/networks';
+import { NetworkEnvironment, apiUrls, getChains, getChainById, getL1Chains, getL2Chains, getEnvironmentForChainAndRpc } from '../config/networks';
 import { getWagmiConfig } from '../config';
 
 interface NetworkContextType {
@@ -9,6 +9,7 @@ interface NetworkContextType {
   setEnvironment: (env: NetworkEnvironment) => void;
   isMainnet: boolean;
   isTestnet: boolean;
+  isLocalTest: boolean;
   currentChainId: number | undefined;
   switchToEnvironment: (env: NetworkEnvironment) => Promise<void>;
   switchToChain: (chainId: number) => Promise<void>;
@@ -19,6 +20,7 @@ interface NetworkContextType {
   l2Chains: ReturnType<typeof getL2Chains>;
   supportedChains: ReturnType<typeof getChains>;
   isNetworkSwitching: boolean;
+  autoDetectedEnvironment?: NetworkEnvironment;
 }
 
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
@@ -35,10 +37,30 @@ export function NetworkProvider({
   
   const { chainId } = useAccount();
   const { switchChain } = useSwitchChain();
+  const publicClient = usePublicClient();
   
   const currentChainId = chainId;
   const isMainnet = environment === 'mainnet';
   const isTestnet = environment === 'testnet';
+  const isLocalTest = environment === 'local_test';
+
+  // Auto-detect environment based on current RPC connection
+  const rpcUrl = publicClient?.transport?.url;
+  const autoDetectedEnvironment = currentChainId ? getEnvironmentForChainAndRpc(currentChainId, rpcUrl) : undefined;
+
+  // Auto-switch environment when local RPC is detected
+  useEffect(() => {
+    if (autoDetectedEnvironment && autoDetectedEnvironment !== environment) {
+      console.log(`🔄 Auto-detected environment change: ${environment} → ${autoDetectedEnvironment}`);
+      console.log(`🔗 Connected to RPC: ${rpcUrl}`);
+      console.log(`🏷️  Chain ID: ${currentChainId}`);
+      
+      // Only auto-switch to local_test, not away from it (to avoid conflicts)
+      if (autoDetectedEnvironment === 'local_test') {
+        setEnvironment(autoDetectedEnvironment);
+      }
+    }
+  }, [autoDetectedEnvironment, currentChainId, rpcUrl, environment]);
 
   const switchToEnvironment = async (newEnvironment: NetworkEnvironment) => {
     try {
@@ -47,6 +69,10 @@ export function NetworkProvider({
       // If switching to testnet, switch to Arbitrum Sepolia
       if (newEnvironment === 'testnet') {
         await switchChain({ chainId: arbitrumSepolia.id });
+      }
+      // If switching to local_test, try to switch to local Arbitrum first
+      else if (newEnvironment === 'local_test') {
+        await switchChain({ chainId: arbitrum.id }); // The chainId is the same, but RPC will be local
       }
       // If switching to mainnet, keep current chain if it's a mainnet chain, otherwise switch to Arbitrum
       else if (newEnvironment === 'mainnet') {
@@ -85,6 +111,7 @@ export function NetworkProvider({
         setEnvironment,
         isMainnet,
         isTestnet,
+        isLocalTest,
         currentChainId,
         switchToEnvironment,
         switchToChain,
@@ -94,7 +121,8 @@ export function NetworkProvider({
         graphqlApiUrl: apiUrls[environment].graphql,
         l1Chains: getL1Chains(environment),
         l2Chains: getL2Chains(environment),
-        supportedChains: getChains(environment)
+        supportedChains: getChains(environment),
+        autoDetectedEnvironment,
       }}
     >
       {children}
