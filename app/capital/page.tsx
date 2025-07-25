@@ -31,7 +31,6 @@ function CapitalPageContent() {
     // Raw data needed by modals
     userData,
     currentUserMultiplierData,
-    poolInfo,
     isLoadingUserData,
   } = useCapitalContext();
 
@@ -87,7 +86,7 @@ function CapitalPageContent() {
       <ReferralPanel />
 
       {/* Render Modals */}
-      <DepositModal minimalStake={poolInfo?.minimalStake} />
+      <DepositModal />
       <WithdrawModal depositedAmount={userDepositFormatted !== "---" ? userDepositFormatted : "0"} />
       <ClaimModal claimableAmount={claimableAmountFormatted !== "---" ? claimableAmountFormatted : "0"} />
       <ChangeLockModal 

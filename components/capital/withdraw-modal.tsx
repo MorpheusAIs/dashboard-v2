@@ -23,7 +23,8 @@ export function WithdrawModal({
     canWithdraw,
     isProcessingWithdraw,
     activeModal,
-    setActiveModal
+    setActiveModal,
+    selectedAsset
   } = useCapitalContext();
 
   const isOpen = activeModal === 'withdraw';
@@ -66,7 +67,7 @@ export function WithdrawModal({
     }
     
     try {
-      await withdraw(amount);
+      await withdraw(selectedAsset, amount);
     } catch (error) {
       console.error("Withdraw Action Error:", error);
       setFormError((error as Error)?.message || "An unexpected error occurred.");
