@@ -175,6 +175,13 @@ interface CapitalContextState {
   isLoadingUserData: boolean;
   isLoadingBalances: boolean;
 
+  // Legacy Properties (for backward compatibility)
+  userDepositFormatted: string;
+  claimableAmountFormatted: string;
+  userData?: UserPoolData;
+  currentUserMultiplierData?: bigint;
+  poolInfo?: PoolInfoData;
+
   // Action States
   isProcessingDeposit: boolean;
   isProcessingClaim: boolean;
@@ -934,36 +941,39 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isApprovalSuccess: isApprovalSuccess,
 
     // V2 Action Functions (asset-aware)
-    deposit: (asset: AssetSymbol, amountString: string) => {
+    deposit: async (asset: AssetSymbol, amountString: string) => {
       if (asset === 'stETH') {
-        deposit(amountString);
+        return deposit(amountString);
       } else if (asset === 'LINK') {
         // For LINK, we would need to call a LINK-specific deposit function
         // This would involve a different contract interaction and state management
         // For now, we'll just show a message or throw an error
         toast.error("LINK deposit functionality not yet implemented.");
+        return Promise.resolve();
       }
     },
     claim: () => claim(), // Claims from all pools
-    withdraw: (asset: AssetSymbol, amountString: string) => {
+    withdraw: async (asset: AssetSymbol, amountString: string) => {
       if (asset === 'stETH') {
-        withdraw(amountString);
+        return withdraw(amountString);
       } else if (asset === 'LINK') {
         // For LINK, we would need to call a LINK-specific withdraw function
         // This would involve a different contract interaction and state management
         // For now, we'll just show a message or throw an error
         toast.error("LINK withdrawal functionality not yet implemented.");
+        return Promise.resolve();
       }
     },
     changeLock: (lockValue: string, lockUnit: TimeUnit) => changeLock(lockValue, lockUnit),
-    approveToken: (asset: AssetSymbol) => {
+    approveToken: async (asset: AssetSymbol) => {
       if (asset === 'stETH') {
-        approveStEth();
+        return approveStEth();
       } else if (asset === 'LINK') {
         // For LINK, we would need to call a LINK-specific approve function
         // This would involve a different contract interaction and state management
         // For now, we'll just show a message or throw an error
         toast.error("LINK approval functionality not yet implemented.");
+        return Promise.resolve();
       }
     },
     
@@ -1002,6 +1012,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     triggerMultiplierEstimation,
     estimatedMultiplierValue,
     isSimulatingMultiplier,
+
+    // Legacy Properties (for backward compatibility)
+    userDepositFormatted,
+    claimableAmountFormatted,
+    userData,
+    currentUserMultiplierData,
+    poolInfo,
   }), [
     // Dependencies for all values provided
     l1ChainId, l2ChainId, userAddress, networkEnv,
