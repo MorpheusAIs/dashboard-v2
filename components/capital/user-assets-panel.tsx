@@ -38,7 +38,7 @@ export function UserAssetsPanel() {
   const {
     userAddress,
     setActiveModal,
-    userDepositFormatted,
+    selectedAssetDepositedFormatted,
     isLoadingUserData,
   } = useCapitalContext();
 
@@ -46,11 +46,26 @@ export function UserAssetsPanel() {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+  // Helper function to safely parse deposit amount
+  const parseDepositAmount = (depositValue: string | undefined): number => {
+    try {
+      if (!depositValue || typeof depositValue !== 'string') {
+        return 0;
+      }
+      const cleanedValue = depositValue.replace(/,/g, '');
+      const parsed = parseFloat(cleanedValue);
+      return isNaN(parsed) ? 0 : parsed;
+    } catch (error) {
+      console.error('Error parsing deposit amount:', error);
+      return 0;
+    }
+  };
+
   // Check if user has stETH staked
   const hasStakedAssets = useMemo(() => {
-    const depositAmount = parseFloat(userDepositFormatted.replace(/,/g, ''));
-    return !isNaN(depositAmount) && depositAmount > 0;
-  }, [userDepositFormatted]);
+    const depositAmount = parseDepositAmount(selectedAssetDepositedFormatted);
+    return depositAmount > 0;
+  }, [selectedAssetDepositedFormatted]);
 
   // Mock data for metrics (in a real app, these would come from context/API)
   const metricsData = {
@@ -65,7 +80,7 @@ export function UserAssetsPanel() {
   const userAssets: UserAsset[] = useMemo(() => {
     if (!hasStakedAssets) return [];
 
-    const stethAmount = parseFloat(userDepositFormatted.replace(/,/g, ''));
+    const stethAmount = parseDepositAmount(selectedAssetDepositedFormatted);
     
     return [
       {
@@ -113,7 +128,7 @@ export function UserAssetsPanel() {
         availableToClaim: 0.000,
       },
     ];
-  }, [hasStakedAssets, userDepositFormatted]);
+  }, [hasStakedAssets, selectedAssetDepositedFormatted]);
 
   // Sorting logic
   const sorting = useMemo(() => {
