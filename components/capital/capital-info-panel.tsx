@@ -17,15 +17,30 @@ export function CapitalInfoPanel() {
     userAddress,
     setActiveModal,
     // For now, we'll use placeholder data until we implement real data
-    totalDepositedFormatted,
+    selectedAssetTotalStakedFormatted,
   } = useCapitalContext();
+
+  // Helper function to safely parse totalStaked for NumberFlow
+  const parseStakedAmount = (totalStaked: string): number => {
+    try {
+      if (!totalStaked || typeof totalStaked !== 'string') {
+        return 0;
+      }
+      const cleanedValue = totalStaked.replace(/,/g, '');
+      const parsed = parseFloat(cleanedValue);
+      return isNaN(parsed) ? 0 : Math.floor(parsed);
+    } catch (error) {
+      console.error('Error parsing staked amount:', error);
+      return 0;
+    }
+  };
 
   // Mock data for the assets table
   const assets: Asset[] = [
     {
       symbol: "stETH",
       apy: "8.65%",
-      totalStaked: totalDepositedFormatted !== "---" ? totalDepositedFormatted : "61,849",
+      totalStaked: (selectedAssetTotalStakedFormatted && selectedAssetTotalStakedFormatted !== "---" && selectedAssetTotalStakedFormatted !== "Error") ? selectedAssetTotalStakedFormatted : "61,849",
       icon: "eth"
     },
     {
@@ -107,7 +122,7 @@ export function CapitalInfoPanel() {
 
                   {/* Total Staked */}
                   <div className="text-right text-sm font-semibold text-white">
-                    <NumberFlow value={Math.floor(parseFloat(asset.totalStaked.replace(/,/g, '')))} />
+                    <NumberFlow value={parseStakedAmount(asset.totalStaked)} />
                   </div>
 
                   {/* Stake Button */}
