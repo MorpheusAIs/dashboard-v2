@@ -14,6 +14,13 @@ export interface ContractAddresses {
   l2Factory: ChainContract;
   subnetFactory: ChainContract;
   builders: ChainContract;
+  // V2 Contracts
+  stETHDepositPool?: ChainContract;
+  linkDepositPool?: ChainContract;
+  distributorV2?: ChainContract;
+  rewardPoolV2?: ChainContract;
+  l1SenderV2?: ChainContract;
+  linkToken?: ChainContract;
 }
 
 // RPC configuration for better reliability
@@ -83,10 +90,22 @@ export const testnetChains: Record<string, ChainConfig> = {
       }
     },
     contracts: {
+      // Existing V1 contracts
       erc1967Proxy: toContract('0x7c46d6bebf3dcd902eb431054e59908a02aba524'),
       stETH: toContract('0xa878Ad6fF38d6fAE81FBb048384cE91979d448DA'),
       layerZeroEndpoint: toContract('0xae92d5aD7583AD66E49A0c67BAd18F6ba52dDDc1'),
-      l1Factory: toContract('0xB791b1B02A8f7A32f370200c05EeeE12B9Bba10A')
+      l1Factory: toContract('0xB791b1B02A8f7A32f370200c05EeeE12B9Bba10A'),
+      
+      // V2 Contracts (Proxies)
+      stETHDepositPool: toContract('0xFea33A23F97d785236F22693eDca564782ae98d0'),
+      linkDepositPool: toContract('0x7f4f17be21219D7DA4C8E0d0B9be6a778354E5A5'),
+      distributorV2: toContract('0x65b8676392432B1cBac1BE4792a5867A8CA2f375'),
+      rewardPoolV2: toContract('0xbFDbe9c7E6c8bBda228c6314E24E9043faeEfB32'),
+      l1SenderV2: toContract('0x85e398705d7D77F1703b61DD422869A67B3B409d'),
+      
+      // Token contracts (TODO: Need actual test token addresses)
+      // linkToken: toContract('0x...'), // Sepolia LINK token address needed
+      linkToken: toContract('0x779877A7B0D9E8603169DdbD7836e478b4624789'), // Sepolia LINK token
     },
     isL1: true,
     layerZeroEndpointId: 10161,

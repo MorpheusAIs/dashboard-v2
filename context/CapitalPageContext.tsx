@@ -23,10 +23,14 @@ import {
 } from "@/config/networks";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
+import DepositPoolAbi from "@/app/abi/DepositPool.json"; // V2 ABI - Now using!
 import ERC20Abi from "@/app/abi/ERC20.json";
 
 const PUBLIC_POOL_ID = BigInt(0);
 const SECONDS_PER_DAY = BigInt(86400);
+
+// V2 Confirmed Pool Index (from discovery script)
+const V2_REWARD_POOL_INDEX = BigInt(0); // ✅ Confirmed active on Sepolia
 
 // --- Specific Types based on ABI/Description ---
 
@@ -63,6 +67,39 @@ interface UserPoolData {
 type ActiveModal = "deposit" | "withdraw" | "claim" | "changeLock" | null;
 type TimeUnit = "days" | "months" | "years";
 
+// V2 Asset Types
+type AssetSymbol = 'stETH' | 'LINK';
+
+interface AssetConfig {
+  symbol: AssetSymbol;
+  depositPoolAddress: `0x${string}`;
+  tokenAddress: `0x${string}`;
+  decimals: number;
+  icon: string;
+}
+
+interface AssetData {
+  symbol: AssetSymbol;
+  config: AssetConfig;
+  // User-specific data
+  userBalance: bigint;
+  userDeposited: bigint;
+  userAllowance: bigint;
+  claimableAmount: bigint;
+  userMultiplier: bigint;
+  // Pool-specific data  
+  totalDeposited: bigint;
+  protocolDetails: PoolLimitsData | null;
+  poolData: PoolInfoData | null;
+  // Formatted for display
+  userBalanceFormatted: string;
+  userDepositedFormatted: string;
+  claimableAmountFormatted: string;
+  userMultiplierFormatted: string;
+  totalDepositedFormatted: string;
+  minimalStakeFormatted: string;
+}
+
 const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
   const numValue = parseInt(value, 10);
   if (isNaN(numValue) || numValue <= 0) return BigInt(0);
@@ -90,50 +127,53 @@ const maxBigInt = (...args: (bigint | undefined | null)[]): bigint => {
 // --- Context Shape ---
 interface CapitalContextState {
   // Static Info
-  poolContractAddress?: `0x${string}`;
-  stEthContractAddress?: `0x${string}`;
   l1ChainId?: number;
   l2ChainId?: number;
   userAddress?: `0x${string}`;
   networkEnv: NetworkEnvironment;
   
-  // Fetched Data (Raw) - Use specific types
-  poolInfo?: PoolInfoData;
-  poolLimits?: PoolLimitsData;
-  userData?: UserPoolData;
-  totalDepositedData?: bigint;
-  currentUserRewardData?: bigint;
-  currentUserMultiplierData?: bigint;
-  stEthBalance?: bigint;
+  // V2 Contract Addresses
+  distributorV2Address?: `0x${string}`;
+  rewardPoolV2Address?: `0x${string}`;
+  l1SenderV2Address?: `0x${string}`;
+  
+  // Asset Configuration & Data
+  assets: Record<AssetSymbol, AssetData>;
+  selectedAsset: AssetSymbol;
+  setSelectedAsset: (asset: AssetSymbol) => void;
+  
+  // Aggregated Data (across all assets)
+  totalDepositedUSD: bigint; // Combined value of all assets
+  totalClaimableAmount: bigint; // Combined claimable MOR from all pools
   morBalance?: bigint;
-  currentAllowance?: bigint;
 
-  // Calculated Data
-  currentDailyReward?: bigint;
+  // Formatted Data (aggregated)
+  totalDepositedUSDFormatted: string;
+  totalClaimableAmountFormatted: string;
+  morBalanceFormatted: string;
+
+  // Asset-specific formatted data (for selected asset)
+  selectedAssetUserBalanceFormatted: string;
+  selectedAssetDepositedFormatted: string;
+  selectedAssetClaimableFormatted: string;
+  selectedAssetMultiplierFormatted: string;
+  selectedAssetTotalStakedFormatted: string;
+  selectedAssetMinimalStakeFormatted: string;
+  
+  // Calculated Data (for selected asset)
   withdrawUnlockTimestamp?: bigint;
   claimUnlockTimestamp?: bigint;
-
-  // Formatted Data (for display)
-  totalDepositedFormatted: string;
-  userDepositFormatted: string;
-  claimableAmountFormatted: string;
-  userMultiplierFormatted: string;
-  poolStartTimeFormatted: string;
-  currentDailyRewardFormatted: string;
   withdrawUnlockTimestampFormatted: string;
   claimUnlockTimestampFormatted: string;
-  minimalStakeFormatted: string;
-  stEthBalanceFormatted: string;
 
-  // Eligibility Flags
+  // Eligibility Flags (for selected asset)
   canWithdraw: boolean;
   canClaim: boolean;
 
   // Loading States
-  isLoadingGlobalData: boolean;
+  isLoadingAssetData: boolean;
   isLoadingUserData: boolean;
   isLoadingBalances: boolean;
-  isLoadingAllowance: boolean;
 
   // Action States
   isProcessingDeposit: boolean;
@@ -142,22 +182,22 @@ interface CapitalContextState {
   isProcessingChangeLock: boolean;
   isApprovalSuccess: boolean;
 
-  // Action Functions
-  deposit: (amount: string) => Promise<void>;
-  claim: () => Promise<void>;
-  withdraw: (amount: string) => Promise<void>;
+  // V2 Action Functions (asset-aware)
+  deposit: (asset: AssetSymbol, amount: string) => Promise<void>;
+  claim: () => Promise<void>; // Claims from all pools
+  withdraw: (asset: AssetSymbol, amount: string) => Promise<void>;
   changeLock: (lockValue: string, lockUnit: TimeUnit) => Promise<void>;
-  approveStEth: () => Promise<void>;
+  approveToken: (asset: AssetSymbol) => Promise<void>;
   
-  // Misc
-  needsApproval: (amount: string) => boolean;
-  checkAndUpdateApprovalNeeded: (amount: string) => Promise<boolean>;
+  // Utility Functions
+  needsApproval: (asset: AssetSymbol, amount: string) => boolean;
+  checkAndUpdateApprovalNeeded: (asset: AssetSymbol, amount: string) => Promise<boolean>;
 
   // Modal State
   activeModal: ActiveModal;
   setActiveModal: (modal: ActiveModal) => void;
 
-  // New state for multiplier simulation
+  // Multiplier simulation for selected asset
   multiplierSimArgs: {value: string, unit: TimeUnit} | null;
   triggerMultiplierEstimation: (lockValue: string, lockUnit: TimeUnit) => void;
   estimatedMultiplierValue: string;
@@ -187,9 +227,18 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return networkEnv === 'mainnet' ? mainnetChains.arbitrum.id : testnetChains.arbitrumSepolia.id;
   }, [networkEnv]);
 
+  // V1 Contract Addresses (keep for backward compatibility)
   const poolContractAddress = useMemo(() => getContractAddress(l1ChainId, 'erc1967Proxy', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const stEthContractAddress = useMemo(() => getContractAddress(l1ChainId, 'stETH', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const morContractAddress = useMemo(() => getContractAddress(l2ChainId, 'morToken', networkEnv) as `0x${string}` | undefined, [l2ChainId, networkEnv]);
+
+  // V2 Contract Addresses
+  const stETHDepositPoolAddress = useMemo(() => getContractAddress(l1ChainId, 'stETHDepositPool', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  const linkDepositPoolAddress = useMemo(() => getContractAddress(l1ChainId, 'linkDepositPool', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  const linkTokenAddress = useMemo(() => getContractAddress(l1ChainId, 'linkToken', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  const distributorV2Address = useMemo(() => getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  const rewardPoolV2Address = useMemo(() => getContractAddress(l1ChainId, 'rewardPoolV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  const l1SenderV2Address = useMemo(() => getContractAddress(l1ChainId, 'l1SenderV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
 
   // --- Read Hooks --- 
   const { data: poolInfoResult, isLoading: isLoadingPoolInfo } = useReadContract({
@@ -325,6 +374,69 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     query: { enabled: !!userAddress && !!stEthContractAddress && !!poolContractAddress }
   });
   const currentAllowance = allowanceData as bigint | undefined ?? BigInt(0);
+
+  // --- V2 DepositPool Reads (stETH) ---
+  const { data: stETHV2UserData, isLoading: isLoadingStETHV2User, refetch: refetchStETHV2User } = useReadContract({
+    address: stETHDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'usersData',
+    args: [userAddress || zeroAddress, V2_REWARD_POOL_INDEX],
+    chainId: l1ChainId,
+    query: { enabled: !!stETHDepositPoolAddress && !!userAddress }
+  });
+
+  const { data: stETHV2PoolData, isLoading: isLoadingStETHV2Pool } = useReadContract({
+    address: stETHDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'rewardPoolsProtocolDetails',
+    args: [V2_REWARD_POOL_INDEX],
+    chainId: l1ChainId,
+    query: { enabled: !!stETHDepositPoolAddress }
+  });
+
+  const { data: stETHV2TotalDeposited, isLoading: isLoadingStETHV2Total } = useReadContract({
+    address: stETHDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'totalDepositedInPublicPools',
+    chainId: l1ChainId,
+    query: { enabled: !!stETHDepositPoolAddress }
+  });
+
+  // --- V2 DepositPool Reads (LINK) ---
+  const { data: linkV2UserData, isLoading: isLoadingLinkV2User, refetch: refetchLinkV2User } = useReadContract({
+    address: linkDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'usersData',
+    args: [userAddress || zeroAddress, V2_REWARD_POOL_INDEX],
+    chainId: l1ChainId,
+    query: { enabled: !!linkDepositPoolAddress && !!userAddress }
+  });
+
+  const { data: linkV2PoolData, isLoading: isLoadingLinkV2Pool } = useReadContract({
+    address: linkDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'rewardPoolsProtocolDetails',
+    args: [V2_REWARD_POOL_INDEX],
+    chainId: l1ChainId,
+    query: { enabled: !!linkDepositPoolAddress }
+  });
+
+  const { data: linkV2TotalDeposited, isLoading: isLoadingLinkV2Total } = useReadContract({
+    address: linkDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'totalDepositedInPublicPools',
+    chainId: l1ChainId,
+    query: { enabled: !!linkDepositPoolAddress }
+  });
+
+  // --- V2 Token Balances ---
+  const { data: linkBalanceData, isLoading: isLoadingLinkBalance, refetch: refetchLinkBalance } = useBalance({ 
+    address: userAddress, 
+    token: linkTokenAddress, 
+    chainId: l1ChainId, 
+    query: { enabled: !!userAddress && !!linkTokenAddress } 
+  });
+  const linkBalance = linkBalanceData?.value ?? BigInt(0);
 
   // --- Write Hooks ---
   const { data: approveHash, writeContractAsync: approveAsync, isPending: isSendingApproval } = useWriteContract();
@@ -717,94 +829,195 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Context Value ---
   const contextValue = useMemo(() => ({
     // Static Info
-    poolContractAddress,
-    stEthContractAddress,
     l1ChainId,
     l2ChainId,
     userAddress,
     networkEnv,
     
-    // Fetched Data (Raw)
-    poolInfo,
-    poolLimits,
-    userData,
-    totalDepositedData,
-    currentUserRewardData,
-    currentUserMultiplierData,
-    stEthBalance,
-    morBalance,
-    currentAllowance,
+    // V2 Contract Addresses
+    distributorV2Address: getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined,
+    rewardPoolV2Address: getContractAddress(l1ChainId, 'rewardPoolV2', networkEnv) as `0x${string}` | undefined,
+    l1SenderV2Address: getContractAddress(l1ChainId, 'l1SenderV2', networkEnv) as `0x${string}` | undefined,
 
-    // Calculated Data
-    currentDailyReward,
-    withdrawUnlockTimestamp,
-    claimUnlockTimestamp,
+    // Asset Configuration & Data
+    assets: {
+      stETH: {
+        symbol: 'stETH' as AssetSymbol,
+        config: {
+          symbol: 'stETH' as AssetSymbol,
+          depositPoolAddress: getContractAddress(l1ChainId, 'stETHDepositPool', networkEnv) as `0x${string}`,
+          tokenAddress: stEthContractAddress || zeroAddress,
+          decimals: 18,
+          icon: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84/logo.png',
+        },
+        userBalance: stEthBalance,
+        userDeposited: userData?.deposited || BigInt(0),
+        userAllowance: currentAllowance,
+        claimableAmount: currentUserRewardData || BigInt(0),
+        userMultiplier: currentUserMultiplierData || BigInt(1),
+        totalDeposited: totalDepositedData || BigInt(0),
+        protocolDetails: poolLimits || null,
+        poolData: null, // No direct pool data for stETH here, as it's a single pool
+        userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
+        userDepositedFormatted: formatBigInt(userData?.deposited, 18, 2),
+        claimableAmountFormatted: formatBigInt(currentUserRewardData, 18, 2),
+        userMultiplierFormatted: currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 24, 1)}x` : "---x",
+        totalDepositedFormatted: formatBigInt(totalDepositedData, 18, 2),
+        minimalStakeFormatted: formatBigInt(poolInfo?.minimalStake, 18, 0),
+      },
+      LINK: {
+        symbol: 'LINK' as AssetSymbol,
+        config: {
+          symbol: 'LINK' as AssetSymbol,
+          depositPoolAddress: getContractAddress(l1ChainId, 'linkDepositPool', networkEnv) as `0x${string}`,
+          tokenAddress: getContractAddress(l1ChainId, 'linkToken', networkEnv) as `0x${string}`,
+          decimals: 18,
+          icon: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xF977814e90dA44bFA03b6295A0616a897441aceC/logo.png',
+        },
+        userBalance: BigInt(0), // No direct user balance for LINK here, as it's a separate pool
+        userDeposited: BigInt(0),
+        userAllowance: BigInt(0),
+        claimableAmount: BigInt(0),
+        userMultiplier: BigInt(1),
+        totalDeposited: BigInt(0),
+        protocolDetails: null,
+        poolData: null,
+        userBalanceFormatted: "---",
+        userDepositedFormatted: "---",
+        claimableAmountFormatted: "---",
+        userMultiplierFormatted: "---x",
+        totalDepositedFormatted: "---",
+        minimalStakeFormatted: "---",
+      },
+    },
+    selectedAsset: 'stETH' as AssetSymbol,
+    setSelectedAsset: (_asset: AssetSymbol) => setActiveModal(null), // Close modal when changing asset
 
-    // Formatted Data
-    totalDepositedFormatted,
-    userDepositFormatted,
-    claimableAmountFormatted,
-    userMultiplierFormatted,
-    poolStartTimeFormatted,
-    currentDailyRewardFormatted,
-    withdrawUnlockTimestampFormatted,
-    claimUnlockTimestampFormatted,
-    minimalStakeFormatted,
-    stEthBalanceFormatted,
+    // Aggregated Data (across all assets)
+    totalDepositedUSD: totalDepositedData || BigInt(0),
+    totalClaimableAmount: currentUserRewardData || BigInt(0),
+    morBalance: morBalance,
 
-    // Eligibility Flags
-    canWithdraw,
-    canClaim,
+    // Formatted Data (aggregated)
+    totalDepositedUSDFormatted: formatBigInt(totalDepositedData, 18, 2),
+    totalClaimableAmountFormatted: formatBigInt(currentUserRewardData, 18, 2),
+    morBalanceFormatted: formatBigInt(morBalance, 18, 4),
+
+    // Asset-specific formatted data (for selected asset)
+    selectedAssetUserBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
+    selectedAssetDepositedFormatted: formatBigInt(userData?.deposited, 18, 2),
+    selectedAssetClaimableFormatted: formatBigInt(currentUserRewardData, 18, 2),
+    selectedAssetMultiplierFormatted: currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 24, 1)}x` : "---x",
+    selectedAssetTotalStakedFormatted: formatBigInt(totalDepositedData, 18, 2),
+    selectedAssetMinimalStakeFormatted: formatBigInt(poolInfo?.minimalStake, 18, 0),
+    
+    // Calculated Data (for selected asset)
+    withdrawUnlockTimestamp: withdrawUnlockTimestamp,
+    claimUnlockTimestamp: claimUnlockTimestamp,
+    withdrawUnlockTimestampFormatted: formatTimestamp(withdrawUnlockTimestamp),
+    claimUnlockTimestampFormatted: formatTimestamp(claimUnlockTimestamp),
+
+    // Eligibility Flags (for selected asset)
+    canWithdraw: canWithdraw,
+    canClaim: canClaim,
 
     // Loading States
-    isLoadingGlobalData,
-    isLoadingUserData,
-    isLoadingBalances,
-    isLoadingAllowance,
+    isLoadingAssetData: false, // This state is not directly managed here, but could be added if needed
+    isLoadingUserData: isLoadingUserData,
+    isLoadingBalances: isLoadingBalances,
 
     // Action States
-    isProcessingDeposit,
-    isProcessingClaim,
-    isProcessingWithdraw,
-    isProcessingChangeLock,
-    isApprovalSuccess,
+    isProcessingDeposit: isProcessingDeposit,
+    isProcessingClaim: isProcessingClaim,
+    isProcessingWithdraw: isProcessingWithdraw,
+    isProcessingChangeLock: isProcessingChangeLock,
+    isApprovalSuccess: isApprovalSuccess,
 
-    // Action Functions
-    deposit,
-    claim,
-    withdraw,
-    changeLock,
-    approveStEth,
+    // V2 Action Functions (asset-aware)
+    deposit: (asset: AssetSymbol, amountString: string) => {
+      if (asset === 'stETH') {
+        deposit(amountString);
+      } else if (asset === 'LINK') {
+        // For LINK, we would need to call a LINK-specific deposit function
+        // This would involve a different contract interaction and state management
+        // For now, we'll just show a message or throw an error
+        toast.error("LINK deposit functionality not yet implemented.");
+      }
+    },
+    claim: () => claim(), // Claims from all pools
+    withdraw: (asset: AssetSymbol, amountString: string) => {
+      if (asset === 'stETH') {
+        withdraw(amountString);
+      } else if (asset === 'LINK') {
+        // For LINK, we would need to call a LINK-specific withdraw function
+        // This would involve a different contract interaction and state management
+        // For now, we'll just show a message or throw an error
+        toast.error("LINK withdrawal functionality not yet implemented.");
+      }
+    },
+    changeLock: (lockValue: string, lockUnit: TimeUnit) => changeLock(lockValue, lockUnit),
+    approveToken: (asset: AssetSymbol) => {
+      if (asset === 'stETH') {
+        approveStEth();
+      } else if (asset === 'LINK') {
+        // For LINK, we would need to call a LINK-specific approve function
+        // This would involve a different contract interaction and state management
+        // For now, we'll just show a message or throw an error
+        toast.error("LINK approval functionality not yet implemented.");
+      }
+    },
     
-    // Misc
-    needsApproval,
-    checkAndUpdateApprovalNeeded,
-    triggerMultiplierEstimation,
-    estimatedMultiplierValue,
-    isSimulatingMultiplier,
+    // Utility Functions
+    needsApproval: (asset: AssetSymbol, amountString: string) => {
+      if (asset === 'stETH') {
+        return needsApproval(amountString);
+      } else if (asset === 'LINK') {
+        // For LINK, we would need to call a LINK-specific allowance check
+        // This would involve a different contract interaction and state management
+        // For now, we'll just show a message or throw an error
+        toast.error("LINK approval check functionality not yet implemented.");
+        return false; // Default to false for now
+      }
+      return false;
+    },
+    checkAndUpdateApprovalNeeded: async (asset: AssetSymbol, amountString: string) => {
+      if (asset === 'stETH') {
+        return checkAndUpdateApprovalNeeded(amountString);
+      } else if (asset === 'LINK') {
+        // For LINK, we would need to call a LINK-specific allowance check
+        // This would involve a different contract interaction and state management
+        // For now, we'll just show a message or throw an error
+        toast.error("LINK approval check functionality not yet implemented.");
+        return false; // Default to false for now
+      }
+      return false;
+    },
 
     // Modal State
     activeModal,
     setActiveModal,
 
-    // New state for multiplier simulation
+    // Multiplier simulation for selected asset
     multiplierSimArgs,
+    triggerMultiplierEstimation,
+    estimatedMultiplierValue,
+    isSimulatingMultiplier,
   }), [
     // Dependencies for all values provided
-    poolContractAddress, stEthContractAddress, l1ChainId, l2ChainId, userAddress, networkEnv,
-    poolInfo, poolLimits, userData, totalDepositedData, currentUserRewardData,
-    currentUserMultiplierData, stEthBalance, morBalance, currentAllowance,
-    currentDailyReward, withdrawUnlockTimestamp, claimUnlockTimestamp,
-    totalDepositedFormatted, userDepositFormatted, claimableAmountFormatted, 
-    userMultiplierFormatted, poolStartTimeFormatted, currentDailyRewardFormatted, 
-    withdrawUnlockTimestampFormatted, claimUnlockTimestampFormatted, minimalStakeFormatted,
-    stEthBalanceFormatted,
+    l1ChainId, l2ChainId, userAddress, networkEnv,
+    stEthContractAddress, morContractAddress,
+    userData, totalDepositedData, currentUserRewardData, currentUserMultiplierData,
+    stEthBalance, morBalance, currentAllowance,
+    poolInfo, poolLimits,
+    withdrawUnlockTimestamp, claimUnlockTimestamp,
     canWithdraw, canClaim,
-    isLoadingGlobalData, isLoadingUserData, isLoadingBalances, isLoadingAllowance,
+    isLoadingUserData, isLoadingBalances,
     isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock, isApprovalSuccess,
     deposit, claim, withdraw, changeLock, approveStEth, needsApproval, checkAndUpdateApprovalNeeded,
     triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier,
-    activeModal, setActiveModal
+    activeModal, setActiveModal,
+    // New state for multiplier simulation
+    multiplierSimArgs,
   ]);
 
   return (
