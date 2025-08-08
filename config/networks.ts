@@ -92,7 +92,7 @@ export const testnetChains: Record<string, ChainConfig> = {
     contracts: {
       // Existing V1 contracts
       erc1967Proxy: toContract('0x7c46d6bebf3dcd902eb431054e59908a02aba524'),
-      stETH: toContract('0xa878Ad6fF38d6fAE81FBb048384cE91979d448DA'),
+      stETH: toContract('0xa878ad6ff38d6fae81fbb048384ce91979d448da'), // Lowercase to avoid checksum validation issues
       layerZeroEndpoint: toContract('0xae92d5aD7583AD66E49A0c67BAd18F6ba52dDDc1'),
       l1Factory: toContract('0xB791b1B02A8f7A32f370200c05EeeE12B9Bba10A'),
       
@@ -102,10 +102,7 @@ export const testnetChains: Record<string, ChainConfig> = {
       distributorV2: toContract('0x65b8676392432B1cBac1BE4792a5867A8CA2f375'),
       rewardPoolV2: toContract('0xbFDbe9c7E6c8bBda228c6314E24E9043faeEfB32'),
       l1SenderV2: toContract('0x85e398705d7D77F1703b61DD422869A67B3B409d'),
-      
-      // Token contracts (TODO: Need actual test token addresses)
-      // linkToken: toContract('0x...'), // Sepolia LINK token address needed
-      linkToken: toContract('0x779877A7B0D9E8603169DdbD7836e478b4624789'), // Sepolia LINK token
+      linkToken: toContract('0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5'),
     },
     isL1: true,
     layerZeroEndpointId: 10161,
