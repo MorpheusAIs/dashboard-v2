@@ -7,7 +7,7 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 import { toast } from "sonner";
 
 export function ReferralPanel() {
-  const { userAddress, setActiveModal } = useCapitalContext();
+  const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
   const [isCopying, setIsCopying] = useState(false);
 
   // Generate referral link
@@ -30,12 +30,26 @@ export function ReferralPanel() {
     }
   };
 
-  // Mock data - in a real app, this would come from context/API
-  const referralData = {
-    totalReferrals: "14",
-    lifetimeRewards: "157.09",
-    claimableRewards: "67.34",
+  // Handle referral rewards claim - aggregate claim from both pools
+  const handleClaimReferralRewards = async () => {
+    if (!userAddress) return;
+    
+    try {
+      // Claim from both stETH and LINK pools if rewards are available
+      if (referralData.stETHReferralRewards > BigInt(0)) {
+        await claimReferralRewards('stETH');
+      }
+      if (referralData.linkReferralRewards > BigInt(0)) {
+        await claimReferralRewards('LINK');
+      }
+    } catch (error) {
+      console.error('Error claiming referral rewards:', error);
+      // Error handling is done in the context via toast notifications
+    }
   };
+
+  // Check if user has any claimable referral rewards
+  const hasClaimableRewards = parseFloat(referralData.claimableRewards) > 0;
 
   return (
     <div className="page-section mt-8">
@@ -57,10 +71,10 @@ export function ReferralPanel() {
               <h2 className="text-2xl font-bold text-white">Referrals</h2>
               <button
                 className="copy-button-secondary font-medium px-4 py-2 rounded-lg"
-                onClick={() => setActiveModal('claim')}
-                disabled={!userAddress || parseFloat(referralData.claimableRewards) <= 0}
+                onClick={handleClaimReferralRewards}
+                disabled={!userAddress || !hasClaimableRewards || referralData.isLoadingReferralData}
               >
-                Claim Rewards
+                {referralData.isLoadingReferralData ? "Loading..." : "Claim Rewards"}
               </button>
             </div>
 
@@ -70,18 +84,18 @@ export function ReferralPanel() {
               <div className="col-span-1">
                 <MetricCardMinimal
                   title="Total Referrals"
-                  value={referralData.totalReferrals}
+                  value={referralData.isLoadingReferralData ? "---" : referralData.totalReferrals}
                   disableGlow={true}
                   className="h-full"
                 />
               </div>
 
-              {/* Lifetime Rewards */}
+              {/* Lifetime Value Generated */}
               <div className="col-span-1">
                 <MetricCardMinimal
-                  title="Lifetime Rewards"
-                  value={referralData.lifetimeRewards}
-                  label="MOR"
+                  title="Lifetime Value Generated"
+                  value={referralData.isLoadingReferralData ? "---" : referralData.lifetimeRewards}
+                  label={referralData.isLoadingReferralData ? "" : "ETH"}
                   disableGlow={true}
                   autoFormatNumbers={true}
                   className="h-full"
@@ -92,11 +106,11 @@ export function ReferralPanel() {
               <div className="col-span-1">
                 <MetricCardMinimal
                   title="Claimable Rewards"
-                  value={referralData.claimableRewards}
-                  label="MOR"
+                  value={referralData.isLoadingReferralData ? "---" : referralData.claimableRewards}
+                  label={referralData.isLoadingReferralData ? "" : "MOR"}
                   disableGlow={true}
                   autoFormatNumbers={true}
-                  className="h-full"
+                  className={`h-full ${hasClaimableRewards ? 'ring-2 ring-emerald-400/20' : ''}`}
                 />
               </div>
 
