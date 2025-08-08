@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { formatUnits, parseUnits } from "viem";
 import { TokenIcon } from '@web3icons/react';
-
-import { Dialog, DialogPortal, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { 
+  Dialog, 
+  DialogPortal, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription, 
+  DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
 
 // Import Context hook
 import { useCapitalContext } from "@/context/CapitalPageContext";
@@ -16,13 +22,39 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 // Time unit type for lock period
 type TimeUnit = "days" | "months" | "years";
 
+// Helper function to convert duration to seconds
+const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
+  const numValue = parseInt(value, 10);
+  if (isNaN(numValue) || numValue <= 0) return BigInt(0);
+  let multiplier: bigint;
+  switch (unit) {
+    case "days": multiplier = BigInt(86400); break;
+    case "months": multiplier = BigInt(86400) * BigInt(30); break; // Approximation
+    case "years": multiplier = BigInt(86400) * BigInt(365); break; // Approximation
+    default: multiplier = BigInt(0);
+  }
+  return BigInt(numValue) * multiplier;
+};
+
+// Asset configuration
+const assetOptions = [
+  { value: "stETH", label: "stETH", symbol: "eth" },
+  { value: "LINK", label: "LINK", symbol: "link" },
+];
+
+// Time lock options
+const timeLockOptions = [
+  { value: "days", label: "Days" },
+  { value: "months", label: "Months" },
+  { value: "years", label: "Years" },
+];
+
 export function DepositModal() {
   // Get state and actions from V2 context
   const {
     userAddress,
     assets,
-    selectedAsset,
-    setSelectedAsset,
+    selectedAsset: contextSelectedAsset,
     deposit,
     approveToken,
     needsApproval: checkNeedsApproval,
@@ -43,6 +75,11 @@ export function DepositModal() {
   const [lockValue, setLockValue] = useState("6");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("months");
   const [formError, setFormError] = useState<string | null>(null);
+  const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
+  const [timeLockDropdownOpen, setTimeLockDropdownOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<'stETH' | 'LINK'>(contextSelectedAsset);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const timeLockDropdownRef = useRef<HTMLDivElement>(null);
 
   // Current asset data
   const currentAsset = assets[selectedAsset];
@@ -145,7 +182,9 @@ export function DepositModal() {
       if (currentlyNeedsApproval) {
         await approveToken(selectedAsset);
       } else {
-        await deposit(selectedAsset, amount);
+        // Calculate lock duration in seconds
+        const lockDuration = durationToSeconds(lockValue, lockUnit);
+        await deposit(selectedAsset, amount, lockDuration);
       }
     } catch (error) {
       console.error("Deposit/Approve Action Error:", error);
@@ -160,17 +199,7 @@ export function DepositModal() {
     }
   };
 
-  // Asset icon mapping
-  const getAssetIcon = (asset: string) => {
-    switch (asset) {
-      case 'stETH':
-        return 'eth';
-      case 'LINK':
-        return 'link';
-      default:
-        return 'eth';
-    }
-  };
+
 
   // Check if we should show warning/validation
   const showWarning = useMemo(() => {
@@ -179,6 +208,26 @@ export function DepositModal() {
     if (isNaN(amountNum) || amountNum <= 0) return true;
     return !!validationError || !!formError || currentlyNeedsApproval;
   }, [amount, validationError, formError, currentlyNeedsApproval]);
+
+  // Click outside handler for dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setAssetDropdownOpen(false);
+      }
+      if (timeLockDropdownRef.current && !timeLockDropdownRef.current.contains(event.target as Node)) {
+        setTimeLockDropdownOpen(false);
+      }
+    };
+
+    if (assetDropdownOpen || timeLockDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [assetDropdownOpen, timeLockDropdownOpen]);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -190,8 +239,11 @@ export function DepositModal() {
       setFormError(null);
       setCurrentlyNeedsApproval(false);
       setProcessedApprovalSuccess(false);
+      setAssetDropdownOpen(false);
+      setTimeLockDropdownOpen(false);
+      setSelectedAsset(contextSelectedAsset);
     }
-  }, [isOpen]);
+  }, [isOpen, contextSelectedAsset]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && setActiveModal(null)}>
@@ -206,42 +258,61 @@ export function DepositModal() {
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             {/* Asset Selection */}
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               <Label className="text-sm font-medium text-white">Select Asset</Label>
-              <Select 
-                value={selectedAsset} 
-                onValueChange={(value: 'stETH' | 'LINK') => setSelectedAsset(value)}
-              >
-                <SelectTrigger className="bg-background border-gray-700">
+              <div className="relative" ref={dropdownRef}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between bg-background border-gray-700 hover:bg-gray-800"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setAssetDropdownOpen(!assetDropdownOpen);
+                  }}
+                >
                   <div className="flex items-center gap-3">
-                    <div className="w-6 h-6">
-                      <TokenIcon symbol={getAssetIcon(selectedAsset)} variant="background" size="24" />
+                    <div className="w-8 h-8">
+                      <TokenIcon symbol={selectedAsset === 'stETH' ? 'eth' : 'link'} variant="background" size="26" />
                     </div>
                     <span>{selectedAsset}</span>
-                    <span className="ml-auto text-gray-400 text-sm">
-                      {currentAsset?.userBalanceFormatted || '0'} Available
-                    </span>
                   </div>
-                </SelectTrigger>
-                <SelectContent className="bg-background border-gray-700 z-[60]">
-                  <SelectItem value="stETH" className="hover:bg-gray-800">
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6">
-                        <TokenIcon symbol="eth" variant="background" size="24" />
-                      </div>
-                      <span>stETH</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="LINK" className="hover:bg-gray-800">
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6">
-                        <TokenIcon symbol="link" variant="background" size="24" />
-                      </div>
-                      <span>LINK</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 text-sm">
+                      {Number(assets[selectedAsset]?.userBalanceFormatted || '0').toFixed(2)} Available
+                    </span>
+                    <ChevronDown className={`h-4 w-4 opacity-50 transition-transform ${assetDropdownOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </Button>
+                
+                {assetDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-gray-700 rounded-md shadow-lg overflow-hidden z-[10000]">
+                    {assetOptions.map((asset) => (
+                      <button
+                        key={asset.value}
+                        type="button"
+                        className="w-full p-3 text-left hover:bg-gray-800 flex items-center gap-3 justify-between transition-colors"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedAsset(asset.value as 'stETH' | 'LINK');
+                          setAssetDropdownOpen(false);
+                        }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6">
+                            <TokenIcon symbol={asset.symbol} variant="background" size="24" />
+                          </div>
+                          <span className="text-white">{asset.label}</span>
+                        </div>
+                                                  <span className="text-gray-400 text-sm">
+                            {Number(assets[asset.value as 'stETH' | 'LINK']?.userBalanceFormatted || '0').toFixed(2)} Available
+                          </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Stake Amount */}
@@ -284,9 +355,6 @@ export function DepositModal() {
                   </button>
                 </div>
               </div>
-              {(validationError || formError) && (
-                <p className="text-xs text-red-500 pt-1">{validationError || formError}</p>
-              )}
             </div>
 
             {/* Referrer Address */}
@@ -320,16 +388,41 @@ export function DepositModal() {
                   className="bg-background border-gray-700 flex-1"
                   disabled={isProcessingDeposit}
                 />
-                <Select value={lockUnit} onValueChange={(value: TimeUnit) => setLockUnit(value)}>
-                  <SelectTrigger className="bg-background border-gray-700 w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border-gray-700 z-[60]">
-                    <SelectItem value="days" className="hover:bg-gray-800">Days</SelectItem>
-                    <SelectItem value="months" className="hover:bg-gray-800">Months</SelectItem>
-                    <SelectItem value="years" className="hover:bg-gray-800">Years</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="relative w-32" ref={timeLockDropdownRef}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between bg-background border-gray-700 hover:bg-gray-800"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setTimeLockDropdownOpen(!timeLockDropdownOpen);
+                    }}
+                  >
+                    {lockUnit.charAt(0).toUpperCase() + lockUnit.slice(1)}
+                    <ChevronDown className={`h-4 w-4 opacity-50 transition-transform ${timeLockDropdownOpen ? 'rotate-180' : ''}`} />
+                  </Button>
+                  
+                  {timeLockDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-gray-700 rounded-md shadow-lg overflow-hidden z-[10000]">
+                      {timeLockOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className="w-full p-3 text-left hover:bg-gray-800 transition-colors text-white"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setLockUnit(option.value as TimeUnit);
+                            setTimeLockDropdownOpen(false);
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -399,7 +492,20 @@ export function DepositModal() {
                 }
               >
                 {isProcessingDeposit ? (
-                  "Processing..."
+                  <div className="flex flex-row align-middle items-center gap-2">
+                    {/* <Spinner className="text-emerald-500" size="sm"/> */}
+                    <svg className="text-emerald-400 animate-spin ..." viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"
+                      width="16" height="16">
+                      <path
+                        d="M32 3C35.8083 3 39.5794 3.75011 43.0978 5.20749C46.6163 6.66488 49.8132 8.80101 52.5061 11.4939C55.199 14.1868 57.3351 17.3837 58.7925 20.9022C60.2499 24.4206 61 28.1917 61 32C61 35.8083 60.2499 39.5794 58.7925 43.0978C57.3351 46.6163 55.199 49.8132 52.5061 52.5061C49.8132 55.199 46.6163 57.3351 43.0978 58.7925C39.5794 60.2499 35.8083 61 32 61C28.1917 61 24.4206 60.2499 20.9022 58.7925C17.3837 57.3351 14.1868 55.199 11.4939 52.5061C8.801 49.8132 6.66487 46.6163 5.20749 43.0978C3.7501 39.5794 3 35.8083 3 32C3 28.1917 3.75011 24.4206 5.2075 20.9022C6.66489 17.3837 8.80101 14.1868 11.4939 11.4939C14.1868 8.80099 17.3838 6.66487 20.9022 5.20749C24.4206 3.7501 28.1917 3 32 3L32 3Z"
+                        stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>
+                      <path
+                        d="M32 3C36.5778 3 41.0906 4.08374 45.1692 6.16256C49.2477 8.24138 52.7762 11.2562 55.466 14.9605C58.1558 18.6647 59.9304 22.9531 60.6448 27.4748C61.3591 31.9965 60.9928 36.6232 59.5759 40.9762"
+                        stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" className="text-gray-900">
+                      </path>
+                    </svg>
+                    Processing...
+                  </div>
                 ) : (
                   currentlyNeedsApproval ? `Approve ${selectedAsset}` : "Confirm Deposit"
                 )}

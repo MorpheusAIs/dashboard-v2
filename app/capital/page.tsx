@@ -9,6 +9,7 @@ import { mainnet } from "wagmi/chains";
 import { DepositModal } from "@/components/capital/deposit-modal";
 import { WithdrawModal } from "@/components/capital/withdraw-modal";
 import { ClaimModal } from "@/components/capital/claim-modal";
+import { ClaimMorRewardsModal } from "@/components/capital/claim-mor-rewards-modal";
 import { ChangeLockModal } from "@/components/capital/change-lock-modal";
 
 // Import new components
@@ -89,6 +90,7 @@ function CapitalPageContent() {
       <DepositModal />
       <WithdrawModal depositedAmount={userDepositFormatted !== "---" ? userDepositFormatted : "0"} />
       <ClaimModal claimableAmount={claimableAmountFormatted !== "---" ? claimableAmountFormatted : "0"} />
+      <ClaimMorRewardsModal />
       <ChangeLockModal 
         currentUserMultiplierData={currentUserMultiplierData}
         userData={userData}

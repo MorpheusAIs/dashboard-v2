@@ -288,7 +288,7 @@ export function StakeModal({
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label htmlFor="stake-amount" className="text-sm font-medium">
+            <Label htmlFor="stake-amount" className="text-sm font-medium text-white">
               Amount to stake
             </Label>
             <div className="relative">
