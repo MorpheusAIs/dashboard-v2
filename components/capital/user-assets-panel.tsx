@@ -90,7 +90,7 @@ export function UserAssetsPanel() {
   };
 
   // Helper function to get unlock date for specific asset
-  const getAssetUnlockDate = (assetSymbol: 'stETH' | 'LINK'): string | null => {
+  const getAssetUnlockDate = useCallback((assetSymbol: 'stETH' | 'LINK'): string | null => {
     // Use V2-specific unlock timestamps
     if (assetSymbol === 'stETH') {
       return stETHV2ClaimUnlockTimestampFormatted && stETHV2ClaimUnlockTimestampFormatted !== "--- --, ----" 
@@ -105,15 +105,15 @@ export function UserAssetsPanel() {
     }
     
     return null;
-  };
+  }, [stETHV2ClaimUnlockTimestampFormatted, linkV2ClaimUnlockTimestampFormatted]);
 
   // Helper function to check if asset rewards can be claimed
-  const canAssetClaim = (assetSymbol: 'stETH' | 'LINK'): boolean => {
+  const canAssetClaim = useCallback((assetSymbol: 'stETH' | 'LINK'): boolean => {
     // Use V2-specific claim eligibility
     if (assetSymbol === 'stETH') return stETHV2CanClaim;
     if (assetSymbol === 'LINK') return linkV2CanClaim;
     return false;
-  };
+  }, [stETHV2CanClaim, linkV2CanClaim]);
 
   // Check if user has any assets staked (stETH or LINK)
   const hasStakedAssets = useMemo(() => {
@@ -274,7 +274,7 @@ export function UserAssetsPanel() {
         canClaim: canAssetClaim('LINK'),
       },
     ].filter(asset => asset.amountStaked > 0 || asset.availableToClaim > 0); // Only show assets with activity
-  }, [hasStakedAssets, assets, stETHV2CanClaim, linkV2CanClaim, stETHV2ClaimUnlockTimestampFormatted, linkV2ClaimUnlockTimestampFormatted]);
+  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDate]);
 
   // Sorting logic
   const sorting = useMemo(() => {
@@ -414,7 +414,7 @@ export function UserAssetsPanel() {
         ),
       },
     ],
-    [setActiveModal, isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange]
+    [isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange]
   );
 
   // Handle sorting change

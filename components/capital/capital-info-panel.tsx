@@ -10,6 +10,7 @@ interface Asset {
   apy: string;
   totalStaked: string;
   icon: string;
+  disabled?: boolean;
 }
 
 export function CapitalInfoPanel() {
@@ -44,23 +45,25 @@ export function CapitalInfoPanel() {
       icon: "eth"
     },
     {
+      symbol: "LINK",
+      apy: "15.54%",
+      totalStaked: "8,638",
+      icon: "link"
+    },
+    {
       symbol: "wBTC",
       apy: "11.25%",
       totalStaked: "849",
-      icon: "btc"
+      icon: "btc",
+      disabled: true
     },
     {
       symbol: "USDC",
       apy: "10.67%",
       totalStaked: "15,267",
-      icon: "usdc"
+      icon: "usdc",
+      disabled: true
     },
-    {
-      symbol: "LINK",
-      apy: "15.54%",
-      totalStaked: "8,638",
-      icon: "link"
-    }
   ];
 
   const handleStakeClick = () => {
@@ -103,40 +106,72 @@ export function CapitalInfoPanel() {
               </div>
 
               {/* Asset Rows */}
-              {assets.map((asset) => (
-                <div key={asset.symbol} className="grid grid-cols-4 gap-2 items-center px-2 py-3 hover:bg-gray-800/30 rounded-lg transition-colors">
-                  {/* Asset Name & Symbol */}
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center">
-                      <TokenIcon symbol={asset.icon} variant="background" size="24" />
+              {assets.map((asset) => {
+                const AssetRow = (
+                  <div key={asset.symbol} className={`grid grid-cols-4 gap-2 items-center px-2 py-3 rounded-lg transition-colors ${
+                    asset.disabled 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : 'hover:bg-gray-800/30'
+                  }`}>
+                    {/* Asset Name & Symbol */}
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center">
+                        <TokenIcon symbol={asset.icon} variant="background" size="24" />
+                      </div>
+                      <div>
+                        <div className={`text-sm font-medium ${
+                          asset.disabled ? 'text-gray-500' : 'text-white'
+                        }`}>{asset.symbol}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium text-white">{asset.symbol}</div>
+
+                    {/* APY */}
+                    <div className={`text-center text-sm font-semibold ${
+                      asset.disabled ? 'text-gray-500' : 'text-white'
+                    }`}>
+                      {asset.apy}
+                    </div>
+
+                    {/* Total Staked */}
+                    <div className={`text-right text-sm font-semibold ${
+                      asset.disabled ? 'text-gray-500' : 'text-white'
+                    }`}>
+                      <NumberFlow value={parseStakedAmount(asset.totalStaked)} />
+                    </div>
+
+                    {/* Stake Button */}
+                    <div className="text-center">
+                      <button
+                        onClick={asset.disabled ? undefined : handleStakeClick}
+                        className={`text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                          asset.disabled 
+                            ? 'text-gray-600 cursor-not-allowed' 
+                            : 'text-emerald-400 hover:text-emerald-300'
+                        }`}
+                        disabled={!userAddress || asset.disabled}
+                      >
+                        {asset.disabled ? 'Soon' : 'Stake'}
+                      </button>
                     </div>
                   </div>
+                );
 
-                  {/* APY */}
-                  <div className="text-center text-sm font-semibold text-white">
-                    {asset.apy}
-                  </div>
+                // // Wrap disabled assets with tooltip
+                // if (asset.disabled) {
+                //   return (
+                //     <Tooltip key={asset.symbol}>
+                //       <TooltipTrigger asChild>
+                //         {AssetRow}
+                //       </TooltipTrigger>
+                //       <TooltipContent className="bg-black text-white border-black rounded-lg">
+                //         <p>Coming Soon</p>
+                //       </TooltipContent>
+                //     </Tooltip>
+                //   );
+                // }
 
-                  {/* Total Staked */}
-                  <div className="text-right text-sm font-semibold text-white">
-                    <NumberFlow value={parseStakedAmount(asset.totalStaked)} />
-                  </div>
-
-                  {/* Stake Button */}
-                  <div className="text-center">
-                    <button
-                      onClick={handleStakeClick}
-                      className="text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!userAddress}
-                    >
-                      Stake
-                    </button>
-                  </div>
-                </div>
-              ))}
+                return AssetRow;
+              })}
             </div>
           </div>
         </div>
