@@ -9,9 +9,10 @@ import {
   useWriteContract, 
   useWaitForTransactionReceipt, 
   useSimulateContract,
+  usePublicClient,
   type BaseError 
 } from "wagmi";
-import { parseUnits, zeroAddress, maxInt256 } from "viem";
+import { parseUnits, parseEther, zeroAddress, maxInt256, getContract } from "viem";
 import { toast } from "sonner";
 
 // Import Config, Utils & ABIs
@@ -22,12 +23,14 @@ import {
   type NetworkEnvironment 
 } from "@/config/networks";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
+
+// Static ABI imports as fallbacks - keep these for reliability
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
 import DepositPoolAbi from "@/app/abi/DepositPool.json"; // V2 ABI - Now using!
 import ERC20Abi from "@/app/abi/ERC20.json";
 
 const PUBLIC_POOL_ID = BigInt(0);
-const SECONDS_PER_DAY = BigInt(86400);
+// Removed unused SECONDS_PER_DAY constant
 
 // V2 Confirmed Pool Index (from discovery script)
 const V2_REWARD_POOL_INDEX = BigInt(0); // ✅ Confirmed active on Sepolia
@@ -64,11 +67,15 @@ interface UserPoolData {
 }
 
 // --- Types & Helpers moved from ChangeLockModal ---
-type ActiveModal = "deposit" | "withdraw" | "claim" | "changeLock" | null;
+type ActiveModal = "deposit" | "withdraw" | "claim" | "changeLock" | "stakeMorRewards" | "claimMorRewards" | null;
 type TimeUnit = "days" | "months" | "years";
 
 // V2 Asset Types
 type AssetSymbol = 'stETH' | 'LINK';
+
+// Contract types for better typing
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DynamicContract = any; // Complex viem contract type - simplified for now
 
 interface AssetConfig {
   symbol: AssetSymbol;
@@ -124,6 +131,47 @@ const maxBigInt = (...args: (bigint | undefined | null)[]): bigint => {
   return max;
 };
 
+// Helper to parse V2 user data from contract response
+const parseV2UserData = (data: unknown): UserPoolData | undefined => {
+  if (!data) return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dataArray = data as any[];
+  if (!Array.isArray(dataArray) || dataArray.length < 9) return undefined;
+  try {
+    return {
+      lastStake: BigInt(dataArray[0]),
+      deposited: BigInt(dataArray[1]),
+      rate: BigInt(dataArray[2]),
+      pendingRewards: BigInt(dataArray[3]),
+      claimLockStart: BigInt(dataArray[4]),
+      claimLockEnd: BigInt(dataArray[5]),
+      virtualDeposited: BigInt(dataArray[6]),
+      lastClaim: BigInt(dataArray[7]),
+      referrer: dataArray[8] as `0x${string}`,
+    };
+  } catch (e) {
+    console.error("Error parsing V2 user data:", e);
+    return undefined;
+  }
+};
+
+// Helper to parse V2 protocol details from contract response
+const parseV2ProtocolDetails = (data: unknown): PoolLimitsData | undefined => {
+  if (!data) return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dataArray = data as any[];
+  if (!Array.isArray(dataArray) || dataArray.length < 5) return undefined;
+  try {
+    return {
+      claimLockPeriodAfterStake: BigInt(dataArray[1]),
+      claimLockPeriodAfterClaim: BigInt(dataArray[2]),
+    };
+  } catch (e) {
+    console.error("Error parsing V2 protocol details:", e);
+    return undefined;
+  }
+};
+
 // --- Context Shape ---
 interface CapitalContextState {
   // Static Info
@@ -170,10 +218,21 @@ interface CapitalContextState {
   canWithdraw: boolean;
   canClaim: boolean;
 
-  // Loading States
+  // V2-specific claim data for individual assets
+  stETHV2CanClaim: boolean;
+  linkV2CanClaim: boolean;
+  stETHV2ClaimUnlockTimestamp?: bigint;
+  linkV2ClaimUnlockTimestamp?: bigint;
+  stETHV2ClaimUnlockTimestampFormatted: string;
+  linkV2ClaimUnlockTimestampFormatted: string;
+
+  // Loading States - NOW PROPERLY USED!
   isLoadingAssetData: boolean;
   isLoadingUserData: boolean;
   isLoadingBalances: boolean;
+  isLoadingAllowances: boolean;
+  isLoadingRewards: boolean;
+  isLoadingTotalDeposits: boolean;
 
   // Legacy Properties (for backward compatibility)
   userDepositFormatted: string;
@@ -190,11 +249,13 @@ interface CapitalContextState {
   isApprovalSuccess: boolean;
 
   // V2 Action Functions (asset-aware)
-  deposit: (asset: AssetSymbol, amount: string) => Promise<void>;
+  deposit: (asset: AssetSymbol, amount: string, lockDurationSeconds?: bigint) => Promise<void>;
   claim: () => Promise<void>; // Claims from all pools
   withdraw: (asset: AssetSymbol, amount: string) => Promise<void>;
   changeLock: (lockValue: string, lockUnit: TimeUnit) => Promise<void>;
   approveToken: (asset: AssetSymbol) => Promise<void>;
+  claimAssetRewards: (asset: AssetSymbol) => Promise<void>;
+  lockAssetRewards: (asset: AssetSymbol, lockDurationSeconds: bigint) => Promise<void>;
   
   // Utility Functions
   needsApproval: (asset: AssetSymbol, amount: string) => boolean;
@@ -209,6 +270,14 @@ interface CapitalContextState {
   triggerMultiplierEstimation: (lockValue: string, lockUnit: TimeUnit) => void;
   estimatedMultiplierValue: string;
   isSimulatingMultiplier: boolean;
+
+  // Dynamic Contract Loading
+  dynamicContracts: {
+    stETHToken?: DynamicContract;
+    linkToken?: DynamicContract;
+    stETHDepositPool?: DynamicContract;
+    linkDepositPool?: DynamicContract;
+  };
 }
 
 // --- Create Context ---
@@ -218,10 +287,12 @@ const CapitalPageContext = createContext<CapitalContextState | null>(null);
 export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Modal State ---
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [selectedAsset, setSelectedAsset] = useState<AssetSymbol>('stETH');
 
   // --- Hooks from Page ---
   const { address: userAddress } = useAccount();
   const chainId = useChainId();
+  const publicClient = usePublicClient();
 
   const networkEnv = useMemo((): NetworkEnvironment => {
     return [1, 42161, 8453].includes(chainId) ? 'mainnet' : 'testnet';
@@ -236,19 +307,93 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   // V1 Contract Addresses (keep for backward compatibility)
   const poolContractAddress = useMemo(() => getContractAddress(l1ChainId, 'erc1967Proxy', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
-  const stEthContractAddress = useMemo(() => getContractAddress(l1ChainId, 'stETH', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  const stEthContractAddress = useMemo(() => {
+    const address = getContractAddress(l1ChainId, 'stETH', networkEnv) as `0x${string}` | undefined;
+    if (networkEnv === 'testnet') {
+      console.log('📄 stETH Contract Address Resolution:', {
+        l1ChainId,
+        networkEnv,
+        resolvedAddress: address,
+        expectedSepoliaAddress: '0xa878Ad6fF38d6fAE81FBb048384cE91979d448DA'
+      });
+    }
+    return address;
+  }, [l1ChainId, networkEnv]);
   const morContractAddress = useMemo(() => getContractAddress(l2ChainId, 'morToken', networkEnv) as `0x${string}` | undefined, [l2ChainId, networkEnv]);
 
   // V2 Contract Addresses
   const stETHDepositPoolAddress = useMemo(() => getContractAddress(l1ChainId, 'stETHDepositPool', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const linkDepositPoolAddress = useMemo(() => getContractAddress(l1ChainId, 'linkDepositPool', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
-  const linkTokenAddress = useMemo(() => getContractAddress(l1ChainId, 'linkToken', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  const linkTokenAddress = useMemo(() => {
+    const address = getContractAddress(l1ChainId, 'linkToken', networkEnv) as `0x${string}` | undefined;
+    if (networkEnv === 'testnet') {
+      console.log('🔗 LINK Token Address Resolution:', {
+        l1ChainId,
+        networkEnv,
+        resolvedAddress: address,
+        expectedSepoliaAddress: '0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5'
+      });
+    }
+    return address;
+  }, [l1ChainId, networkEnv]);
   const distributorV2Address = useMemo(() => getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const rewardPoolV2Address = useMemo(() => getContractAddress(l1ChainId, 'rewardPoolV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const l1SenderV2Address = useMemo(() => getContractAddress(l1ChainId, 'l1SenderV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
 
+  // --- Dynamic Contract Loading with getContract ---
+  const dynamicContracts = useMemo(() => {
+    if (!publicClient) return {};
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contracts: Record<string, any> = {};
+    
+    try {
+      // Create dynamic stETH token contract
+      if (stEthContractAddress) {
+        contracts.stETHToken = getContract({
+          address: stEthContractAddress,
+          abi: ERC20Abi, // Fallback to static ABI
+          client: publicClient,
+        });
+      }
+      
+      // Create dynamic LINK token contract
+      if (linkTokenAddress) {
+        contracts.linkToken = getContract({
+          address: linkTokenAddress,
+          abi: ERC20Abi, // Fallback to static ABI
+          client: publicClient,
+        });
+      }
+      
+      // Create dynamic stETH deposit pool contract
+      if (stETHDepositPoolAddress) {
+        contracts.stETHDepositPool = getContract({
+          address: stETHDepositPoolAddress,
+          abi: DepositPoolAbi, // Fallback to static ABI
+          client: publicClient,
+        });
+      }
+      
+      // Create dynamic LINK deposit pool contract
+      if (linkDepositPoolAddress) {
+        contracts.linkDepositPool = getContract({
+          address: linkDepositPoolAddress,
+          abi: DepositPoolAbi, // Fallback to static ABI
+          client: publicClient,
+        });
+      }
+      
+      console.log("🎯 Dynamic contracts created:", Object.keys(contracts));
+    } catch (error) {
+      console.error("❌ Error creating dynamic contracts:", error);
+    }
+    
+    return contracts;
+  }, [publicClient, stEthContractAddress, linkTokenAddress, stETHDepositPoolAddress, linkDepositPoolAddress]);
+
   // --- Read Hooks --- 
-  const { data: poolInfoResult, isLoading: isLoadingPoolInfo } = useReadContract({
+  const { data: poolInfoResult } = useReadContract({
     address: poolContractAddress,
     abi: ERC1967ProxyAbi,
     functionName: 'pools',
@@ -279,7 +424,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [poolInfoResult]);
 
-  const { data: poolLimitsResult, isLoading: isLoadingPoolLimits } = useReadContract({
+  const { data: poolLimitsResult } = useReadContract({
     address: poolContractAddress,
     abi: ERC1967ProxyAbi,
     functionName: 'poolsLimits',
@@ -304,8 +449,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [poolLimitsResult]);
 
   const { 
-    data: totalDepositedDataRaw, 
-    isLoading: isLoadingTotalDeposited, 
+    data: totalDepositedDataRaw
   } = useReadContract({
     address: poolContractAddress,
     abi: ERC1967ProxyAbi,
@@ -366,13 +510,47 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   });
   const currentUserMultiplierData = useMemo(() => currentUserMultiplierDataRaw as bigint | undefined, [currentUserMultiplierDataRaw]);
 
-  const { data: stEthBalanceData, isLoading: isLoadingStEthBalance, refetch: refetchStEthBalance } = useBalance({ address: userAddress, token: stEthContractAddress, chainId: l1ChainId, query: { enabled: !!userAddress && !!stEthContractAddress } });
-  const stEthBalance = stEthBalanceData?.value ?? BigInt(0);
+  const { data: stEthBalanceData, isLoading: isLoadingStEthBalance, refetch: refetchStEthBalance, error: stEthBalanceError } = useBalance({ address: userAddress, token: stEthContractAddress, chainId: l1ChainId, query: { enabled: !!userAddress && !!stEthContractAddress } });
+  
+  // Debug logging for stETH balance on testnet
+  useEffect(() => {
+    if (networkEnv === 'testnet') {
+      console.log('🔍 stETH Balance Debug:', {
+        userAddress,
+        stEthContractAddress,
+        l1ChainId,
+        chainId: l1ChainId,
+        balanceData: stEthBalanceData,
+        isLoading: isLoadingStEthBalance,
+        error: stEthBalanceError,
+        value: stEthBalanceData?.value,
+        formatted: stEthBalanceData?.formatted,
+        symbol: stEthBalanceData?.symbol,
+        decimals: stEthBalanceData?.decimals,
+        queryEnabled: !!userAddress && !!stEthContractAddress
+      });
+      
+      if (stEthBalanceError) {
+        console.error('❌ stETH Balance Error:', stEthBalanceError);
+        console.warn('💡 Tip: The stETH contract address on Sepolia might be invalid. Consider using a valid test ERC20 token address.');
+      }
+    }
+  }, [networkEnv, userAddress, stEthContractAddress, l1ChainId, stEthBalanceData, isLoadingStEthBalance, stEthBalanceError]);
+  
+  // Handle invalid contract gracefully on testnet
+  const stEthBalance = useMemo(() => {
+    if (networkEnv === 'testnet' && stEthBalanceError) {
+      // On testnet with error, return 0 and log a helpful message
+      console.warn('🚨 Using fallback balance of 0 for stETH due to contract error on testnet');
+      return BigInt(0);
+    }
+    return stEthBalanceData?.value ?? BigInt(0);
+  }, [stEthBalanceData, stEthBalanceError, networkEnv]);
 
   const { data: morBalanceData, isLoading: isLoadingMorBalance, refetch: refetchMorBalance } = useBalance({ address: userAddress, token: morContractAddress, chainId: l2ChainId, query: { enabled: !!userAddress && !!morContractAddress } });
   const morBalance = morBalanceData?.value ?? BigInt(0);
 
-  const { data: allowanceData, isLoading: isLoadingAllowance, refetch: refetchAllowance } = useReadContract({
+  const { isLoading: isLoadingAllowance, refetch: refetchAllowance } = useReadContract({
     address: stEthContractAddress,
     abi: ERC20Abi,
     functionName: 'allowance',
@@ -380,7 +558,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     chainId: l1ChainId,
     query: { enabled: !!userAddress && !!stEthContractAddress && !!poolContractAddress }
   });
-  const currentAllowance = allowanceData as bigint | undefined ?? BigInt(0);
+  // allowanceData removed as it was unused
 
   // --- V2 DepositPool Reads (stETH) ---
   const { data: stETHV2UserData, isLoading: isLoadingStETHV2User, refetch: refetchStETHV2User } = useReadContract({
@@ -407,6 +585,15 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
     query: { enabled: !!stETHDepositPoolAddress }
+  });
+
+  const { data: stETHV2CurrentUserReward, isLoading: isLoadingStETHV2Reward, refetch: refetchStETHV2Reward } = useReadContract({
+    address: stETHDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'getLatestUserReward',
+    args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
+    chainId: l1ChainId,
+    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 15000 }
   });
 
   // --- V2 DepositPool Reads (LINK) ---
@@ -436,6 +623,15 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     query: { enabled: !!linkDepositPoolAddress }
   });
 
+  const { data: linkV2CurrentUserReward, isLoading: isLoadingLinkV2Reward, refetch: refetchLinkV2Reward } = useReadContract({
+    address: linkDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'getLatestUserReward',
+    args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
+    chainId: l1ChainId,
+    query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: 15000 }
+  });
+
   // --- V2 Token Balances ---
   const { data: linkBalanceData, isLoading: isLoadingLinkBalance, refetch: refetchLinkBalance } = useBalance({ 
     address: userAddress, 
@@ -445,6 +641,27 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   });
   const linkBalance = linkBalanceData?.value ?? BigInt(0);
 
+  // --- V2 Token Allowances ---
+  const { data: stETHV2AllowanceData, isLoading: isLoadingStETHV2Allowance, refetch: refetchStETHV2Allowance } = useReadContract({
+    address: stEthContractAddress,
+    abi: ERC20Abi,
+    functionName: 'allowance',
+    args: [userAddress || zeroAddress, stETHDepositPoolAddress || zeroAddress],
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!stEthContractAddress && !!stETHDepositPoolAddress }
+  });
+  const stETHV2Allowance = stETHV2AllowanceData as bigint | undefined ?? BigInt(0);
+
+  const { data: linkV2AllowanceData, isLoading: isLoadingLinkV2Allowance, refetch: refetchLinkV2Allowance } = useReadContract({
+    address: linkTokenAddress,
+    abi: ERC20Abi,
+    functionName: 'allowance',
+    args: [userAddress || zeroAddress, linkDepositPoolAddress || zeroAddress],
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!linkTokenAddress && !!linkDepositPoolAddress }
+  });
+  const linkV2Allowance = linkV2AllowanceData as bigint | undefined ?? BigInt(0);
+
   // --- Write Hooks ---
   const { data: approveHash, writeContractAsync: approveAsync, isPending: isSendingApproval } = useWriteContract();
   const { data: stakeHash, writeContractAsync: stakeAsync, isPending: isSendingStake } = useWriteContract();
@@ -453,16 +670,19 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const { data: lockClaimHash, writeContractAsync: lockClaimAsync, isPending: isSendingLockClaim } = useWriteContract();
 
   // --- Transaction Monitoring ---
-  const { isLoading: isConfirmingApproval, isSuccess: isApprovalSuccess } = useWaitForTransactionReceipt({ hash: approveHash, chainId: l1ChainId });
-  const { isLoading: isConfirmingStake, isSuccess: isStakeSuccess } = useWaitForTransactionReceipt({ hash: stakeHash, chainId: l1ChainId });
-  const { isLoading: isConfirmingClaim, isSuccess: isClaimSuccess } = useWaitForTransactionReceipt({ hash: claimHash, chainId: l1ChainId });
-  const { isLoading: isConfirmingWithdraw, isSuccess: isWithdrawSuccess } = useWaitForTransactionReceipt({ hash: withdrawHash, chainId: l1ChainId });
-  const { isLoading: isConfirmingLockClaim, isSuccess: isLockClaimSuccess } = useWaitForTransactionReceipt({ hash: lockClaimHash, chainId: l1ChainId });
+  const { isLoading: isConfirmingApproval, isSuccess: isApprovalSuccess, isError: isApprovalError, error: approvalError } = useWaitForTransactionReceipt({ hash: approveHash, chainId: l1ChainId });
+  const { isLoading: isConfirmingStake, isSuccess: isStakeSuccess, isError: isStakeError, error: stakeError } = useWaitForTransactionReceipt({ hash: stakeHash, chainId: l1ChainId });
+  const { isLoading: isConfirmingClaim, isSuccess: isClaimSuccess, isError: isClaimError, error: claimError } = useWaitForTransactionReceipt({ hash: claimHash, chainId: l1ChainId });
+  const { isLoading: isConfirmingWithdraw, isSuccess: isWithdrawSuccess, isError: isWithdrawError, error: withdrawError } = useWaitForTransactionReceipt({ hash: withdrawHash, chainId: l1ChainId });
+  const { isLoading: isConfirmingLockClaim, isSuccess: isLockClaimSuccess, isError: isLockClaimError, error: lockClaimError } = useWaitForTransactionReceipt({ hash: lockClaimHash, chainId: l1ChainId });
 
-  // --- Combined Loading States ---
-  const isLoadingGlobalData = isLoadingTotalDeposited || isLoadingPoolInfo || isLoadingPoolLimits;
-  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier; 
-  const isLoadingBalances = isLoadingStEthBalance || isLoadingMorBalance;
+  // --- Combined Loading States (NOW PROPERLY USED!) ---
+  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier || isLoadingStETHV2User || isLoadingLinkV2User; 
+  const isLoadingBalances = isLoadingStEthBalance || isLoadingMorBalance || isLoadingLinkBalance;
+  const isLoadingAllowances = isLoadingAllowance || isLoadingStETHV2Allowance || isLoadingLinkV2Allowance;
+  const isLoadingRewards = isLoadingStETHV2Reward || isLoadingLinkV2Reward;
+  const isLoadingTotalDeposits = isLoadingStETHV2Total || isLoadingLinkV2Total;
+  const isLoadingAssetData = isLoadingStETHV2Pool || isLoadingLinkV2Pool;
 
   // --- Action Processing States ---
   const isProcessingDeposit = isSendingApproval || isConfirmingApproval || isSendingStake || isConfirmingStake;
@@ -482,14 +702,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(intervalId); // Cleanup on unmount
   }, []);
 
-  const currentDailyReward = useMemo(() => {
-    if (!poolInfo?.payoutStart || !poolInfo.initialReward || !poolInfo.rewardDecrease || !poolInfo.decreaseInterval || poolInfo.decreaseInterval === BigInt(0)) return undefined;
-    if (currentTimestampSeconds < poolInfo.payoutStart) return BigInt(0);
-    const intervalsPassed = (currentTimestampSeconds - poolInfo.payoutStart) / poolInfo.decreaseInterval;
-    const currentRewardRate = poolInfo.initialReward - (intervalsPassed * poolInfo.rewardDecrease);
-    const effectiveRewardRate = currentRewardRate > BigInt(0) ? currentRewardRate : BigInt(0);
-    return (effectiveRewardRate * SECONDS_PER_DAY) / poolInfo.decreaseInterval;
-  }, [poolInfo, currentTimestampSeconds]);
+  // Removed unused currentDailyReward calculation
 
   const withdrawUnlockTimestamp = useMemo(() => {
     if (!poolInfo?.payoutStart || !poolInfo.withdrawLockPeriod || !userData?.lastStake || !poolInfo.withdrawLockPeriodAfterStake) return undefined;
@@ -583,39 +796,50 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [claimUnlockTimestamp, currentUserRewardData, currentTimestampSeconds]);
 
-  const needsApproval = useCallback((amountString: string): boolean => {
+  // Asset-aware utility functions
+  const needsApproval = useCallback((asset: AssetSymbol, amountString: string): boolean => {
     try {
       const amountBigInt = amountString ? parseUnits(amountString, 18) : BigInt(0);
       if (amountBigInt <= BigInt(0)) return false;
-      return currentAllowance < amountBigInt;
+      
+      if (asset === 'stETH') {
+        return stETHV2Allowance < amountBigInt;
+      } else if (asset === 'LINK') {
+        return linkV2Allowance < amountBigInt;
+      }
+      return false;
     } catch {
       return false; 
     }
-  }, [currentAllowance]);
+  }, [stETHV2Allowance, linkV2Allowance]);
 
-  const checkAndUpdateApprovalNeeded = useCallback(async (amountString: string): Promise<boolean> => {
+  const checkAndUpdateApprovalNeeded = useCallback(async (asset: AssetSymbol, amountString: string): Promise<boolean> => {
     try {
       const amountBigInt = amountString ? parseUnits(amountString, 18) : BigInt(0);
       if (amountBigInt <= BigInt(0)) return false;
       
       // Refetch the current allowance to get the latest value
-      const { data: latestAllowance } = await refetchAllowance();
-      const currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+      let currentAllowanceValue: bigint;
+      if (asset === 'stETH') {
+        const { data: latestAllowance } = await refetchStETHV2Allowance();
+        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+      } else if (asset === 'LINK') {
+        const { data: latestAllowance } = await refetchLinkV2Allowance();
+        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+      } else {
+        return false;
+      }
       
       return currentAllowanceValue < amountBigInt;
     } catch (error) {
       console.error("Error checking approval status:", error);
       return false; 
     }
-  }, [refetchAllowance]);
+  }, [refetchStETHV2Allowance, refetchLinkV2Allowance]);
 
   // --- Formatted Data ---
-  const totalDepositedFormatted = formatBigInt(totalDepositedData, 18, 2);
   const userDepositFormatted = formatBigInt(userData?.deposited, 18, 2);
   const claimableAmountFormatted = formatBigInt(currentUserRewardData, 18, 2);
-  const userMultiplierFormatted = currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 24, 1)}x` : "---x";
-  const poolStartTimeFormatted = formatTimestamp(poolInfo?.payoutStart);
-  const currentDailyRewardFormatted = formatBigInt(currentDailyReward, 18, 2);
 
   // --- Log Raw Multiplier Data ---
   useEffect(() => {
@@ -625,10 +849,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [currentUserMultiplierData]);
   // --------------------------------
 
-  const withdrawUnlockTimestampFormatted = formatTimestamp(withdrawUnlockTimestamp);
-  const claimUnlockTimestampFormatted = formatTimestamp(claimUnlockTimestamp);
-  const minimalStakeFormatted = formatBigInt(poolInfo?.minimalStake, 18, 0);
-  const stEthBalanceFormatted = formatBigInt(stEthBalance, 18, 4);
+  // Removed unused formatted timestamp variables - V2 specific ones are used instead
 
   // --- Action Functions (Update to close modal on success) --- 
   const handleTransaction = useCallback(async (
@@ -646,44 +867,177 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error(options.error, error);
       toast.dismiss(toastId);
-      toast.error(`${options.error}: ${(error as BaseError)?.shortMessage || (error as Error)?.message}`);
+      const errorMessage = (error as BaseError)?.shortMessage || (error as Error)?.message;
+      toast.error(options.error, {
+        description: errorMessage,
+        duration: 5000,
+        style: {
+          background: 'hsl(var(--destructive))',
+          color: 'hsl(var(--destructive-foreground))',
+          border: '1px solid hsl(var(--destructive))'
+        }
+      });
       throw error; // Re-throw for modal error handling
     }
   }, []); // Removed setActiveModal dependency
   
-  const approveStEth = useCallback(async () => {
-      if (!poolContractAddress || !stEthContractAddress || !l1ChainId) throw new Error("Approve prerequisites not met");
+  // V2 Asset-aware functions
+  const approveToken = useCallback(async (asset: AssetSymbol) => {
+    if (asset === 'stETH') {
+      if (!stETHDepositPoolAddress || !stEthContractAddress || !l1ChainId) {
+        throw new Error("stETH approve prerequisites not met");
+      }
       await handleTransaction(() => approveAsync({
-          address: stEthContractAddress,
-          abi: ERC20Abi,
-          functionName: 'approve',
-          args: [poolContractAddress, maxInt256],
-          chainId: l1ChainId,
+        address: stEthContractAddress,
+        abi: ERC20Abi,
+        functionName: 'approve',
+        args: [stETHDepositPoolAddress, maxInt256],
+        chainId: l1ChainId,
       }), {
-          loading: "Requesting approval...",
-          success: "Approval successful!", 
-          error: "Approval failed",
-          skipClose: true // Don't close modal on approval success
+        loading: "Requesting stETH approval...",
+        success: "stETH approval successful!", 
+        error: "stETH approval failed",
+        skipClose: true
       });
-  }, [approveAsync, poolContractAddress, stEthContractAddress, l1ChainId, handleTransaction]);
+    } else if (asset === 'LINK') {
+      if (!linkDepositPoolAddress || !linkTokenAddress || !l1ChainId) {
+        throw new Error("LINK approve prerequisites not met");
+      }
+      await handleTransaction(() => approveAsync({
+        address: linkTokenAddress,
+        abi: ERC20Abi,
+        functionName: 'approve',
+        args: [linkDepositPoolAddress, maxInt256],
+        chainId: l1ChainId,
+      }), {
+        loading: "Requesting LINK approval...",
+        success: "LINK approval successful!", 
+        error: "LINK approval failed",
+        skipClose: true
+      });
+    }
+  }, [approveAsync, stETHDepositPoolAddress, stEthContractAddress, linkDepositPoolAddress, linkTokenAddress, l1ChainId, handleTransaction]);
 
-  const deposit = useCallback(async (amountString: string) => {
-      if (!poolContractAddress || !l1ChainId) throw new Error("Deposit prerequisites not met");
-      const amountBigInt = parseUnits(amountString, 18);
-      if (amountBigInt <= BigInt(0)) throw new Error("Invalid deposit amount");
-      
-      await handleTransaction(() => stakeAsync({
-          address: poolContractAddress,
-          abi: ERC1967ProxyAbi,
-          functionName: 'stake',
-          args: [PUBLIC_POOL_ID, amountBigInt, BigInt(0), zeroAddress],
-          chainId: l1ChainId,
-      }), {
-          loading: "Requesting deposit...",
-          success: `Successfully deposited ${amountString} stETH/wstETH!`, 
-          error: "Deposit failed"
+  const deposit = useCallback(async (asset: AssetSymbol, amountString: string, lockDurationSeconds?: bigint) => {
+    const amountBigInt = parseUnits(amountString, 18);
+    if (amountBigInt <= BigInt(0)) throw new Error("Invalid deposit amount");
+    
+    // Default to 0 seconds lock if not provided
+    const lockDuration = lockDurationSeconds || BigInt(0);
+    
+    if (asset === 'stETH') {
+      if (!stETHDepositPoolAddress || !l1ChainId) throw new Error("stETH deposit prerequisites not met");
+      console.log('🏦 stETH Deposit Details:', {
+        asset,
+        depositPoolAddress: stETHDepositPoolAddress,
+        amount: amountString,
+        amountBigInt: amountBigInt.toString(),
+        lockDuration: lockDuration.toString(),
+        poolIndex: V2_REWARD_POOL_INDEX.toString(),
+        chainId: l1ChainId
       });
-  }, [stakeAsync, poolContractAddress, l1ChainId, handleTransaction]);
+      const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
+      await handleTransaction(() => stakeAsync({
+        address: stETHDepositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'stake',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
+        chainId: l1ChainId,
+      }), {
+        loading: "Requesting stETH deposit...",
+        success: `Successfully deposited ${amountString} stETH!`, 
+        error: "stETH deposit failed"
+      });
+    } else if (asset === 'LINK') {
+      if (!linkDepositPoolAddress || !l1ChainId) throw new Error("LINK deposit prerequisites not met");
+      if (!linkTokenAddress) throw new Error("LINK token address not resolved");
+      
+      // Additional validation for LINK staking
+      if (!linkBalance || linkBalance <= BigInt(0)) {
+        throw new Error("Insufficient LINK balance");
+      }
+      if (amountBigInt > linkBalance) {
+        throw new Error(`Insufficient LINK balance. Required: ${formatBigInt(amountBigInt, 18, 4)}, Available: ${formatBigInt(linkBalance, 18, 4)}`);
+      }
+      if (!linkV2Allowance || linkV2Allowance < amountBigInt) {
+        throw new Error(`Insufficient LINK allowance. Please approve LINK spending first. Required: ${formatBigInt(amountBigInt, 18, 4)}, Current: ${formatBigInt(linkV2Allowance || BigInt(0), 18, 4)}`);
+      }
+      console.log('🔗 LINK Deposit Details:', {
+        asset,
+        depositPoolAddress: linkDepositPoolAddress,
+        tokenAddress: linkTokenAddress,
+        amount: amountString,
+        amountBigInt: amountBigInt.toString(),
+        lockDuration: lockDuration.toString(),
+        poolIndex: V2_REWARD_POOL_INDEX.toString(),
+        chainId: l1ChainId,
+        userBalance: formatBigInt(linkBalance, 18, 4),
+        userAllowance: linkV2Allowance?.toString(),
+        // Comparison with successful transaction from Jul 29, 2025
+        successfulTxComparison: {
+          poolIndex: { current: V2_REWARD_POOL_INDEX.toString(), successful: "0", match: V2_REWARD_POOL_INDEX.toString() === "0" },
+          amount: { current: amountBigInt.toString(), successful: "10000000000000000000" },
+          lockDuration: { current: lockDuration.toString(), successful: "86400" },
+          claimLockEnd: { current: (BigInt(Math.floor(Date.now() / 1000)) + lockDuration).toString(), note: "Unix timestamp = current_time + lock_duration" },
+          referrer: { current: zeroAddress, successful: "0x0000000000000000000000000000000000000000", match: zeroAddress === "0x0000000000000000000000000000000000000000" }
+        }
+      });
+      const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
+      await handleTransaction(() => stakeAsync({
+        address: linkDepositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'stake',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
+        chainId: l1ChainId,
+      }), {
+        loading: "Requesting LINK deposit...",
+        success: `Successfully deposited ${amountString} LINK!`, 
+        error: "LINK deposit failed"
+      });
+    }
+  }, [stakeAsync, stETHDepositPoolAddress, linkDepositPoolAddress, linkTokenAddress, l1ChainId, handleTransaction, linkBalance, linkV2Allowance]);
+
+  const withdraw = useCallback(async (asset: AssetSymbol, amountString: string) => {
+    const amountBigInt = parseUnits(amountString, 18);
+    if (amountBigInt <= BigInt(0)) throw new Error("Invalid withdraw amount");
+    
+    if (asset === 'stETH') {
+      if (!stETHDepositPoolAddress || !l1ChainId || !canWithdraw) throw new Error("stETH withdraw prerequisites not met");
+      if (userData?.deposited && amountBigInt > userData.deposited) throw new Error("Insufficient stETH deposited balance");
+      
+      await handleTransaction(() => withdrawAsync({
+        address: stETHDepositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'withdraw',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt],
+        chainId: l1ChainId,
+        gas: BigInt(1200000),
+      }), {
+        loading: "Requesting stETH withdrawal...",
+        success: `Successfully withdrew ${amountString} stETH!`, 
+        error: "stETH withdrawal failed"
+      });
+    } else if (asset === 'LINK') {
+      if (!linkDepositPoolAddress || !l1ChainId) throw new Error("LINK withdraw prerequisites not met");
+      const linkUserData = parseV2UserData(linkV2UserData);
+      if (linkUserData?.deposited && amountBigInt > linkUserData.deposited) throw new Error("Insufficient LINK deposited balance");
+      
+      await handleTransaction(() => withdrawAsync({
+        address: linkDepositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'withdraw',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt],
+        chainId: l1ChainId,
+        gas: BigInt(1200000),
+      }), {
+        loading: "Requesting LINK withdrawal...",
+        success: `Successfully withdrew ${amountString} LINK!`, 
+        error: "LINK withdrawal failed"
+      });
+    }
+  }, [withdrawAsync, stETHDepositPoolAddress, linkDepositPoolAddress, l1ChainId, canWithdraw, userData?.deposited, linkV2UserData, handleTransaction]);
+
+  // Removed unused legacy functions: approveStEth, legacyDeposit
 
   const claim = useCallback(async () => {
     if (!poolContractAddress || !l1ChainId || !userAddress || !canClaim) throw new Error("Claim prerequisites not met");
@@ -700,28 +1054,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       });
   }, [claimAsync, poolContractAddress, l1ChainId, userAddress, canClaim, handleTransaction]);
 
-  const withdraw = useCallback(async (amountString: string) => {
-      if (!poolContractAddress || !l1ChainId || !canWithdraw) throw new Error("Withdraw prerequisites not met");
-      const amountBigInt = parseUnits(amountString, 18);
-      if (amountBigInt <= BigInt(0)) throw new Error("Invalid withdraw amount");
-      if (userData?.deposited && amountBigInt > userData.deposited) throw new Error("Insufficient deposited balance");
-
-      // Set a safe gas limit based on direct contract call experience (adjust as needed)
-      const SAFE_WITHDRAW_GAS_LIMIT = BigInt(1200000); // <-- Adjust this value if needed
-
-      await handleTransaction(() => withdrawAsync({
-          address: poolContractAddress,
-          abi: ERC1967ProxyAbi,
-          functionName: 'withdraw',
-          args: [PUBLIC_POOL_ID, amountBigInt],
-          chainId: l1ChainId,
-          gas: SAFE_WITHDRAW_GAS_LIMIT,
-      }), {
-          loading: "Requesting withdrawal...",
-          success: `Successfully withdrew ${amountString} stETH/wstETH!`, 
-          error: "Withdrawal failed"
-      });
-  }, [withdrawAsync, poolContractAddress, l1ChainId, canWithdraw, userData?.deposited, handleTransaction]);
+  // Removed unused legacyWithdraw function
   
   const changeLock = useCallback(async (lockValue: string, lockUnit: TimeUnit) => {
       if (!poolContractAddress || !l1ChainId) throw new Error("Change lock prerequisites not met");
@@ -741,25 +1074,34 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           error: "Lock update failed"
       });
   }, [lockClaimAsync, poolContractAddress, l1ChainId, handleTransaction]);
-  
+
+
+
   // --- Transaction Success/Error Effects (Update to close modal) ---
   useEffect(() => {
     if (isApprovalSuccess) {
         toast.success("Approval successful!");
         refetchAllowance();
+        refetchStETHV2Allowance();
+        refetchLinkV2Allowance();
         // Don't close modal after approval
     }
-  }, [isApprovalSuccess, refetchAllowance]);
+  }, [isApprovalSuccess, refetchAllowance, refetchStETHV2Allowance, refetchLinkV2Allowance]);
   
   useEffect(() => {
       if (isStakeSuccess) {
           toast.success(`Stake confirmed!`);
           refetchUserData();
           refetchUserReward();
-          refetchStEthBalance(); 
+          refetchStEthBalance();
+          refetchLinkBalance();
+          refetchStETHV2User();
+          refetchLinkV2User();
+          refetchStETHV2Reward();
+          refetchLinkV2Reward();
           setActiveModal(null); // Close modal on success
       }
-  }, [isStakeSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, setActiveModal]);
+  }, [isStakeSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, refetchStETHV2Reward, refetchLinkV2Reward, setActiveModal]);
   
   useEffect(() => {
       if (isClaimSuccess) {
@@ -767,9 +1109,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserData();
           refetchUserReward();
           refetchMorBalance();
+          refetchStETHV2Reward();
+          refetchLinkV2Reward();
           setActiveModal(null); // Close modal on success
       }
-  }, [isClaimSuccess, refetchUserData, refetchUserReward, refetchMorBalance, setActiveModal]);
+  }, [isClaimSuccess, refetchUserData, refetchUserReward, refetchMorBalance, refetchStETHV2Reward, refetchLinkV2Reward, setActiveModal]);
   
   useEffect(() => {
       if (isWithdrawSuccess) {
@@ -777,9 +1121,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserData();
           refetchUserReward();
           refetchStEthBalance();
+          refetchLinkBalance();
+          refetchStETHV2User();
+          refetchLinkV2User();
           setActiveModal(null); // Close modal on success
       }
-  }, [isWithdrawSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, setActiveModal]);
+  }, [isWithdrawSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, setActiveModal]);
 
   useEffect(() => {
       if (isLockClaimSuccess) {
@@ -789,6 +1136,87 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           setActiveModal(null); // Close modal on success
       }
   }, [isLockClaimSuccess, refetchUserData, refetchUserMultiplier, setActiveModal]);
+
+  // --- Transaction Error Effects ---
+  useEffect(() => {
+      if (isApprovalError && approvalError) {
+          console.error("Approval transaction failed:", approvalError);
+          const errorMessage = (approvalError as BaseError)?.shortMessage || approvalError.message;
+          toast.error("Approval Failed", {
+            description: errorMessage,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--destructive))',
+              color: 'hsl(var(--destructive-foreground))',
+              border: '1px solid hsl(var(--destructive))'
+            }
+          });
+      }
+  }, [isApprovalError, approvalError]);
+
+  useEffect(() => {
+      if (isStakeError && stakeError) {
+          console.error("Stake transaction failed:", stakeError);
+          const errorMessage = (stakeError as BaseError)?.shortMessage || stakeError.message;
+          toast.error("Staking Failed", {
+            description: errorMessage,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--destructive))',
+              color: 'hsl(var(--destructive-foreground))',
+              border: '1px solid hsl(var(--destructive))'
+            }
+          });
+      }
+  }, [isStakeError, stakeError]);
+
+  useEffect(() => {
+      if (isClaimError && claimError) {
+          console.error("Claim transaction failed:", claimError);
+          const errorMessage = (claimError as BaseError)?.shortMessage || claimError.message;
+          toast.error("Claim Failed", {
+            description: errorMessage,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--destructive))',
+              color: 'hsl(var(--destructive-foreground))',
+              border: '1px solid hsl(var(--destructive))'
+            }
+          });
+      }
+  }, [isClaimError, claimError]);
+
+  useEffect(() => {
+      if (isWithdrawError && withdrawError) {
+          console.error("Withdraw transaction failed:", withdrawError);
+          const errorMessage = (withdrawError as BaseError)?.shortMessage || withdrawError.message;
+          toast.error("Withdrawal Failed", {
+            description: errorMessage,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--destructive))',
+              color: 'hsl(var(--destructive-foreground))',
+              border: '1px solid hsl(var(--destructive))'
+            }
+          });
+      }
+  }, [isWithdrawError, withdrawError]);
+
+  useEffect(() => {
+      if (isLockClaimError && lockClaimError) {
+          console.error("Lock claim transaction failed:", lockClaimError);
+          const errorMessage = (lockClaimError as BaseError)?.shortMessage || lockClaimError.message;
+          toast.error("Lock Update Failed", {
+            description: errorMessage,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--destructive))',
+              color: 'hsl(var(--destructive-foreground))',
+              border: '1px solid hsl(var(--destructive))'
+            }
+          });
+      }
+  }, [isLockClaimError, lockClaimError]);
 
   // --- New state for multiplier simulation ---
   const [multiplierSimArgs, setMultiplierSimArgs] = useState<{value: string, unit: TimeUnit} | null>(null);
@@ -833,6 +1261,93 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       return "---x"; // Default or if no valid args set
   }, [simulatedMultiplierResult, simulateMultiplierError, isSimulatingMultiplier]);
 
+  // Parse V2 user data
+  const stETHV2UserParsed = useMemo(() => parseV2UserData(stETHV2UserData), [stETHV2UserData]);
+  const linkV2UserParsed = useMemo(() => parseV2UserData(linkV2UserData), [linkV2UserData]);
+  const stETHV2ProtocolParsed = useMemo(() => parseV2ProtocolDetails(stETHV2PoolData), [stETHV2PoolData]);
+  const linkV2ProtocolParsed = useMemo(() => parseV2ProtocolDetails(linkV2PoolData), [linkV2PoolData]);
+
+  // V2-specific unlock timestamp calculations (since we're using V2 contracts for rewards)
+  const stETHV2ClaimUnlockTimestamp = useMemo(() => {
+    if (!stETHV2UserParsed?.claimLockEnd) return undefined;
+    return stETHV2UserParsed.claimLockEnd;
+  }, [stETHV2UserParsed]);
+
+  const linkV2ClaimUnlockTimestamp = useMemo(() => {
+    if (!linkV2UserParsed?.claimLockEnd) return undefined;
+    return linkV2UserParsed.claimLockEnd;
+  }, [linkV2UserParsed]);
+
+  // V2-specific claim eligibility checks
+  const stETHV2CanClaim = useMemo((): boolean => {
+    const reward = stETHV2CurrentUserReward as bigint | undefined;
+    const hasRewards = reward !== undefined && reward > BigInt(0);
+    const unlockTimeReached = !stETHV2ClaimUnlockTimestamp || currentTimestampSeconds >= stETHV2ClaimUnlockTimestamp;
+    return hasRewards && unlockTimeReached;
+  }, [stETHV2CurrentUserReward, stETHV2ClaimUnlockTimestamp, currentTimestampSeconds]);
+
+  const linkV2CanClaim = useMemo((): boolean => {
+    const reward = linkV2CurrentUserReward as bigint | undefined;
+    const hasRewards = reward !== undefined && reward > BigInt(0);
+    const unlockTimeReached = !linkV2ClaimUnlockTimestamp || currentTimestampSeconds >= linkV2ClaimUnlockTimestamp;
+    return hasRewards && unlockTimeReached;
+  }, [linkV2CurrentUserReward, linkV2ClaimUnlockTimestamp, currentTimestampSeconds]);
+
+  // V2 Claim and Lock Functions
+  const claimAssetRewards = useCallback(async (asset: AssetSymbol) => {
+    if (!userAddress || !l1ChainId) throw new Error("Claim prerequisites not met");
+    
+    const targetAddress = asset === 'stETH' ? stETHDepositPoolAddress : linkDepositPoolAddress;
+    const canAssetClaim = asset === 'stETH' ? stETHV2CanClaim : linkV2CanClaim;
+    
+    if (!targetAddress || !canAssetClaim) {
+      throw new Error(`${asset} claim prerequisites not met`);
+    }
+
+    // For V2 claims, we need ETH for cross-chain gas fees to L2 (Arbitrum Sepolia)
+    // The claim will trigger cross-chain communication via LayerZero
+    const ETH_FOR_CROSS_CHAIN_GAS = parseEther("0.01"); // 0.01 ETH for L2 gas
+
+    await handleTransaction(() => claimAsync({
+      address: targetAddress,
+      abi: DepositPoolAbi,
+      functionName: 'claim',
+      args: [V2_REWARD_POOL_INDEX, userAddress],
+      chainId: l1ChainId,
+      value: ETH_FOR_CROSS_CHAIN_GAS, // Send ETH for cross-chain gas
+      gas: BigInt(800000), // Higher gas limit for cross-chain operations
+    }), {
+      loading: `Claiming ${asset} rewards...`,
+      success: `Successfully claimed ${asset} rewards! MOR tokens will be minted on Arbitrum Sepolia.`,
+      error: `${asset} claim failed`
+    });
+  }, [claimAsync, stETHDepositPoolAddress, linkDepositPoolAddress, stETHV2CanClaim, linkV2CanClaim, l1ChainId, userAddress, handleTransaction]);
+
+  const lockAssetRewards = useCallback(async (asset: AssetSymbol, lockDurationSeconds: bigint) => {
+    if (!userAddress || !l1ChainId) throw new Error("Lock claim prerequisites not met");
+    
+    const targetAddress = asset === 'stETH' ? stETHDepositPoolAddress : linkDepositPoolAddress;
+    
+    if (!targetAddress) {
+      throw new Error(`${asset} lock claim prerequisites not met`);
+    }
+
+    const lockEndTimestamp = BigInt(Math.floor(Date.now() / 1000)) + lockDurationSeconds;
+
+    await handleTransaction(() => lockClaimAsync({
+      address: targetAddress,
+      abi: DepositPoolAbi,
+      functionName: 'lockClaim',
+      args: [V2_REWARD_POOL_INDEX, lockEndTimestamp],
+      chainId: l1ChainId,
+      gas: BigInt(500000),
+    }), {
+      loading: `Locking ${asset} rewards...`,
+      success: `Successfully locked ${asset} rewards for increased multiplier!`,
+      error: `${asset} lock failed`
+    });
+  }, [lockClaimAsync, stETHDepositPoolAddress, linkDepositPoolAddress, l1ChainId, userAddress, handleTransaction]);
+
   // --- Context Value ---
   const contextValue = useMemo(() => ({
     // Static Info
@@ -842,9 +1357,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     networkEnv,
     
     // V2 Contract Addresses
-    distributorV2Address: getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined,
-    rewardPoolV2Address: getContractAddress(l1ChainId, 'rewardPoolV2', networkEnv) as `0x${string}` | undefined,
-    l1SenderV2Address: getContractAddress(l1ChainId, 'l1SenderV2', networkEnv) as `0x${string}` | undefined,
+    distributorV2Address,
+    rewardPoolV2Address,
+    l1SenderV2Address,
 
     // Asset Configuration & Data
     assets: {
@@ -852,86 +1367,100 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         symbol: 'stETH' as AssetSymbol,
         config: {
           symbol: 'stETH' as AssetSymbol,
-          depositPoolAddress: getContractAddress(l1ChainId, 'stETHDepositPool', networkEnv) as `0x${string}`,
+          depositPoolAddress: stETHDepositPoolAddress || zeroAddress,
           tokenAddress: stEthContractAddress || zeroAddress,
           decimals: 18,
-          icon: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84/logo.png',
+          icon: 'eth',
         },
         userBalance: stEthBalance,
-        userDeposited: userData?.deposited || BigInt(0),
-        userAllowance: currentAllowance,
-        claimableAmount: currentUserRewardData || BigInt(0),
-        userMultiplier: currentUserMultiplierData || BigInt(1),
-        totalDeposited: totalDepositedData || BigInt(0),
-        protocolDetails: poolLimits || null,
-        poolData: null, // No direct pool data for stETH here, as it's a single pool
+        userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
+        userAllowance: stETHV2Allowance,
+        claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
+        userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
+        totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
+        protocolDetails: stETHV2ProtocolParsed || null,
+        poolData: null,
         userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
-        userDepositedFormatted: formatBigInt(userData?.deposited, 18, 2),
-        claimableAmountFormatted: formatBigInt(currentUserRewardData, 18, 2),
-        userMultiplierFormatted: currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 24, 1)}x` : "---x",
-        totalDepositedFormatted: formatBigInt(totalDepositedData, 18, 2),
-        minimalStakeFormatted: formatBigInt(poolInfo?.minimalStake, 18, 0),
+        userDepositedFormatted: formatBigInt(stETHV2UserParsed?.deposited, 18, 2),
+        claimableAmountFormatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2),
+        userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
+        totalDepositedFormatted: formatBigInt(stETHV2TotalDeposited as bigint, 18, 2),
+        minimalStakeFormatted: stETHV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
       },
       LINK: {
         symbol: 'LINK' as AssetSymbol,
         config: {
           symbol: 'LINK' as AssetSymbol,
-          depositPoolAddress: getContractAddress(l1ChainId, 'linkDepositPool', networkEnv) as `0x${string}`,
-          tokenAddress: getContractAddress(l1ChainId, 'linkToken', networkEnv) as `0x${string}`,
+          depositPoolAddress: linkDepositPoolAddress || zeroAddress,
+          tokenAddress: linkTokenAddress || zeroAddress,
           decimals: 18,
-          icon: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xF977814e90dA44bFA03b6295A0616a897441aceC/logo.png',
+          icon: 'link',
         },
-        userBalance: BigInt(0), // No direct user balance for LINK here, as it's a separate pool
-        userDeposited: BigInt(0),
-        userAllowance: BigInt(0),
-        claimableAmount: BigInt(0),
-        userMultiplier: BigInt(1),
-        totalDeposited: BigInt(0),
-        protocolDetails: null,
+        userBalance: linkBalance,
+        userDeposited: linkV2UserParsed?.deposited || BigInt(0),
+        userAllowance: linkV2Allowance,
+        claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
+        userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
+        totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
+        protocolDetails: linkV2ProtocolParsed || null,
         poolData: null,
-        userBalanceFormatted: "---",
-        userDepositedFormatted: "---",
-        claimableAmountFormatted: "---",
-        userMultiplierFormatted: "---x",
-        totalDepositedFormatted: "---",
-        minimalStakeFormatted: "---",
+        userBalanceFormatted: formatBigInt(linkBalance, 18, 4),
+        userDepositedFormatted: formatBigInt(linkV2UserParsed?.deposited, 18, 2),
+        claimableAmountFormatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
+        userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
+        totalDepositedFormatted: formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
+        minimalStakeFormatted: linkV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
       },
     },
-    selectedAsset: 'stETH' as AssetSymbol,
-    setSelectedAsset: (_asset: AssetSymbol) => setActiveModal(null), // Close modal when changing asset
+    selectedAsset,
+    setSelectedAsset: (asset: AssetSymbol) => {
+      setSelectedAsset(asset);
+      // Don't close modal when changing assets - let the component handle it
+    },
 
     // Aggregated Data (across all assets)
-    totalDepositedUSD: totalDepositedData || BigInt(0),
-    totalClaimableAmount: currentUserRewardData || BigInt(0),
+    totalDepositedUSD: (stETHV2TotalDeposited as bigint || BigInt(0)) + (linkV2TotalDeposited as bigint || BigInt(0)),
+    totalClaimableAmount: (stETHV2CurrentUserReward as bigint || BigInt(0)) + (linkV2CurrentUserReward as bigint || BigInt(0)),
     morBalance: morBalance,
 
     // Formatted Data (aggregated)
-    totalDepositedUSDFormatted: formatBigInt(totalDepositedData, 18, 2),
-    totalClaimableAmountFormatted: formatBigInt(currentUserRewardData, 18, 2),
+    totalDepositedUSDFormatted: formatBigInt((stETHV2TotalDeposited as bigint || BigInt(0)) + (linkV2TotalDeposited as bigint || BigInt(0)), 18, 2),
+    totalClaimableAmountFormatted: formatBigInt((stETHV2CurrentUserReward as bigint || BigInt(0)) + (linkV2CurrentUserReward as bigint || BigInt(0)), 18, 2),
     morBalanceFormatted: formatBigInt(morBalance, 18, 4),
 
     // Asset-specific formatted data (for selected asset)
-    selectedAssetUserBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
-    selectedAssetDepositedFormatted: formatBigInt(userData?.deposited, 18, 2),
-    selectedAssetClaimableFormatted: formatBigInt(currentUserRewardData, 18, 2),
-    selectedAssetMultiplierFormatted: currentUserMultiplierData ? `${formatBigInt(currentUserMultiplierData, 24, 1)}x` : "---x",
-    selectedAssetTotalStakedFormatted: formatBigInt(totalDepositedData, 18, 2),
-    selectedAssetMinimalStakeFormatted: formatBigInt(poolInfo?.minimalStake, 18, 0),
+    selectedAssetUserBalanceFormatted: selectedAsset === 'stETH' ? formatBigInt(stEthBalance, 18, 4) : formatBigInt(linkBalance, 18, 4),
+    selectedAssetDepositedFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2UserParsed?.deposited, 18, 2) : formatBigInt(linkV2UserParsed?.deposited, 18, 2),
+    selectedAssetClaimableFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2) : formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
+    selectedAssetMultiplierFormatted: "1.0x", // TODO: Asset-specific multiplier
+    selectedAssetTotalStakedFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2TotalDeposited as bigint, 18, 2) : formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
+    selectedAssetMinimalStakeFormatted: "100", // TODO: Asset-specific minimal stake
     
-    // Calculated Data (for selected asset)
+    // Calculated Data (for selected asset) - TODO: Make asset-aware
     withdrawUnlockTimestamp: withdrawUnlockTimestamp,
     claimUnlockTimestamp: claimUnlockTimestamp,
     withdrawUnlockTimestampFormatted: formatTimestamp(withdrawUnlockTimestamp),
     claimUnlockTimestampFormatted: formatTimestamp(claimUnlockTimestamp),
 
-    // Eligibility Flags (for selected asset)
+    // Eligibility Flags (for selected asset) - TODO: Make asset-aware
     canWithdraw: canWithdraw,
     canClaim: canClaim,
 
-    // Loading States
-    isLoadingAssetData: false, // This state is not directly managed here, but could be added if needed
-    isLoadingUserData: isLoadingUserData,
-    isLoadingBalances: isLoadingBalances,
+    // V2-specific claim data for individual assets
+    stETHV2CanClaim: stETHV2CanClaim,
+    linkV2CanClaim: linkV2CanClaim,
+    stETHV2ClaimUnlockTimestamp: stETHV2ClaimUnlockTimestamp,
+    linkV2ClaimUnlockTimestamp: linkV2ClaimUnlockTimestamp,
+    stETHV2ClaimUnlockTimestampFormatted: formatTimestamp(stETHV2ClaimUnlockTimestamp),
+    linkV2ClaimUnlockTimestampFormatted: formatTimestamp(linkV2ClaimUnlockTimestamp),
+
+    // Loading States - NOW PROPERLY USED! 🎉
+    isLoadingAssetData,
+    isLoadingUserData,
+    isLoadingBalances,
+    isLoadingAllowances,
+    isLoadingRewards,
+    isLoadingTotalDeposits,
 
     // Action States
     isProcessingDeposit: isProcessingDeposit,
@@ -941,67 +1470,17 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isApprovalSuccess: isApprovalSuccess,
 
     // V2 Action Functions (asset-aware)
-    deposit: async (asset: AssetSymbol, amountString: string) => {
-      if (asset === 'stETH') {
-        return deposit(amountString);
-      } else if (asset === 'LINK') {
-        // For LINK, we would need to call a LINK-specific deposit function
-        // This would involve a different contract interaction and state management
-        // For now, we'll just show a message or throw an error
-        toast.error("LINK deposit functionality not yet implemented.");
-        return Promise.resolve();
-      }
-    },
-    claim: () => claim(), // Claims from all pools
-    withdraw: async (asset: AssetSymbol, amountString: string) => {
-      if (asset === 'stETH') {
-        return withdraw(amountString);
-      } else if (asset === 'LINK') {
-        // For LINK, we would need to call a LINK-specific withdraw function
-        // This would involve a different contract interaction and state management
-        // For now, we'll just show a message or throw an error
-        toast.error("LINK withdrawal functionality not yet implemented.");
-        return Promise.resolve();
-      }
-    },
-    changeLock: (lockValue: string, lockUnit: TimeUnit) => changeLock(lockValue, lockUnit),
-    approveToken: async (asset: AssetSymbol) => {
-      if (asset === 'stETH') {
-        return approveStEth();
-      } else if (asset === 'LINK') {
-        // For LINK, we would need to call a LINK-specific approve function
-        // This would involve a different contract interaction and state management
-        // For now, we'll just show a message or throw an error
-        toast.error("LINK approval functionality not yet implemented.");
-        return Promise.resolve();
-      }
-    },
+    deposit,
+    claim, // Claims from all pools
+    withdraw,
+    changeLock,
+    approveToken,
+    claimAssetRewards,
+    lockAssetRewards,
     
     // Utility Functions
-    needsApproval: (asset: AssetSymbol, amountString: string) => {
-      if (asset === 'stETH') {
-        return needsApproval(amountString);
-      } else if (asset === 'LINK') {
-        // For LINK, we would need to call a LINK-specific allowance check
-        // This would involve a different contract interaction and state management
-        // For now, we'll just show a message or throw an error
-        toast.error("LINK approval check functionality not yet implemented.");
-        return false; // Default to false for now
-      }
-      return false;
-    },
-    checkAndUpdateApprovalNeeded: async (asset: AssetSymbol, amountString: string) => {
-      if (asset === 'stETH') {
-        return checkAndUpdateApprovalNeeded(amountString);
-      } else if (asset === 'LINK') {
-        // For LINK, we would need to call a LINK-specific allowance check
-        // This would involve a different contract interaction and state management
-        // For now, we'll just show a message or throw an error
-        toast.error("LINK approval check functionality not yet implemented.");
-        return false; // Default to false for now
-      }
-      return false;
-    },
+    needsApproval,
+    checkAndUpdateApprovalNeeded,
 
     // Modal State
     activeModal,
@@ -1013,6 +1492,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     estimatedMultiplierValue,
     isSimulatingMultiplier,
 
+    // Dynamic Contract Loading
+    dynamicContracts,
+
     // Legacy Properties (for backward compatibility)
     userDepositFormatted,
     claimableAmountFormatted,
@@ -1022,19 +1504,24 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }), [
     // Dependencies for all values provided
     l1ChainId, l2ChainId, userAddress, networkEnv,
-    stEthContractAddress, morContractAddress,
+    stEthContractAddress, morContractAddress, distributorV2Address, rewardPoolV2Address, l1SenderV2Address,
+    stETHDepositPoolAddress, linkDepositPoolAddress, linkTokenAddress,
     userData, totalDepositedData, currentUserRewardData, currentUserMultiplierData,
-    stEthBalance, morBalance, currentAllowance,
-    poolInfo, poolLimits,
+    stEthBalance, morBalance, linkBalance, stETHV2Allowance, linkV2Allowance,
+    stETHV2UserParsed, linkV2UserParsed, stETHV2ProtocolParsed, linkV2ProtocolParsed,
+    stETHV2TotalDeposited, linkV2TotalDeposited, stETHV2CurrentUserReward, linkV2CurrentUserReward,
+    selectedAsset, poolInfo, poolLimits,
     withdrawUnlockTimestamp, claimUnlockTimestamp,
     canWithdraw, canClaim,
-    isLoadingUserData, isLoadingBalances,
+    isLoadingUserData, isLoadingBalances, isLoadingStETHV2User, isLoadingLinkV2User, 
+    isLoadingStETHV2Pool, isLoadingLinkV2Pool, isLoadingAssetData, isLoadingAllowances, 
+    isLoadingRewards, isLoadingTotalDeposits,
     isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock, isApprovalSuccess,
-    deposit, claim, withdraw, changeLock, approveStEth, needsApproval, checkAndUpdateApprovalNeeded,
+    deposit, claim, withdraw, changeLock, approveToken, needsApproval, checkAndUpdateApprovalNeeded,
+    claimAssetRewards, lockAssetRewards,
     triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier,
     activeModal, setActiveModal,
-    // New state for multiplier simulation
-    multiplierSimArgs,
+    multiplierSimArgs, dynamicContracts,
   ]);
 
   return (
@@ -1051,4 +1538,4 @@ export function useCapitalContext() {
     throw new Error("useCapitalContext must be used within a CapitalProvider");
   }
   return context;
-} 
+}
