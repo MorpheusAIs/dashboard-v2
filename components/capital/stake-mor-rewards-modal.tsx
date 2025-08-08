@@ -5,15 +5,11 @@ import {
   Dialog, 
   DialogPortal, 
   DialogContent, 
-  DialogHeader, 
   DialogTitle, 
   DialogDescription, 
-  DialogFooter 
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight} from "lucide-react";
 import { useCapitalContext } from "@/context/CapitalPageContext";
-import { formatNumber } from "@/lib/utils";
 
 export function StakeMorRewardsModal() {
   const router = useRouter();
