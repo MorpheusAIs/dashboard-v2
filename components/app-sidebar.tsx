@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import {
-  // CircleDollarSign,
+  CircleDollarSign,
   // Cpu,
   Users,
 } from "lucide-react"
@@ -20,11 +20,11 @@ import { cn } from "@/lib/utils"
 import { useEffect, useRef, useState } from "react"
 
 const navigation = [
-  // {
-  //   title: "Capital",
-  //   url: "/capital",
-  //   icon: CircleDollarSign,
-  // },
+  {
+    title: "Capital",
+    url: "/capital",
+    icon: CircleDollarSign,
+  },
   {
     title: "Builders",
     url: "/builders",
