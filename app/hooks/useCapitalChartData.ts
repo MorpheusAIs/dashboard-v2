@@ -191,6 +191,19 @@ export function useCapitalChartData() {
     });
   }, []);
 
+  // Effect to clear chart data when switching to testnet
+  useEffect(() => {
+    console.log('🔄 Network change detected:', { networkEnv, chartDataLength: chartData.length });
+    
+    if (networkEnv === 'testnet') {
+      console.log('🧹 Clearing chart data for testnet');
+      setChartData([]);
+      setChartLoading(false);
+      setChartError(null);
+      setIsLoadingHistorical(false);
+    }
+  }, [networkEnv, chartData.length]);
+
   // Main effect to handle recent data loading
   useEffect(() => {
     if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0) {
@@ -293,11 +306,16 @@ export function useCapitalChartData() {
   const avgApyRate = "15.37%"; // Placeholder for Average APY Rate
   const activeStakers = "240"; // Placeholder for Active Stakers
 
+  // Safeguard: Always return empty data for testnet
+  const safeChartData = networkEnv === 'testnet' ? [] : chartData;
+  const safeChartLoading = networkEnv === 'testnet' ? false : chartLoading;
+  const safeIsLoadingHistorical = networkEnv === 'testnet' ? false : isLoadingHistorical;
+
   return {
-    chartData,
-    chartLoading,
+    chartData: safeChartData,
+    chartLoading: safeChartLoading,
     chartError,
-    isLoadingHistorical,
+    isLoadingHistorical: safeIsLoadingHistorical,
     totalDepositsMOR,
     totalValueLockedUSD,
     currentDailyRewardMOR,
