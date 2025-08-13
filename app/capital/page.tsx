@@ -67,6 +67,23 @@ function CapitalPageContent() {
     }
   }, [chainId, switchToChain, isNetworkSwitching, isLoadingUserData]);
 
+  // Separate effect to handle manual network changes and hide notification
+  useEffect(() => {
+    // If user manually switches away from mainnet, hide the notification immediately
+    if (chainId !== mainnet.id && showNetworkSwitchNotice) {
+      console.log('User switched away from mainnet, hiding network notification');
+      setShowNetworkSwitchNotice(false);
+      // Reset the attempted flag so auto-switch can work again if needed
+      networkSwitchAttempted.current = false;
+    }
+    // If user switches back to mainnet manually, also hide notification and reset flag
+    else if (chainId === mainnet.id && showNetworkSwitchNotice) {
+      console.log('User is now on mainnet, hiding network notification');
+      setShowNetworkSwitchNotice(false);
+      networkSwitchAttempted.current = false;
+    }
+  }, [chainId, showNetworkSwitchNotice]);
+
   // Handle referrer URL parameter to auto-open deposit modal
   useEffect(() => {
     if (referrerProcessed.current) return;
