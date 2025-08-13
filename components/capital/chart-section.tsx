@@ -4,22 +4,30 @@ import { DepositStethChart } from "@/components/capital/deposit-steth-chart";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalChartData } from "@/app/hooks/useCapitalChartData";
+import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 import { mainnet } from "wagmi/chains";
 
 export function ChartSection() {
+  // Get chart data for historical deposits chart
   const {
     chartData,
     chartLoading,
     chartError,
     isLoadingHistorical,
-    totalValueLockedUSD,
-    currentDailyRewardMOR,
-    avgApyRate,
-    activeStakers,
     networkEnv,
     switchToChain,
     isNetworkSwitching,
   } = useCapitalChartData();
+
+  // Get live metrics data from pool contracts
+  const {
+    totalValueLockedUSD,
+    currentDailyRewardMOR,
+    avgApyRate,
+    activeStakers,
+    isLoading: metricsLoading,
+    error: metricsError,
+  } = useCapitalMetrics();
 
   const metricCards = [
     {
@@ -81,17 +89,17 @@ export function ChartSection() {
                 borderRadius="rounded-xl"
             />
             {/* Conditional Rendering for Chart */}
-            {chartLoading && (
+            {(chartLoading || metricsLoading) && (
               <div className="flex justify-center items-center h-full">
                 <p>Loading Chart...</p>
               </div>
             )}
-            {chartError && (
+            {(chartError || metricsError) && (
               <div className="flex justify-center items-center h-full text-red-500">
-                <p>{chartError}</p>
+                <p>{chartError || metricsError}</p>
               </div>
             )}
-            {!chartLoading && !chartError && chartData.length > 0 && (
+            {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length > 0 && (
               <div className="relative h-full overflow-hidden">
                 <DepositStethChart data={chartData} />
                 {isLoadingHistorical && (
@@ -101,7 +109,7 @@ export function ChartSection() {
                 )}
               </div>
             )}
-            {!chartLoading && !chartError && chartData.length === 0 && (
+            {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length === 0 && (
               <div className="flex flex-col justify-center items-center h-full text-center">
                 <p className="text-gray-400 mb-4">
                   {networkEnv === 'testnet' 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { 
   Dialog, 
   DialogPortal, 
@@ -58,13 +59,15 @@ export function StakeMorRewardsModal() {
 
             {/* Action Buttons */}
             <div className="space-y-2">
-              <button 
-                className="w-full copy-button flex items-center justify-center gap-2"
-                onClick={handleNavigateToBuilders}
-              >
-                Stake to Builder Subnet
-                <ChevronRight className="h-5 w-5" />
-              </button>
+              <Link href="/builders">
+                <button 
+                  className="w-full copy-button flex items-center justify-center gap-2"
+                  onClick={handleNavigateToBuilders}
+                >
+                  Stake to Builders Subnets
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </Link>
 
               {/* <button
                 // variant="ghost"
