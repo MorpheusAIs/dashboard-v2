@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, parseUnits, isAddress } from "viem";
+import { useEnsAddress } from "wagmi";
 import { TokenIcon } from '@web3icons/react';
 import { 
   Dialog, 
@@ -21,6 +22,9 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 
 // Time unit type for lock period
 type TimeUnit = "days" | "months" | "years";
+
+// Regular expression for Ethereum addresses
+const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 
 // Helper function to convert duration to seconds
 const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
@@ -75,6 +79,7 @@ export function DepositModal() {
   const [lockValue, setLockValue] = useState("6");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("months");
   const [formError, setFormError] = useState<string | null>(null);
+  const [referrerAddressError, setReferrerAddressError] = useState<string | null>(null);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
   const [timeLockDropdownOpen, setTimeLockDropdownOpen] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<'stETH' | 'LINK'>(contextSelectedAsset);
@@ -91,6 +96,49 @@ export function DepositModal() {
       return BigInt(0);
     }
   }, [amount]);
+
+  // ENS Resolution
+  const isEnsName = useMemo(() => {
+    if (!referrerAddress || !referrerAddress.trim()) return false;
+    const trimmedAddress = referrerAddress.trim();
+    return trimmedAddress.endsWith('.eth') && !ETH_ADDRESS_REGEX.test(trimmedAddress);
+  }, [referrerAddress]);
+
+  const { data: resolvedAddress, isLoading: isResolvingEns, error: ensError, refetch: refetchEns } = useEnsAddress({
+    name: isEnsName ? referrerAddress.trim() : undefined,
+    chainId: 1, // Force mainnet for ENS resolution
+    query: {
+      enabled: isEnsName,
+      retry: 2, // Retry failed requests twice
+      retryDelay: 1000, // Wait 1s between retries
+    }
+  });
+
+  // Debug ENS resolution
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[ENS Debug]', {
+        referrerAddress: referrerAddress.trim(),
+        isEnsName,
+        isResolvingEns,
+        resolvedAddress,
+        ensError: ensError?.message,
+        fullError: ensError
+      });
+    }
+  }, [referrerAddress, isEnsName, isResolvingEns, resolvedAddress, ensError]);
+
+  // Log wagmi config info for debugging
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && isEnsName) {
+      console.log('[ENS Config Debug]', {
+        userAddress,
+        chainId: 'using mainnet (1) for ENS',
+        ensName: referrerAddress.trim(),
+        wagmiConfigured: !!resolvedAddress || !!ensError || isResolvingEns
+      });
+    }
+  }, [isEnsName, referrerAddress, userAddress, resolvedAddress, ensError, isResolvingEns]);
 
   // State to track approval status
   const [currentlyNeedsApproval, setCurrentlyNeedsApproval] = useState(false);
@@ -128,6 +176,72 @@ export function DepositModal() {
       triggerMultiplierEstimation(lockValue, lockUnit);
     }
   }, [lockValue, lockUnit, triggerMultiplierEstimation]);
+
+  // Referrer address validation function
+  const validateReferrerAddress = useCallback((address: string) => {
+    if (!address || address.trim() === "") {
+      setReferrerAddressError(null);
+      return true;
+    }
+
+    const trimmedAddress = address.trim();
+    
+    // Check if it's an ENS name
+    if (trimmedAddress.endsWith('.eth')) {
+      // For ENS names, we'll wait for resolution
+      if (isResolvingEns) {
+        setReferrerAddressError("Resolving ENS name...");
+        return false;
+      }
+      
+      // Check if there was an ENS resolution error
+      if (ensError) {
+        const errorMessage = ensError.message || 'Unknown ENS error';
+        setReferrerAddressError(`ENS resolution failed: ${errorMessage}`);
+        console.error('[ENS Error]', ensError);
+        return false;
+      }
+      
+      // If we've finished loading but have no resolved address and no error, 
+      // it might be a network issue or the name doesn't exist
+      if (isEnsName && !resolvedAddress && !isResolvingEns) {
+        setReferrerAddressError("ENS name could not be resolved. Please check the name or try again.");
+        return false;
+      }
+      
+      // ENS resolved successfully
+      if (resolvedAddress) {
+        setReferrerAddressError(null);
+        return true;
+      }
+      
+      // Still loading or no result yet - don't show error yet
+      setReferrerAddressError(null);
+      return !isResolvingEns; // Only validate if not loading
+    }
+    
+    // Check if it matches basic Ethereum address format
+    if (!ETH_ADDRESS_REGEX.test(trimmedAddress)) {
+      setReferrerAddressError("Invalid Ethereum address format");
+      return false;
+    }
+
+    // Additional validation using viem's isAddress for checksum validation
+    if (!isAddress(trimmedAddress)) {
+      setReferrerAddressError("Invalid Ethereum address checksum");
+      return false;
+    }
+
+    setReferrerAddressError(null);
+    return true;
+  }, [isEnsName, isResolvingEns, resolvedAddress, ensError]);
+
+  // Auto-validate when ENS resolution changes
+  useEffect(() => {
+    if (referrerAddress) {
+      validateReferrerAddress(referrerAddress);
+    }
+  }, [referrerAddress, resolvedAddress, isResolvingEns, validateReferrerAddress]);
 
   // Calculate unlock date
   const unlockDate = useMemo(() => {
@@ -178,12 +292,27 @@ export function DepositModal() {
       return;
     }
 
+    // Validate referrer address before submission
+    if (!validateReferrerAddress(referrerAddress)) {
+      return;
+    }
+
     try {
       if (currentlyNeedsApproval) {
         await approveToken(selectedAsset);
       } else {
         // Calculate lock duration in seconds
         const lockDuration = durationToSeconds(lockValue, lockUnit);
+        
+        // Use resolved address if available, otherwise use the original input
+        const finalReferrerAddress = resolvedAddress || (referrerAddress.trim() || undefined);
+        
+        // TODO: Update your deposit function to accept the referrer address parameter
+        // For now, we'll just log it and use the existing deposit call
+        if (finalReferrerAddress) {
+          console.log("Referrer address for deposit:", finalReferrerAddress);
+        }
+        
         await deposit(selectedAsset, amount, lockDuration);
       }
     } catch (error) {
@@ -206,8 +335,8 @@ export function DepositModal() {
     if (!amount || amount.trim() === "") return true;
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) return true;
-    return !!validationError || !!formError || currentlyNeedsApproval;
-  }, [amount, validationError, formError, currentlyNeedsApproval]);
+    return !!validationError || !!formError || !!referrerAddressError || currentlyNeedsApproval;
+  }, [amount, validationError, formError, referrerAddressError, currentlyNeedsApproval]);
 
   // Click outside handler for dropdowns
   useEffect(() => {
@@ -237,6 +366,7 @@ export function DepositModal() {
       setLockValue("6");
       setLockUnit("months");
       setFormError(null);
+      setReferrerAddressError(null);
       setCurrentlyNeedsApproval(false);
       setProcessedApprovalSuccess(false);
       setAssetDropdownOpen(false);
@@ -364,12 +494,78 @@ export function DepositModal() {
                 <span className="text-xs text-gray-400">Optional</span>
               </div>
               <Input
-                placeholder="davidjohnston.eth"
+                placeholder="0x1234...abcd or davidjohnston.eth"
                 value={referrerAddress}
-                onChange={(e) => setReferrerAddress(e.target.value)}
-                className="bg-background border-gray-700"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setReferrerAddress(value);
+                  validateReferrerAddress(value);
+                }}
+                onBlur={() => validateReferrerAddress(referrerAddress)}
+                className={`bg-background border-gray-700 ${
+                  referrerAddressError && !referrerAddressError.includes('Resolving') ? 'border-red-500' : 
+                  isResolvingEns ? 'border-yellow-500' :
+                  resolvedAddress ? 'border-green-500' : ''
+                }`}
                 disabled={isProcessingDeposit}
               />
+              
+              {/* Show resolved address */}
+              {resolvedAddress && isEnsName && (
+                <div className="flex items-center gap-2 text-xs text-green-400">
+                  <span>Address:</span>
+                  <code className="bg-green-500/10 px-2 py-1 rounded border border-green-500/20">
+                    {resolvedAddress}
+                  </code>
+                </div>
+              )}
+              
+              {/* Show loading state */}
+              {isResolvingEns && (
+                <div className="flex items-center gap-2 text-xs text-yellow-400">
+                  <span>🔄 Resolving ENS name...</span>
+                </div>
+              )}
+              
+              {/* Show ENS error details */}
+              {ensError && !isResolvingEns && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-red-500 text-sm">
+                      ENS resolution failed: {ensError.message}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => refetchEns()}
+                      className="text-xs text-blue-400 hover:text-blue-300 underline"
+                      disabled={isProcessingDeposit}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                  {process.env.NODE_ENV !== 'production' && (
+                    <details className="text-xs text-gray-400">
+                      <summary className="cursor-pointer">Debug Info</summary>
+                      <pre className="mt-1 p-2 bg-gray-800 rounded text-xs overflow-auto">
+                        {JSON.stringify({
+                          name: referrerAddress.trim(),
+                          isEnsName,
+                          resolvedAddress,
+                          error: ensError.name,
+                          message: ensError.message,
+                          cause: ensError.cause
+                        }, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+              
+              {referrerAddressError && !isResolvingEns && !ensError && (
+                <p className="text-red-500 text-sm mt-1">
+                  {referrerAddressError}
+                </p>
+              )}
             </div>
 
             {/* Time Lock Period */}
@@ -475,7 +671,7 @@ export function DepositModal() {
               <button
                 type="submit"
                 className={
-                  isProcessingDeposit || !!validationError || amountBigInt <= BigInt(0) || !userAddress ||
+                  isProcessingDeposit || !!validationError || !!referrerAddressError || amountBigInt <= BigInt(0) || !userAddress ||
                   !lockValue || parseInt(lockValue, 10) <= 0
                     ? "copy-button-secondary px-2 text-sm opacity-50 cursor-not-allowed" 
                     : currentlyNeedsApproval
@@ -485,6 +681,7 @@ export function DepositModal() {
                 disabled={
                   isProcessingDeposit || 
                   !!validationError || 
+                  !!referrerAddressError ||
                   amountBigInt <= BigInt(0) || 
                   !userAddress ||
                   !lockValue ||
