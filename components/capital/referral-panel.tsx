@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalContext } from "@/context/CapitalPageContext";
@@ -9,10 +9,16 @@ import { toast } from "sonner";
 export function ReferralPanel() {
   const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
   const [isCopying, setIsCopying] = useState(false);
+  const [currentDomain, setCurrentDomain] = useState('');
+
+  // Set current domain after component mounts (client-side only)
+  useEffect(() => {
+    setCurrentDomain(window.location.origin);
+  }, []);
 
   // Generate referral link
-  const referralLink = userAddress 
-    ? `builders.mor.org/capital?refer=${userAddress}`
+  const referralLink = userAddress && currentDomain
+    ? `${currentDomain}/capital?referrer=${userAddress}`
     : "";
 
   // Copy to clipboard function

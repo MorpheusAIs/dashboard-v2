@@ -12,7 +12,7 @@ import {
   usePublicClient,
   type BaseError 
 } from "wagmi";
-import { parseUnits, parseEther, zeroAddress, maxInt256, getContract } from "viem";
+import { parseUnits, parseEther, zeroAddress, maxInt256, getContract, formatUnits } from "viem";
 import { toast } from "sonner";
 
 // Import Config, Utils & ABIs
@@ -285,6 +285,10 @@ interface CapitalContextState {
   // Modal State
   activeModal: ActiveModal;
   setActiveModal: (modal: ActiveModal) => void;
+  
+  // Pre-populated referrer address (for URL referral links)
+  preReferrerAddress: string;
+  setPreReferrerAddress: (address: string) => void;
 
   // Multiplier simulation for selected asset
   multiplierSimArgs: {value: string, unit: TimeUnit} | null;
@@ -309,6 +313,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Modal State ---
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [selectedAsset, setSelectedAsset] = useState<AssetSymbol>('stETH');
+  const [preReferrerAddress, setPreReferrerAddress] = useState<string>('');
 
   // --- Hooks from Page ---
   const { address: userAddress } = useAccount();
@@ -652,6 +657,48 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     chainId: l1ChainId,
     query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: 15000 }
   });
+
+  // Debug logging for reward values
+  useEffect(() => {
+    if (stETHV2CurrentUserReward !== undefined && stETHV2UserData) {
+      const userDataParsed = parseV2UserData(stETHV2UserData);
+      console.log('🏆 DEBUG - stETH V2 Rewards Comparison:', {
+        getLatestUserReward: {
+          raw: stETHV2CurrentUserReward?.toString(),
+          formatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 4),
+          inEther: formatUnits(stETHV2CurrentUserReward as bigint, 18)
+        },
+        usersDataPendingRewards: userDataParsed ? {
+          raw: userDataParsed.pendingRewards.toString(),
+          formatted: formatBigInt(userDataParsed.pendingRewards, 18, 4),
+          inEther: formatUnits(userDataParsed.pendingRewards, 18)
+        } : null,
+        userDeposited: userDataParsed ? formatUnits(userDataParsed.deposited, 18) : null,
+        shouldUseWhichValue: 'COMPARE THESE VALUES ⬆️'
+      });
+    }
+  }, [stETHV2CurrentUserReward, stETHV2UserData]);
+
+  useEffect(() => {
+    if (linkV2CurrentUserReward !== undefined && linkV2UserData) {
+      const userDataParsed = parseV2UserData(linkV2UserData);
+      console.log('🔗 DEBUG - LINK V2 Rewards Comparison:', {
+        getLatestUserReward: {
+          raw: linkV2CurrentUserReward?.toString(),
+          formatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 4),
+          inEther: formatUnits(linkV2CurrentUserReward as bigint, 18)
+        },
+        usersDataPendingRewards: userDataParsed ? {
+          raw: userDataParsed.pendingRewards.toString(),
+          formatted: formatBigInt(userDataParsed.pendingRewards, 18, 4),
+          inEther: formatUnits(userDataParsed.pendingRewards, 18)
+        } : null,
+        userDeposited: userDataParsed ? formatUnits(userDataParsed.deposited, 18) : null,
+        contractAddress: linkDepositPoolAddress,
+        shouldUseWhichValue: '⚠️ IF getLatestUserReward IS TOO HIGH, USE usersDataPendingRewards INSTEAD'
+      });
+    }
+  }, [linkV2CurrentUserReward, linkV2UserData, linkDepositPoolAddress]);
 
   // --- V2 Referral Data Reads ---
   const { data: stETHV2ReferralReward, isLoading: isLoadingStETHReferralReward } = useReadContract({
@@ -1618,6 +1665,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     // Modal State
     activeModal,
     setActiveModal,
+    
+    // Pre-populated referrer address
+    preReferrerAddress,
+    setPreReferrerAddress,
 
     // Multiplier simulation for selected asset
     multiplierSimArgs,
@@ -1653,7 +1704,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     deposit, claim, withdraw, changeLock, approveToken, needsApproval, checkAndUpdateApprovalNeeded,
     claimAssetRewards, lockAssetRewards, claimReferralRewards, referralData,
     triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier,
-    activeModal, setActiveModal,
+    activeModal, setActiveModal, preReferrerAddress, setPreReferrerAddress,
     multiplierSimArgs, dynamicContracts,
   ]);
 

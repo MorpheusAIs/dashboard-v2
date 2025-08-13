@@ -68,7 +68,9 @@ export function DepositModal() {
     setActiveModal,
     triggerMultiplierEstimation,
     estimatedMultiplierValue,
-    isSimulatingMultiplier
+    isSimulatingMultiplier,
+    preReferrerAddress,
+    setPreReferrerAddress,
   } = useCapitalContext();
 
   const isOpen = activeModal === 'deposit';
@@ -372,8 +374,13 @@ export function DepositModal() {
       setAssetDropdownOpen(false);
       setTimeLockDropdownOpen(false);
       setSelectedAsset(contextSelectedAsset);
+    } else if (isOpen && preReferrerAddress && !referrerAddress) {
+      // Pre-populate referrer address when modal opens with URL referrer
+      setReferrerAddress(preReferrerAddress);
+      // Clear the pre-populated address after using it
+      setPreReferrerAddress('');
     }
-  }, [isOpen, contextSelectedAsset]);
+  }, [isOpen, contextSelectedAsset, preReferrerAddress, referrerAddress, setPreReferrerAddress]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && setActiveModal(null)}>
@@ -494,7 +501,7 @@ export function DepositModal() {
                 <span className="text-xs text-gray-400">Optional</span>
               </div>
               <Input
-                placeholder="0x1234...abcd or davidjohnston.eth"
+                placeholder="0x1234...abcd or ENS domain"
                 value={referrerAddress}
                 onChange={(e) => {
                   const value = e.target.value;

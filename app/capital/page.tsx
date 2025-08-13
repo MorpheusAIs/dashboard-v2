@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useNetwork } from "@/context/network-context";
 import { useChainId } from "wagmi";
 import { mainnet } from "wagmi/chains";
@@ -33,12 +34,17 @@ function CapitalPageContent() {
     userData,
     currentUserMultiplierData,
     isLoadingUserData,
+    // Modal controls
+    setActiveModal,
+    setPreReferrerAddress,
   } = useCapitalContext();
 
   const { switchToChain, isNetworkSwitching } = useNetwork();
   const chainId = useChainId();
+  const searchParams = useSearchParams();
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
   const networkSwitchAttempted = useRef(false);
+  const referrerProcessed = useRef(false);
 
   useEffect(() => {
     // We want to be on mainnet for the capital page.
@@ -60,6 +66,27 @@ function CapitalPageContent() {
       return () => clearTimeout(timer);
     }
   }, [chainId, switchToChain, isNetworkSwitching, isLoadingUserData]);
+
+  // Handle referrer URL parameter to auto-open deposit modal
+  useEffect(() => {
+    if (referrerProcessed.current) return;
+    
+    const referrerParam = searchParams.get('referrer');
+    if (referrerParam) {
+      console.log('Referrer detected in URL:', referrerParam);
+      
+      // Set the pre-populated referrer address
+      setPreReferrerAddress(referrerParam);
+      
+      // Small delay to ensure the modal opens after any network switching
+      const timer = setTimeout(() => {
+        setActiveModal('deposit');
+        referrerProcessed.current = true;
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, setActiveModal, setPreReferrerAddress]);
 
   return (
     <div className="page-container">
@@ -116,7 +143,11 @@ export default function CapitalPage() {
   return (
     // No ApolloProvider needed here if client is passed directly to useQuery
     <CapitalProvider>
-      <CapitalPageContent />
+      <Suspense fallback={<div className="page-container flex items-center justify-center min-h-96">
+        <div className="text-gray-400">Loading...</div>
+      </div>}>
+        <CapitalPageContent />
+      </Suspense>
     </CapitalProvider>
   );
 }
