@@ -89,6 +89,11 @@ export function UserAssetsPanel() {
     return formatNumber(amount);
   };
 
+  // Helper function to format staked amounts with 1 decimal place
+  const formatStakedAmount = (amount: number): string => {
+    return amount.toFixed(1);
+  };
+
   // Helper function to get unlock date for specific asset
   const getAssetUnlockDate = useCallback((assetSymbol: 'stETH' | 'LINK'): string | null => {
     // Use V2-specific unlock timestamps
@@ -307,7 +312,7 @@ export function UserAssetsPanel() {
         enableSorting: true,
         cell: (asset) => (
           <span className="text-gray-200">
-            {formatAssetAmount(asset.amountStaked)}
+            {formatStakedAmount(asset.amountStaked)}
           </span>
         ),
       },
