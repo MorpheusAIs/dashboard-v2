@@ -23,6 +23,7 @@ import {
   type NetworkEnvironment 
 } from "@/config/networks";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
+import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 
 // Static ABI imports as fallbacks - keep these for reliability
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
@@ -962,7 +963,31 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     options: { loading: string; success: string; error: string; onSuccess?: () => void; skipClose?: boolean } // Add skipClose option
   ) => {
     const toastId = options.loading; // Use loading message as ID
-    toast.loading(options.loading, { id: toastId });
+    
+    // Check if user is using a Safe wallet and generate the appropriate URL
+    let safeWalletUrl: string | null = null;
+    if (userAddress && l1ChainId) {
+      try {
+        safeWalletUrl = await getSafeWalletUrlIfApplicable(userAddress, l1ChainId);
+      } catch (error) {
+        console.warn("Failed to check if wallet is Safe:", error);
+      }
+    }
+    
+    // Show loading toast with Safe wallet link if applicable
+    if (safeWalletUrl) {
+      toast.loading(options.loading, { 
+        id: toastId,
+        description: "If the transaction doesn't appear, check your Safe wallet.",
+        action: {
+          label: "Open Safe Wallet",
+          onClick: () => window.open(safeWalletUrl, "_blank")
+        }
+      });
+    } else {
+      toast.loading(options.loading, { id: toastId });
+    }
+    
     try {
       const hash = await txFunction();
       console.log("Transaction initiated:", hash);
@@ -984,7 +1009,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       });
       throw error; // Re-throw for modal error handling
     }
-  }, []); // Removed setActiveModal dependency
+  }, [userAddress, l1ChainId]); // Add userAddress and l1ChainId as dependencies
   
   // V2 Asset-aware functions
   const approveToken = useCallback(async (asset: AssetSymbol) => {

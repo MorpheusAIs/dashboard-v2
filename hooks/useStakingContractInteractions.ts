@@ -3,6 +3,7 @@ import { useAccount, useChainId } from 'wagmi';
 import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 'wagmi';
 import { parseEther, formatEther, Address, isAddress } from 'viem';
 import { toast } from "sonner";
+import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
 import { arbitrumSepolia } from 'wagmi/chains';
 import { formatTimePeriod } from '@/app/utils/time-utils';
@@ -60,6 +61,32 @@ export const useStakingContractInteractions = ({
     const chain = getChainById(chainId, isTestnet ? 'testnet' : 'mainnet');
     return chain?.name ?? `Network ID ${chainId}`;
   }, [isTestnet]);
+
+  // Helper function to show enhanced toast with Safe wallet link if applicable
+  const showEnhancedLoadingToast = useCallback(async (message: string, toastId: string) => {
+    if (connectedAddress && networkChainId) {
+      try {
+        const safeWalletUrl = await getSafeWalletUrlIfApplicable(connectedAddress, networkChainId);
+        if (safeWalletUrl) {
+          toast.loading(message, {
+            id: toastId,
+            description: "If the transaction doesn't appear, check your Safe wallet.",
+            action: {
+              label: "Open Safe Wallet",
+              onClick: () => window.open(safeWalletUrl, "_blank")
+            }
+          });
+        } else {
+          toast.loading(message, { id: toastId });
+        }
+      } catch (error) {
+        console.warn("Failed to check if wallet is Safe:", error);
+        toast.loading(message, { id: toastId });
+      }
+    } else {
+      toast.loading(message, { id: toastId });
+    }
+  }, [connectedAddress, networkChainId]);
 
   // Format balance to string with token symbol
   const formatBalance = useCallback(() => {
@@ -375,7 +402,7 @@ export const useStakingContractInteractions = ({
   // Handle Approval Transaction Notifications
   useEffect(() => {
     if (isApprovePending) {
-      toast.loading("Confirm approval in wallet...", { id: "approval-tx" });
+      showEnhancedLoadingToast("Confirm approval in wallet...", "approval-tx");
     }
     if (isApproveTxSuccess) {
       toast.success("Approval successful!", { id: "approval-tx" });
@@ -409,7 +436,7 @@ export const useStakingContractInteractions = ({
   // Handle Staking Transaction Notifications
   useEffect(() => {
     if (isStakePending) {
-      toast.loading("Confirm staking in wallet...", { id: "stake-tx" });
+      showEnhancedLoadingToast("Confirm staking in wallet...", "stake-tx");
     }
     if (isStakeTxSuccess) {
       toast.success("Successfully staked tokens!", {
@@ -447,7 +474,7 @@ export const useStakingContractInteractions = ({
   // Handle Withdrawal Transaction Notifications
   useEffect(() => {
     if (isWithdrawPending) {
-      toast.loading("Confirm withdrawal in wallet...", { id: "withdraw-tx" });
+      showEnhancedLoadingToast("Confirm withdrawal in wallet...", "withdraw-tx");
     }
     if (isWithdrawTxSuccess) {
       toast.success("Successfully withdrawn tokens!", {
@@ -484,7 +511,7 @@ export const useStakingContractInteractions = ({
   // Handle Claim Transaction Notifications
   useEffect(() => {
     if (isClaimPending) {
-      toast.loading("Confirm claim in wallet...", { id: "claim-tx" });
+      showEnhancedLoadingToast("Confirm claim in wallet...", "claim-tx");
     }
     if (isClaimTxSuccess) {
       toast.success("Successfully claimed rewards!", {
