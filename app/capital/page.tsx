@@ -44,13 +44,14 @@ function CapitalPageContent() {
   const searchParams = useSearchParams();
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
   const networkSwitchAttempted = useRef(false);
+  const userManuallyLeftMainnet = useRef(false);
   const referrerProcessed = useRef(false);
 
   useEffect(() => {
     // We want to be on mainnet for the capital page.
     const shouldSwitch = chainId !== mainnet.id;
 
-    if (shouldSwitch && !isLoadingUserData && !networkSwitchAttempted.current && !isNetworkSwitching) {
+    if (shouldSwitch && !isLoadingUserData && !networkSwitchAttempted.current && !isNetworkSwitching && !userManuallyLeftMainnet.current) {
       console.log(`Auto-switching network to Ethereum Mainnet (chainId: ${mainnet.id}) for Capital page.`);
       
       networkSwitchAttempted.current = true;
@@ -60,6 +61,7 @@ function CapitalPageContent() {
         switchToChain(mainnet.id);
         setTimeout(() => {
           setShowNetworkSwitchNotice(false);
+          networkSwitchAttempted.current = false; // Reset so it can work again on refresh
         }, 3000);
       }, 1500);
       
@@ -69,20 +71,23 @@ function CapitalPageContent() {
 
   // Separate effect to handle manual network changes and hide notification
   useEffect(() => {
-    // If user manually switches away from mainnet, hide the notification immediately
+    // If user manually switches away from mainnet, hide the notification and mark as manual switch
     if (chainId !== mainnet.id && showNetworkSwitchNotice) {
       console.log('User switched away from mainnet, hiding network notification');
       setShowNetworkSwitchNotice(false);
-      // Reset the attempted flag so auto-switch can work again if needed
-      networkSwitchAttempted.current = false;
+      userManuallyLeftMainnet.current = true; // Prevent auto-switch back
     }
-    // If user switches back to mainnet manually, also hide notification and reset flag
+    // If user switches back to mainnet manually, also hide notification
     else if (chainId === mainnet.id && showNetworkSwitchNotice) {
       console.log('User is now on mainnet, hiding network notification');
       setShowNetworkSwitchNotice(false);
-      networkSwitchAttempted.current = false;
     }
   }, [chainId, showNetworkSwitchNotice]);
+
+  // Reset manual flag on component mount (page refresh/reload)
+  useEffect(() => {
+    userManuallyLeftMainnet.current = false;
+  }, []);
 
   // Handle referrer URL parameter to auto-open deposit modal
   useEffect(() => {
