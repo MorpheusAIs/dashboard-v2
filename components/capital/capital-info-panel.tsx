@@ -3,7 +3,9 @@
 import NumberFlow from '@number-flow/react';
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalContext } from "@/context/CapitalPageContext";
+import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { TokenIcon } from '@web3icons/react';
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Asset {
   symbol: string;
@@ -17,9 +19,10 @@ export function CapitalInfoPanel() {
   const {
     userAddress,
     setActiveModal,
-    // For now, we'll use placeholder data until we implement real data
-    selectedAssetTotalStakedFormatted,
   } = useCapitalContext();
+
+  // Get live contract data
+  const poolData = useCapitalPoolData();
 
   // Helper function to safely parse totalStaked for NumberFlow
   const parseStakedAmount = (totalStaked: string): number => {
@@ -36,18 +39,18 @@ export function CapitalInfoPanel() {
     }
   };
 
-  // Mock data for the assets table
+  // Dynamic assets data based on network environment
   const assets: Asset[] = [
     {
       symbol: "stETH",
-      apy: "8.65%",
-      totalStaked: (selectedAssetTotalStakedFormatted && selectedAssetTotalStakedFormatted !== "---" && selectedAssetTotalStakedFormatted !== "Error") ? selectedAssetTotalStakedFormatted : "61,849",
+      apy: poolData.stETH.apy,
+      totalStaked: poolData.stETH.totalStaked,
       icon: "eth"
     },
     {
       symbol: "LINK",
-      apy: "15.54%",
-      totalStaked: "8,638",
+      apy: poolData.LINK.apy,
+      totalStaked: poolData.LINK.totalStaked,
       icon: "link"
     },
     {
@@ -88,7 +91,19 @@ export function CapitalInfoPanel() {
         <div className="p-2 md:p-3 flex flex-col h-full">
           {/* Title & Subtitle */} 
           <div className="mb-6"> 
-            <h1 className="text-3xl font-bold text-white">Capital</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-white">Capital</h1>
+              {poolData.networkEnvironment === 'testnet' && (
+                <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
+                  Live Data
+                </span>
+              )}
+              {poolData.networkEnvironment === 'mainnet' && (
+                <span className="px-2 py-1 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-400 text-xs font-medium">
+                  Preview
+                </span>
+              )}
+            </div>
             <p className="text-gray-400 text-sm mt-1">
               Stake one of the assets below to contribute to the Morpheus public liquidity pool. By staking you will help secure the future of decentralized personal AI and earn a share of MOR token rewards, emitted daily.
             </p>
@@ -136,7 +151,16 @@ export function CapitalInfoPanel() {
                     <div className={`text-right text-sm font-semibold ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
-                      <NumberFlow value={parseStakedAmount(asset.totalStaked)} />
+                      {(asset.symbol === 'stETH' && poolData.stETH.isLoading) || 
+                       (asset.symbol === 'LINK' && poolData.LINK.isLoading) ? (
+                        <Skeleton className="h-4 w-12 bg-gray-700" />
+                      ) : poolData.networkEnvironment === 'testnet' && 
+                          ((asset.symbol === 'stETH' && poolData.stETH.error) || 
+                           (asset.symbol === 'LINK' && poolData.LINK.error)) ? (
+                        <span className="text-red-400 text-xs">Error</span>
+                      ) : (
+                        <NumberFlow value={parseStakedAmount(asset.totalStaked)} />
+                      )}
                     </div>
 
                     {/* Stake Button */}
