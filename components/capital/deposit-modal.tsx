@@ -326,18 +326,21 @@ export function DepositModal() {
   const handleMaxAmount = () => {
     if (currentAsset?.userBalance) {
       const maxAmount = formatUnits(currentAsset.userBalance, 18);
-      setAmount(maxAmount);
+      // Limit to 2 decimal places
+      const formattedAmount = Number(maxAmount).toFixed(2);
+      setAmount(formattedAmount);
     }
   };
 
 
 
-  // Check if we should show warning/validation
+  // Check if we should show warning/validation (yellow border for non-critical issues)
   const showWarning = useMemo(() => {
     if (!amount || amount.trim() === "") return true;
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) return true;
-    return !!validationError || !!formError || !!referrerAddressError || currentlyNeedsApproval;
+    // Only show yellow warning if there are no validation/form errors (which get red border)
+    return (!!referrerAddressError || currentlyNeedsApproval) && !validationError && !formError;
   }, [amount, validationError, formError, referrerAddressError, currentlyNeedsApproval]);
 
   // Click outside handler for dropdowns
@@ -466,8 +469,10 @@ export function DepositModal() {
                       setFormError(null);
                     }
                   }}
-                  className={`bg-background border-gray-700 pr-32 ${
-                    (validationError || formError) ? 'border-red-500' : showWarning ? 'border-yellow-500' : ''
+                  className={`bg-background pr-32 ${
+                    validationError ? '!border-red-500 border-2' : 
+                    formError ? '!border-red-500 border-2' : 
+                    showWarning ? 'border-yellow-500 border' : 'border-gray-700 border'
                   }`}
                   disabled={isProcessingDeposit}
                   onKeyDown={(e) => {
@@ -479,7 +484,7 @@ export function DepositModal() {
                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
                   {currentAsset?.userBalanceFormatted && (
                     <span className="text-xs text-gray-400 mr-2">
-                      {currentAsset.userBalanceFormatted} {selectedAsset}
+                      {Number(currentAsset.userBalanceFormatted).toFixed(2)} {selectedAsset}
                     </span>
                   )}
                   <button
@@ -492,6 +497,13 @@ export function DepositModal() {
                   </button>
                 </div>
               </div>
+              
+              {/* Validation error message */}
+              {validationError && (
+                <p className="text-red-500 text-sm mt-1">
+                  {validationError}
+                </p>
+              )}
             </div>
 
             {/* Referrer Address */}
