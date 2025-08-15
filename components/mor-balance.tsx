@@ -147,7 +147,7 @@ export function MORBalance() {
     sepolia: sepoliaFormattedBalance
   });
 
-  const isTestnet = chainId === 421614; // Arbitrum Sepolia
+  const isTestnet = chainId === 421614 || chainId === 11155111; // Arbitrum Sepolia or Sepolia
   console.log('MORBalance - Is testnet:', isTestnet);
 
   if (isTestnet) {
