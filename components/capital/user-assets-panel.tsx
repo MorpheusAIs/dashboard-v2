@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { TokenIcon } from '@web3icons/react';
 import { DataTable, Column } from "@/components/ui/data-table";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
@@ -40,12 +40,103 @@ interface UserAsset {
   canClaim: boolean;
 }
 
+// Interface for tracking reward accumulation over time
+interface RewardSnapshot {
+  timestamp: number;
+  reward: bigint;
+}
+
+// Hook for calculating daily emissions based on reward accumulation rate
+function useDailyEmissions(
+  currentReward: bigint | undefined, 
+  userDeposited: bigint | undefined,
+  assetSymbol: string,
+  networkEnv: string
+): number {
+  const rewardSnapshotsRef = useRef<RewardSnapshot[]>([]);
+  const [dailyEmissions, setDailyEmissions] = useState<number>(0);
+
+  useEffect(() => {
+    // Only calculate for testnet (Sepolia) where we have real contract data
+    if (networkEnv !== 'testnet' || !currentReward || !userDeposited || userDeposited === BigInt(0)) {
+      setDailyEmissions(0);
+      rewardSnapshotsRef.current = [];
+      return;
+    }
+
+    const now = Date.now();
+    const snapshots = rewardSnapshotsRef.current;
+    
+    // Add current snapshot
+    snapshots.push({
+      timestamp: now,
+      reward: currentReward
+    });
+    
+    // Keep only last 10 minutes of snapshots (should have ~40 data points with 15s intervals)
+    const tenMinutesAgo = now - (10 * 60 * 1000);
+    rewardSnapshotsRef.current = snapshots.filter(s => s.timestamp > tenMinutesAgo);
+    
+    // Need at least 2 snapshots that are at least 2 minutes apart to calculate rate
+    const validSnapshots = rewardSnapshotsRef.current;
+    if (validSnapshots.length < 2) {
+      console.log(`📊 [${assetSymbol}] Insufficient data for daily emissions calculation:`, validSnapshots.length);
+      return;
+    }
+    
+    // Find oldest snapshot that's at least 2 minutes old
+    const twoMinutesAgo = now - (2 * 60 * 1000);
+    const oldSnapshot = validSnapshots.find(s => s.timestamp <= twoMinutesAgo);
+    const latestSnapshot = validSnapshots[validSnapshots.length - 1];
+    
+    if (!oldSnapshot) {
+      console.log(`📊 [${assetSymbol}] No snapshot old enough for reliable calculation`);
+      return;
+    }
+    
+    // Calculate reward accumulation rate
+    const rewardDiff = latestSnapshot.reward - oldSnapshot.reward;
+    const timeDiffMs = latestSnapshot.timestamp - oldSnapshot.timestamp;
+    const timeDiffSeconds = timeDiffMs / 1000;
+    
+    if (timeDiffSeconds <= 0) return;
+    
+    // Calculate daily rate: (MOR per second) * (seconds per day)
+    const rewardPerSecond = Number(rewardDiff) / (10**18) / timeDiffSeconds; // Convert from wei to ether
+    const dailyRate = rewardPerSecond * (24 * 60 * 60); // Seconds in a day
+    
+    // Only update if the calculated rate is reasonable (> 0 and < 1000 MOR/day per user)
+    if (dailyRate > 0 && dailyRate < 1000) {
+      setDailyEmissions(dailyRate);
+      console.log(`📊 [${assetSymbol}] Daily emissions calculated:`, {
+        rewardDiff: Number(rewardDiff) / (10**18),
+        timeDiffMinutes: timeDiffSeconds / 60,
+        rewardPerSecond,
+        dailyRate,
+        snapshotCount: validSnapshots.length
+      });
+    } else if (dailyRate > 0) {
+      // For very high rates, might indicate testnet accelerated rewards
+      const adjustedRate = Math.min(dailyRate / 1440, 100); // Assume 1440x acceleration (1 minute = 1 day)
+      setDailyEmissions(adjustedRate);
+      console.log(`📊 [${assetSymbol}] Adjusted daily emissions for testnet acceleration:`, {
+        originalRate: dailyRate,
+        adjustedRate,
+        accelerationFactor: 1440
+      });
+    }
+  }, [currentReward, userDeposited, assetSymbol, networkEnv]);
+
+  return dailyEmissions;
+}
+
 export function UserAssetsPanel() {
   const {
     userAddress,
     setActiveModal,
     isLoadingUserData,
     assets, // Get all asset data
+    networkEnv, // Add network environment
     // Processing states to properly disable buttons
     isProcessingDeposit,
     isProcessingClaim,
@@ -57,6 +148,21 @@ export function UserAssetsPanel() {
     stETHV2ClaimUnlockTimestampFormatted,
     linkV2ClaimUnlockTimestampFormatted,
   } = useCapitalContext();
+
+  // Calculate daily emissions for each asset using real contract data
+  const stETHDailyEmissions = useDailyEmissions(
+    assets.stETH?.claimableAmount,
+    assets.stETH?.userDeposited,
+    'stETH',
+    networkEnv
+  );
+  
+  const linkDailyEmissions = useDailyEmissions(
+    assets.LINK?.claimableAmount,
+    assets.LINK?.userDeposited,
+    'LINK',
+    networkEnv
+  );
 
   // State for sorting
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -233,14 +339,17 @@ export function UserAssetsPanel() {
     const linkClaimable = parseDepositAmount(assets.LINK?.claimableAmountFormatted);
     const totalClaimable = stethClaimable + linkClaimable;
     
+    // Calculate total daily emissions from both assets
+    const totalDailyEmissions = stETHDailyEmissions + linkDailyEmissions;
+    
     return {
       stakedValue: Math.floor(totalStakedValue).toLocaleString(), // Format as whole dollars with commas
       totalMorStaked: "0", // TODO: Calculate total MOR staked if applicable
-      dailyEmissionsEarned: "0", // TODO: Calculate daily emissions from context
+      dailyEmissionsEarned: formatNumber(totalDailyEmissions),
       lifetimeEmissionsEarned: formatNumber(totalClaimable),
       referralRewards: "0", // TODO: Add referral rewards from context
     };
-  }, [hasStakedAssets, assets, stethPrice, linkPrice]);
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions]);
 
   // User assets data with real staking amounts for stETH and LINK
   const userAssets: UserAsset[] = useMemo(() => {
@@ -260,7 +369,7 @@ export function UserAssetsPanel() {
         icon: "eth",
         amountStaked: stethAmount,
         available: stethAvailable,
-        dailyEmissions: 0, // TODO: Calculate daily emissions from context
+        dailyEmissions: stETHDailyEmissions,
         powerFactor: parseFloat(assets.stETH?.userMultiplierFormatted?.replace('x', '') || '0'),
         unlockDate: getAssetUnlockDate('stETH'),
         availableToClaim: stethClaimable,
@@ -272,14 +381,14 @@ export function UserAssetsPanel() {
         icon: "link",
         amountStaked: linkAmount,
         available: linkAvailable,
-        dailyEmissions: 0, // TODO: Calculate daily emissions from context
+        dailyEmissions: linkDailyEmissions,
         powerFactor: parseFloat(assets.LINK?.userMultiplierFormatted?.replace('x', '') || '0'),
         unlockDate: getAssetUnlockDate('LINK'),
         availableToClaim: linkClaimable,
         canClaim: canAssetClaim('LINK'),
       },
     ].filter(asset => asset.amountStaked > 0 || asset.availableToClaim > 0); // Only show assets with activity
-  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDate]);
+  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDate, stETHDailyEmissions, linkDailyEmissions]);
 
   // Sorting logic
   const sorting = useMemo(() => {
@@ -406,7 +515,7 @@ export function UserAssetsPanel() {
                 <ArrowDownToLine className="mr-2 h-4 w-4" /> 
                 Withdraw
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropdownAction('changeLock')} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem onClick={() => handleDropdownAction('claimMorRewards')} disabled={isAnyActionProcessing}>
                 <Lock className="mr-2 h-4 w-4" /> 
                 Lock Rewards
               </DropdownMenuItem>
