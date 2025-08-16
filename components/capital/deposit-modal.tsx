@@ -412,7 +412,7 @@ export function DepositModal() {
                   }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8">
+                    <div className="w-8 h-8 flex items-center justify-center">
                       <TokenIcon symbol={selectedAsset === 'stETH' ? 'eth' : 'link'} variant="background" size="26" />
                     </div>
                     <span>{selectedAsset}</span>
@@ -440,7 +440,7 @@ export function DepositModal() {
                         }}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-6 h-6">
+                          <div className="w-6 h-6 flex items-center justify-center">
                             <TokenIcon symbol={asset.symbol} variant="background" size="24" />
                           </div>
                           <span className="text-white">{asset.label}</span>
