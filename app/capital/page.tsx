@@ -137,7 +137,7 @@ function CapitalPageContent() {
 
       {/* Render Modals */}
       <DepositModal />
-      <WithdrawModal depositedAmount={userDepositFormatted !== "---" ? userDepositFormatted : "0"} />
+      <WithdrawModal />
       <ClaimModal claimableAmount={claimableAmountFormatted !== "---" ? claimableAmountFormatted : "0"} />
       <ClaimMorRewardsModal />
       <ChangeLockModal 

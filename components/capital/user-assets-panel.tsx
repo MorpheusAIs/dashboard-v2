@@ -26,10 +26,12 @@ import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { getTokenPrice } from "@/app/services/token-price.service";
 import { StakeMorRewardsModal } from "./stake-mor-rewards-modal";
 import { ClaimMorRewardsModal } from "./claim-mor-rewards-modal";
+import type { AssetSymbol } from "@/context/CapitalPageContext";
 
 interface UserAsset {
   id: string;
   symbol: string;
+  assetSymbol: AssetSymbol; // Add the actual asset symbol for context
   icon: string;
   amountStaked: number;
   available: number;
@@ -134,6 +136,7 @@ export function UserAssetsPanel() {
   const {
     userAddress,
     setActiveModal,
+    setSelectedAsset,
     isLoadingUserData,
     assets, // Get all asset data
     networkEnv, // Add network environment
@@ -277,18 +280,22 @@ export function UserAssetsPanel() {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // Helper function to handle dropdown menu actions and manage focus properly
-  const handleDropdownAction = useCallback((modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claim' | 'claimMorRewards' | 'stakeMorRewards') => {
+  const handleDropdownAction = useCallback((modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claim' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => {
     // Close dropdown first
     setOpenDropdownId(null);
     // Force focus to body to prevent ARIA conflicts
     if (document.body) {
       document.body.focus();
     }
+    // Set the selected asset if provided (for asset-specific actions like withdraw)
+    if (assetSymbol) {
+      setSelectedAsset(assetSymbol);
+    }
     // Then open modal after a short delay to allow dropdown to close properly
     setTimeout(() => {
       setActiveModal(modalType);
     }, 100);
-  }, [setActiveModal]);
+  }, [setActiveModal, setSelectedAsset]);
 
   // Handle dropdown state changes to manage focus
   const handleDropdownOpenChange = useCallback((assetId: string, open: boolean) => {
@@ -366,6 +373,7 @@ export function UserAssetsPanel() {
       {
         id: "1",
         symbol: "stETH",
+        assetSymbol: 'stETH' as AssetSymbol,
         icon: "eth",
         amountStaked: stethAmount,
         available: stethAvailable,
@@ -378,6 +386,7 @@ export function UserAssetsPanel() {
       {
         id: "2",
         symbol: "LINK",
+        assetSymbol: 'LINK' as AssetSymbol,
         icon: "link",
         amountStaked: linkAmount,
         available: linkAvailable,
@@ -507,19 +516,19 @@ export function UserAssetsPanel() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="mt-2">
-              <DropdownMenuItem onClick={() => handleDropdownAction('stakeMorRewards')} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem onClick={() => handleDropdownAction('stakeMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
                 <TrendingUp className="mr-2 h-4 w-4" /> 
                 Stake
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropdownAction('withdraw')} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem onClick={() => handleDropdownAction('withdraw', asset.assetSymbol)} disabled={isAnyActionProcessing}>
                 <ArrowDownToLine className="mr-2 h-4 w-4" /> 
                 Withdraw
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropdownAction('claimMorRewards')} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
                 <Lock className="mr-2 h-4 w-4" /> 
                 Lock Rewards
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropdownAction('claimMorRewards')} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
                 <HandCoins className="mr-2 h-4 w-4" /> 
                 Claim Rewards
               </DropdownMenuItem>
@@ -605,7 +614,7 @@ export function UserAssetsPanel() {
               <h2 className="text-2xl font-bold text-white">My Position</h2>
               <div className="flex flex-row items-center space-x-2">
                 <button
-                    className="copy-button-base"
+                    className={!userAddress || isAnyActionProcessing ? "copy-button-secondary px-4 py-2 disabled:cursor-not-allowed" : "copy-button-base"}
                     onClick={() => setActiveModal('deposit')}
                     disabled={!userAddress || isAnyActionProcessing}
                 >

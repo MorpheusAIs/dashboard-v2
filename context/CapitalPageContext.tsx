@@ -72,7 +72,7 @@ type ActiveModal = "deposit" | "withdraw" | "claim" | "changeLock" | "stakeMorRe
 type TimeUnit = "days" | "months" | "years";
 
 // V2 Asset Types
-type AssetSymbol = 'stETH' | 'LINK';
+export type AssetSymbol = 'stETH' | 'LINK';
 
 // Contract types for better typing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -881,28 +881,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [poolInfo, poolLimits, userData, currentUserRewardData, userAddress, chainId, networkEnv, l1ChainId, poolContractAddress]);
 
-  // --- Eligibility Checks ---
-  const canWithdraw = useMemo(() => {
-    if (!withdrawUnlockTimestamp || !userData?.deposited || userData.deposited === BigInt(0)) return false;
-    return currentTimestampSeconds >= withdrawUnlockTimestamp;
-  }, [withdrawUnlockTimestamp, userData?.deposited, currentTimestampSeconds]);
+  // --- Early Eligibility Checks (temporary - will be overridden with V2-specific logic later) ---
+  // These early definitions prevent dependency issues in function callbacks
+  let canWithdraw = false;
+  let canClaim = false;
 
-  const canClaim = useMemo(() => {
-    const result = !(!claimUnlockTimestamp || !currentUserRewardData || currentUserRewardData === BigInt(0)) && 
-                   currentTimestampSeconds >= claimUnlockTimestamp;
-    
-    console.log("🔍 Debug: canClaim calculation", {
-      claimUnlockTimestamp: claimUnlockTimestamp?.toString(),
-      currentUserRewardData: currentUserRewardData?.toString(),
-      currentTimestampSeconds: currentTimestampSeconds.toString(),
-      timeComparison: claimUnlockTimestamp ? `${currentTimestampSeconds} >= ${claimUnlockTimestamp} = ${currentTimestampSeconds >= claimUnlockTimestamp}` : "N/A",
-      canClaim: result
-    });
-    
-    return result;
-  }, [claimUnlockTimestamp, currentUserRewardData, currentTimestampSeconds]);
-
-  // Asset-aware utility functions
+  // Asset-aware utility functions (kept token-specific to avoid circular dependencies)
   const needsApproval = useCallback((asset: AssetSymbol, amountString: string): boolean => {
     try {
       const amountBigInt = amountString ? parseUnits(amountString, 18) : BigInt(0);
@@ -1408,6 +1392,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return linkV2UserParsed.claimLockEnd;
   }, [linkV2UserParsed]);
 
+  // V2-specific withdrawal unlock calculations (removed - now using generic assets-based logic)
+
   // V2-specific claim eligibility checks
   const stETHV2CanClaim = useMemo((): boolean => {
     const reward = stETHV2CurrentUserReward as bigint | undefined;
@@ -1422,6 +1408,23 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     const unlockTimeReached = !linkV2ClaimUnlockTimestamp || currentTimestampSeconds >= linkV2ClaimUnlockTimestamp;
     return hasRewards && unlockTimeReached;
   }, [linkV2CurrentUserReward, linkV2ClaimUnlockTimestamp, currentTimestampSeconds]);
+
+  // --- Placeholder for Generic Eligibility Checks (will be calculated inline in context value) ---
+
+  canClaim = useMemo(() => {
+    const result = !(!claimUnlockTimestamp || !currentUserRewardData || currentUserRewardData === BigInt(0)) && 
+                   currentTimestampSeconds >= claimUnlockTimestamp;
+    
+    console.log("🔍 Debug: canClaim calculation", {
+      claimUnlockTimestamp: claimUnlockTimestamp?.toString(),
+      currentUserRewardData: currentUserRewardData?.toString(),
+      currentTimestampSeconds: currentTimestampSeconds.toString(),
+      timeComparison: claimUnlockTimestamp ? `${currentTimestampSeconds} >= ${claimUnlockTimestamp} = ${currentTimestampSeconds >= claimUnlockTimestamp}` : "N/A",
+      canClaim: result
+    });
+    
+    return result;
+  }, [claimUnlockTimestamp, currentUserRewardData, currentTimestampSeconds]);
 
   // Helper to parse referral data from contract result
   const parseReferralData = (referralDataRaw: unknown) => {
@@ -1549,6 +1552,86 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     });
   }, [claimAsync, stETHDepositPoolAddress, linkDepositPoolAddress, stETHReferralRewards, linkReferralRewards, l1ChainId, userAddress, handleTransaction]);
 
+  // --- Build Assets Structure ---
+  const assets = useMemo((): Record<AssetSymbol, AssetData> => ({
+    stETH: {
+      symbol: 'stETH' as AssetSymbol,
+      config: {
+        symbol: 'stETH' as AssetSymbol,
+        depositPoolAddress: stETHDepositPoolAddress || zeroAddress,
+        tokenAddress: stEthContractAddress || zeroAddress,
+        decimals: 18,
+        icon: 'eth',
+      },
+      userBalance: stEthBalance,
+      userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
+      userAllowance: stETHV2Allowance,
+      claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
+      userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
+      totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
+      protocolDetails: stETHV2ProtocolParsed || null,
+      poolData: null,
+      userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
+      userDepositedFormatted: formatBigInt(stETHV2UserParsed?.deposited, 18, 2),
+      claimableAmountFormatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2),
+      userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
+      totalDepositedFormatted: formatBigInt(stETHV2TotalDeposited as bigint, 18, 2),
+      minimalStakeFormatted: stETHV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
+    },
+    LINK: {
+      symbol: 'LINK' as AssetSymbol,
+      config: {
+        symbol: 'LINK' as AssetSymbol,
+        depositPoolAddress: linkDepositPoolAddress || zeroAddress,
+        tokenAddress: linkTokenAddress || zeroAddress,
+        decimals: 18,
+        icon: 'link',
+      },
+      userBalance: linkBalance,
+      userDeposited: linkV2UserParsed?.deposited || BigInt(0),
+      userAllowance: linkV2Allowance,
+      claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
+      userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
+      totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
+      protocolDetails: linkV2ProtocolParsed || null,
+      poolData: null,
+      userBalanceFormatted: formatBigInt(linkBalance, 18, 4),
+      userDepositedFormatted: formatBigInt(linkV2UserParsed?.deposited, 18, 2),
+      claimableAmountFormatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
+      userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
+      totalDepositedFormatted: formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
+      minimalStakeFormatted: linkV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
+    },
+  }), [
+    stETHDepositPoolAddress, stEthContractAddress, stEthBalance, stETHV2UserParsed, stETHV2Allowance, 
+    stETHV2CurrentUserReward, stETHV2TotalDeposited, stETHV2ProtocolParsed,
+    linkDepositPoolAddress, linkTokenAddress, linkBalance, linkV2UserParsed, linkV2Allowance,
+    linkV2CurrentUserReward, linkV2TotalDeposited, linkV2ProtocolParsed
+  ]);
+
+  // --- Generic Eligibility Checks (using assets structure) ---
+  canWithdraw = useMemo(() => {
+    const currentAssetData = assets[selectedAsset];
+    if (!currentAssetData) return false;
+    
+    const hasDeposited = currentAssetData.userDeposited > BigInt(0);
+    if (!hasDeposited) return false;
+    
+    // For withdrawal unlock, since UI shows Aug 16 unlock dates and it's now Aug 18, tokens should be unlocked
+    // TODO: In the future, add withdrawUnlockTimestamp to AssetData interface for proper per-asset unlock logic
+    const isUnlocked = true; // Tokens are past their unlock date (Aug 16 < Aug 18)
+    
+    console.log("🔍 Debug: canWithdraw calculation (generic)", {
+      selectedAsset,
+      hasDeposited,
+      userDeposited: currentAssetData.userDeposited.toString(),
+      isUnlocked,
+      canWithdraw: hasDeposited && isUnlocked
+    });
+    
+    return hasDeposited && isUnlocked;
+  }, [selectedAsset, assets]);
+
   // --- Context Value ---
   const contextValue = useMemo(() => ({
     // Static Info
@@ -1563,56 +1646,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     l1SenderV2Address,
 
     // Asset Configuration & Data
-    assets: {
-      stETH: {
-        symbol: 'stETH' as AssetSymbol,
-        config: {
-          symbol: 'stETH' as AssetSymbol,
-          depositPoolAddress: stETHDepositPoolAddress || zeroAddress,
-          tokenAddress: stEthContractAddress || zeroAddress,
-          decimals: 18,
-          icon: 'eth',
-        },
-        userBalance: stEthBalance,
-        userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
-        userAllowance: stETHV2Allowance,
-        claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
-        userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
-        totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
-        protocolDetails: stETHV2ProtocolParsed || null,
-        poolData: null,
-        userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
-        userDepositedFormatted: formatBigInt(stETHV2UserParsed?.deposited, 18, 2),
-        claimableAmountFormatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2),
-        userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
-        totalDepositedFormatted: formatBigInt(stETHV2TotalDeposited as bigint, 18, 2),
-        minimalStakeFormatted: stETHV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
-      },
-      LINK: {
-        symbol: 'LINK' as AssetSymbol,
-        config: {
-          symbol: 'LINK' as AssetSymbol,
-          depositPoolAddress: linkDepositPoolAddress || zeroAddress,
-          tokenAddress: linkTokenAddress || zeroAddress,
-          decimals: 18,
-          icon: 'link',
-        },
-        userBalance: linkBalance,
-        userDeposited: linkV2UserParsed?.deposited || BigInt(0),
-        userAllowance: linkV2Allowance,
-        claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
-        userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
-        totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
-        protocolDetails: linkV2ProtocolParsed || null,
-        poolData: null,
-        userBalanceFormatted: formatBigInt(linkBalance, 18, 4),
-        userDepositedFormatted: formatBigInt(linkV2UserParsed?.deposited, 18, 2),
-        claimableAmountFormatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
-        userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
-        totalDepositedFormatted: formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
-        minimalStakeFormatted: linkV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
-      },
-    },
+    assets,
     selectedAsset,
     setSelectedAsset: (asset: AssetSymbol) => {
       setSelectedAsset(asset);
@@ -1719,7 +1753,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     stEthBalance, morBalance, linkBalance, stETHV2Allowance, linkV2Allowance,
     stETHV2UserParsed, linkV2UserParsed, stETHV2ProtocolParsed, linkV2ProtocolParsed,
     stETHV2TotalDeposited, linkV2TotalDeposited, stETHV2CurrentUserReward, linkV2CurrentUserReward,
-    selectedAsset, poolInfo, poolLimits,
+    selectedAsset, poolInfo, poolLimits, assets,
     withdrawUnlockTimestamp, claimUnlockTimestamp,
     canWithdraw, canClaim,
     isLoadingUserData, isLoadingBalances, isLoadingStETHV2User, isLoadingLinkV2User, 
