@@ -483,7 +483,7 @@ export function UserAssetsPanel() {
           </span>
         ),
       },
-            {
+      {
         id: "availableToClaim", 
         header: "Available to Claim",
         accessorKey: "availableToClaim",
@@ -525,7 +525,7 @@ export function UserAssetsPanel() {
             <DropdownMenuContent align="end" className="mt-2">
               <DropdownMenuItem onClick={() => handleDropdownAction('stakeMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
                 <TrendingUp className="mr-2 h-4 w-4" /> 
-                Stake
+                Deposit
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleDropdownAction('withdraw', asset.assetSymbol)} disabled={isAnyActionProcessing}>
                 <ArrowDownToLine className="mr-2 h-4 w-4" /> 
@@ -563,7 +563,7 @@ export function UserAssetsPanel() {
   const EmptyState = () => (
     <div className="flex flex-col panel-gradient-base items-center h-[260px] justify-center py-12 px-6 rounded-xl border border-emerald-400/[0.1] bac">
       <h3 className={userAddress ? "text-lg font-semibold text-white mb-2" : "text-lg font-semibold text-gray-400 mb-2"}>
-        {userAddress ? "Stake an asset to start earning" : "Please connect your wallet"}
+        {userAddress ? "Deposit an asset to start earning" : "Please connect your wallet"}
       </h3>
       {userAddress && (
       <button
@@ -571,7 +571,7 @@ export function UserAssetsPanel() {
         onClick={() => userAddress && setActiveModal('deposit')}
         disabled={!userAddress || isAnyActionProcessing}
         >
-          Stake
+          Deposit
         </button>
       )}
     </div>
@@ -625,7 +625,7 @@ export function UserAssetsPanel() {
                     onClick={() => setActiveModal('deposit')}
                     disabled={!userAddress || isAnyActionProcessing}
                 >
-                    Stake
+                  Deposit
                 </button>
                 {/* <button
                     className="copy-button-secondary font-medium px-4 py-2 rounded-lg"
@@ -640,21 +640,21 @@ export function UserAssetsPanel() {
             {/* Metric Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <MetricCardMinimal
-                title="Staked Value"
+                title="Deposits Value"
                 value={metricsData.stakedValue}
                 isUSD={true}
                 disableGlow={true}
                 className="col-span-1"
               />
               <MetricCardMinimal
-                title="Daily Emissions"
+                title="Current Daily Rewards"
                 value={metricsData.dailyEmissionsEarned}
                 label="MOR"
                 disableGlow={true}
                 autoFormatNumbers={true}
                 className="col-span-1"
               />
-                             <MetricCardMinimal
+               <MetricCardMinimal
                  title="Claimable Rewards"
                  value={metricsData.totalAvailableToClaim}
                  label="MOR"

@@ -40,7 +40,7 @@ export function ChartSection() {
       isGreen: true,
     },
     {
-      title: "Current Daily Reward",
+      title: "Daily Emissions (MOR)",
       value: currentDailyRewardMOR,
       label: "MOR",
       autoFormatNumbers: true,
@@ -49,7 +49,7 @@ export function ChartSection() {
       isGreen: true,
     },
     {
-      title: "Avg. APY Rate",
+      title: "Avg. APR Rate",
       value: avgApyRate,
       autoFormatNumbers: false,
       className: "",
@@ -57,7 +57,7 @@ export function ChartSection() {
       isGreen: true,
     },
     {
-      title: "Active Stakers",
+      title: "Active Depositors",
       value: activeStakers,
       autoFormatNumbers: true,
       className: "",

@@ -408,9 +408,9 @@ export function DepositModal() {
       <DialogPortal>
         <DialogContent className="sm:max-w-[425px] bg-background border-gray-800">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-emerald-400">Stake Capital</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-emerald-400">Deposit Capital</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Stake an asset to start earning MOR rewards.
+              Deposit an asset to start earning MOR rewards.
             </DialogDescription>
           </DialogHeader>
 
@@ -475,7 +475,7 @@ export function DepositModal() {
 
             {/* Stake Amount */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-white">Stake Amount</Label>
+              <Label className="text-sm font-medium text-white">Deposit Amount</Label>
               <div className="relative">
                 <Input
                   placeholder="0.0"
@@ -664,7 +664,7 @@ export function DepositModal() {
               <div className="p-1 rounded-md text-sm bg-emerald-500/10 rounded-lg p-2">
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Stake Amount</span>
+                    <span className="text-gray-400">Deposit Amount</span>
                     <span className="text-white">{amount} {selectedAsset}</span>
                   </div>
                   {unlockDate && (

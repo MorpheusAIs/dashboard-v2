@@ -34,7 +34,7 @@ export function CapitalInfoPanel() {
       const parsed = parseFloat(cleanedValue);
       return isNaN(parsed) ? 0 : Math.floor(parsed);
     } catch (error) {
-      console.error('Error parsing staked amount:', error);
+      console.error('Error parsing deposited amount:', error);
       return 0;
     }
   };
@@ -105,7 +105,7 @@ export function CapitalInfoPanel() {
               )}
             </div>
             <p className="text-gray-400 text-sm mt-1">
-              Stake one of the assets below to contribute to the Morpheus public liquidity pool. By staking you will help secure the future of decentralized personal AI and earn a share of MOR token rewards, emitted daily.
+              Deposit one of the assets below to contribute to the Morpheus public liquidity pool. By staking you will help secure the future of decentralized personal AI and earn a share of MOR token rewards, emitted daily.
             </p>
           </div>
 
@@ -116,7 +116,7 @@ export function CapitalInfoPanel() {
               <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800">
                 <div>Asset</div>
                 <div className="text-center">APY</div>
-                <div className="text-center">Total Staked</div>
+                <div className="text-center">Total Deposited</div>
                 <div className="text-center">Action</div>
               </div>
 
@@ -174,7 +174,7 @@ export function CapitalInfoPanel() {
                         }`}
                         disabled={!userAddress || asset.disabled}
                       >
-                        {asset.disabled ? 'Soon' : 'Stake'}
+                        {asset.disabled ? 'Soon' : 'Deposit'}
                       </button>
                     </div>
                   </div>
