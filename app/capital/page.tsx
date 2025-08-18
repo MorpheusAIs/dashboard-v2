@@ -27,8 +27,6 @@ import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext
 
 function CapitalPageContent() {
   const {
-    // Formatted Data for UI
-    userDepositFormatted,
     claimableAmountFormatted,
     // Raw data needed by modals
     userData,
