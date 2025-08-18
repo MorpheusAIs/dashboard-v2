@@ -427,7 +427,7 @@ export function UserAssetsPanel() {
       },
       {
         id: "available",
-        header: "Available",
+        header: "Available to Stake",
         accessorKey: "available",
         enableSorting: true,
         cell: (asset) => (
