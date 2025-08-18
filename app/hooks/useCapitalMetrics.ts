@@ -27,6 +27,11 @@ export function useCapitalMetrics(): CapitalMetrics {
   const [isLoadingPrices, setIsLoadingPrices] = useState<boolean>(true);
   const [priceError, setPriceError] = useState<string | null>(null);
 
+  // State for active stakers from Dune API (testnet only)
+  const [activeStakersCount, setActiveStakersCount] = useState<number | null>(null);
+  const [isLoadingActiveStakers, setIsLoadingActiveStakers] = useState<boolean>(false);
+  const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
+
   // Fetch token prices from CoinGecko
   useEffect(() => {
     async function fetchTokenPrices() {
@@ -57,6 +62,56 @@ export function useCapitalMetrics(): CapitalMetrics {
     fetchTokenPrices();
   }, []);
 
+  // Fetch active stakers count from Dune API (testnet only)
+  useEffect(() => {
+    // Skip if running on server (SSR)
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    async function fetchActiveStakers() {
+      // Only fetch for testnet networks (sepolia, arbitrum sepolia)
+      if (poolData.networkEnvironment !== 'testnet') {
+        return;
+      }
+
+      setIsLoadingActiveStakers(true);
+      setActiveStakersError(null);
+      
+      try {
+        console.log('🌐 [FRONTEND] Calling active stakers API...');
+        const response = await fetch('/api/dune/active-stakers-testnet');
+        console.log('📡 [FRONTEND] API response status:', response.status, response.statusText);
+        
+        const data = await response.json();
+        console.log('📦 [FRONTEND] API response data:', JSON.stringify(data, null, 2));
+        
+        if (data.success) {
+          setActiveStakersCount(data.active_stakers);
+          console.log('✅ [FRONTEND] Active stakers count set:', data.active_stakers);
+        } else {
+          console.log('❌ [FRONTEND] API returned failure:', data.error);
+          throw new Error(data.error || 'Failed to fetch active stakers');
+        }
+      } catch (error) {
+        console.error('💥 [FRONTEND] Error details:');
+        console.error('  - Error type:', typeof error);
+        console.error('  - Error message:', error instanceof Error ? error.message : String(error));
+        console.error('  - Network environment:', poolData.networkEnvironment);
+        
+        setActiveStakersError('Failed to fetch active stakers data');
+        setActiveStakersCount(null);
+      } finally {
+        setIsLoadingActiveStakers(false);
+      }
+    }
+
+    // Add a small delay to ensure everything is properly initialized
+    const timeoutId = setTimeout(fetchActiveStakers, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [poolData.networkEnvironment]);
+
   // Helper function to safely parse pool amounts
   const parsePoolAmount = (amountStr: string): number => {
     try {
@@ -74,7 +129,9 @@ export function useCapitalMetrics(): CapitalMetrics {
 
   // Calculate metrics from live pool data
   const metrics = useMemo(() => {
+    // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
     const isLoading = poolData.stETH.isLoading || poolData.LINK.isLoading || isLoadingPrices;
+    // Core metrics errors (DON'T include active stakers errors - they're non-critical)
     const hasError = poolData.stETH.error || poolData.LINK.error || priceError;
 
     if (hasError) {
@@ -119,10 +176,23 @@ export function useCapitalMetrics(): CapitalMetrics {
       avgApy = (stethApyNum * stethWeight) + (linkApyNum * linkWeight);
     }
 
-    // Active stakers count is not available from contracts or GraphQL
-    // The deposit pool contracts don't expose a function to get unique depositor counts
-    // and our GraphQL queries only track total amounts, not individual addresses
-    const activeStakers = "N/A";
+    // Active stakers count - fetch from Dune API for testnet, N/A for mainnet
+    let activeStakers = "N/A";
+    
+    if (poolData.networkEnvironment === 'testnet') {
+      // For testnet (Sepolia, Arbitrum Sepolia), use Dune API data
+      if (activeStakersCount !== null && activeStakersCount >= 0) {
+        activeStakers = activeStakersCount.toString();
+      } else if (isLoadingActiveStakers) {
+        activeStakers = "..."; // Loading indicator
+      } else if (activeStakersError) {
+        activeStakers = "Error"; // Error state
+      }
+    } else {
+      // For mainnet, contracts don't expose unique depositor counts
+      // Would need to implement separate mainnet Dune query for production
+      activeStakers = "N/A";
+    }
 
     // Daily rewards - also not available from current contract/GraphQL setup
     // Would need to be calculated from reward pool emission rates and distribution logic
@@ -137,7 +207,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       isLoading,
       error: null
     };
-  }, [poolData, stethPrice, linkPrice, isLoadingPrices, priceError]);
+  }, [poolData, stethPrice, linkPrice, isLoadingPrices, priceError, activeStakersCount]);
 
   return metrics;
 }
