@@ -312,51 +312,7 @@ export function UserAssetsPanel() {
     }
   }, []);
 
-  // Calculate metrics from real asset data
-  const metricsData = useMemo(() => {
-    if (!hasStakedAssets) {
-      return {
-        stakedValue: "0",
-        totalMorStaked: "0",
-        dailyEmissionsEarned: "0",
-        lifetimeEmissionsEarned: "0",
-        referralRewards: "0",
-      };
-    }
-
-    const stethStaked = parseDepositAmount(assets.stETH?.userDepositedFormatted);
-    const linkStaked = parseDepositAmount(assets.LINK?.userDepositedFormatted);
-    
-    // Calculate USD value using CoinGecko prices
-    const stethUSDValue = stethPrice ? stethStaked * stethPrice : 0;
-    const linkUSDValue = linkPrice ? linkStaked * linkPrice : 0;
-    const totalStakedValue = stethUSDValue + linkUSDValue;
-    
-    console.log('💰 USD Value Calculation:', {
-      stethStaked,
-      linkStaked,
-      stethPrice,
-      linkPrice,
-      stethUSDValue,
-      linkUSDValue,
-      totalStakedValue
-    });
-    
-    const stethClaimable = parseDepositAmount(assets.stETH?.claimableAmountFormatted);
-    const linkClaimable = parseDepositAmount(assets.LINK?.claimableAmountFormatted);
-    const totalClaimable = stethClaimable + linkClaimable;
-    
-    // Calculate total daily emissions from both assets
-    const totalDailyEmissions = stETHDailyEmissions + linkDailyEmissions;
-    
-    return {
-      stakedValue: Math.floor(totalStakedValue).toLocaleString(), // Format as whole dollars with commas
-      totalMorStaked: "0", // TODO: Calculate total MOR staked if applicable
-      dailyEmissionsEarned: formatNumber(totalDailyEmissions),
-      lifetimeEmissionsEarned: formatNumber(totalClaimable),
-      referralRewards: "0", // TODO: Add referral rewards from context
-    };
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions]);
+  // User assets data will be calculated first, then metrics will use it
 
   // User assets data with real staking amounts for stETH and LINK
   const userAssets: UserAsset[] = useMemo(() => {
@@ -398,6 +354,57 @@ export function UserAssetsPanel() {
       },
     ].filter(asset => asset.amountStaked > 0 || asset.availableToClaim > 0); // Only show assets with activity
   }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDate, stETHDailyEmissions, linkDailyEmissions]);
+
+  // Calculate metrics from real asset data - now using userAssets for accurate table totals
+  const metricsData = useMemo(() => {
+    if (!hasStakedAssets) {
+      return {
+        stakedValue: "0",
+        totalMorStaked: "0",
+        dailyEmissionsEarned: "0",
+        lifetimeEmissionsEarned: "N/A",
+        totalAvailableToClaim: "0",
+        referralRewards: "0",
+      };
+    }
+
+    const stethStaked = parseDepositAmount(assets.stETH?.userDepositedFormatted);
+    const linkStaked = parseDepositAmount(assets.LINK?.userDepositedFormatted);
+    
+    // Calculate USD value using CoinGecko prices
+    const stethUSDValue = stethPrice ? stethStaked * stethPrice : 0;
+    const linkUSDValue = linkPrice ? linkStaked * linkPrice : 0;
+    const totalStakedValue = stethUSDValue + linkUSDValue;
+    
+    console.log('💰 USD Value Calculation:', {
+      stethStaked,
+      linkStaked,
+      stethPrice,
+      linkPrice,
+      stethUSDValue,
+      linkUSDValue,
+      totalStakedValue
+    });
+    
+    // Calculate total daily emissions from both assets
+    const totalDailyEmissions = stETHDailyEmissions + linkDailyEmissions;
+    
+    // Calculate total available to claim from table rows (sum of each row's "Available to Claim")
+    const totalTableAvailableToClaim = userAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
+    
+    // TODO: Calculate true lifetime earnings (claimed + unclaimed) when historical data is available
+    // For now, we don't have access to previously claimed rewards data
+    const lifetimeEarnings = "N/A"; // Needs: historical claimed rewards + current claimable
+    
+    return {
+      stakedValue: Math.floor(totalStakedValue).toLocaleString(), // Format as whole dollars with commas
+      totalMorStaked: "0", // TODO: Calculate total MOR staked if applicable
+      dailyEmissionsEarned: formatNumber(totalDailyEmissions),
+      lifetimeEmissionsEarned: lifetimeEarnings, // N/A until we have historical claimed data
+      totalAvailableToClaim: formatNumber(totalTableAvailableToClaim), // Sum from actual table rows
+      referralRewards: "0", // TODO: Add referral rewards from context
+    };
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, userAssets]);
 
   // Sorting logic
   const sorting = useMemo(() => {
@@ -647,6 +654,14 @@ export function UserAssetsPanel() {
                 autoFormatNumbers={true}
                 className="col-span-1"
               />
+                             <MetricCardMinimal
+                 title="Claimable Rewards"
+                 value={metricsData.totalAvailableToClaim}
+                 label="MOR"
+                 disableGlow={true}
+                 autoFormatNumbers={true}
+                 className="col-span-1"
+               />
               <MetricCardMinimal
                 title="Lifetime Earned"
                 value={metricsData.lifetimeEmissionsEarned}
@@ -655,14 +670,14 @@ export function UserAssetsPanel() {
                 autoFormatNumbers={true}
                 className="col-span-1"
               />
-              <MetricCardMinimal
+              {/* <MetricCardMinimal
                 title="MOR Staked"
                 value={metricsData.totalMorStaked}
                 label="MOR"
                 disableGlow={true}
                 autoFormatNumbers={true}
                 className="col-span-1"
-              />
+              /> */}
             </div>
 
             {/* Assets table or empty state */}
