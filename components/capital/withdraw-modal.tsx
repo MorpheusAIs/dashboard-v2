@@ -77,7 +77,25 @@ export function WithdrawModal({
       await withdraw(selectedAsset, amount);
     } catch (error) {
       console.error("Withdraw Action Error:", error);
-      setFormError((error as Error)?.message || "An unexpected error occurred.");
+      
+      // Handle user rejection specifically
+      const errorMessage = (error as Error)?.message || "";
+      if (errorMessage.includes("User rejected") || 
+          errorMessage.includes("User denied") || 
+          errorMessage.includes("rejected the request") ||
+          errorMessage.includes("denied transaction signature")) {
+        setFormError("Transaction was cancelled.");
+        return;
+      }
+      
+      // Handle other errors with a more user-friendly message
+      if (errorMessage.includes("insufficient funds")) {
+        setFormError("Insufficient funds for this transaction.");
+      } else if (errorMessage.includes("gas")) {
+        setFormError("Transaction failed due to gas issues. Please try again.");
+      } else {
+        setFormError("Transaction failed. Please try again.");
+      }
     }
   };
 
