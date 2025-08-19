@@ -101,7 +101,7 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                         style={{ touchAction: 'pan-y' }} 
                     >
                          <div className="absolute top-2 left-0 right-0 z-10 px-1 sm:px-0 flex justify-between items-center">
-                            <h3 className="text-lg font-semibold text-white ml-4">Total stETH Deposits</h3>
+                            <h3 className="text-md sm:text-lg font-semibold text-white ml-4">Total stETH Deposits</h3>
                             <div className="flex items-center space-x-2 mr-2 sm:mr-4"> 
                                 <ToggleGroup 
                                     type="single"

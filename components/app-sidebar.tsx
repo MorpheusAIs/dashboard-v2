@@ -60,7 +60,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
   return (
     <Sidebar 
       collapsible="icon" 
-      className={cn("sidebar-base", className)} 
+      className={cn("sidebar-base bg-background", className)} 
       {...props}
     >
       <SidebarHeader className="sidebar-header group-data-[state=collapsed]:pl-0.5 group-data-[state=expanded]:pl-2">
@@ -77,7 +77,7 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
           />
         </div>
       </SidebarHeader>
-      <SidebarContent className="flex flex-col h-full">
+      <SidebarContent className="flex flex-col h-full bg-background opacity-100">
         <nav className="sidebar-nav">
           {navigation.map((item) => {
             const isActive = pathname === item.url
