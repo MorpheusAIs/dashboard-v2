@@ -15,12 +15,12 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { usePathname } from "next/navigation"
+// import { usePathname } from "next/navigation"
 import { useChainId } from 'wagmi'
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
 import { CowSwapModal } from "./cowswap-modal"
-import { builders } from "@/app/builders/builders-data"
+// import { builders } from "@/app/builders/builders-data"
 
 // function getPageInfo(pathname: string) {
 //   const segments = pathname.split('/')
@@ -50,7 +50,7 @@ export function RootLayoutContent({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname()
+  // const pathname = usePathname()
   const chainId = useChainId()
   const isTestnet = chainId === 421614 || chainId === 8453 || chainId === 11155111 // Arbitrum Sepolia or Base Sepolia or Sepolia
   // const pageInfo = getPageInfo(pathname)
