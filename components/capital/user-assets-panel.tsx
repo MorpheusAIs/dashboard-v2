@@ -663,7 +663,7 @@ export function UserAssetsPanel() {
                  className="col-span-1"
                />
               <MetricCardMinimal
-                title="Lifetime Earned"
+                title="Total MOR Earned"
                 value={metricsData.lifetimeEmissionsEarned}
                 label="MOR"
                 disableGlow={true}

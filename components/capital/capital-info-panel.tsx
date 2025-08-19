@@ -105,7 +105,7 @@ export function CapitalInfoPanel() {
               )}
             </div>
             <p className="text-gray-400 text-sm mt-1">
-              Deposit one of the assets below to contribute to the Morpheus public liquidity pool. By staking you will help secure the future of decentralized personal AI and earn a share of MOR token rewards, emitted daily.
+            Deposit one of the assets below to generate yield for the Morpheus protocol and earn daily MOR rewards in return
             </p>
           </div>
 
