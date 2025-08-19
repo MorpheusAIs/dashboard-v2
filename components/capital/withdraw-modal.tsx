@@ -217,13 +217,13 @@ export function WithdrawModal({
                 type="submit"
                 className={
                   isProcessingWithdraw || !!validationError || amountBigInt <= BigInt(0) || !userAddress
-                    ? "copy-button-secondary px-2 text-sm opacity-50 cursor-not-allowed mb-2 sm:mb-0" 
+                    ? "copy-button-secondary px-2 py-2 text-sm opacity-50 cursor-not-allowed mb-2 sm:mb-0" 
                     : "copy-button-base mb-2 sm:mb-0"
                 }
                 disabled={isProcessingWithdraw || !!validationError || amountBigInt <= BigInt(0) || !userAddress}
               >
                 {isProcessingWithdraw ? (
-                  <div className="flex flex-row align-middle items-center gap-2">
+                  <div className="flex flex-row items-center justify-center gap-2">
                     <svg className="text-emerald-400 animate-spin" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"
                       width="16" height="16">
                       <path
