@@ -14,8 +14,8 @@ import ERC20Abi from '@/app/abi/ERC20.json';
 import BuildersAbi from '@/app/abi/Builders.json';
 
 // Import constants
-import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/constants';
-import { FormData } from '@/components/subnet-form/schemas';
+import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/utils/constants';
+import { FormData } from '@/components/subnet-form/types/schemas';
 import { BuildersService } from '@/app/services/builders.service'; // Import BuildersService
 import { BuilderDB } from '@/app/lib/supabase'; // Import BuilderDB type
 import { useNewlyCreatedSubnets } from '@/app/hooks/useNewlyCreatedSubnets'; // Import the new hook

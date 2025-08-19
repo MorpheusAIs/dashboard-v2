@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Wallet } from "lucide-react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { cn } from "@/lib/utils";
-import { ArbitrumSepoliaIcon } from './constants';
+import { ArbitrumSepoliaIcon } from './icons/arbitrum-sepolia-icon';
 import { zeroAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useFormContext, useWatch } from "react-hook-form";
 import MultipleSelector from "@/components/ui/multiple-selector";
-import { REWARD_OPTIONS } from './schemas';
+import { REWARD_OPTIONS } from './types/schemas';
 import { cn } from "@/lib/utils";
 import { arbitrumSepolia } from 'wagmi/chains'; // Import arbitrumSepolia
 

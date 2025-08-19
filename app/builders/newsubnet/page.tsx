@@ -13,7 +13,7 @@ import { Form } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 
 // Import the form schemas
-import { formSchema, FormData, FORM_STEPS } from "@/components/subnet-form/schemas";
+import { formSchema, FormData, FORM_STEPS } from "@/components/subnet-form/types/schemas";
 
 // Import the form step components
 import Step1PoolConfig from "@/components/subnet-form/Step1PoolConfig";
