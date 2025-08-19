@@ -478,7 +478,7 @@ export function UserAssetsPanel() {
         id: "unlockDate",
         header: "Unlock Date",
         cell: (asset) => (
-          <span className="text-gray-300">
+          <span className="text-gray-300 whitespace-nowrap">
             {asset.unlockDate || "N/A"}
           </span>
         ),

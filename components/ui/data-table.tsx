@@ -55,7 +55,7 @@ export function DataTable<T>({
               <TableHead
                 key={column.id}
                 className={cn(
-                  "table-header-cell",
+                  "table-header-cell sm:py-4 py-2 sm:px-4 px-2",
                   column.enableSorting && "table-header-cell-sortable group",
                 )}
                 onClick={() => {
@@ -101,9 +101,9 @@ export function DataTable<T>({
             Array(loadingRows)
               .fill(0)
               .map((_, index) => (
-                <TableRow key={`skeleton-${index}`} className="table-row">
+                <TableRow key={`skeleton-${index}`} className="table-row sm:h-auto h-12">
                   {columns.map((column, colIndex) => (
-                    <TableCell key={`skeleton-cell-${colIndex}`}>
+                    <TableCell key={`skeleton-cell-${colIndex}`} className="sm:py-4 py-2 sm:px-4 px-2">
                       {colIndex === 0 ? (
                         <div className="flex items-center gap-3">
                           <Skeleton className="size-8 rounded-lg" />
@@ -121,14 +121,14 @@ export function DataTable<T>({
               <TableRow 
                 key={`row-${itemIndex}`} 
                 className={cn(
-                  "table-row",
+                  "table-row sm:h-auto h-12",
                   onRowClick && "cursor-pointer hover:bg-white/[0.05]"
                 )}
                 onClick={() => onRowClick && onRowClick(item)}
                 style={onRowClick ? { cursor: 'pointer' } : undefined}
               >
                 {columns.map((column) => (
-                  <TableCell key={`cell-${column.id}-${itemIndex}`}>
+                  <TableCell key={`cell-${column.id}-${itemIndex}`} className="sm:py-4 py-2 sm:px-4 px-2">
                     {column.cell
                       ? column.cell(item)
                       : column.accessorKey
