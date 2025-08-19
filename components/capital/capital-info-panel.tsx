@@ -6,14 +6,8 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { TokenIcon } from '@web3icons/react';
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface Asset {
-  symbol: string;
-  apy: string;
-  totalStaked: string;
-  icon: string;
-  disabled?: boolean;
-}
+import type { Asset } from "./types/asset";
+import { parseStakedAmount } from "./utils/parse-staked-amount";
 
 export function CapitalInfoPanel() {
   const {
@@ -24,20 +18,7 @@ export function CapitalInfoPanel() {
   // Get live contract data
   const poolData = useCapitalPoolData();
 
-  // Helper function to safely parse totalStaked for NumberFlow
-  const parseStakedAmount = (totalStaked: string): number => {
-    try {
-      if (!totalStaked || typeof totalStaked !== 'string') {
-        return 0;
-      }
-      const cleanedValue = totalStaked.replace(/,/g, '');
-      const parsed = parseFloat(cleanedValue);
-      return isNaN(parsed) ? 0 : Math.floor(parsed);
-    } catch (error) {
-      console.error('Error parsing deposited amount:', error);
-      return 0;
-    }
-  };
+
 
   // Dynamic assets data based on network environment
   const assets: Asset[] = [
