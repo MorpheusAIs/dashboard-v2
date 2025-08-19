@@ -1,14 +1,14 @@
 "use client"
 
 import { AppSidebar } from "@/components/app-sidebar"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
+// import {
+//   Breadcrumb,
+//   BreadcrumbItem,
+//   BreadcrumbLink,
+//   BreadcrumbList,
+//   BreadcrumbPage,
+//   BreadcrumbSeparator,
+// } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -22,28 +22,28 @@ import { TestnetIndicator } from "./testnet-indicator"
 import { CowSwapModal } from "./cowswap-modal"
 import { builders } from "@/app/builders/builders-data"
 
-function getPageInfo(pathname: string) {
-  const segments = pathname.split('/')
-  const section = segments[1]
+// function getPageInfo(pathname: string) {
+//   const segments = pathname.split('/')
+//   const section = segments[1]
   
-  if (!section) return { title: 'Dashboard' }
+//   if (!section) return { title: 'Dashboard' }
   
-  // If we're on a builder detail page
-  if (section === 'builders' && segments.length > 2) {
-    const builderSlug = segments[2]
-    const builder = builders.find(b => 
-      b.name.toLowerCase().replace(/\s+/g, '-') === builderSlug
-    )
-    return {
-      title: 'Builders',
-      subPage: builder?.name
-    }
-  }
+//   // If we're on a builder detail page
+//   if (section === 'builders' && segments.length > 2) {
+//     const builderSlug = segments[2]
+//     const builder = builders.find(b => 
+//       b.name.toLowerCase().replace(/\s+/g, '-') === builderSlug
+//     )
+//     return {
+//       title: 'Builders',
+//       subPage: builder?.name
+//     }
+//   }
   
-  return {
-    title: section.charAt(0).toUpperCase() + section.slice(1)
-  }
-}
+//   return {
+//     title: section.charAt(0).toUpperCase() + section.slice(1)
+//   }
+// }
 
 export function RootLayoutContent({
   children,
@@ -53,7 +53,7 @@ export function RootLayoutContent({
   const pathname = usePathname()
   const chainId = useChainId()
   const isTestnet = chainId === 421614 || chainId === 8453 || chainId === 11155111 // Arbitrum Sepolia or Base Sepolia or Sepolia
-  const pageInfo = getPageInfo(pathname)
+  // const pageInfo = getPageInfo(pathname)
 
   return (
     <SidebarProvider className="overflow-hidden w-screen h-screen">
