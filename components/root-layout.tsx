@@ -56,12 +56,12 @@ export function RootLayoutContent({
   const pageInfo = getPageInfo(pathname)
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="overflow-hidden w-screen h-screen">
       <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-20 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+      <SidebarInset className="min-w-0 h-full flex flex-col">
+        <header className="flex h-20 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 overflow-x-hidden min-w-0">
           {/* Left section */}
-          <div className="flex items-center gap-2 px-4 flex-1">
+          <div className="flex items-center gap-2 px-4 flex-1 min-w-0">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
@@ -90,18 +90,18 @@ export function RootLayoutContent({
           </div>
 
           {/* Center section */}
-          <div className="flex-1 flex justify-center gap-4">
+          <div className="flex-1 flex justify-center gap-4 min-w-0">
             {isTestnet ? <TestnetIndicator /> : <CowSwapModal />}
           </div>
 
           {/* Right section */}
-          <div className="flex items-center gap-2 px-4 flex-1 justify-end">
+          <div className="flex items-center gap-2 px-4 flex-1 justify-end min-w-0">
             <MORBalance />
             <w3m-button size="sm"/>
           </div>
         </header>
         {/* Page specific content */}
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="flex flex-1 flex-col gap-4 p-1 sm:p-4 pt-0 overflow-auto min-w-0 min-h-0">
           {children}
         </div>
       </SidebarInset>

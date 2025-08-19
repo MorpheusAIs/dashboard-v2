@@ -59,20 +59,20 @@ export function MetricCardMinimal({
 
   return (
     <>
-      <Card className={`card-minimal group relative p-4 ${className}`}>
+      <Card className={`card-minimal group relative p-4 h-full flex flex-col ${className}`}>
         <CardContent className="absolute inset-0 pointer-events-none" />
-        <CardHeader className="relative flex flex-col items-start p-0 mb-0">
-          <CardDescription className="text-sm text-gray-400">
+        <CardHeader className="relative flex flex-col items-start p-0 mb-0 gap-2">
+          <CardDescription className="text-sm text-gray-400 leading-tight">
             {title}
           </CardDescription>
-          <CardTitle className={`text-lg font-semibold tabular-nums @[200px]/card:text-xl ${isGreen ? "text-emerald-400" : "text-gray-200"}`}>
+          <CardTitle className={`font-semibold tabular-nums leading-none text-base sm:text-lg ${isGreen ? "text-emerald-400" : "text-gray-200"}`}>
             {isUSD && <span>$</span>}
             {isNumericString(value) ? (
               <NumberFlow value={getNumericValue(formatValue(value))} />
             ) : (
               formatValue(value)
             )}
-            {label && <span className="text-xs font-semibold ml-1">{label}</span>}
+            {label && <span className="text-sm sm:text-md font-semibold"> {label}</span>}
           </CardTitle>
         </CardHeader>
       </Card>

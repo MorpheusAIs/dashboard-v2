@@ -40,7 +40,7 @@ export function ChartSection() {
       isGreen: true,
     },
     {
-      title: "Daily Emissions (MOR)",
+      title: "Daily Emissions",
       value: currentDailyRewardMOR,
       label: "MOR",
       autoFormatNumbers: true,
@@ -68,17 +68,17 @@ export function ChartSection() {
 
   return (
     <>
-        {/* 4x4 Grid Layout */}
-        <div className="grid grid-cols-4 gap-x-4 gap-y-2 h-full" style={{ gridTemplateRows: '120px 1fr' }}>
-          {/* Row 1: 4 Metric Cards */}
+        {/* Mobile: 2x2 metric grid + chart below, Desktop: 1x4 metric row + chart below */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 sm:gap-x-4 gap-y-2 h-full grid-rows-[90px_90px_1fr] sm:grid-rows-[100px_1fr]">
+          {/* 4 Metric Cards */}
           {metricCards.map((card, index) => (
-            <div key={index} className="col-span-1">
+            <div key={index} className="col-span-1 h-full">
               <MetricCardMinimal {...card} />
             </div>
           ))}
 
-          {/* Row 2: Deposit Chart (4 columns, remaining height) */}
-          <div className="col-span-4 relative h-full overflow-hidden">
+          {/* Deposit Chart (spans all columns, remaining height) */}
+          <div className="col-span-2 sm:col-span-4 relative h-full overflow-hidden">
             <GlowingEffect 
                 spread={40}
                 glow={true}
