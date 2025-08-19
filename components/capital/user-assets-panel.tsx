@@ -613,7 +613,7 @@ export function UserAssetsPanel() {
           borderWidth={2}
           borderRadius="rounded-xl"
         />
-        <div className="section-content group relative">
+        <div className="section-content group relative px-1 py-4 sm:p-6">
           <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent" />
           <div className="p-4 md:p-6">
             {/* Header with title and stake button */}
@@ -638,7 +638,7 @@ export function UserAssetsPanel() {
             </div>
 
             {/* Metric Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 sm:gap-x-4 gap-y-2 mb-6">
               <MetricCardMinimal
                 title="Deposits Value"
                 value={metricsData.stakedValue}

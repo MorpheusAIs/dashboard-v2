@@ -59,45 +59,59 @@ export function RootLayoutContent({
     <SidebarProvider className="overflow-hidden w-screen h-screen">
       <AppSidebar />
       <SidebarInset className="min-w-0 h-full flex flex-col">
-        <header className="flex h-20 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 overflow-x-hidden min-w-0">
-          {/* Left section */}
-          <div className="flex items-center gap-2 px-4 flex-1 min-w-0">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/">
-                    Dashboard
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href={`/${pageInfo.title.toLowerCase()}`}>
-                    {pageInfo.title}
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                {pageInfo.subPage && (
-                  <>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage>{pageInfo.subPage}</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </>
-                )}
-              </BreadcrumbList>
-            </Breadcrumb>
+        <header className="flex flex-col md:flex-row h-auto md:h-20 shrink-0 gap-2 pt-2 sm:pt-0 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:md:h-12 overflow-x-hidden min-w-0">
+          {/* Main row */}
+          <div className="flex items-center gap-2 h-20 md:h-auto flex-1">
+            {/* Left section */}
+            <div className="flex items-center gap-2 px-4 flex-1 min-w-0">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              {/* Mobile: Show CowSwapModal/TestnetIndicator on the left */}
+              <div className="sm:hidden">
+                {isTestnet ? <TestnetIndicator /> : <CowSwapModal />}
+              </div>
+              {/* <Breadcrumb className="hidden md:block">
+                <BreadcrumbList>
+                  <BreadcrumbItem className="hidden md:block">
+                    <BreadcrumbLink href="/">
+                      Dashboard
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="hidden md:block" />
+                  <BreadcrumbItem>
+                    <BreadcrumbLink href={`/${pageInfo.title.toLowerCase()}`}>
+                      {pageInfo.title}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  {pageInfo.subPage && (
+                    <>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        <BreadcrumbPage>{pageInfo.subPage}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </>
+                  )}
+                </BreadcrumbList>
+              </Breadcrumb> */}
+            </div>
+
+            {/* Center section */}
+            <div className="flex-1 justify-center gap-4 min-w-0 hidden md:flex">
+              {isTestnet ? <TestnetIndicator /> : <CowSwapModal />}
+            </div>
+
+            {/* Right section */}
+            <div className="flex items-center gap-2 px-4 flex-1 justify-end min-w-0">
+              <div className="hidden md:block">
+                <MORBalance />
+              </div>
+              <w3m-button size="sm"/>
+            </div>
           </div>
 
-          {/* Center section */}
-          <div className="flex-1 flex justify-center gap-4 min-w-0">
-            {isTestnet ? <TestnetIndicator /> : <CowSwapModal />}
-          </div>
-
-          {/* Right section */}
-          <div className="flex items-center gap-2 px-4 flex-1 justify-end min-w-0">
+          {/* Mobile second row for MORBalance */}
+          <div className="flex md:hidden justify-center pb-2">
             <MORBalance />
-            <w3m-button size="sm"/>
           </div>
         </header>
         {/* Page specific content */}

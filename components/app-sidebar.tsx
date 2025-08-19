@@ -108,15 +108,16 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
           {navigation.map((item) => {
             const isActive = pathname === item.url
             return (
-              <div
+              <Link
                 key={item.title}
+                href={item.url}
                 className={cn(
                   "sidebar-nav-link-base",
                   "sidebar-nav-link-hover",
                   isActive && "sidebar-nav-link-active"
                 )}
               >
-                <Link href={item.url} className="flex items-center w-full">
+                <div className="flex items-center w-full pointer-events-none">
                   <item.icon className="sidebar-nav-icon" />
                   <span className={cn(
                     "sidebar-nav-text-base",
@@ -125,8 +126,8 @@ export function AppSidebar({ className, ...props }: React.ComponentProps<typeof 
                   )}>
                     {item.title}
                   </span>
-                </Link>
-              </div>
+                </div>
+              </Link>
             )
           })}
         </nav>

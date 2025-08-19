@@ -86,7 +86,7 @@ export function CapitalInfoPanel() {
         borderWidth={2}
         borderRadius="rounded-xl"
       /> 
-      <div className="section-content group relative h-full px-2 py-6 sm:p-6">
+      <div className="section-content group relative h-full px-1 py-4 sm:p-6">
         <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent px-2" />
         <div className="p-2 md:p-3 flex flex-col h-full">
           {/* Title & Subtitle */} 
@@ -115,7 +115,7 @@ export function CapitalInfoPanel() {
               {/* Header */}
               <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800">
                 <div>Asset</div>
-                <div className="text-center">APY</div>
+                <div className="text-center">APR</div>
                 <div className="text-center">Total Deposited</div>
                 <div className="text-center">Action</div>
               </div>
