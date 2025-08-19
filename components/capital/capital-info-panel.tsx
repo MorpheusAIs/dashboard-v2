@@ -86,7 +86,7 @@ export function CapitalInfoPanel() {
         borderWidth={2}
         borderRadius="rounded-xl"
       /> 
-      <div className="section-content group relative h-full">
+      <div className="section-content group relative h-full px-2 py-6 sm:p-6">
         <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent px-2" />
         <div className="p-2 md:p-3 flex flex-col h-full">
           {/* Title & Subtitle */} 
