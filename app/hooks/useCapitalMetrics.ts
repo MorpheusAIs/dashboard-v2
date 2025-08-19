@@ -127,8 +127,24 @@ export function useCapitalMetrics(): CapitalMetrics {
     }
   };
 
-  // Calculate metrics from live pool data
-  const metrics = useMemo(() => {
+  // Calculate active stakers display value separately to avoid dependency issues
+  const activeStakersDisplay = useMemo(() => {
+    if (poolData.networkEnvironment === 'testnet') {
+      // For testnet (Sepolia, Arbitrum Sepolia), use Dune API data
+      if (activeStakersCount !== null && activeStakersCount >= 0) {
+        return activeStakersCount.toString();
+      } else if (isLoadingActiveStakers) {
+        return "..."; // Loading indicator
+      } else if (activeStakersError) {
+        return "Error"; // Error state
+      }
+    }
+    // For mainnet, contracts don't expose unique depositor counts
+    return "N/A";
+  }, [poolData.networkEnvironment, activeStakersCount, isLoadingActiveStakers, activeStakersError]);
+
+  // Calculate core metrics from live pool data (excluding active stakers to avoid blocking)
+  const coreMetrics = useMemo(() => {
     // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
     const isLoading = poolData.stETH.isLoading || poolData.LINK.isLoading || isLoadingPrices;
     // Core metrics errors (DON'T include active stakers errors - they're non-critical)
@@ -139,7 +155,6 @@ export function useCapitalMetrics(): CapitalMetrics {
         totalValueLockedUSD: "0",
         currentDailyRewardMOR: "0",
         avgApyRate: "0%",
-        activeStakers: "N/A",
         isLoading: false,
         error: hasError.toString()
       };
@@ -176,24 +191,6 @@ export function useCapitalMetrics(): CapitalMetrics {
       avgApy = (stethApyNum * stethWeight) + (linkApyNum * linkWeight);
     }
 
-    // Active stakers count - fetch from Dune API for testnet, N/A for mainnet
-    let activeStakers = "N/A";
-    
-    if (poolData.networkEnvironment === 'testnet') {
-      // For testnet (Sepolia, Arbitrum Sepolia), use Dune API data
-      if (activeStakersCount !== null && activeStakersCount >= 0) {
-        activeStakers = activeStakersCount.toString();
-      } else if (isLoadingActiveStakers) {
-        activeStakers = "..."; // Loading indicator
-      } else if (activeStakersError) {
-        activeStakers = "Error"; // Error state
-      }
-    } else {
-      // For mainnet, contracts don't expose unique depositor counts
-      // Would need to implement separate mainnet Dune query for production
-      activeStakers = "N/A";
-    }
-
     // Daily rewards - also not available from current contract/GraphQL setup
     // Would need to be calculated from reward pool emission rates and distribution logic
     // Using placeholder values for now - could be "N/A" if we want to be consistent
@@ -203,11 +200,16 @@ export function useCapitalMetrics(): CapitalMetrics {
       totalValueLockedUSD: totalValueLockedUSD.toLocaleString(),
       currentDailyRewardMOR,
       avgApyRate: `${avgApy.toFixed(2)}%`,
-      activeStakers: activeStakers,
       isLoading,
       error: null
     };
-  }, [poolData, stethPrice, linkPrice, isLoadingPrices, priceError, activeStakersCount]);
+  }, [poolData, stethPrice, linkPrice, isLoadingPrices, priceError]);
+
+  // Combine core metrics with active stakers display
+  const metrics = useMemo(() => ({
+    ...coreMetrics,
+    activeStakers: activeStakersDisplay
+  }), [coreMetrics, activeStakersDisplay]);
 
   return metrics;
 }
