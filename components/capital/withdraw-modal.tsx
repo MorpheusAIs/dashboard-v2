@@ -55,21 +55,38 @@ export function WithdrawModal({
     }
   }, [actualDepositedAmount]);
 
+  const depositedAmountBigInt = useMemo(() => {
+    try {
+      return parseUnits(actualDepositedAmount, 18);
+    } catch {
+      return BigInt(0);
+    }
+  }, [actualDepositedAmount]);
+
+  // Validation logic similar to deposit modal
+  const validationError = useMemo(() => {
+    // Only validate if there's actually an amount entered
+    if (!amount || amount.trim() === "" || amountBigInt <= BigInt(0)) {
+      return null;
+    }
+    
+    if (!canWithdraw) {
+      return "Withdrawal is currently locked";
+    }
+    
+    if (amountBigInt > depositedAmountBigInt) {
+      return `Insufficient ${assetDisplayName} deposited. Available: ${parseFloat(actualDepositedAmount).toFixed(2)} ${assetUnit}`;
+    }
+    
+    return null;
+  }, [amount, amountBigInt, canWithdraw, depositedAmountBigInt, assetDisplayName, actualDepositedAmount, assetUnit]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError(null);
-    const numericAmount = parseFloat(amount);
-
-    if (!canWithdraw) {
-      setFormError("Withdrawal is currently locked.");
-      return;
-    }
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      setFormError("Please enter a valid amount to withdraw");
-      return;
-    }
-    if (numericAmount > numericDeposited) {
-      setFormError("Withdrawal amount cannot exceed your deposited amount");
+    
+    if (validationError) {
+      setFormError(validationError);
       return;
     }
     
@@ -140,10 +157,13 @@ export function WithdrawModal({
                       setFormError(null);
                     }
                   }}
-                  className={`bg-background border-gray-700 pr-28 ${formError ? 'border-red-500' : ''}`}
+                  className={`bg-background pr-28 text-base ${
+                    validationError ? '!border-red-500 border-2' : 
+                    formError ? '!border-red-500 border-2' : 'border-gray-700 border'
+                  }`}
                   type="text" // Changed from "number" to "text" for better control
                   inputMode="decimal" // Suggests a decimal keypad on mobile
-                  pattern="[0-9]*[.]?[0-9]*" // HTML5 pattern for numbers only
+                  pattern="[0-9]*\.?[0-9]*"
                   required
                   min="0"
                   disabled={isProcessingWithdraw || !canWithdraw}
@@ -168,10 +188,18 @@ export function WithdrawModal({
                   </button>
                 </div>
               </div>
-              {!canWithdraw && numericDeposited > 0 && (
+              
+              {/* Validation error message */}
+              {validationError && (
+                <p className="text-red-500 text-sm mt-1">
+                  {validationError}
+                </p>
+              )}
+              
+              {!canWithdraw && numericDeposited > 0 && !validationError && (
                 <p className="text-xs text-yellow-400 pt-1">Withdrawal is currently locked.</p>
               )}
-              {formError && !(!canWithdraw && numericDeposited > 0) && (
+              {formError && !validationError && !(!canWithdraw && numericDeposited > 0) && (
                 <p className="text-xs text-red-500 pt-1">{formError}</p>
               )}
             </div>
@@ -188,12 +216,11 @@ export function WithdrawModal({
               <button
                 type="submit"
                 className={
-                  isProcessingWithdraw || !canWithdraw || amountBigInt <= BigInt(0) || 
-                  amountBigInt > parseUnits(actualDepositedAmount, 18) || !userAddress
-                    ? "copy-button-secondary px-2 text-sm opacity-50 cursor-not-allowed" 
-                    : "copy-button-base"
+                  isProcessingWithdraw || !!validationError || amountBigInt <= BigInt(0) || !userAddress
+                    ? "copy-button-secondary px-2 text-sm opacity-50 cursor-not-allowed mb-2 sm:mb-0" 
+                    : "copy-button-base mb-2 sm:mb-0"
                 }
-                disabled={isProcessingWithdraw || !canWithdraw || amountBigInt <= BigInt(0) || amountBigInt > parseUnits(actualDepositedAmount, 18) || !userAddress}
+                disabled={isProcessingWithdraw || !!validationError || amountBigInt <= BigInt(0) || !userAddress}
               >
                 {isProcessingWithdraw ? (
                   <div className="flex flex-row align-middle items-center gap-2">
