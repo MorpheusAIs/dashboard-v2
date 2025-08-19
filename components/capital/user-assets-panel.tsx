@@ -229,6 +229,39 @@ export function UserAssetsPanel() {
     return false;
   }, [stETHV2CanClaim, linkV2CanClaim]);
 
+  // Helper function to check if unlock date has passed (for withdraw functionality)
+  const isUnlockDateReached = useCallback((unlockDate: string | null): boolean => {
+    if (!unlockDate || unlockDate === "--- --, ----" || unlockDate === "Never" || unlockDate === "Invalid Date") {
+      return false; // No unlock date set, invalid, or never unlocks
+    }
+    
+    try {
+      // Parse the unlock date string (format: "Aug 16, 2025, 5:30 PM" from toLocaleString)
+      const unlockDateTime = new Date(unlockDate);
+      const currentDate = new Date();
+      
+      // Validate that the date was parsed correctly
+      if (isNaN(unlockDateTime.getTime())) {
+        console.error('Invalid unlock date parsed:', unlockDate);
+        return false;
+      }
+      
+      // Compare dates including time
+      const unlockReached = currentDate >= unlockDateTime;
+      
+      console.log(`🔒 Unlock check for "${unlockDate}":`, {
+        unlockDateTime: unlockDateTime.toISOString(),
+        currentDate: currentDate.toISOString(),
+        unlockReached
+      });
+      
+      return unlockReached;
+    } catch (error) {
+      console.error('Error parsing unlock date:', unlockDate, error);
+      return false; // If parsing fails, assume not unlocked
+    }
+  }, []);
+
   // Check if user has any assets staked (stETH or LINK)
   const hasStakedAssets = useMemo(() => {
     const stethDeposited = parseDepositAmount(assets.stETH?.userDepositedFormatted);
@@ -527,7 +560,11 @@ export function UserAssetsPanel() {
                 <TrendingUp className="mr-2 h-4 w-4" /> 
                 Deposit
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropdownAction('withdraw', asset.assetSymbol)} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem 
+                onClick={() => handleDropdownAction('withdraw', asset.assetSymbol)} 
+                disabled={isAnyActionProcessing || !isUnlockDateReached(asset.unlockDate)}
+                className={!isUnlockDateReached(asset.unlockDate) ? "text-gray-500 cursor-not-allowed" : ""}
+              >
                 <ArrowDownToLine className="mr-2 h-4 w-4" /> 
                 Withdraw
               </DropdownMenuItem>
@@ -535,7 +572,11 @@ export function UserAssetsPanel() {
                 <Lock className="mr-2 h-4 w-4" /> 
                 Lock Rewards
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem 
+                onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)} 
+                disabled={isAnyActionProcessing || !asset.canClaim}
+                className={!asset.canClaim ? "text-gray-500 cursor-not-allowed" : ""}
+              >
                 <HandCoins className="mr-2 h-4 w-4" /> 
                 Claim Rewards
               </DropdownMenuItem>
@@ -544,7 +585,7 @@ export function UserAssetsPanel() {
         ),
       },
     ],
-    [isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange]
+    [isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange, isUnlockDateReached]
   );
 
   // Handle sorting change
