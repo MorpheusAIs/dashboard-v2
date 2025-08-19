@@ -59,18 +59,20 @@ export function RootLayoutContent({
     <SidebarProvider className="overflow-hidden w-screen h-screen">
       <AppSidebar />
       <SidebarInset className="min-w-0 h-full flex flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
+        <header className="flex h-16 shrink-0 items-center gap-1 sm:gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4">
             <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Separator orientation="vertical" className="mr-1 sm:mr-2 h-4" />
           </div>
           
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center min-w-0">
             {isTestnet ? <TestnetIndicator /> : <CowSwapModal />}
           </div>
           
-          <div className="flex items-center gap-2 px-4">
-            <MORBalance />
+          <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 flex-shrink-0">
+            <div className="hidden sm:block">
+              <MORBalance />
+            </div>
             <w3m-button size="sm"/>
           </div>
         </header>
