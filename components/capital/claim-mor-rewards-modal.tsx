@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { sepolia, mainnet } from 'wagmi/chains';
-import { formatNumber } from "@/lib/utils";
 
 interface ClaimableAsset {
   symbol: 'stETH' | 'LINK';
