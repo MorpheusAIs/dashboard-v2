@@ -20,6 +20,7 @@ import { useChainId } from 'wagmi'
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
 import { CowSwapModal } from "./cowswap-modal"
+import { MyBalanceModal } from "./my-balance-modal"
 // import { builders } from "@/app/builders/builders-data"
 
 // function getPageInfo(pathname: string) {
@@ -66,7 +67,20 @@ export function RootLayoutContent({
           </div>
           
           <div className="flex-1 flex items-center justify-center min-w-0">
-            {isTestnet ? <TestnetIndicator /> : <CowSwapModal />}
+            {isTestnet ? (
+              <TestnetIndicator />
+            ) : (
+              <>
+                {/* Mobile: Show MyBalanceModal */}
+                <div className="sm:hidden">
+                  <MyBalanceModal />
+                </div>
+                {/* Desktop: Show CowSwapModal */}
+                <div className="hidden sm:block">
+                  <CowSwapModal />
+                </div>
+              </>
+            )}
           </div>
           
           <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 flex-shrink-0">
