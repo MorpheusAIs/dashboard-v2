@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { formatUnits } from 'viem'
 import { useAccount, useReadContract, useChainId } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
@@ -8,6 +8,7 @@ import NumberFlow from '@number-flow/react'
 import { morTokenContracts } from '@/lib/contracts'
 import { CowSwapModal } from './cowswap-modal'
 import { Eye } from 'lucide-react'
+import { getTokenPrice } from '@/app/services/token-price.service'
 import {
   Dialog,
   DialogPortal,
@@ -62,6 +63,7 @@ function useMORBalances(address: `0x${string}` | undefined) {
 
 export function MyBalanceModal() {
   const [isOpen, setIsOpen] = useState(false)
+  const [morPrice, setMorPrice] = useState<number | null>(null)
   const { address } = useAccount()
   const chainId = useChainId()
   
@@ -80,9 +82,30 @@ export function MyBalanceModal() {
 
   const isTestnet = chainId === 421614 || chainId === 11155111; // Arbitrum Sepolia or Sepolia
 
+  // Fetch MOR price from CoinGecko
+  useEffect(() => {
+    async function fetchMorPrice() {
+      try {
+        const price = await getTokenPrice('morpheusai', 'usd') // MOR token ID on CoinGecko
+        setMorPrice(price)
+      } catch (error) {
+        console.error('Error fetching MOR price:', error)
+      }
+    }
+
+    fetchMorPrice()
+  }, [])
+
   const handleClose = () => {
     setIsOpen(false)
   }
+
+  // Calculate total balance and USD equivalent
+  const totalMorBalance = isTestnet 
+    ? sepoliaFormattedBalance 
+    : arbitrumFormattedBalance + baseFormattedBalance
+  
+  const totalUsdValue = morPrice ? totalMorBalance * morPrice : null
 
   if (!address) return null
 
@@ -109,18 +132,16 @@ export function MyBalanceModal() {
               {/* Total Balance - Main Highlight */}
               <div className="text-center space-y-1">
                 <div className="text-3xl font-bold text-emerald-400">
-                  <NumberFlow 
-                    value={isTestnet 
-                      ? sepoliaFormattedBalance 
-                      : arbitrumFormattedBalance + baseFormattedBalance
-                    } 
-                  /> MOR
+                  <NumberFlow value={totalMorBalance} /> MOR
                 </div>
-                {/* <p className="text-sm text-gray-500">Total Balance</p> */}
+                {/* USD Equivalent */}
+                {totalMorBalance > 0 && totalUsdValue && totalUsdValue > 0 && (
+                  <div className="text-sm text-white">
+                    ${totalUsdValue.toFixed(2)}
+                  </div>
+                )}
               </div>
 
-              {/* Divider */}
-              <hr className="border-gray-700" />
 
               {/* Chain Balances */}
               <div className="space-y-1">
@@ -138,23 +159,28 @@ export function MyBalanceModal() {
                     /> MOR
                   </span>
                 </div>
+                {/* Divider */}
+                <hr className="border-gray-700" />
 
                 {/* Base Balance - only show on mainnet */}
                 {!isTestnet && (
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-3">
-                      <BaseIcon size={18} className="text-gray-400" />
-                      <span className="text-gray-300 font-medium">Base</span>
+                <>
+                    <div className="flex items-center justify-between py-2">
+                        <div className="flex items-center gap-3">
+                            <BaseIcon size={18} className="text-gray-400" />
+                            <span className="text-gray-300 font-medium">Base</span>
+                        </div>
+                        <span className="text-gray-200 font-medium">
+                        <NumberFlow value={baseFormattedBalance} /> MOR
+                        </span>
                     </div>
-                    <span className="text-gray-200 font-medium">
-                      <NumberFlow value={baseFormattedBalance} /> MOR
-                    </span>
-                  </div>
+                    <hr className="border-gray-700" />
+                  </>
                 )}
               </div>
 
               {/* Divider */}
-              <hr className="border-gray-700" />
+              {/* <hr className="border-gray-700" /> */}
 
               {/* Buy MOR Button */}
               <div className="flex justify-center">
