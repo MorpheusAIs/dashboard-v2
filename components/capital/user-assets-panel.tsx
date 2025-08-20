@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { TokenIcon } from '@web3icons/react';
 import { DataTable, Column } from "@/components/ui/data-table";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
@@ -27,7 +27,7 @@ import { getTokenPrice } from "@/app/services/token-price.service";
 import { StakeMorRewardsModal } from "./stake-mor-rewards-modal";
 import { ClaimMorRewardsModal } from "./claim-mor-rewards-modal";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
-import type { UserAsset, RewardSnapshot } from "./types/user-asset";
+import type { UserAsset } from "./types/user-asset";
 import { useDailyEmissions } from "./hooks/use-daily-emissions";
 
 
