@@ -58,10 +58,9 @@ if (process.env.NODE_ENV !== 'production') {
  * Convert duration value and unit to seconds using CONTRACT-EXPECTED calculations
  * @param value - Duration value as string
  * @param unit - Time unit (days, months, years)
- * @param fromDate - Start date (defaults to now) - used for display only
  * @returns Duration in seconds as BigInt, or BigInt(0) if invalid
  */
-export function durationToSeconds(value: string, unit: TimeUnit, fromDate?: Date): bigint {
+export function durationToSeconds(value: string, unit: TimeUnit): bigint {
   const numValue = parseInt(value, 10);
   if (isNaN(numValue) || numValue <= 0) return BigInt(0);
   

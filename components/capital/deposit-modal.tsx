@@ -25,9 +25,7 @@ import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 // Import Config and Utils
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
 import { 
-  validateMaxYears, 
   getMaxAllowedValue,
-  formatUnlockDate,
   durationToSeconds,
   type TimeUnit 
 } from "@/lib/utils/power-factor-utils";
@@ -65,7 +63,6 @@ export function DepositModal() {
     setPreReferrerAddress,
     // Get contract details for power factor hook
     l1ChainId,
-    dynamicContracts,
   } = useCapitalContext();
 
   // Calculate network environment and contract address
