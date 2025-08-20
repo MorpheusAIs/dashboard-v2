@@ -468,8 +468,12 @@ export function UserAssetsPanel() {
                 <ArrowDownToLine className="mr-2 h-4 w-4" /> 
                 Withdraw
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
-                <Lock className="mr-2 h-4 w-4" /> 
+              <DropdownMenuItem
+                onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)}
+                disabled={isAnyActionProcessing || asset.availableToClaim <= 0}
+                className={asset.availableToClaim <= 0 ? "text-gray-500 cursor-not-allowed" : ""}
+              >
+                <Lock className="mr-2 h-4 w-4" />
                 Lock Rewards
               </DropdownMenuItem>
               <DropdownMenuItem 
