@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { 
-  Dialog, 
-  DialogPortal, 
-  DialogContent, 
-  DialogTitle, 
-  DialogDescription 
+import {
+  Dialog,
+  DialogPortal,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronRight, Clock } from "lucide-react";
+import { ChevronRight, Clock, Lock, LockOpen } from "lucide-react";
 import { TokenIcon } from '@web3icons/react';
+import { Badge } from "@/components/ui/badge";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { sepolia, mainnet } from 'wagmi/chains';
@@ -31,6 +34,7 @@ export function ClaimMorRewardsModal() {
   const {
     activeModal,
     setActiveModal,
+    selectedAsset,
     assets,
     stETHV2CanClaim,
     linkV2CanClaim,
@@ -62,9 +66,6 @@ export function ClaimMorRewardsModal() {
 
   const isOpen = activeModal === 'claimMorRewards';
 
-  // State for selected assets
-  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
-  
   // State for lock duration (for lock rewards functionality)
   const [lockValue, setLockValue] = useState<string>("30");
   const [lockUnit, setLockUnit] = useState<'days' | 'months' | 'years'>('days');
@@ -92,7 +93,6 @@ export function ClaimMorRewardsModal() {
 
   const handleClose = () => {
     setActiveModal(null);
-    setSelectedAssets(new Set()); // Reset selections when closing
   };
 
   // Helper function to safely parse claimable amount
@@ -110,81 +110,55 @@ export function ClaimMorRewardsModal() {
     }
   };
 
-  // Get claimable assets (only those with MOR > 0)
-  const claimableAssets: ClaimableAsset[] = useMemo(() => {
-    const stethClaimable = parseClaimableAmount(assets.stETH?.claimableAmountFormatted);
-    const linkClaimable = parseClaimableAmount(assets.LINK?.claimableAmountFormatted);
+  // Get the selected asset data
+  const selectedAssetData: ClaimableAsset | null = useMemo(() => {
+    if (!selectedAsset) return null;
+
+    const asset = assets[selectedAsset];
+    if (!asset) return null;
+
+    const claimableAmount = parseClaimableAmount(asset.claimableAmountFormatted);
 
     // Debug logging
-    console.log('🔍 ClaimMorRewardsModal - Asset Data:', {
-      stETH: {
-        claimableAmountFormatted: assets.stETH?.claimableAmountFormatted,
-        parsed: stethClaimable,
-        canClaim: stETHV2CanClaim,
-      },
-      LINK: {
-        claimableAmountFormatted: assets.LINK?.claimableAmountFormatted,
-        parsed: linkClaimable,
-        canClaim: linkV2CanClaim,
-      },
+    console.log('🔍 ClaimMorRewardsModal - Selected Asset Data:', {
+      selectedAsset,
+      claimableAmountFormatted: asset.claimableAmountFormatted,
+      parsed: claimableAmount,
+      canClaim: selectedAsset === 'stETH' ? stETHV2CanClaim : linkV2CanClaim,
     });
 
-    const assetList: ClaimableAsset[] = [];
-
-    // Show stETH if user has deposited (even if claimable is 0)
-    if (assets.stETH && (stethClaimable > 0 || assets.stETH.userDeposited > BigInt(0))) {
-      assetList.push({
-        symbol: 'stETH',
-        icon: 'eth',
-        claimableAmount: stethClaimable,
-        claimableAmountFormatted: assets.stETH?.claimableAmountFormatted || '0',
-        canClaim: stETHV2CanClaim && stethClaimable > 0,
-      });
-    }
-
-    // Show LINK if user has deposited (even if claimable is 0)
-    if (assets.LINK && (linkClaimable > 0 || assets.LINK.userDeposited > BigInt(0))) {
-      assetList.push({
-        symbol: 'LINK',
-        icon: 'link',
-        claimableAmount: linkClaimable,
-        claimableAmountFormatted: assets.LINK?.claimableAmountFormatted || '0',
-        canClaim: linkV2CanClaim && linkClaimable > 0,
-      });
-    }
-
-    return assetList;
-  }, [assets, stETHV2CanClaim, linkV2CanClaim]);
+    return {
+      symbol: selectedAsset,
+      icon: selectedAsset === 'stETH' ? 'eth' : 'link',
+      claimableAmount: claimableAmount,
+      claimableAmountFormatted: asset.claimableAmountFormatted || '0',
+      canClaim: (selectedAsset === 'stETH' ? stETHV2CanClaim : linkV2CanClaim) && claimableAmount > 0,
+    };
+  }, [selectedAsset, assets, stETHV2CanClaim, linkV2CanClaim]);
 
   // Determine if network switch is needed
   const needsNetworkSwitch = useMemo(() => {
-    return !isOnCorrectNetwork && claimableAssets.length > 0;
-  }, [isOnCorrectNetwork, claimableAssets.length]);
+    return !isOnCorrectNetwork && selectedAssetData !== null;
+  }, [isOnCorrectNetwork, selectedAssetData]);
 
-  // Calculate totals for selected assets
+  // Calculate totals for the selected asset
   const selectedTotals = useMemo(() => {
-    const selectedClaimableAssets = claimableAssets.filter(asset => 
-      selectedAssets.has(asset.symbol) && asset.canClaim
-    );
-    
-    const totalAmount = selectedClaimableAssets.reduce((sum, asset) => sum + asset.claimableAmount, 0);
-    
-    return {
-      selectedAssets: selectedClaimableAssets,
-      totalAmount,
-      totalAmountFormatted: formatNumber(totalAmount),
-    };
-  }, [claimableAssets, selectedAssets]);
-
-  const handleAssetToggle = (assetSymbol: string, checked: boolean | 'indeterminate') => {
-    const newSelected = new Set(selectedAssets);
-    if (checked === true) {
-      newSelected.add(assetSymbol);
-    } else {
-      newSelected.delete(assetSymbol);
+    if (!selectedAssetData) {
+      return {
+        selectedAssets: [],
+        totalAmount: 0,
+        totalAmountFormatted: '0',
+      };
     }
-    setSelectedAssets(newSelected);
-  };
+
+    return {
+      selectedAssets: [selectedAssetData],
+      totalAmount: selectedAssetData.claimableAmount,
+      totalAmountFormatted: selectedAssetData.claimableAmountFormatted,
+    };
+  }, [selectedAssetData]);
+
+
 
   const handleNetworkSwitch = async () => {
     try {
@@ -196,14 +170,12 @@ export function ClaimMorRewardsModal() {
   };
 
   const handleClaim = async () => {
-    if (selectedTotals.selectedAssets.length === 0) return;
-    
+    if (selectedTotals.selectedAssets.length === 0 || !selectedAssetData) return;
+
     try {
-      // Claim rewards for each selected asset
-      for (const asset of selectedTotals.selectedAssets) {
-        if (asset.canClaim) {
-          await claimAssetRewards(asset.symbol);
-        }
+      // Claim rewards for the selected asset
+      if (selectedAssetData.canClaim) {
+        await claimAssetRewards(selectedAssetData.symbol);
       }
       handleClose();
     } catch (error) {
@@ -213,19 +185,17 @@ export function ClaimMorRewardsModal() {
   };
 
   const handleLockRewards = async () => {
-    if (selectedTotals.selectedAssets.length === 0) return;
-    
+    if (selectedTotals.selectedAssets.length === 0 || !selectedAssetData) return;
+
     const lockDurationSeconds = durationToSeconds(lockValue, lockUnit);
     if (lockDurationSeconds <= BigInt(0)) {
       console.error('Invalid lock duration');
       return;
     }
-    
+
     try {
-      // Lock rewards for each selected asset
-      for (const asset of selectedTotals.selectedAssets) {
-        await lockAssetRewards(asset.symbol, lockDurationSeconds);
-      }
+      // Lock rewards for the selected asset
+      await lockAssetRewards(selectedAssetData.symbol, lockDurationSeconds);
       handleClose();
     } catch (error) {
       console.error('Error locking rewards:', error);
@@ -236,25 +206,24 @@ export function ClaimMorRewardsModal() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogPortal>
-        <DialogContent className="sm:max-w-[425px] bg-background border-gray-800">
-          {/* Custom header with close button */}
-          {/* <div className="flex items-center justify-between p-6 pb-4"> */}
+        <DialogContent className="h-[100vh] w-full sm:h-auto sm:max-w-[425px] bg-background border-gray-800 flex flex-col sm:block overflow-hidden">
+          <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">
-              Claim MOR Rewards
+              Manage MOR Rewards
             </DialogTitle>
-          {/* </div> */}
+          </DialogHeader>
 
-          <div className="px-6 pb-6">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-0 pb-4 sm:pb-0">
             <DialogDescription className="text-gray-400 text-sm leading-relaxed mb-6">
               Claim rewards earned by staking capital to Morpheus or lock your rewards for an increased power factor for future rewards.
             </DialogDescription>
 
-            {claimableAssets.length > 0 ? (
+            {selectedAssetData ? (
               <>
                 {/* Network Status Indicator */}
                 <div className={`mb-4 p-3 rounded-lg border ${
-                  isOnCorrectNetwork 
-                    ? 'border-emerald-400 bg-emerald-400/10' 
+                  isOnCorrectNetwork
+                    ? 'border-emerald-400 bg-emerald-400/10'
                     : 'border-yellow-400 bg-yellow-400/10'
                 }`}>
                   <div className="flex items-center gap-2">
@@ -264,8 +233,8 @@ export function ClaimMorRewardsModal() {
                     <span className={`text-sm font-medium ${
                       isOnCorrectNetwork ? 'text-emerald-400' : 'text-yellow-400'
                     }`}>
-                      {isOnCorrectNetwork 
-                        ? `Connected to ${networkName}` 
+                      {isOnCorrectNetwork
+                        ? `Connected to ${networkName}`
                         : `Please switch to ${networkName}`
                       }
                     </span>
@@ -277,43 +246,40 @@ export function ClaimMorRewardsModal() {
                   )}
                 </div>
 
-                {/* Select Rewards to Claim */}
-                <div className="mb-6">
-                  <h3 className="text-white text-base font-medium mb-4">Select Rewards to Claim</h3>
-                  <div className="space-y-3">
-                    {claimableAssets.map((asset) => (
-                      <div
-                        key={asset.symbol}
-                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                          selectedAssets.has(asset.symbol) 
-                            ? 'border-emerald-400 bg-emerald-400/10' 
-                            : 'border-gray-700 bg-gray-800/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-6 h-6 rounded-lg">
-                            <TokenIcon symbol={asset.icon} variant="background" size="24" />
-                          </div>
-                          <span className="text-white font-sm">{asset.symbol}</span>
+                {/* Selected Asset Display */}
+                {selectedAssetData && (
+                  <div className="mb-6">
+                    <h3 className="text-white text-base font-medium mb-4">Selected Asset</h3>
+                    <div className="flex items-center justify-between p-3 bg-emerald-400/10 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-lg">
+                          <TokenIcon symbol={selectedAssetData.icon} variant="background" size="24" />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-sm ${asset.canClaim ? 'text-white' : 'text-gray-500'}`}>
-                            {asset.claimableAmountFormatted} MOR
-                          </span>
-                          {/* {selectedAssets.has(asset.symbol) && ( */}
-                            <Checkbox
-                                checked={selectedAssets.has(asset.symbol)}
-                                onCheckedChange={(checked) => handleAssetToggle(asset.symbol, checked)}
-                                disabled={!asset.canClaim || needsNetworkSwitch}
-                            />
-                          {/* )} */}
-                        </div>
+                        <span className="text-white font-sm">{selectedAssetData.symbol}</span>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2">
+                        <span className={`font-sm ${selectedAssetData.canClaim ? 'text-white' : 'text-gray-300'}`}>
+                          {selectedAssetData.claimableAmountFormatted} MOR
+                        </span>
+                        {selectedAssetData.claimableAmount > 0 && (
+                          <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums ${
+                            selectedAssetData.canClaim
+                              ? "bg-emerald-400 hover:bg-emerald-500 text-black border-emerald-400"
+                              : "bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
+                          }`}>
+                            {selectedAssetData.canClaim ? (
+                              <LockOpen className="h-3 w-3" />
+                            ) : (
+                              <Lock className="h-3 w-3" />
+                            )}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Summary */}
+                {/* Summary
                 {selectedTotals.selectedAssets.length > 0 && (
                   <div className="mb-6 p-4 rounded-lg bg-gray-800/50 border border-gray-700">
                     {selectedTotals.selectedAssets.map((asset) => (
@@ -329,7 +295,7 @@ export function ClaimMorRewardsModal() {
                       </div>
                     </div>
                   </div>
-                )}
+                )} */}
 
                 {/* Lock Duration Selection (for Lock Rewards) */}
                 {selectedTotals.selectedAssets.length > 0 && (
@@ -363,48 +329,10 @@ export function ClaimMorRewardsModal() {
                     </p>
                   </div>
                 )}
-
-                {/* Action Buttons */}
-                <div className="space-y-3">
-                  <button
-                    className="w-full copy-button flex items-center justify-center gap-2"
-                    onClick={handleLockRewards}
-                    disabled={selectedTotals.selectedAssets.length === 0 || isProcessingChangeLock || isProcessingClaim || needsNetworkSwitch}
-                  >
-                    {isProcessingChangeLock ? "Locking..." : "Lock MOR Rewards"}
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-
-                  {needsNetworkSwitch ? (
-                    <button
-                      className="w-full copy-button-secondary px-4 py-2"
-                      onClick={handleNetworkSwitch}
-                      disabled={isNetworkSwitching}
-                    >
-                      {isNetworkSwitching ? "Switching..." : `Switch to ${networkName}`}
-                    </button>
-                  ) : (
-                    <button
-                      className="w-full copy-button-secondary px-4 py-2"
-                      onClick={handleClaim}
-                      disabled={selectedTotals.selectedAssets.length === 0 || isProcessingClaim || isProcessingChangeLock}
-                    >
-                      {isProcessingClaim ? "Claiming..." : "Claim MOR Rewards"}
-                    </button>
-                  )}
-                  
-                  <p className="text-xs text-gray-400 text-center">
-                    {needsNetworkSwitch ? (
-                      <>⚠️ Switch to {networkName} network to claim rewards</>
-                    ) : (
-                      <>⚠️ Claims require ~0.01 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
-                    )}
-                  </p>
-                </div>
               </>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-400 text-sm">No claimable rewards available.</p>
+                <p className="text-gray-400 text-sm">No asset selected.</p>
                 <button
                   className="mt-4 copy-button-secondary px-4 py-2"
                   onClick={handleClose}
@@ -414,6 +342,47 @@ export function ClaimMorRewardsModal() {
               </div>
             )}
           </div>
+
+          <DialogFooter className="flex-shrink-0 px-4 sm:px-0 sm:mt-4">
+            {selectedAssetData && (
+              <div className="w-full space-y-3">
+                <button
+                  className="w-full copy-button flex items-center justify-center relative"
+                  onClick={handleLockRewards}
+                  disabled={selectedTotals.selectedAssets.length === 0 || isProcessingChangeLock || isProcessingClaim || needsNetworkSwitch}
+                >
+                  {isProcessingChangeLock ? "Locking..." : "Lock MOR Rewards"}
+                  <ChevronRight className="h-4 w-4 absolute right-4" />
+                </button>
+
+                {needsNetworkSwitch ? (
+                  <button
+                    className="w-full copy-button-secondary px-4 py-2"
+                    onClick={handleNetworkSwitch}
+                    disabled={isNetworkSwitching}
+                  >
+                    {isNetworkSwitching ? "Switching..." : `Switch to ${networkName}`}
+                  </button>
+                ) : (
+                  <button
+                    className="w-full copy-button-secondary px-4 py-2"
+                    onClick={handleClaim}
+                    disabled={selectedTotals.selectedAssets.length === 0 || isProcessingClaim || isProcessingChangeLock}
+                  >
+                    {isProcessingClaim ? "Claiming..." : "Claim MOR Rewards"}
+                  </button>
+                )}
+
+                <p className="text-xs text-gray-400 text-center">
+                  {needsNetworkSwitch ? (
+                    <>⚠️ Switch to {networkName} network to claim rewards</>
+                  ) : (
+                    <>⚠️ Claims require ~0.01 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
+                  )}
+                </p>
+              </div>
+            )}
+          </DialogFooter>
         </DialogContent>
       </DialogPortal>
     </Dialog>
