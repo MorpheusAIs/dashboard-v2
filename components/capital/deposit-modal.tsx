@@ -17,28 +17,23 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 
-// Import Context hook
+// Import Context and Hooks
 import { useCapitalContext } from "@/context/CapitalPageContext";
+import { usePowerFactor } from "@/hooks/use-power-factor";
+import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 
-// Time unit type for lock period
-type TimeUnit = "days" | "months" | "years";
+// Import Config and Utils
+import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
+import { 
+  validateMaxYears, 
+  getMaxAllowedValue,
+  formatUnlockDate,
+  durationToSeconds,
+  type TimeUnit 
+} from "@/lib/utils/power-factor-utils";
 
 // Regular expression for Ethereum addresses
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
-
-// Helper function to convert duration to seconds
-const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
-  const numValue = parseInt(value, 10);
-  if (isNaN(numValue) || numValue <= 0) return BigInt(0);
-  let multiplier: bigint;
-  switch (unit) {
-    case "days": multiplier = BigInt(86400); break;
-    case "months": multiplier = BigInt(86400) * BigInt(30); break; // Approximation
-    case "years": multiplier = BigInt(86400) * BigInt(365); break; // Approximation
-    default: multiplier = BigInt(0);
-  }
-  return BigInt(numValue) * multiplier;
-};
 
 // Asset configuration
 const assetOptions = [
@@ -66,12 +61,21 @@ export function DepositModal() {
     isApprovalSuccess,
     activeModal,
     setActiveModal,
-    triggerMultiplierEstimation,
-    estimatedMultiplierValue,
-    isSimulatingMultiplier,
     preReferrerAddress,
     setPreReferrerAddress,
+    // Get contract details for power factor hook
+    l1ChainId,
+    dynamicContracts,
   } = useCapitalContext();
+
+  // Calculate network environment and contract address
+  const networkEnv = useMemo((): NetworkEnvironment => {
+    return [1, 42161, 8453].includes(l1ChainId || 0) ? 'mainnet' : 'testnet';
+  }, [l1ChainId]);
+
+  const poolContractAddress = useMemo(() => {
+    return l1ChainId ? getContractAddress(l1ChainId, 'erc1967Proxy', networkEnv) as `0x${string}` | undefined : undefined;
+  }, [l1ChainId, networkEnv]);
 
   const isOpen = activeModal === 'deposit';
 
@@ -87,6 +91,75 @@ export function DepositModal() {
   const [selectedAsset, setSelectedAsset] = useState<'stETH' | 'LINK'>(contextSelectedAsset);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeLockDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Initialize power factor hook (after state declarations)
+  const powerFactor = usePowerFactor({
+    contractAddress: poolContractAddress,
+    chainId: l1ChainId,
+    poolId: BigInt(0), // Main capital pool
+    enabled: true,
+  });
+
+  // Initialize estimated rewards hook (after state declarations)
+  const estimatedRewards = useEstimatedRewards({
+    contractAddress: poolContractAddress,
+    chainId: l1ChainId,
+    poolId: BigInt(0),
+    depositAmount: amount,
+    powerFactorString: powerFactor.currentResult.powerFactor,
+    lockValue,
+    lockUnit,
+    enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid,
+  });
+
+  // Debug hook initialization
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.group('🔧 [Deposit Modal Debug] Hook Initialization');
+      console.log('Power Factor Hook:', {
+        contractAddress: poolContractAddress,
+        chainId: l1ChainId,
+        poolId: 0,
+        enabled: true
+      });
+      console.log('Estimated Rewards Hook:', {
+        contractAddress: poolContractAddress,
+        chainId: l1ChainId,
+        depositAmount: amount,
+        powerFactor: powerFactor.currentResult.powerFactor,
+        lockPeriod: { lockValue, lockUnit },
+        enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid
+      });
+      console.groupEnd();
+    }
+  }, [powerFactor, estimatedRewards, poolContractAddress, l1ChainId, amount, lockValue, lockUnit]);
+
+  // Update power factor calculation when lock period changes
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.group('🎛️ [Deposit Modal Debug] Lock Period Change');
+      console.log('Lock Value:', lockValue);
+      console.log('Lock Unit:', lockUnit);
+      console.log('Power Factor Hook State:', {
+        contractAddress: poolContractAddress,
+        chainId: l1ChainId,
+        isLoading: powerFactor.isLoading,
+        contractError: powerFactor.contractError,
+        currentResult: powerFactor.currentResult
+      });
+    }
+    
+    if (lockValue && parseInt(lockValue, 10) > 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Calling powerFactor.setLockPeriod');
+      }
+      powerFactor.setLockPeriod(lockValue, lockUnit);
+    }
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.groupEnd();
+    }
+  }, [lockValue, lockUnit, powerFactor, poolContractAddress, l1ChainId]);
 
   // Current asset data
   const currentAsset = assets[selectedAsset];
@@ -172,13 +245,6 @@ export function DepositModal() {
     }
   }, [isApprovalSuccess, amount, processedApprovalSuccess, checkApprovalStatus]);
 
-  // Trigger multiplier estimation when lock period changes
-  useEffect(() => {
-    if (lockValue && parseInt(lockValue, 10) > 0) {
-      triggerMultiplierEstimation(lockValue, lockUnit);
-    }
-  }, [lockValue, lockUnit, triggerMultiplierEstimation]);
-
   // Referrer address validation function
   const validateReferrerAddress = useCallback((address: string) => {
     if (!address || address.trim() === "") {
@@ -245,28 +311,42 @@ export function DepositModal() {
     }
   }, [referrerAddress, resolvedAddress, isResolvingEns, validateReferrerAddress]);
 
-  // Calculate unlock date
-  const unlockDate = useMemo(() => {
-    if (!lockValue || parseInt(lockValue, 10) <= 0) return null;
+  // Validate lock value based on unit
+  const validateLockValue = useCallback((value: string, unit: TimeUnit) => {
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) || numValue <= 0) return true; // Let basic validation handle this
     
-    const now = new Date();
-    const lockDuration = parseInt(lockValue, 10);
-    
-    const calculatedUnlockDate = new Date(now);
-    switch (lockUnit) {
-      case "days":
-        calculatedUnlockDate.setDate(now.getDate() + lockDuration);
-        break;
-      case "months":
-        calculatedUnlockDate.setMonth(now.getMonth() + lockDuration);
-        break;
-      case "years":
-        calculatedUnlockDate.setFullYear(now.getFullYear() + lockDuration);
-        break;
+    const maxAllowed = getMaxAllowedValue(unit);
+    return numValue <= maxAllowed;
+  }, []);
+
+  // Handle lock value changes with validation
+  const handleLockValueChange = useCallback((value: string) => {
+    if (value === '' || /^\d+$/.test(value)) {
+      // Check if the value is within limits for the current unit
+      if (value === '' || validateLockValue(value, lockUnit)) {
+        setLockValue(value);
+      }
+      // If invalid, don't update the state (effectively prevents the input)
     }
+  }, [lockUnit, validateLockValue]);
+
+  // Handle lock unit changes with value validation
+  const handleLockUnitChange = useCallback((unit: TimeUnit) => {
+    setLockUnit(unit);
     
-    return calculatedUnlockDate;
-  }, [lockValue, lockUnit]);
+    // Validate current value with new unit
+    if (lockValue && !validateLockValue(lockValue, unit)) {
+      // If current value is invalid for new unit, reset to a valid value
+      const maxAllowed = getMaxAllowedValue(unit);
+      setLockValue(maxAllowed.toString());
+    }
+  }, [lockValue, validateLockValue]);
+
+  // Calculate unlock date using utility function
+  const unlockDate = useMemo(() => {
+    return powerFactor.currentResult.unlockDate || null;
+  }, [powerFactor.currentResult.unlockDate]);
 
   // Validation
   const validationError = useMemo(() => {
@@ -410,7 +490,7 @@ export function DepositModal() {
           <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">Deposit Capital</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Deposit an asset to start earning MOR rewards.
+              Deposit an asset to start earning MOR rewards. Power factor activates after 6 months and reaches maximum x9.7 at 6 years.
             </DialogDescription>
           </DialogHeader>
 
@@ -611,6 +691,9 @@ export function DepositModal() {
             {/* Time Lock Period */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-white">Time Lock Period</Label>
+              <p className="text-xs text-gray-400">
+                Power Factor activates after 6 months, scales up to x9.7 at 6 years, and remains capped at x9.7 for longer periods
+              </p>
               <div className="flex gap-2">
                 <Input
                   type="text"
@@ -619,10 +702,7 @@ export function DepositModal() {
                   placeholder="6"
                   value={lockValue}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === '' || /^\d+$/.test(value)) {
-                      setLockValue(value);
-                    }
+                    handleLockValueChange(e.target.value);
                   }}
                   className="bg-background border-gray-700 flex-1 text-base"
                   disabled={isProcessingDeposit}
@@ -643,7 +723,7 @@ export function DepositModal() {
                   </Button>
                   
                   {timeLockDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-gray-700 rounded-md shadow-lg overflow-hidden z-[10000]">
+                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-background border border-gray-700 rounded-md shadow-lg overflow-hidden z-[10000]">
                       {timeLockOptions.map((option) => (
                         <button
                           key={option.value}
@@ -652,7 +732,7 @@ export function DepositModal() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setLockUnit(option.value as TimeUnit);
+                            handleLockUnitChange(option.value as TimeUnit);
                             setTimeLockDropdownOpen(false);
                           }}
                         >
@@ -667,15 +747,15 @@ export function DepositModal() {
 
             {/* Summary Section */}
             {amount && parseFloat(amount) > 0 && lockValue && parseInt(lockValue, 10) > 0 && (
-              <div className="p-1 rounded-md text-sm bg-emerald-500/10 rounded-lg p-2">
+              <div className="p-1 rounded-md text-sm bg-emerald-500/20 rounded-lg p-3">
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Deposit Amount</span>
+                    <span className="text-gray-300">Deposit Amount</span>
                     <span className="text-white">{amount} {selectedAsset}</span>
                   </div>
                   {unlockDate && (
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-400">Unlock Date</span>
+                      <span className="text-gray-300">Unlock Date</span>
                       <span className="text-white">
                         {unlockDate.toLocaleDateString('en-US', { 
                           month: 'short', 
@@ -686,18 +766,60 @@ export function DepositModal() {
                     </div>
                   )}
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Power Factor</span>
+                    <span className="text-gray-300">Power Factor</span>
                     <span className="text-white">
-                      {isSimulatingMultiplier ? "Loading..." : (estimatedMultiplierValue || "1.0x")}
+                      {(() => {
+                        const displayValue = powerFactor.currentResult.isLoading 
+                          ? "Loading..." 
+                          : powerFactor.currentResult.powerFactor;
+                        
+                        if (process.env.NODE_ENV !== 'production') {
+                          console.log('🎨 [Deposit Modal] Power Factor Display:', {
+                            isLoading: powerFactor.currentResult.isLoading,
+                            powerFactorValue: powerFactor.currentResult.powerFactor,
+                            displayValue,
+                            fullCurrentResult: powerFactor.currentResult
+                          });
+                        }
+                        
+                        return displayValue;
+                      })()}
                     </span>
                   </div>
+                  
+                  {/* Show power factor warning if applicable */}
+                  {powerFactor.currentResult.warning && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      * {powerFactor.currentResult.warning}
+                    </div>
+                  )}
+                  
+                  {/* Show power factor error if applicable */}
+                  {powerFactor.currentResult.error && (
+                    <div className="text-xs text-red-400 mt-1">
+                      {powerFactor.currentResult.error}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Est. Rewards Earned</span>
+                    <span className="text-gray-300">Est. Rewards Earned</span>
                     <span className="text-white">
-                      {/* TODO: Calculate estimated rewards based on current rates */}
-                      --- MOR
+                      {estimatedRewards.estimatedRewards}
                     </span>
                   </div>
+                  
+                  {/* Show estimation note for valid calculations */}
+                  {estimatedRewards.isValid && estimatedRewards.estimatedRewards !== "---" && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      * Estimated based on current pool rate and power factor
+                    </div>
+                  )}
+                  
+                  {/* Show error if calculation failed */}
+                  {estimatedRewards.error && !estimatedRewards.isLoading && (
+                    <div className="text-xs text-red-400 mt-1">
+                      {estimatedRewards.error}
+                    </div>
+                  )}
                 </div>
               </div>
                         )}
@@ -716,8 +838,15 @@ export function DepositModal() {
               type="submit"
               form="deposit-form"
               className={
-                isProcessingDeposit || !!validationError || !!referrerAddressError || amountBigInt <= BigInt(0) || !userAddress ||
-                !lockValue || parseInt(lockValue, 10) <= 0
+                isProcessingDeposit || 
+                !!validationError || 
+                !!referrerAddressError || 
+                !!powerFactor.currentResult.error ||
+                !powerFactor.currentResult.isValid ||
+                amountBigInt <= BigInt(0) || 
+                !userAddress ||
+                !lockValue || 
+                parseInt(lockValue, 10) <= 0
                   ? "copy-button-secondary px-2 py-2 text-sm opacity-50 cursor-not-allowed mb-2 sm:mb-0" 
                   : currentlyNeedsApproval
                   ? "copy-button-secondary px-2 py-2 text-sm mb-2 sm:mb-0" 
@@ -727,6 +856,8 @@ export function DepositModal() {
                 isProcessingDeposit || 
                 !!validationError || 
                 !!referrerAddressError ||
+                !!powerFactor.currentResult.error ||
+                !powerFactor.currentResult.isValid ||
                 amountBigInt <= BigInt(0) || 
                 !userAddress ||
                 !lockValue ||

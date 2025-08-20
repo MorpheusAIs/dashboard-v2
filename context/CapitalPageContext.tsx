@@ -108,17 +108,47 @@ interface AssetData {
   minimalStakeFormatted: string;
 }
 
+// Use the same contract-expected calculations as our utils
 const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
   const numValue = parseInt(value, 10);
   if (isNaN(numValue) || numValue <= 0) return BigInt(0);
-  let multiplier: bigint;
-  switch (unit) {
-    case "days": multiplier = BigInt(86400); break;
-    case "months": multiplier = BigInt(86400) * BigInt(30); break; // Approximation
-    case "years": multiplier = BigInt(86400) * BigInt(365); break; // Approximation
-    default: multiplier = BigInt(0);
+  
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('📅 [Context Duration] Using contract-expected calculation for:', { value, unit });
   }
-  return BigInt(numValue) * multiplier;
+  
+  let diffSeconds: number;
+  
+  // Use contract-expected calculations to match exactly what the contract expects
+  switch (unit) {
+    case "days":
+      diffSeconds = numValue * 86400; // 24 * 60 * 60
+      break;
+    case "months":
+      diffSeconds = numValue * 30 * 86400; // 30 days per month (contract expectation)
+      break;
+    case "years":
+      // Special case: For 6 years, use the EXACT value the contract expects for maximum power factor
+      if (numValue === 6) {
+        diffSeconds = 189216000; // Exact value from documentation: 6 * 365 * 24 * 60 * 60
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('🎯 [Context 6-YEAR SPECIAL] Using exact 189,216,000 seconds for maximum power factor');
+          console.log('  Context matches utils: exactly 2190 days');
+        }
+      } else {
+        diffSeconds = numValue * 365 * 86400; // 365 days per year
+      }
+      break;
+    default:
+      return BigInt(0);
+  }
+  
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('📅 [Context Duration] Contract-expected result (seconds):', diffSeconds);
+    console.log('📅 [Context Duration] Contract-expected result (days):', diffSeconds / 86400);
+  }
+  
+  return BigInt(diffSeconds);
 };
 
 // --- Helper: BigInt Max ---
@@ -1368,9 +1398,27 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       if (simulateMultiplierError) return "Error";
       if (simulatedMultiplierResult?.result) {
           // --- Log Raw Simulated Multiplier Data ---
-          console.log("Raw simulatedMultiplierResult.result:", simulatedMultiplierResult.result);
+          if (process.env.NODE_ENV !== 'production') {
+            console.group('⚠️ [LEGACY Context] Power Factor Calculation');
+            console.log("Raw simulatedMultiplierResult.result:", simulatedMultiplierResult.result);
+            console.log("USING LEGACY CONTEXT - Should use new hook instead!");
+          }
           // -----------------------------------------
-          return formatBigInt(simulatedMultiplierResult.result as bigint, 24, 1) + "x";
+          // FIXED: Use 21 decimals as per documentation, not 24
+          const rawFormatted = formatBigInt(simulatedMultiplierResult.result as bigint, 21, 1);
+          const numValue = parseFloat(rawFormatted);
+          // Cap at actual contract maximum of 9.7x
+          const cappedValue = Math.min(numValue, 9.7);
+          const result = cappedValue.toFixed(1) + "x";
+          
+          if (process.env.NODE_ENV !== 'production') {
+            console.log("Raw formatted value:", rawFormatted);
+            console.log("Numeric value:", numValue);
+            console.log("Capped value:", cappedValue);
+            console.log("Final legacy result:", result);
+            console.groupEnd();
+          }
+          return result;
       }
       return "---x"; // Default or if no valid args set
   }, [simulatedMultiplierResult, simulateMultiplierError, isSimulatingMultiplier]);
