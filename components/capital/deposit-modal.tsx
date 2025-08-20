@@ -403,7 +403,8 @@ export function DepositModal() {
           errorMessage.includes("User denied") || 
           errorMessage.includes("rejected the request") ||
           errorMessage.includes("denied transaction signature")) {
-        setFormError("Transaction was cancelled.");
+        // Don't set formError for user cancellation - it's not a form validation error
+        // The toast notification will be shown by the context/hook that handles the transaction
         return;
       }
       
@@ -424,6 +425,7 @@ export function DepositModal() {
       // Limit to 2 decimal places
       const formattedAmount = Number(maxAmount).toFixed(2);
       setAmount(formattedAmount);
+      setFormError(null); // Clear form error when max amount is selected
     }
   };
 
@@ -532,6 +534,7 @@ export function DepositModal() {
                           e.stopPropagation();
                           setSelectedAsset(asset.value as 'stETH' | 'LINK');
                           setAssetDropdownOpen(false);
+                          setFormError(null); // Clear form error on asset change
                         }}
                       >
                         <div className="flex items-center gap-3">
@@ -617,6 +620,7 @@ export function DepositModal() {
                   const value = e.target.value;
                   setReferrerAddress(value);
                   validateReferrerAddress(value);
+                  setFormError(null); // Clear form error on input change
                 }}
                 onBlur={() => validateReferrerAddress(referrerAddress)}
                 className={`bg-background border-gray-700 text-base ${
@@ -700,6 +704,7 @@ export function DepositModal() {
                   value={lockValue}
                   onChange={(e) => {
                     handleLockValueChange(e.target.value);
+                    setFormError(null); // Clear form error on input change
                   }}
                   className="bg-background border-gray-700 flex-1 text-base"
                   disabled={isProcessingDeposit}
@@ -731,6 +736,7 @@ export function DepositModal() {
                             e.stopPropagation();
                             handleLockUnitChange(option.value as TimeUnit);
                             setTimeLockDropdownOpen(false);
+                            setFormError(null); // Clear form error on time unit change
                           }}
                         >
                           {option.label}
