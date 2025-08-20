@@ -101,7 +101,7 @@ export function MyBalanceModal() {
           <DialogContent className="sm:max-w-[425px] bg-background border-gray-800">
             <DialogHeader className="">
               <DialogTitle className="text-sm font-medium text-gray-400 text-center">
-                Totals Balance
+                Total Balance
               </DialogTitle>
             </DialogHeader>
 
@@ -158,7 +158,9 @@ export function MyBalanceModal() {
 
               {/* Buy MOR Button */}
               <div className="flex justify-center">
-                <CowSwapModal />
+                <div className="[&>button]:text-base [&>button]:px-6 [&>button]:py-2">
+                  <CowSwapModal />
+                </div>
               </div>
             </div>
           </DialogContent>
