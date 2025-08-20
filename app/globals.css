@@ -420,3 +420,34 @@ body {
     @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:hidden;
   }
 }
+
+/* Custom error toast styling - Override Sonner's built-in error styles */
+.custom-error-toast,
+[data-sonner-toast][data-type="error"] {
+  background-color: black !important;
+  color: white !important;
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.custom-error-toast [data-description],
+[data-sonner-toast][data-type="error"] [data-description] {
+  color: #d1d5db !important;
+}
+
+.custom-error-toast [data-close-button],
+[data-sonner-toast][data-type="error"] [data-close-button] {
+  color: white !important;
+}
+
+/* Override Sonner's default error background */
+[data-sonner-toast][data-type="error"] {
+  --normal-bg: black !important;
+  --normal-border: #ef4444 !important;
+  --normal-text: white !important;
+}
+
+/* Error toast description styling */
+.error-toast-description {
+  @apply text-gray-300;
+}
