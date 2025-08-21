@@ -99,9 +99,9 @@ export function ReferralPanel() {
               {/* Lifetime Value Generated */}
               <div className="col-span-1">
                 <MetricCardMinimal
-                  title="Lifetime Value Generated"
+                  title="Total MOR Earned"
                   value={referralData.isLoadingReferralData ? "---" : referralData.lifetimeRewards}
-                  label={referralData.isLoadingReferralData ? "" : "ETH"}
+                  label={referralData.isLoadingReferralData ? "" : "MOR"}
                   disableGlow={true}
                   autoFormatNumbers={true}
                   className="h-full"
