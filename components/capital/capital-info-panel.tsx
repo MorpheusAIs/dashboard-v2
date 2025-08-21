@@ -8,11 +8,13 @@ import { TokenIcon } from '@web3icons/react';
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Asset } from "./types/asset";
 import { parseStakedAmount } from "./utils/parse-staked-amount";
+import type { AssetSymbol } from "@/context/CapitalPageContext";
 
 export function CapitalInfoPanel() {
   const {
     userAddress,
     setActiveModal,
+    setSelectedAsset,
   } = useCapitalContext();
 
   // Get live contract data
@@ -50,9 +52,9 @@ export function CapitalInfoPanel() {
     },
   ];
 
-  const handleStakeClick = () => {
-    // For now, all assets open the deposit modal
-    // In the future, we might have different modals for different assets
+  const handleStakeClick = (assetSymbol: AssetSymbol) => {
+    // Set the selected asset in the context before opening the modal
+    setSelectedAsset(assetSymbol);
     setActiveModal('deposit');
   };
 
@@ -147,7 +149,7 @@ export function CapitalInfoPanel() {
                     {/* Stake Button */}
                     <div className="text-center">
                       <button
-                        onClick={asset.disabled ? undefined : handleStakeClick}
+                        onClick={asset.disabled ? undefined : () => handleStakeClick(asset.symbol as AssetSymbol)}
                         className={`text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           asset.disabled 
                             ? 'text-gray-600 cursor-not-allowed' 

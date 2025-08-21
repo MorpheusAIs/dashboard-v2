@@ -474,11 +474,16 @@ export function DepositModal() {
       setAssetDropdownOpen(false);
       setTimeLockDropdownOpen(false);
       setSelectedAsset(contextSelectedAsset);
-    } else if (isOpen && preReferrerAddress && !referrerAddress) {
+    } else if (isOpen) {
+      // Update selected asset when modal opens with the context value
+      setSelectedAsset(contextSelectedAsset);
+      
       // Pre-populate referrer address when modal opens with URL referrer
-      setReferrerAddress(preReferrerAddress);
-      // Clear the pre-populated address after using it
-      setPreReferrerAddress('');
+      if (preReferrerAddress && !referrerAddress) {
+        setReferrerAddress(preReferrerAddress);
+        // Clear the pre-populated address after using it
+        setPreReferrerAddress('');
+      }
     }
   }, [isOpen, contextSelectedAsset, preReferrerAddress, referrerAddress, setPreReferrerAddress]);
 
