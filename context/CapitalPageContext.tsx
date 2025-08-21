@@ -23,6 +23,7 @@ import {
   type NetworkEnvironment 
 } from "@/config/networks";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
+import { formatPowerFactorPrecise } from "@/lib/utils/power-factor-utils";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 
 // Static ABI imports as fallbacks - keep these for reliability
@@ -689,6 +690,25 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: 15000 }
   });
 
+  // --- V2 User Multiplier Reads (Power Factor) ---
+  const { data: stETHV2UserMultiplier, isLoading: isLoadingStETHV2Multiplier, refetch: refetchStETHV2Multiplier } = useReadContract({
+    address: distributorV2Address,
+    abi: ERC1967ProxyAbi,
+    functionName: 'getCurrentUserMultiplier',
+    args: [BigInt(0), userAddress || zeroAddress], // Pool ID 0 for stETH
+    chainId: l1ChainId,
+    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 30000 }
+  });
+
+  const { data: linkV2UserMultiplier, isLoading: isLoadingLinkV2Multiplier, refetch: refetchLinkV2Multiplier } = useReadContract({
+    address: distributorV2Address,
+    abi: ERC1967ProxyAbi,
+    functionName: 'getCurrentUserMultiplier',
+    args: [BigInt(1), userAddress || zeroAddress], // Pool ID 1 for LINK
+    chainId: l1ChainId,
+    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 30000 }
+  });
+
   // Debug logging for reward values
   useEffect(() => {
     if (stETHV2CurrentUserReward !== undefined && stETHV2UserData) {
@@ -813,7 +833,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const { isLoading: isConfirmingLockClaim, isSuccess: isLockClaimSuccess, isError: isLockClaimError, error: lockClaimError } = useWaitForTransactionReceipt({ hash: lockClaimHash, chainId: l1ChainId });
 
   // --- Combined Loading States (NOW PROPERLY USED!) ---
-  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier || isLoadingStETHV2User || isLoadingLinkV2User; 
+  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier || isLoadingStETHV2User || isLoadingLinkV2User || isLoadingStETHV2Multiplier || isLoadingLinkV2Multiplier; 
   const isLoadingBalances = isLoadingStEthBalance || isLoadingMorBalance || isLoadingLinkBalance;
   const isLoadingAllowances = isLoadingAllowance || isLoadingStETHV2Allowance || isLoadingLinkV2Allowance;
   const isLoadingRewards = isLoadingStETHV2Reward || isLoadingLinkV2Reward;
@@ -1615,14 +1635,16 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
       userAllowance: stETHV2Allowance,
       claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
-      userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
+      userMultiplier: stETHV2UserMultiplier as bigint || BigInt(0),
       totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
       protocolDetails: stETHV2ProtocolParsed || null,
       poolData: null,
       userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
       userDepositedFormatted: formatBigInt(stETHV2UserParsed?.deposited, 18, 2),
       claimableAmountFormatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2),
-      userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
+      userMultiplierFormatted: stETHV2UserMultiplier ? 
+        formatPowerFactorPrecise(stETHV2UserMultiplier as bigint) : 
+        (stETHV2UserParsed?.deposited && BigInt(stETHV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
       totalDepositedFormatted: formatBigInt(stETHV2TotalDeposited as bigint, 18, 2),
       minimalStakeFormatted: stETHV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
     },
@@ -1639,22 +1661,24 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       userDeposited: linkV2UserParsed?.deposited || BigInt(0),
       userAllowance: linkV2Allowance,
       claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
-      userMultiplier: BigInt(1), // TODO: Add V2 multiplier calculation
+      userMultiplier: linkV2UserMultiplier as bigint || BigInt(0),
       totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
       protocolDetails: linkV2ProtocolParsed || null,
       poolData: null,
       userBalanceFormatted: formatBigInt(linkBalance, 18, 4),
       userDepositedFormatted: formatBigInt(linkV2UserParsed?.deposited, 18, 2),
       claimableAmountFormatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
-      userMultiplierFormatted: "1.0x", // TODO: Add V2 multiplier formatting
+      userMultiplierFormatted: linkV2UserMultiplier ? 
+        formatPowerFactorPrecise(linkV2UserMultiplier as bigint) : 
+        (linkV2UserParsed?.deposited && BigInt(linkV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
       totalDepositedFormatted: formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
       minimalStakeFormatted: linkV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
     },
   }), [
     stETHDepositPoolAddress, stEthContractAddress, stEthBalance, stETHV2UserParsed, stETHV2Allowance, 
-    stETHV2CurrentUserReward, stETHV2TotalDeposited, stETHV2ProtocolParsed,
+    stETHV2CurrentUserReward, stETHV2UserMultiplier, stETHV2TotalDeposited, stETHV2ProtocolParsed,
     linkDepositPoolAddress, linkTokenAddress, linkBalance, linkV2UserParsed, linkV2Allowance,
-    linkV2CurrentUserReward, linkV2TotalDeposited, linkV2ProtocolParsed
+    linkV2CurrentUserReward, linkV2UserMultiplier, linkV2TotalDeposited, linkV2ProtocolParsed
   ]);
 
   // --- Generic Eligibility Checks (using assets structure) ---
@@ -1715,7 +1739,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     selectedAssetUserBalanceFormatted: selectedAsset === 'stETH' ? formatBigInt(stEthBalance, 18, 4) : formatBigInt(linkBalance, 18, 4),
     selectedAssetDepositedFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2UserParsed?.deposited, 18, 2) : formatBigInt(linkV2UserParsed?.deposited, 18, 2),
     selectedAssetClaimableFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2) : formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
-    selectedAssetMultiplierFormatted: "1.0x", // TODO: Asset-specific multiplier
+    selectedAssetMultiplierFormatted: selectedAsset === 'stETH' ? 
+      (stETHV2UserMultiplier ? formatPowerFactorPrecise(stETHV2UserMultiplier as bigint) : "x1.0") :
+      (linkV2UserMultiplier ? formatPowerFactorPrecise(linkV2UserMultiplier as bigint) : "x1.0"),
     selectedAssetTotalStakedFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2TotalDeposited as bigint, 18, 2) : formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
     selectedAssetMinimalStakeFormatted: "100", // TODO: Asset-specific minimal stake
     
@@ -1801,6 +1827,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     stEthBalance, morBalance, linkBalance, stETHV2Allowance, linkV2Allowance,
     stETHV2UserParsed, linkV2UserParsed, stETHV2ProtocolParsed, linkV2ProtocolParsed,
     stETHV2TotalDeposited, linkV2TotalDeposited, stETHV2CurrentUserReward, linkV2CurrentUserReward,
+    stETHV2UserMultiplier, linkV2UserMultiplier,
     selectedAsset, poolInfo, poolLimits, assets,
     withdrawUnlockTimestamp, claimUnlockTimestamp,
     canWithdraw, canClaim,
