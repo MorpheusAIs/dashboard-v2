@@ -458,7 +458,7 @@ export function UserAssetsPanel() {
             <DropdownMenuContent align="end" className="mt-2">
               <DropdownMenuItem onClick={() => handleDropdownAction('stakeMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
                 <TrendingUp className="mr-2 h-4 w-4" /> 
-                Deposit
+                Stake Rewards
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => handleDropdownAction('withdraw', asset.assetSymbol)} 

@@ -1100,14 +1100,23 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         poolIndex: V2_REWARD_POOL_INDEX.toString(),
         chainId: l1ChainId
       });
-      const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
-      await handleTransaction(() => stakeAsync({
-        address: stETHDepositPoolAddress,
-        abi: DepositPoolAbi,
+      await handleTransaction(() => {
+        // Calculate timestamp right before transaction for maximum safety
+        const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
+        console.log('🕒 Final timestamp calculated right before transaction:', {
+          currentTimestamp: Math.floor(Date.now() / 1000),
+          lockDuration: lockDuration.toString(),
+          claimLockEnd: claimLockEnd.toString(),
+          claimLockEndDate: new Date(Number(claimLockEnd) * 1000).toISOString()
+        });
+        return stakeAsync({
+          address: stETHDepositPoolAddress,
+          abi: DepositPoolAbi,
           functionName: 'stake',
-        args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
+          args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
           chainId: l1ChainId,
-      }), {
+        });
+      }, {
         loading: "Requesting stETH deposit...",
         success: `Successfully deposited ${amountString} stETH!`, 
         error: "stETH deposit failed"
@@ -1146,14 +1155,23 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           referrer: { current: zeroAddress, successful: "0x0000000000000000000000000000000000000000", match: zeroAddress === "0x0000000000000000000000000000000000000000" }
         }
       });
-      const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
-      await handleTransaction(() => stakeAsync({
-        address: linkDepositPoolAddress,
-        abi: DepositPoolAbi,
-        functionName: 'stake',
-        args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
-        chainId: l1ChainId,
-      }), {
+      await handleTransaction(() => {
+        // Calculate timestamp right before transaction for maximum safety
+        const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
+        console.log('🕒 Final timestamp calculated right before transaction:', {
+          currentTimestamp: Math.floor(Date.now() / 1000),
+          lockDuration: lockDuration.toString(),
+          claimLockEnd: claimLockEnd.toString(),
+          claimLockEndDate: new Date(Number(claimLockEnd) * 1000).toISOString()
+        });
+        return stakeAsync({
+          address: linkDepositPoolAddress,
+          abi: DepositPoolAbi,
+          functionName: 'stake',
+          args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
+          chainId: l1ChainId,
+        });
+      }, {
         loading: "Requesting LINK deposit...",
         success: `Successfully deposited ${amountString} LINK!`, 
         error: "LINK deposit failed"
