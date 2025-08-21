@@ -124,9 +124,13 @@ const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
   switch (unit) {
     case "days":
       diffSeconds = numValue * 86400; // 24 * 60 * 60
+      // Add 5-minute safety buffer to prevent timing race conditions
+      diffSeconds += 300; // 5 minutes = 300 seconds
       break;
     case "months":
       diffSeconds = numValue * 30 * 86400; // 30 days per month (contract expectation)
+      // Add 5-minute safety buffer for timing
+      diffSeconds += 300;
       break;
     case "years":
       // Special case: For 6 years, use the EXACT value the contract expects for maximum power factor
@@ -139,14 +143,17 @@ const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
       } else {
         diffSeconds = numValue * 365 * 86400; // 365 days per year
       }
+      // Add 5-minute safety buffer for years as well
+      diffSeconds += 300;
       break;
     default:
       return BigInt(0);
   }
   
   if (process.env.NODE_ENV !== 'production') {
-    console.log('📅 [Context Duration] Contract-expected result (seconds):', diffSeconds);
-    console.log('📅 [Context Duration] Contract-expected result (days):', diffSeconds / 86400);
+    console.log('📅 [Context Duration] Contract-expected result with buffer (seconds):', diffSeconds);
+    console.log('📅 [Context Duration] Contract-expected result with buffer (days):', diffSeconds / 86400);
+    console.log('📅 [Context Duration] Safety buffer: 300 seconds (5 minutes)');
   }
   
   return BigInt(diffSeconds);
