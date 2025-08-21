@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
 
 const MOR_ABI = [{
   "inputs": [{"internalType": "address","name": "account","type": "address"}],
@@ -160,7 +161,7 @@ export function MyBalanceModal() {
                   </span>
                 </div>
                 {/* Divider */}
-                <hr className="border-gray-700" />
+                <Separator />
 
                 {/* Base Balance - only show on mainnet */}
                 {!isTestnet && (
@@ -174,7 +175,7 @@ export function MyBalanceModal() {
                         <NumberFlow value={baseFormattedBalance} /> MOR
                         </span>
                     </div>
-                    <hr className="border-gray-700" />
+                    <Separator />
                   </>
                 )}
               </div>
