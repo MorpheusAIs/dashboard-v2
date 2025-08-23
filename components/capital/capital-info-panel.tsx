@@ -77,9 +77,20 @@ export function CapitalInfoPanel() {
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold text-white">Capital</h1>
               {poolData.networkEnvironment === 'testnet' && (
-                <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
-                  Live Data
-                </span>
+                <div className="flex gap-2">
+                  <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
+                    Live Data
+                  </span>
+                  {(poolData.stETH.apy === 'N/A' || poolData.LINK.apy === 'N/A') ? (
+                    <span className="px-2 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 text-xs font-medium">
+                      Contract Debug
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-400 text-xs font-medium">
+                      Accelerated Rewards
+                    </span>
+                  )}
+                </div>
               )}
               {poolData.networkEnvironment === 'mainnet' && (
                 <span className="px-2 py-1 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-400 text-xs font-medium">

@@ -47,10 +47,10 @@ export function useCapitalMetrics(): CapitalMetrics {
         setStethPrice(stethPriceData);
         setLinkPrice(linkPriceData);
         
-        console.log('💰 Token prices fetched for metrics:', {
-          stETH: stethPriceData,
-          LINK: linkPriceData
-        });
+        // console.log('💰 Token prices fetched for metrics:', {
+        //   stETH: stethPriceData,
+        //   LINK: linkPriceData
+        // });
       } catch (error) {
         console.error('Error fetching token prices for metrics:', error);
         setPriceError('Failed to fetch token prices');
@@ -167,17 +167,6 @@ export function useCapitalMetrics(): CapitalMetrics {
     const stethUSDValue = stethPrice ? stethAmount * stethPrice : 0;
     const linkUSDValue = linkPrice ? linkAmount * linkPrice : 0;
     const totalValueLockedUSD = Math.floor(stethUSDValue + linkUSDValue);
-
-    console.log('📊 TVL Calculation:', {
-      stethAmount,
-      linkAmount,
-      stethPrice,
-      linkPrice,
-      stethUSDValue,
-      linkUSDValue,
-      totalValueLockedUSD,
-      networkEnv: poolData.networkEnvironment
-    });
 
     // Calculate average APY (weighted by USD value)
     let avgApy = 0;
