@@ -149,12 +149,6 @@ export function UserAssetsPanel() {
       // Compare dates including time
       const unlockReached = currentDate >= unlockDateTime;
       
-      console.log(`🔒 Unlock check for "${unlockDate}":`, {
-        unlockDateTime: unlockDateTime.toISOString(),
-        currentDate: currentDate.toISOString(),
-        unlockReached
-      });
-      
       return unlockReached;
     } catch (error) {
       console.error('Error parsing unlock date:', unlockDate, error);
@@ -196,10 +190,10 @@ export function UserAssetsPanel() {
         setStethPrice(stethPriceData);
         setLinkPrice(linkPriceData);
         
-        console.log('💰 Token prices fetched:', {
-          stETH: stethPriceData,
-          LINK: linkPriceData
-        });
+        // console.log('💰 Token prices fetched:', {
+        //   stETH: stethPriceData,
+        //   LINK: linkPriceData
+        // });
       } catch (error) {
         console.error('Error fetching token prices:', error);
       }

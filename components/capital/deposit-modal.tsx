@@ -110,52 +110,51 @@ export function DepositModal() {
   });
 
   // Debug hook initialization
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.group('🔧 [Deposit Modal Debug] Hook Initialization');
-      console.log('Power Factor Hook:', {
-        contractAddress: poolContractAddress,
-        chainId: l1ChainId,
-        poolId: 0,
-        enabled: true
-      });
-      console.log('Estimated Rewards Hook:', {
-        contractAddress: poolContractAddress,
-        chainId: l1ChainId,
-        depositAmount: amount,
-        powerFactor: powerFactor.currentResult.powerFactor,
-        lockPeriod: { lockValue, lockUnit },
-        enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid
-      });
-      console.groupEnd();
-    }
-  }, [powerFactor, estimatedRewards, poolContractAddress, l1ChainId, amount, lockValue, lockUnit]);
+  // useEffect(() => {
+  //   if (process.env.NODE_ENV !== 'production') {
+  //     console.log('Power Factor Hook:', {
+  //       contractAddress: poolContractAddress,
+  //       chainId: l1ChainId,
+  //       poolId: 0,
+  //       enabled: true
+  //     });
+  //     console.log('Estimated Rewards Hook:', {
+  //       contractAddress: poolContractAddress,
+  //       chainId: l1ChainId,
+  //       depositAmount: amount,
+  //       powerFactor: powerFactor.currentResult.powerFactor,
+  //       lockPeriod: { lockValue, lockUnit },
+  //       enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid
+  //     });
+  //     console.groupEnd();
+  //   }
+  // }, [powerFactor, estimatedRewards, poolContractAddress, l1ChainId, amount, lockValue, lockUnit]);
 
   // Update power factor calculation when lock period changes
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.group('🎛️ [Deposit Modal Debug] Lock Period Change');
-      console.log('Lock Value:', lockValue);
-      console.log('Lock Unit:', lockUnit);
-      console.log('Power Factor Hook State:', {
-        contractAddress: poolContractAddress,
-        chainId: l1ChainId,
-        isLoading: powerFactor.isLoading,
-        contractError: powerFactor.contractError,
-        currentResult: powerFactor.currentResult
-      });
-    }
+    // if (process.env.NODE_ENV !== 'production') {
+    //   console.group('🎛️ [Deposit Modal Debug] Lock Period Change');
+    //   console.log('Lock Value:', lockValue);
+    //   console.log('Lock Unit:', lockUnit);
+    //   console.log('Power Factor Hook State:', {
+    //     contractAddress: poolContractAddress,
+    //     chainId: l1ChainId,
+    //     isLoading: powerFactor.isLoading,
+    //     contractError: powerFactor.contractError,
+    //     currentResult: powerFactor.currentResult
+    //   });
+    // }
     
     if (lockValue && parseInt(lockValue, 10) > 0) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Calling powerFactor.setLockPeriod');
-      }
+      // if (process.env.NODE_ENV !== 'production') {
+      //   console.log('Calling powerFactor.setLockPeriod');
+      // }
       powerFactor.setLockPeriod(lockValue, lockUnit);
     }
     
-    if (process.env.NODE_ENV !== 'production') {
-      console.groupEnd();
-    }
+    // if (process.env.NODE_ENV !== 'production') {
+    //   console.groupEnd();
+    // }
   }, [lockValue, lockUnit, powerFactor, poolContractAddress, l1ChainId]);
 
   // Current asset data
@@ -185,32 +184,6 @@ export function DepositModal() {
       retryDelay: 1000, // Wait 1s between retries
     }
   });
-
-  // Debug ENS resolution
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[ENS Debug]', {
-        referrerAddress: referrerAddress.trim(),
-        isEnsName,
-        isResolvingEns,
-        resolvedAddress,
-        ensError: ensError?.message,
-        fullError: ensError
-      });
-    }
-  }, [referrerAddress, isEnsName, isResolvingEns, resolvedAddress, ensError]);
-
-  // Log wagmi config info for debugging
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production' && isEnsName) {
-      console.log('[ENS Config Debug]', {
-        userAddress,
-        chainId: 'using mainnet (1) for ENS',
-        ensName: referrerAddress.trim(),
-        wagmiConfigured: !!resolvedAddress || !!ensError || isResolvingEns
-      });
-    }
-  }, [isEnsName, referrerAddress, userAddress, resolvedAddress, ensError, isResolvingEns]);
 
   // State to track approval status
   const [currentlyNeedsApproval, setCurrentlyNeedsApproval] = useState(false);

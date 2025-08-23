@@ -449,7 +449,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         });
       }
       
-      console.log("🎯 Dynamic contracts created:", Object.keys(contracts));
+      // console.log("🎯 Dynamic contracts created:", Object.keys(contracts));
     } catch (error) {
       console.error("❌ Error creating dynamic contracts:", error);
     }
@@ -874,27 +874,27 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   const claimUnlockTimestamp = useMemo(() => {
     // Debug logging for claim unlock calculation
-    console.log("🔍 Debug: Calculating claimUnlockTimestamp", {
-      poolInfo: poolInfo ? {
-        payoutStart: poolInfo.payoutStart?.toString(),
-        claimLockPeriod: poolInfo.claimLockPeriod?.toString()
-      } : "undefined",
-      poolLimits: poolLimits ? {
-        claimLockPeriodAfterClaim: poolLimits.claimLockPeriodAfterClaim?.toString(),
-        claimLockPeriodAfterStake: poolLimits.claimLockPeriodAfterStake?.toString()
-      } : "undefined",
-      userData: userData ? {
-        lastStake: userData.lastStake?.toString(),
-        lastClaim: userData.lastClaim?.toString(),
-        claimLockEnd: userData.claimLockEnd?.toString()
-      } : "undefined",
-      currentUserRewardData: currentUserRewardData?.toString(),
-      userAddress,
-      chainId,
-      networkEnv,
-      l1ChainId,
-      poolContractAddress
-    });
+    // console.log("🔍 Debug: Calculating claimUnlockTimestamp", {
+    //   poolInfo: poolInfo ? {
+    //     payoutStart: poolInfo.payoutStart?.toString(),
+    //     claimLockPeriod: poolInfo.claimLockPeriod?.toString()
+    //   } : "undefined",
+    //   poolLimits: poolLimits ? {
+    //     claimLockPeriodAfterClaim: poolLimits.claimLockPeriodAfterClaim?.toString(),
+    //     claimLockPeriodAfterStake: poolLimits.claimLockPeriodAfterStake?.toString()
+    //   } : "undefined",
+    //   userData: userData ? {
+    //     lastStake: userData.lastStake?.toString(),
+    //     lastClaim: userData.lastClaim?.toString(),
+    //     claimLockEnd: userData.claimLockEnd?.toString()
+    //   } : "undefined",
+    //   currentUserRewardData: currentUserRewardData?.toString(),
+    //   userAddress,
+    //   chainId,
+    //   networkEnv,
+    //   l1ChainId,
+    //   poolContractAddress
+    // });
 
     if (
       !poolInfo?.payoutStart ||
@@ -905,15 +905,15 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       !userData.lastClaim ||
       userData.claimLockEnd === undefined
     ) {
-      console.log("❌ claimUnlockTimestamp is undefined due to missing data:", {
-        hasPayoutStart: !!poolInfo?.payoutStart,
-        hasClaimLockPeriod: !!poolInfo?.claimLockPeriod,
-        hasClaimLockPeriodAfterClaim: !!poolLimits?.claimLockPeriodAfterClaim,
-        hasClaimLockPeriodAfterStake: !!poolLimits?.claimLockPeriodAfterStake,
-        hasLastStake: !!userData?.lastStake,
-        hasLastClaim: !!userData?.lastClaim,
-        hasClaimLockEnd: userData?.claimLockEnd !== undefined
-      });
+      // console.log("❌ claimUnlockTimestamp is undefined due to missing data:", {
+      //   hasPayoutStart: !!poolInfo?.payoutStart,
+      //   hasClaimLockPeriod: !!poolInfo?.claimLockPeriod,
+      //   hasClaimLockPeriodAfterClaim: !!poolLimits?.claimLockPeriodAfterClaim,
+      //   hasClaimLockPeriodAfterStake: !!poolLimits?.claimLockPeriodAfterStake,
+      //   hasLastStake: !!userData?.lastStake,
+      //   hasLastClaim: !!userData?.lastClaim,
+      //   hasClaimLockEnd: userData?.claimLockEnd !== undefined
+      // });
       return undefined;
     }
     
@@ -1508,13 +1508,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     const result = !(!claimUnlockTimestamp || !currentUserRewardData || currentUserRewardData === BigInt(0)) && 
                    currentTimestampSeconds >= claimUnlockTimestamp;
     
-    console.log("🔍 Debug: canClaim calculation", {
-      claimUnlockTimestamp: claimUnlockTimestamp?.toString(),
-      currentUserRewardData: currentUserRewardData?.toString(),
-      currentTimestampSeconds: currentTimestampSeconds.toString(),
-      timeComparison: claimUnlockTimestamp ? `${currentTimestampSeconds} >= ${claimUnlockTimestamp} = ${currentTimestampSeconds >= claimUnlockTimestamp}` : "N/A",
-      canClaim: result
-    });
+    // console.log("🔍 Debug: canClaim calculation", {
+    //   claimUnlockTimestamp: claimUnlockTimestamp?.toString(),
+    //   currentUserRewardData: currentUserRewardData?.toString(),
+    //   currentTimestampSeconds: currentTimestampSeconds.toString(),
+    //   timeComparison: claimUnlockTimestamp ? `${currentTimestampSeconds} >= ${claimUnlockTimestamp} = ${currentTimestampSeconds >= claimUnlockTimestamp}` : "N/A",
+    //   canClaim: result
+    // });
     
     return result;
   }, [claimUnlockTimestamp, currentUserRewardData, currentTimestampSeconds]);

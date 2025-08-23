@@ -9,27 +9,31 @@ import { BuilderDB } from '@/app/lib/supabase';
 import { useNewlyCreatedSubnets } from './useNewlyCreatedSubnets';
 
 export const useAllBuildersQuery = () => {
-  console.log('[useAllBuildersQuery] Hook initialized');
+  // console.log('[useAllBuildersQuery] Hook initialized');
   
   const { isTestnet } = useNetworkInfo();
-  const { supabaseBuilders, supabaseBuildersLoaded, error: supabaseError } = useSupabaseBuilders();
+  const { 
+    supabaseBuilders, 
+    supabaseBuildersLoaded, 
+    // error: supabaseError
+   } = useSupabaseBuilders();
   const { userAddress, isAuthenticated } = useAuth(); // Get userAddress and isAuthenticated
   const { data: morlordBuilderNames, isLoading: isLoadingMorlordBuilders } = useMorlordBuilders(); // Add the Morlord hook
   const { getNewlyCreatedSubnetNames, cleanupExistingSubnets, getNewlyCreatedSubnetAdmin } = useNewlyCreatedSubnets(); // Add the newly created subnets hook
 
   // Safe access to lengths for logging
-  const morlordNamesLength = Array.isArray(morlordBuilderNames) ? morlordBuilderNames.length : 0;
-  const supabaseBuildersLength = Array.isArray(supabaseBuilders) ? supabaseBuilders.length : 0;
-  const newlyCreatedNamesLength = getNewlyCreatedSubnetNames().length;
+  // const morlordNamesLength = Array.isArray(morlordBuilderNames) ? morlordBuilderNames.length : 0;
+  // const supabaseBuildersLength = Array.isArray(supabaseBuilders) ? supabaseBuilders.length : 0;
+  // const newlyCreatedNamesLength = getNewlyCreatedSubnetNames().length;
 
-  console.log(`[useAllBuildersQuery] Dependencies: 
-    isTestnet: ${isTestnet}
-    supabaseBuildersLoaded: ${supabaseBuildersLoaded}
-    isLoadingMorlordBuilders: ${isLoadingMorlordBuilders}
-    morlordBuilderNames length: ${morlordNamesLength}
-    supabaseBuilders length: ${supabaseBuildersLength}
-    newlyCreatedNames length: ${newlyCreatedNamesLength}
-  `);
+  // console.log(`[useAllBuildersQuery] Dependencies: 
+  //   isTestnet: ${isTestnet}
+  //   supabaseBuildersLoaded: ${supabaseBuildersLoaded}
+  //   isLoadingMorlordBuilders: ${isLoadingMorlordBuilders}
+  //   morlordBuilderNames length: ${morlordNamesLength}
+  //   supabaseBuilders length: ${supabaseBuildersLength}
+  //   newlyCreatedNames length: ${newlyCreatedNamesLength}
+  // `);
 
   // Include userAddress, morlordBuilderNames, and newly created subnets in the queryKey for refetching
   const newlyCreatedNames = getNewlyCreatedSubnetNames();
@@ -49,7 +53,7 @@ export const useAllBuildersQuery = () => {
   // 2. It's mainnet AND supabase builders have been loaded AND Morlord builder names have been loaded
   const isEnabled = isTestnet ? true : (supabaseBuildersLoaded && !isLoadingMorlordBuilders);
   
-  console.log(`[useAllBuildersQuery] Query enabled: ${isEnabled}`);
+  // console.log(`[useAllBuildersQuery] Query enabled: ${isEnabled}`);
 
   return useQuery<Builder[], Error>({ 
     queryKey: queryKey,
@@ -57,9 +61,9 @@ export const useAllBuildersQuery = () => {
       // console.log('[useAllBuildersQuery] Query function executing with key:', JSON.stringify(queryKey));
       // console.log('[useAllBuildersQuery] Current newly created subnets:', newlyCreatedNames);
       
-      if (!isTestnet && supabaseError) {
-        console.warn('[useAllBuildersQuery] Supabase error detected on mainnet:', supabaseError);
-      }
+      // if (!isTestnet && supabaseError) {
+      //   console.warn('[useAllBuildersQuery] Supabase error detected on mainnet:', supabaseError);
+      // }
 
       // Start with supabase builders
       let combinedBuilders = supabaseBuilders ? [...supabaseBuilders] : [];

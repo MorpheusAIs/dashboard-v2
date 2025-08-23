@@ -193,7 +193,7 @@ export function useCapitalChartData() {
 
   // Effect to clear chart data when switching to testnet
   useEffect(() => {
-    console.log('🔄 Network change detected:', { networkEnv, chartDataLength: chartData.length });
+    // console.log('🔄 Network change detected:', { networkEnv, chartDataLength: chartData.length });
     
     if (networkEnv === 'testnet') {
       console.log('🧹 Clearing chart data for testnet');
