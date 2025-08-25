@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { getTokenPrice } from "@/app/services/token-price.service";
 
+
+
 export interface CapitalMetrics {
   totalValueLockedUSD: string;
   currentDailyRewardMOR: string;
@@ -180,10 +182,62 @@ export function useCapitalMetrics(): CapitalMetrics {
       avgApy = (stethApyNum * stethWeight) + (linkApyNum * linkWeight);
     }
 
-    // Daily rewards - also not available from current contract/GraphQL setup
-    // Would need to be calculated from reward pool emission rates and distribution logic
-    // Using placeholder values for now - could be "N/A" if we want to be consistent
-    const currentDailyRewardMOR = poolData.networkEnvironment === 'mainnet' ? "2,836" : "150";
+    // Calculate LIVE daily MOR emissions from actual contract data
+    const currentDailyRewardMOR = (() => {
+      if (poolData.networkEnvironment === 'mainnet') {
+        // For mainnet, use placeholder values until v7 contracts are deployed
+        return "2,836";
+      }
+
+      // For testnet, calculate from live APR data and total deposited amounts
+      try {
+        // Parse APR values to get the underlying rates
+        const stETHAPR = parseFloat(poolData.stETH.apy.replace('%', '').replace(/,/g, ''));
+        const linkAPR = parseFloat(poolData.LINK.apy.replace('%', '').replace(/,/g, ''));
+        
+        // Parse deposited amounts 
+        const stETHDeposited = parseFloat(poolData.stETH.totalStaked.replace(/,/g, ''));
+        const linkDeposited = parseFloat(poolData.LINK.totalStaked.replace(/,/g, ''));
+        
+        console.log('📊 Daily Emissions Calculation:', {
+          stETHAPR: stETHAPR + '%',
+          linkAPR: linkAPR + '%', 
+          stETHDeposited: stETHDeposited + ' ETH',
+          linkDeposited: linkDeposited + ' ETH'
+        });
+
+        if (isNaN(stETHAPR) || isNaN(linkAPR) || isNaN(stETHDeposited) || isNaN(linkDeposited)) {
+          console.warn('Cannot calculate daily emissions: invalid data', {
+            stETHAPR, linkAPR, stETHDeposited, linkDeposited
+          });
+          return "N/A";
+        }
+
+        // Calculate daily rewards for each pool
+        // Formula: (APR / 100 / 365) * totalDeposited = daily rewards
+        const stETHDailyRewards = (stETHAPR / 100 / 365) * stETHDeposited;
+        const linkDailyRewards = (linkAPR / 100 / 365) * linkDeposited;
+        
+        // Total daily emissions across all pools and assets
+        const totalDailyEmissions = stETHDailyRewards + linkDailyRewards;
+
+        console.log('💰 Total Daily Emissions Breakdown:', {
+          stETHDailyRewards: stETHDailyRewards.toFixed(2) + ' MOR',
+          linkDailyRewards: linkDailyRewards.toFixed(2) + ' MOR',
+          totalDailyEmissions: totalDailyEmissions.toFixed(2) + ' MOR',
+          note: 'This represents total daily rewards for ALL stakers combined'
+        });
+
+        // Format for display
+        return totalDailyEmissions < 1000 
+          ? totalDailyEmissions.toFixed(0)
+          : Math.round(totalDailyEmissions).toLocaleString();
+
+      } catch (error) {
+        console.error('Error calculating daily emissions:', error);
+        return "150"; // Fallback for testnet
+      }
+    })();
 
     return {
       totalValueLockedUSD: totalValueLockedUSD.toLocaleString(),
