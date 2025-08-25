@@ -51,6 +51,7 @@ export function ChartSection() {
     {
       title: "Avg. APR Rate",
       value: avgApyRate,
+      label: "%",
       autoFormatNumbers: false,
       className: "",
       disableGlow: true,
