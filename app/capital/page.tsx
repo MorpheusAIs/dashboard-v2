@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useNetwork } from "@/context/network-context";
+// import { useNetwork } from "@/context/network-context";
 import { useChainId } from "wagmi";
 import { mainnet } from "wagmi/chains";
 
@@ -31,41 +31,41 @@ function CapitalPageContent() {
     // Raw data needed by modals
     userData,
     currentUserMultiplierData,
-    isLoadingUserData,
+    // isLoadingUserData,
     // Modal controls
     setActiveModal,
     setPreReferrerAddress,
   } = useCapitalContext();
 
-  const { switchToChain, isNetworkSwitching } = useNetwork();
+  // const { switchToChain, isNetworkSwitching } = useNetwork();
   const chainId = useChainId();
   const searchParams = useSearchParams();
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
-  const networkSwitchAttempted = useRef(false);
+  // const networkSwitchAttempted = useRef(false);
   const userManuallyLeftMainnet = useRef(false);
   const referrerProcessed = useRef(false);
 
-  useEffect(() => {
-    // We want to be on mainnet for the capital page.
-    const shouldSwitch = chainId !== mainnet.id;
+  // useEffect(() => {
+  //   // We want to be on mainnet for the capital page.
+  //   const shouldSwitch = chainId !== mainnet.id;
 
-    if (shouldSwitch && !isLoadingUserData && !networkSwitchAttempted.current && !isNetworkSwitching && !userManuallyLeftMainnet.current) {
-      console.log(`Auto-switching network to Ethereum Mainnet (chainId: ${mainnet.id}) for Capital page.`);
+  //   if (shouldSwitch && !isLoadingUserData && !networkSwitchAttempted.current && !isNetworkSwitching && !userManuallyLeftMainnet.current) {
+  //     console.log(`Auto-switching network to Ethereum Mainnet (chainId: ${mainnet.id}) for Capital page.`);
       
-      networkSwitchAttempted.current = true;
-      setShowNetworkSwitchNotice(true);
+  //     networkSwitchAttempted.current = true;
+  //     setShowNetworkSwitchNotice(true);
       
-      const timer = setTimeout(() => {
-        switchToChain(mainnet.id);
-        setTimeout(() => {
-          setShowNetworkSwitchNotice(false);
-          networkSwitchAttempted.current = false; // Reset so it can work again on refresh
-        }, 3000);
-      }, 1500);
+  //     const timer = setTimeout(() => {
+  //       switchToChain(mainnet.id);
+  //       setTimeout(() => {
+  //         setShowNetworkSwitchNotice(false);
+  //         networkSwitchAttempted.current = false; // Reset so it can work again on refresh
+  //       }, 3000);
+  //     }, 1500);
       
-      return () => clearTimeout(timer);
-    }
-  }, [chainId, switchToChain, isNetworkSwitching, isLoadingUserData]);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [chainId, switchToChain, isNetworkSwitching, isLoadingUserData]);
 
   // Separate effect to handle manual network changes and hide notification
   useEffect(() => {
