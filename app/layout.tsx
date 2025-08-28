@@ -8,6 +8,7 @@ import { cookieToInitialState } from "wagmi"
 import { config } from "@/config"
 import { cn } from "@/lib/utils"
 import { Providers } from './providers'
+import { FeaturebaseWidget } from '@/components/featurebase-widget'
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -79,12 +80,13 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const initialState = cookieToInitialState(config, headers().get("cookie"))
+  const headersList = await headers()
+  const initialState = cookieToInitialState(config, headersList.get("cookie"))
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -92,6 +94,7 @@ export default function RootLayout({
         <GoogleAnalytics gaId='G-RTZPQB9Y3J' />
         <Providers initialState={initialState}>
           <RootLayoutContent>{children}</RootLayoutContent>
+          <FeaturebaseWidget />
         </Providers>
       </body>
     </html>
