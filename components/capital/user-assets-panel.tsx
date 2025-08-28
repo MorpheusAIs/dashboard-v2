@@ -586,13 +586,15 @@ export function UserAssetsPanel() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">My Position</h2>
               <div className="flex flex-row items-center space-x-2">
-                <button
-                    className={!userAddress || isAnyActionProcessing ? "copy-button-secondary px-4 py-2 disabled:cursor-not-allowed" : "copy-button-base"}
-                    onClick={() => setActiveModal('deposit')}
-                    disabled={!userAddress || isAnyActionProcessing}
-                >
-                  Deposit
-                </button>
+                {hasStakedAssets &&
+                  <button
+                      className={!userAddress || isAnyActionProcessing ? "copy-button-secondary px-4 py-2 disabled:cursor-not-allowed" : "copy-button-base"}
+                      onClick={() => setActiveModal('deposit')}
+                      disabled={!userAddress || isAnyActionProcessing}
+                  >
+                    Deposit
+                  </button>
+                }
                 {/* <button
                     className="copy-button-secondary font-medium px-4 py-2 rounded-lg"
                     onClick={() => setActiveModal('claimMorRewards')}
