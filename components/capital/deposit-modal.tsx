@@ -337,7 +337,6 @@ export function DepositModal() {
       
       if (existingLockEnd && existingLockEnd > BigInt(0) && proposedClaimLockEnd < existingLockEnd) {
         const existingDate = new Date(Number(existingLockEnd) * 1000);
-        const proposedDate = new Date(Number(proposedClaimLockEnd) * 1000);
         return `Lock period too short. Your existing ${selectedAsset} position is locked until ${existingDate.toLocaleDateString()}. New deposits must have a lock period that ends on or after this date.`;
       }
     }
