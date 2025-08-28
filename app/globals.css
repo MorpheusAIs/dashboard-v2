@@ -347,7 +347,36 @@ body {
     text-wrap: balance;
   }
 
-  /* Custom scrollbar */
+  /* Global custom scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(16, 185, 129, 0.1) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(16, 185, 129, 0.1);
+    border-radius: 20px;
+    transition: background-color 0.2s ease-in-out;
+  }
+
+  *:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(16, 185, 129, 0.4);
+  }
+
+  /* For Firefox */
+  *:hover {
+    scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
+  }
+
+  /* Custom scrollbar class (kept for backward compatibility) */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(16, 185, 129, 0.1) transparent;
