@@ -54,7 +54,7 @@ export function DepositModal() {
     selectedAsset: contextSelectedAsset,
     deposit,
     approveToken,
-    needsApproval: checkNeedsApproval,
+    checkAndUpdateApprovalNeeded,
     isProcessingDeposit,
     isApprovalSuccess,
     activeModal,
@@ -192,12 +192,13 @@ export function DepositModal() {
   // Check approval status
   const checkApprovalStatus = useCallback(async () => {
     if (amount && parseFloat(amount) > 0 && userAddress) {
-      const needsApproval = checkNeedsApproval(selectedAsset, amount);
+      // Use checkAndUpdateApprovalNeeded to get fresh data from blockchain
+      const needsApproval = await checkAndUpdateApprovalNeeded(selectedAsset, amount);
       setCurrentlyNeedsApproval(needsApproval);
     } else {
       setCurrentlyNeedsApproval(false);
     }
-  }, [amount, userAddress, selectedAsset, checkNeedsApproval]);
+  }, [amount, userAddress, selectedAsset, checkAndUpdateApprovalNeeded]);
 
   // Check approval status when dependencies change
   useEffect(() => {
@@ -350,7 +351,12 @@ export function DepositModal() {
     }
 
     try {
-      if (currentlyNeedsApproval) {
+      // Double-check approval status with fresh blockchain data before proceeding
+      const freshApprovalNeeded = await checkAndUpdateApprovalNeeded(selectedAsset, amount);
+      console.log('🔍 Fresh approval check:', { selectedAsset, amount, freshApprovalNeeded, currentlyNeedsApproval });
+      
+      if (freshApprovalNeeded || currentlyNeedsApproval) {
+        console.log('💰 Approval needed, requesting approval for', selectedAsset);
         await approveToken(selectedAsset);
       } else {
         // Calculate lock duration in seconds
@@ -365,6 +371,7 @@ export function DepositModal() {
           console.log("Referrer address for deposit:", finalReferrerAddress);
         }
         
+        console.log('🏦 Proceeding with deposit:', { selectedAsset, amount, lockDuration });
         await deposit(selectedAsset, amount, lockDuration);
       }
     } catch (error) {
