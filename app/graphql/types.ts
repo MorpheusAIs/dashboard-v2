@@ -57,6 +57,28 @@ export interface ComputeGraphQLResponse {
   errors?: Array<{ message: string }>;
 }
 
+// ====== Capital Types ======
+export interface Referral {
+  referralAddress: string;
+  amount: string;
+}
+
+export interface Referrer {
+  referrerAddress: string;
+  referrals: Referral[];
+}
+
+// This interface defines the structure inside the data field of the GraphQL response
+export interface CapitalReferralResponseData {
+  referrers: Referrer[];
+}
+
+// Full GraphQL response structure for capital referral queries
+export interface CapitalReferralGraphQLResponse {
+  data: CapitalReferralResponseData;
+  errors?: Array<{ message: string }>;
+}
+
 // ====== Common UI Types ======
 export interface StakingEntry {
   address: string;

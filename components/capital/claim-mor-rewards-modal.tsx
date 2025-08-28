@@ -77,14 +77,15 @@ export function ClaimMorRewardsModal() {
     const secondsPerDay = 24 * 60 * 60;
     const secondsPerMonth = 30 * secondsPerDay; // Approximate
     const secondsPerYear = 365 * secondsPerDay; // Approximate
+    const safetyBuffer = 300; // 5 minutes safety buffer to prevent timing race conditions
     
     switch (unit) {
       case 'days':
-        return BigInt(Math.floor(numValue * secondsPerDay));
+        return BigInt(Math.floor(numValue * secondsPerDay) + safetyBuffer);
       case 'months':
-        return BigInt(Math.floor(numValue * secondsPerMonth));
+        return BigInt(Math.floor(numValue * secondsPerMonth) + safetyBuffer);
       case 'years':
-        return BigInt(Math.floor(numValue * secondsPerYear));
+        return BigInt(Math.floor(numValue * secondsPerYear) + safetyBuffer);
       default:
         return BigInt(0);
     }
@@ -119,12 +120,12 @@ export function ClaimMorRewardsModal() {
     const claimableAmount = parseClaimableAmount(asset.claimableAmountFormatted);
 
     // Debug logging
-    console.log('🔍 ClaimMorRewardsModal - Selected Asset Data:', {
-      selectedAsset,
-      claimableAmountFormatted: asset.claimableAmountFormatted,
-      parsed: claimableAmount,
-      canClaim: selectedAsset === 'stETH' ? stETHV2CanClaim : linkV2CanClaim,
-    });
+    // console.log('🔍 ClaimMorRewardsModal - Selected Asset Data:', {
+    //   selectedAsset,
+    //   claimableAmountFormatted: asset.claimableAmountFormatted,
+    //   parsed: claimableAmount,
+    //   canClaim: selectedAsset === 'stETH' ? stETHV2CanClaim : linkV2CanClaim,
+    // });
 
     return {
       symbol: selectedAsset,

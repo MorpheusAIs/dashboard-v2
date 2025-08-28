@@ -28,6 +28,7 @@ import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection"
 
 // Import hooks that provide refetch functions
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useReferralData } from "@/hooks/use-referral-data";
 
 // Static ABI imports as fallbacks - keep these for reliability
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
@@ -410,6 +411,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   // --- Pool Data Hook with Refetch Functions ---
   const capitalPoolData = useCapitalPoolData();
+  
+  // --- Referral Data Hook (GraphQL) ---
+  const liveReferralData = useReferralData({
+    userAddress,
+    networkEnvironment: networkEnv
+  });
 
   // --- Dynamic Contract Loading with getContract ---
   const dynamicContracts = useMemo(() => {
@@ -1551,7 +1558,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const linkReferralData = parseReferralData(linkV2ReferrersData);
 
   const referralData = useMemo(() => {
-    const isLoadingReferralData = isLoadingStETHReferralReward || isLoadingLinkReferralReward || isLoadingStETHReferrersData || isLoadingLinkReferrersData;
+    const isLoadingReferralData = isLoadingStETHReferralReward || isLoadingLinkReferralReward || isLoadingStETHReferrersData || isLoadingLinkReferrersData || liveReferralData.isLoading;
     
     // Total claimable rewards from both pools
     const totalClaimableRewards = stETHReferralRewards + linkReferralRewards;
@@ -1561,8 +1568,15 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     const linkLifetimeValue = linkReferralData?.amountStaked || BigInt(0);
     const totalLifetimeValue = stETHLifetimeValue + linkLifetimeValue;
     
+    // Use live referral count or fallback to loading/error states
+    const totalReferralsDisplay = liveReferralData.error 
+      ? "Error" 
+      : liveReferralData.isLoading 
+        ? "..." 
+        : liveReferralData.totalReferrals.toString();
+    
     return {
-      totalReferrals: "N/A", // TODO: Implement event-based tracking for accurate count
+      totalReferrals: totalReferralsDisplay, // ✅ Now using live GraphQL data!
       lifetimeRewards: formatBigInt(totalLifetimeValue, 18, 2),
       claimableRewards: formatBigInt(totalClaimableRewards, 18, 4),
       isLoadingReferralData,
@@ -1575,7 +1589,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isLoadingStETHReferralReward, isLoadingLinkReferralReward, 
     isLoadingStETHReferrersData, isLoadingLinkReferrersData,
     stETHReferralRewards, linkReferralRewards, 
-    stETHReferralData, linkReferralData
+    stETHReferralData, linkReferralData,
+    liveReferralData.isLoading, liveReferralData.error, liveReferralData.totalReferrals
   ]);
 
   // V2 Claim and Lock Functions

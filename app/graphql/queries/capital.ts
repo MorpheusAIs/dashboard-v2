@@ -53,4 +53,30 @@ export const buildDepositsQuery = (timestamps: number[]): ReturnType<typeof gql>
       ${queryBody}
     }
   `;
-}; 
+};
+
+// ===== REFERRAL QUERIES =====
+
+export const GET_REFERRALS_BY_REFERRER = `
+  query getReferralsByReferrer($referrerAddress: String!) {
+    referrers(where: { referrerAddress_contains: $referrerAddress }) {
+      referrerAddress
+      referrals {
+        referralAddress
+        amount
+      }
+    }
+  }
+`;
+
+export const GET_REFERRER_STATS = `
+  query getReferrerStats($referrerAddress: String!) {
+    referrers(where: { referrerAddress: $referrerAddress }) {
+      referrerAddress
+      referrals {
+        referralAddress
+        amount
+      }
+    }
+  }
+`;
