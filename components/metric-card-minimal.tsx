@@ -3,11 +3,12 @@ import NumberFlow from '@number-flow/react'
 import { GlowingEffect } from "./ui/glowing-effect"
 import { formatNumber } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-interface MetricCardMinimalProps {
+export interface MetricCardMinimalProps {
   title: string
-  value: string | number
+  value?: string | number // Made optional to support loading state
   label?: string // Optional label like "MOR", "ETH", etc
   isUSD?: boolean // If true, shows $ before the value
   className?: string
@@ -15,6 +16,7 @@ interface MetricCardMinimalProps {
   autoFormatNumbers?: boolean // Auto format numbers (show decimals only for values < 1)
   showInfo?: boolean // Show info icon
   isGreen?: boolean // If true, shows emerald-400 color
+  isLoading?: boolean // If true, shows skeleton loader
 }
 
 export function MetricCardMinimal({
@@ -26,6 +28,7 @@ export function MetricCardMinimal({
   disableGlow = false,
   autoFormatNumbers = false,
   isGreen = false,
+  isLoading = false,
 //   showInfo = true
 }: MetricCardMinimalProps) {
 
@@ -66,13 +69,19 @@ export function MetricCardMinimal({
             {title}
           </CardDescription>
           <CardTitle className={`font-semibold tabular-nums leading-none text-base sm:text-lg ${isGreen ? "text-emerald-400" : "text-gray-200"}`}>
-            {isUSD && <span>$</span>}
-            {isNumericString(value) ? (
-              <NumberFlow value={getNumericValue(formatValue(value))} />
+            {isLoading ? (
+              <Skeleton className="h-6 w-16" />
             ) : (
-              formatValue(value)
+              <>
+                {isUSD && <span>$</span>}
+                {value !== undefined && isNumericString(value) ? (
+                  <NumberFlow value={getNumericValue(formatValue(value))} />
+                ) : (
+                  value !== undefined ? formatValue(value) : '—'
+                )}
+                {label && <span className="text-sm sm:text-md font-semibold"> {label}</span>}
+              </>
             )}
-            {label && <span className="text-sm sm:text-md font-semibold"> {label}</span>}
           </CardTitle>
         </CardHeader>
       </Card>
