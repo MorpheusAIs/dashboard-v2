@@ -83,7 +83,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     chainId: l1ChainId,
     query: { 
       enabled: networkEnvironment === 'testnet' && !!stETHDepositPoolAddress,
-      refetchInterval: 30000 // Refetch every 30 seconds
+      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
 
@@ -99,7 +99,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     chainId: l1ChainId,
     query: { 
       enabled: networkEnvironment === 'testnet' && !!linkDepositPoolAddress,
-      refetchInterval: 30000 // Refetch every 30 seconds
+      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
 
@@ -120,7 +120,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     chainId: l1ChainId,
     query: { 
       enabled: networkEnvironment === 'testnet' && !!rewardPoolV2Address,
-      refetchInterval: 60000 // Refetch every minute for testnet
+      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes for testnet
     }
   });
 

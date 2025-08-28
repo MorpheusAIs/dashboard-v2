@@ -8,6 +8,8 @@ const NETWORK_ENDPOINTS = {
   Arbitrum: 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest',
   ArbitrumSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
   Base: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
+  // Capital v2 subgraph endpoints
+  CapitalV2Sepolia: 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest',
 };
 
 // Error handling link
@@ -80,6 +82,24 @@ export const apolloClients = {
       },
     },
   }),
+  CapitalV2Sepolia: new ApolloClient({
+    link: from([
+      errorLink,
+      new HttpLink({
+        uri: NETWORK_ENDPOINTS.CapitalV2Sepolia,
+      }),
+    ]),
+    cache: new InMemoryCache({
+      addTypename: false
+    }),
+    queryDeduplication: false,
+    defaultOptions: {
+      query: {
+        fetchPolicy: 'no-cache',
+        errorPolicy: 'all',
+      },
+    },
+  }),
 };
 
 // Default client (can be changed based on the current network)
@@ -100,6 +120,6 @@ export const getDefaultClient = () => {
 
 // Function to get a client for a specific network
 export const getClientForNetwork = (network: keyof typeof apolloClients) => {
-  console.log(`Getting Apollo client for network: ${network}`);
+  // console.log(`Getting Apollo client for network: ${network}`);
   return apolloClients[network];
 }; 

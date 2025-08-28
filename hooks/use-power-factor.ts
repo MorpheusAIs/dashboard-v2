@@ -128,16 +128,16 @@ export function usePowerFactor({
   // Debug logging for contract calls
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') {
-      console.group('🔧 [Power Factor Debug] Contract Call State');
-      console.log('Contract Address:', contractAddress);
-      console.log('Chain ID:', chainId);
-      console.log('Contract Args:', contractArgs);
-      console.log('Is Loading:', isLoading);
-      console.log('Raw Multiplier:', rawMultiplier);
-      console.log('Raw Multiplier Type:', typeof rawMultiplier);
-      console.log('Raw Multiplier String:', rawMultiplier?.toString());
-      console.log('Contract Error:', contractError);
-      console.log('Query Enabled:', !!contractArgs && !!contractAddress && !!chainId && enabled);
+      // console.group('🔧 [Power Factor Debug] Contract Call State');
+      // console.log('Contract Address:', contractAddress);
+      // console.log('Chain ID:', chainId);
+      // console.log('Contract Args:', contractArgs);
+      // console.log('Is Loading:', isLoading);
+      // console.log('Raw Multiplier:', rawMultiplier);
+      // console.log('Raw Multiplier Type:', typeof rawMultiplier);
+      // console.log('Raw Multiplier String:', rawMultiplier?.toString());
+      // console.log('Contract Error:', contractError);
+      // console.log('Query Enabled:', !!contractArgs && !!contractAddress && !!chainId && enabled);
       
       // Debug for maximum lock periods
       if (contractArgs && lockValue === '6' && lockUnit === 'years' && rawMultiplier) {
@@ -242,9 +242,9 @@ export function usePowerFactor({
    * @param unit Time unit
    */
   const setLockPeriod = useCallback((value: string, unit: TimeUnit) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔄 [Power Factor Debug] setLockPeriod called:', { value, unit });
-    }
+    // if (process.env.NODE_ENV !== 'production') {
+    //   console.log('🔄 [Power Factor Debug] setLockPeriod called:', { value, unit });
+    // }
     setLockValue(value);
     setLockUnit(unit);
   }, []);
@@ -253,11 +253,11 @@ export function usePowerFactor({
    * Get current power factor result
    */
   const currentResult = useMemo((): PowerFactorResult => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.group('📊 [Power Factor Debug] Current Result Update');
-      console.log('Lock Value:', lockValue);
-      console.log('Lock Unit:', lockUnit);
-    }
+    // if (process.env.NODE_ENV !== 'production') {
+    //   console.group('📊 [Power Factor Debug] Current Result Update');
+    //   console.log('Lock Value:', lockValue);
+    //   console.log('Lock Unit:', lockUnit);
+    // }
     
     if (!lockValue) {
       const defaultResult = {
@@ -267,10 +267,10 @@ export function usePowerFactor({
         willActivate: false,
       };
       
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('No lock value, returning default:', defaultResult);
-        console.groupEnd();
-      }
+      // if (process.env.NODE_ENV !== 'production') {
+      //   console.log('No lock value, returning default:', defaultResult);
+      //   console.groupEnd();
+      // }
       
       return defaultResult;
     }

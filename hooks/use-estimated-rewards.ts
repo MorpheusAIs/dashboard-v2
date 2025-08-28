@@ -76,7 +76,7 @@ export function useEstimatedRewards({
       enabled: enabled && !!contractAddress && !!chainId,
       retry: 3,
       retryDelay: 1000,
-      refetchInterval: 30000, // Refresh every 30 seconds
+      refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
     }
   });
 
@@ -277,7 +277,7 @@ export function usePoolRateData(
       enabled: !!contractAddress && !!chainId,
       retry: 3,
       retryDelay: 1000,
-      refetchInterval: 30000,
+      refetchInterval: 5 * 60 * 1000,
     }
   });
 
