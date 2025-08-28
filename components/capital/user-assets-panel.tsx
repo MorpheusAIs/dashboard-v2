@@ -607,7 +607,7 @@ export function UserAssetsPanel() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 sm:gap-x-4 gap-y-2 mb-6">
               <MetricCardMinimal
                 title="Deposits Value"
-                value={isLoadingUserData ? undefined : metricsData.stakedValue}
+                value={metricsData.stakedValue}
                 isUSD={true}
                 disableGlow={true}
                 className="col-span-1"
@@ -615,7 +615,7 @@ export function UserAssetsPanel() {
               />
               <MetricCardMinimal
                 title="Current Daily Rewards"
-                value={(isLoadingUserData || isDailyEmissionsLoading) ? undefined : metricsData.dailyEmissionsEarned}
+                value={metricsData.dailyEmissionsEarned}
                 label="MOR"
                 disableGlow={true}
                 autoFormatNumbers={true}
@@ -624,7 +624,7 @@ export function UserAssetsPanel() {
               />
                <MetricCardMinimal
                  title="Claimable Rewards"
-                 value={isLoadingUserData ? undefined : metricsData.totalAvailableToClaim}
+                 value={metricsData.totalAvailableToClaim}
                  label="MOR"
                  disableGlow={true}
                  autoFormatNumbers={true}
@@ -633,7 +633,7 @@ export function UserAssetsPanel() {
                />
               <MetricCardMinimal
                 title="Total MOR Earned"
-                value={(isLoadingUserData || (networkEnv === 'testnet' && isTotalMorEarnedLoading)) ? undefined : metricsData.lifetimeEmissionsEarned}
+                value={metricsData.lifetimeEmissionsEarned}
                 label="MOR"
                 disableGlow={true}
                 autoFormatNumbers={true}
