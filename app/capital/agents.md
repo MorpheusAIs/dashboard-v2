@@ -102,8 +102,8 @@ This is the **central nervous system** of the capital page:
 
 ### 3. **useCapitalMetrics** (`app/hooks/useCapitalMetrics.ts`)
 - **Function**: Real-time metrics calculation
-- **Features**: TVL calculation, active stakers via Dune API
-- **Dependencies**: Token price service, pool data hook
+- **Features**: TVL calculation, active stakers via Dune API (both testnet and mainnet)
+- **Dependencies**: Token price service, pool data hook, network-aware Dune API calls
 
 ### 4. **usePowerFactor** (`hooks/use-power-factor.ts`)
 - **Function**: Power factor calculations for lock periods
@@ -126,6 +126,38 @@ This is the **central nervous system** of the capital page:
 ### 3. **Services**:
 - **Token Price Service** (`app/services/token-price.service.ts`) - CoinGecko integration
 - **Safe Wallet Detection** - Multi-sig wallet support
+
+## 📊 Dune API Integration
+
+### **Active Depositors Tracking**
+The capital page uses Dune Analytics API to fetch real-time active depositor counts from blockchain data.
+
+#### **Testnet Endpoint** (`app/api/dune/active-stakers-testnet/route.ts`)
+- **Query ID**: `5650752` 
+- **Data Format**: Single aggregated result
+- **Response Structure**: `query_result?.result?.rows?.[0]?.total_active_stakers`
+- **Networks**: Sepolia, Arbitrum Sepolia
+- **Usage**: Returns count of unique depositors from testnet contracts
+
+#### **Mainnet Endpoint** (`app/api/dune/active-stakers-mainnet/route.ts`)
+- **Query ID**: `5697884`
+- **Data Format**: Table with wallet addresses
+- **Response Structure**: `query_result?.result?.rows?.length` (table length)
+- **Networks**: Ethereum Mainnet, Arbitrum, Base
+- **Usage**: Returns count by measuring length of `wallet_address` column
+- **Result Limit**: 10,000 rows (increased from 1,000 to handle 1058+ active depositors)
+
+#### **Hook Integration**
+Both endpoints are called from `useCapitalMetrics` hook:
+- **Network Detection**: Automatically calls testnet or mainnet endpoint based on `poolData.networkEnvironment`
+- **Error Handling**: Graceful fallbacks with loading and error states
+- **Caching**: Results cached until network environment changes
+
+#### **API Configuration**
+- **Authentication**: Requires `DUNE_API_KEY` environment variable
+- **Rate Limits**: Respects Dune API limits (varies by plan)
+- **Timeout**: 30 second timeout for API calls
+- **Retry Logic**: Single attempt with detailed error logging
 
 ## 🔗 Type System
 
@@ -156,7 +188,7 @@ This is the **central nervous system** of the capital page:
 ### **Services**:
 - **CoinGecko API** - Token prices
 - **GraphQL** - Historical data
-- **Dune Analytics API** - On-chain metrics
+- **Dune Analytics API** - Active depositors tracking (testnet: query 5650752, mainnet: query 5697884)
 
 ## 🎨 Key Features
 

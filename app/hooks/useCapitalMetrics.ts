@@ -29,7 +29,7 @@ export function useCapitalMetrics(): CapitalMetrics {
   const [isLoadingPrices, setIsLoadingPrices] = useState<boolean>(true);
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  // State for active stakers from Dune API (testnet only)
+  // State for active stakers from Dune API (both testnet and mainnet)
   const [activeStakersCount, setActiveStakersCount] = useState<number | null>(null);
   const [isLoadingActiveStakers, setIsLoadingActiveStakers] = useState<boolean>(false);
   const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export function useCapitalMetrics(): CapitalMetrics {
     fetchTokenPrices();
   }, []);
 
-  // Fetch active stakers count from Dune API (testnet only)
+  // Fetch active stakers count from Dune API (testnet and mainnet)
   useEffect(() => {
     // Skip if running on server (SSR)
     if (typeof window === 'undefined') {
@@ -72,8 +72,8 @@ export function useCapitalMetrics(): CapitalMetrics {
     }
 
     async function fetchActiveStakers() {
-      // Only fetch for testnet networks (sepolia, arbitrum sepolia)
-      if (poolData.networkEnvironment !== 'testnet') {
+      // Skip if no network environment is set
+      if (!poolData.networkEnvironment) {
         return;
       }
 
@@ -81,13 +81,20 @@ export function useCapitalMetrics(): CapitalMetrics {
       setActiveStakersError(null);
       
       try {
-        const response = await fetch('/api/dune/active-stakers-testnet');
+        // Determine which endpoint to call based on network environment
+        const endpoint = poolData.networkEnvironment === 'testnet' 
+          ? '/api/dune/active-stakers-testnet'
+          : '/api/dune/active-stakers-mainnet';
+        
+        console.log(`🔍 [FRONTEND] Fetching active stakers for ${poolData.networkEnvironment} from ${endpoint}`);
+        
+        const response = await fetch(endpoint);
         
         const data = await response.json();
         
         if (data.success) {
           setActiveStakersCount(data.active_stakers);
-          console.log('✅ [FRONTEND] Active stakers count set:', data.active_stakers);
+          console.log(`✅ [FRONTEND] Active stakers count set (${data.network}):`, data.active_stakers);
         } else {
           console.log('❌ [FRONTEND] API returned failure:', data.error);
           throw new Error(data.error || 'Failed to fetch active stakers');
@@ -128,17 +135,16 @@ export function useCapitalMetrics(): CapitalMetrics {
 
   // Calculate active stakers display value separately to avoid dependency issues
   const activeStakersDisplay = useMemo(() => {
-    if (poolData.networkEnvironment === 'testnet') {
-      // For testnet (Sepolia, Arbitrum Sepolia), use Dune API data
-      if (activeStakersCount !== null && activeStakersCount >= 0) {
-        return activeStakersCount.toString();
-      } else if (isLoadingActiveStakers) {
-        return "..."; // Loading indicator
-      } else if (activeStakersError) {
-        return "Error"; // Error state
-      }
+    // For both testnet and mainnet, use Dune API data
+    if (activeStakersCount !== null && activeStakersCount >= 0) {
+      return activeStakersCount.toString();
+    } else if (isLoadingActiveStakers) {
+      return "..."; // Loading indicator
+    } else if (activeStakersError) {
+      return "Error"; // Error state
     }
-    // For mainnet, contracts don't expose unique depositor counts
+    
+    // Fallback if no network environment is set
     return "N/A";
   }, [poolData.networkEnvironment, activeStakersCount, isLoadingActiveStakers, activeStakersError]);
 
