@@ -2,9 +2,28 @@
 
 import { useEffect } from 'react'
 
+interface FeaturebaseConfig {
+  organization: string
+  theme: 'light' | 'dark'
+  placement?: 'left' | 'right'
+  email?: string
+  defaultBoard?: string
+  locale?: string
+  metadata?: Record<string, unknown> | null
+}
+
+interface FeaturebaseCallback {
+  action: 'widgetReady' | 'widgetOpened' | 'feedbackSubmitted'
+  post?: Record<string, unknown>
+}
+
 declare global {
   interface Window {
-    Featurebase: (action: string, config: any, callback?: (err: any, callback: any) => void) => void
+    Featurebase: (
+      action: string, 
+      config: FeaturebaseConfig, 
+      callback?: (err: Error | null, callback: FeaturebaseCallback) => void
+    ) => void
   }
 }
 
