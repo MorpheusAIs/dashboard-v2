@@ -6,6 +6,7 @@ import { DataTable, Column } from "@/components/ui/data-table";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +30,7 @@ import { ClaimMorRewardsModal } from "./claim-mor-rewards-modal";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 import type { UserAsset } from "./types/user-asset";
 import { useDailyEmissions } from "./hooks/use-daily-emissions";
-
+import { useTotalMorEarned } from "@/hooks/use-total-mor-earned";
 
 
 export function UserAssetsPanel() {
@@ -53,19 +54,43 @@ export function UserAssetsPanel() {
   } = useCapitalContext();
 
   // Calculate daily emissions for each asset using real contract data
-  const stETHDailyEmissions = useDailyEmissions(
+  const { emissions: stETHDailyEmissions, isLoading: isStETHEmissionsLoading } = useDailyEmissions(
     assets.stETH?.claimableAmount,
     assets.stETH?.userDeposited,
     'stETH',
     networkEnv
   );
   
-  const linkDailyEmissions = useDailyEmissions(
+  const { emissions: linkDailyEmissions, isLoading: isLinkEmissionsLoading } = useDailyEmissions(
     assets.LINK?.claimableAmount,
     assets.LINK?.userDeposited,
     'LINK',
     networkEnv
   );
+
+  // Fetch total MOR earned from Capital v2 subgraph (testnet only)
+  const totalMorEarnedResult = useTotalMorEarned(userAddress || null, networkEnv);
+  const { 
+    totalEarned: totalMorEarned,
+    stETHEarned,
+    linkEarned,
+    isLoading: isTotalMorEarnedLoading,
+    error: totalMorEarnedError
+  } = totalMorEarnedResult;
+
+  console.log('🎯 useTotalMorEarned hook result in UserAssetsPanel:', {
+    totalEarned: totalMorEarned,
+    stETHEarned,
+    linkEarned,
+    isLoading: isTotalMorEarnedLoading,
+    error: totalMorEarnedError,
+    userAddress,
+    networkEnv,
+    fullResult: totalMorEarnedResult,
+  });
+
+  // Combined loading state for total daily emissions
+  const isDailyEmissionsLoading = isStETHEmissionsLoading || isLinkEmissionsLoading;
 
   // State for sorting
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -319,9 +344,22 @@ export function UserAssetsPanel() {
     // Calculate total available to claim from table rows (sum of each row's "Available to Claim")
     const totalTableAvailableToClaim = userAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
     
-    // TODO: Calculate true lifetime earnings (claimed + unclaimed) when historical data is available
-    // For now, we don't have access to previously claimed rewards data
-    const lifetimeEarnings = "N/A"; // Needs: historical claimed rewards + current claimable
+    // Calculate lifetime earnings using subgraph data (testnet) or fallback to current claimable
+    console.log('🔍 UserAssetsPanel lifetime earnings calculation:', {
+      networkEnv,
+      isTotalMorEarnedLoading,
+      totalMorEarned,
+      totalMorEarnedType: typeof totalMorEarned,
+      isTestnet: networkEnv === 'testnet',
+      shouldShowLoading: isTotalMorEarnedLoading,
+      shouldShowValue: totalMorEarned > 0,
+    });
+    
+    const lifetimeEarnings = networkEnv === 'testnet' 
+      ? (isTotalMorEarnedLoading ? "..." : (totalMorEarned > 0 ? formatNumber(totalMorEarned) : "0"))
+      : "N/A"; // Mainnet: Need historical data when Capital v2 is deployed
+    
+    console.log('💰 Final lifetime earnings display value:', lifetimeEarnings);
     
     return {
       stakedValue: Math.floor(totalStakedValue).toLocaleString(), // Format as whole dollars with commas
@@ -331,7 +369,7 @@ export function UserAssetsPanel() {
       totalAvailableToClaim: formatNumber(totalTableAvailableToClaim), // Sum from actual table rows
       referralRewards: "0", // TODO: Add referral rewards from context
     };
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, userAssets]);
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, userAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned]);
 
   // Sorting logic
   const sorting = useMemo(() => {
@@ -384,11 +422,21 @@ export function UserAssetsPanel() {
         header: "Daily Emissions",
         accessorKey: "dailyEmissions",
         enableSorting: true,
-        cell: (asset) => (
-          <span className="text-gray-200">
-            {formatNumber(asset.dailyEmissions)} MOR
-          </span>
-        ),
+        cell: (asset) => {
+          // Determine if this specific asset is loading
+          const isAssetLoading = (asset.symbol === 'stETH' && isStETHEmissionsLoading) || 
+                                 (asset.symbol === 'LINK' && isLinkEmissionsLoading);
+          
+          return (
+            <span className="text-gray-200">
+              {isAssetLoading ? (
+                <Skeleton className="h-4 w-16" />
+              ) : (
+                `${formatNumber(asset.dailyEmissions)} MOR`
+              )}
+            </span>
+          );
+        },
       },
       {
         id: "powerFactor",
@@ -483,7 +531,7 @@ export function UserAssetsPanel() {
         ),
       },
     ],
-    [isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange, isUnlockDateReached]
+    [isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange, isUnlockDateReached, isStETHEmissionsLoading, isLinkEmissionsLoading]
   );
 
   // Handle sorting change
@@ -516,33 +564,12 @@ export function UserAssetsPanel() {
     </div>
   );
 
-  if (isLoadingUserData) {
-    return (
-      <div className="page-section mt-8">
-        <div className="relative">
-          <div className="section-content group relative">
-            <div className="section-content-gradient" />
-            <div className="p-6 text-center text-gray-400">
-              Loading assets...
-            </div>
-          </div>
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
-      </div>
-    );
-  }
+  // Always render the component structure with loading states instead of early return
 
   return (
-    <div className="page-section mt-8">
-      <div className="relative">
+    <>
+      <div className="page-section mt-8">
+        <div className="relative">
         <GlowingEffect 
           spread={40}
           glow={true}
@@ -580,34 +607,38 @@ export function UserAssetsPanel() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 sm:gap-x-4 gap-y-2 mb-6">
               <MetricCardMinimal
                 title="Deposits Value"
-                value={metricsData.stakedValue}
+                value={isLoadingUserData ? undefined : metricsData.stakedValue}
                 isUSD={true}
                 disableGlow={true}
                 className="col-span-1"
+                isLoading={isLoadingUserData}
               />
               <MetricCardMinimal
                 title="Current Daily Rewards"
-                value={metricsData.dailyEmissionsEarned}
+                value={(isLoadingUserData || isDailyEmissionsLoading) ? undefined : metricsData.dailyEmissionsEarned}
                 label="MOR"
                 disableGlow={true}
                 autoFormatNumbers={true}
                 className="col-span-1"
+                isLoading={isLoadingUserData || isDailyEmissionsLoading}
               />
                <MetricCardMinimal
                  title="Claimable Rewards"
-                 value={metricsData.totalAvailableToClaim}
+                 value={isLoadingUserData ? undefined : metricsData.totalAvailableToClaim}
                  label="MOR"
                  disableGlow={true}
                  autoFormatNumbers={true}
                  className="col-span-1"
+                 isLoading={isLoadingUserData}
                />
               <MetricCardMinimal
                 title="Total MOR Earned"
-                value={metricsData.lifetimeEmissionsEarned}
+                value={(isLoadingUserData || (networkEnv === 'testnet' && isTotalMorEarnedLoading)) ? undefined : metricsData.lifetimeEmissionsEarned}
                 label="MOR"
                 disableGlow={true}
                 autoFormatNumbers={true}
                 className="col-span-1"
+                isLoading={isLoadingUserData || (networkEnv === 'testnet' && isTotalMorEarnedLoading)}
               />
               {/* <MetricCardMinimal
                 title="MOR Staked"
@@ -620,15 +651,15 @@ export function UserAssetsPanel() {
             </div>
 
             {/* Assets table or empty state */}
-            {hasStakedAssets ? (
+            {hasStakedAssets || isLoadingUserData ? (
               <div className="[&>div]:max-h-[400px] overflow-auto custom-scrollbar">
                 <DataTable
                   columns={assetsColumns}
                   data={userAssets}
-                  isLoading={false}
+                  isLoading={isLoadingUserData}
                   sorting={sorting}
                   onSortingChange={handleSortingChange}
-                  loadingRows={4}
+                  loadingRows={2}
                   noResultsMessage="No assets found."
                 />
               </div>
@@ -644,6 +675,7 @@ export function UserAssetsPanel() {
       
       {/* Claim MOR Rewards Modal */}
       <ClaimMorRewardsModal />
-    </div>
+      </div>
+    </>
   );
 } 
