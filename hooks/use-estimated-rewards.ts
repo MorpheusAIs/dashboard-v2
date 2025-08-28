@@ -24,6 +24,8 @@ export interface EstimatedRewardsResult {
     baseRewards: string;
     finalRewards: string;
   };
+  // Refetch function to trigger pool rate data refresh after user actions
+  refetch: () => void;
 }
 
 export interface UseEstimatedRewardsParams {
@@ -66,6 +68,7 @@ export function useEstimatedRewards({
     data: poolRateDataRaw,
     isLoading: isLoadingPoolRate,
     error: poolRateError,
+    refetch: refetchPoolRateData,
   } = useReadContract({
     address: contractAddress,
     abi: ERC1967ProxyAbi,
@@ -124,7 +127,8 @@ export function useEstimatedRewards({
         estimatedRewards: "---",
         isLoading: false,
         isValid: false,
-        error: "Calculation disabled"
+        error: "Calculation disabled",
+        refetch: refetchPoolRateData
       };
     }
 
@@ -136,7 +140,8 @@ export function useEstimatedRewards({
       return {
         estimatedRewards: "Loading...",
         isLoading: true,
-        isValid: false
+        isValid: false,
+        refetch: refetchPoolRateData
       };
     }
 
@@ -149,7 +154,8 @@ export function useEstimatedRewards({
         estimatedRewards: "Error",
         isLoading: false,
         isValid: false,
-        error: "Failed to fetch pool data"
+        error: "Failed to fetch pool data",
+        refetch: refetchPoolRateData
       };
     }
 
@@ -162,7 +168,8 @@ export function useEstimatedRewards({
         estimatedRewards: "---",
         isLoading: false,
         isValid: false,
-        error: "No pool data"
+        error: "No pool data",
+        refetch: refetchPoolRateData
       };
     }
 
@@ -175,7 +182,8 @@ export function useEstimatedRewards({
         estimatedRewards: "---",
         isLoading: false,
         isValid: false,
-        error: "Invalid deposit amount"
+        error: "Invalid deposit amount",
+        refetch: refetchPoolRateData
       };
     }
 
@@ -188,7 +196,8 @@ export function useEstimatedRewards({
         estimatedRewards: "---",
         isLoading: false,
         isValid: false,
-        error: "Power factor not ready"
+        error: "Power factor not ready",
+        refetch: refetchPoolRateData
       };
     }
 
@@ -216,7 +225,8 @@ export function useEstimatedRewards({
         lockDurationYears,
         baseRewards: result.baseRewards.toString(),
         finalRewards: result.finalRewards.toString(),
-      } : undefined
+      } : undefined,
+      refetch: refetchPoolRateData
     };
 
     if (process.env.NODE_ENV !== 'production') {
@@ -234,7 +244,8 @@ export function useEstimatedRewards({
     powerFactorString,
     lockValue,
     lockUnit,
-    existingUserData
+    existingUserData,
+    refetchPoolRateData
   ]);
 
   return calculation;
@@ -266,7 +277,7 @@ export function usePoolRateData(
     data: poolRateDataRaw,
     isLoading,
     error,
-    refetch,
+    refetch: refetchPoolData,
   } = useReadContract({
     address: contractAddress,
     abi: ERC1967ProxyAbi,
@@ -304,6 +315,6 @@ export function usePoolRateData(
     poolRateData,
     isLoading,
     error,
-    refetch,
+    refetch: refetchPoolData,
   };
 }

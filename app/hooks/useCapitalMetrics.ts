@@ -81,12 +81,9 @@ export function useCapitalMetrics(): CapitalMetrics {
       setActiveStakersError(null);
       
       try {
-        console.log('🌐 [FRONTEND] Calling active stakers API...');
         const response = await fetch('/api/dune/active-stakers-testnet');
-        console.log('📡 [FRONTEND] API response status:', response.status, response.statusText);
         
         const data = await response.json();
-        console.log('📦 [FRONTEND] API response data:', JSON.stringify(data, null, 2));
         
         if (data.success) {
           setActiveStakersCount(data.active_stakers);
@@ -198,13 +195,6 @@ export function useCapitalMetrics(): CapitalMetrics {
         // Parse deposited amounts 
         const stETHDeposited = parseFloat(poolData.stETH.totalStaked.replace(/,/g, ''));
         const linkDeposited = parseFloat(poolData.LINK.totalStaked.replace(/,/g, ''));
-        
-        console.log('📊 Daily Emissions Calculation:', {
-          stETHAPR: stETHAPR + '%',
-          linkAPR: linkAPR + '%', 
-          stETHDeposited: stETHDeposited + ' ETH',
-          linkDeposited: linkDeposited + ' ETH'
-        });
 
         if (isNaN(stETHAPR) || isNaN(linkAPR) || isNaN(stETHDeposited) || isNaN(linkDeposited)) {
           console.warn('Cannot calculate daily emissions: invalid data', {
@@ -220,13 +210,6 @@ export function useCapitalMetrics(): CapitalMetrics {
         
         // Total daily emissions across all pools and assets
         const totalDailyEmissions = stETHDailyRewards + linkDailyRewards;
-
-        console.log('💰 Total Daily Emissions Breakdown:', {
-          stETHDailyRewards: stETHDailyRewards.toFixed(2) + ' MOR',
-          linkDailyRewards: linkDailyRewards.toFixed(2) + ' MOR',
-          totalDailyEmissions: totalDailyEmissions.toFixed(2) + ' MOR',
-          note: 'This represents total daily rewards for ALL stakers combined'
-        });
 
         // Format for display
         return totalDailyEmissions < 1000 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import React from 'react';
 import { useReadContract, useChainId } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -25,6 +25,13 @@ export interface CapitalPoolData {
     error: Error | null;
   };
   networkEnvironment: NetworkEnvironment;
+  // Refetch functions to trigger data refresh after user actions
+  refetch: {
+    stETHPoolData: () => void;
+    linkPoolData: () => void;
+    rewardPoolData: () => void;
+    refetchAll: () => void;
+  };
 }
 
 
@@ -75,7 +82,8 @@ export function useCapitalPoolData(): CapitalPoolData {
   const {
     data: stETHTotalDeposited,
     isLoading: isLoadingStETH,
-    error: stETHError
+    error: stETHError,
+    refetch: refetchStETHPoolData
   } = useReadContract({
     address: stETHDepositPoolAddress,
     abi: stETHDepositPoolV2Abi,
@@ -91,7 +99,8 @@ export function useCapitalPoolData(): CapitalPoolData {
   const {
     data: LINKTotalDeposited,
     isLoading: isLoadingLINK,
-    error: LINKError
+    error: LINKError,
+    refetch: refetchLinkPoolData
   } = useReadContract({
     address: linkDepositPoolAddress,
     abi: LINKDepositPoolV2Abi,
@@ -111,7 +120,8 @@ export function useCapitalPoolData(): CapitalPoolData {
   const {
     data: periodRewardsData,
     isLoading: isLoadingPeriodRewards,
-    error: periodRewardsError
+    error: periodRewardsError,
+    refetch: refetchRewardPoolData
   } = useReadContract({
     address: rewardPoolV2Address,
     abi: RewardPoolV2Abi,
@@ -354,10 +364,41 @@ export function useCapitalPoolData(): CapitalPoolData {
     periodRewardsError
   ]);
 
+  // Create refetch functions with proper error handling
+  const refetchStETH = useCallback(() => {
+    if (networkEnvironment === 'testnet' && stETHDepositPoolAddress) {
+      refetchStETHPoolData();
+    }
+  }, [networkEnvironment, stETHDepositPoolAddress, refetchStETHPoolData]);
+
+  const refetchLINK = useCallback(() => {
+    if (networkEnvironment === 'testnet' && linkDepositPoolAddress) {
+      refetchLinkPoolData();
+    }
+  }, [networkEnvironment, linkDepositPoolAddress, refetchLinkPoolData]);
+
+  const refetchRewards = useCallback(() => {
+    if (networkEnvironment === 'testnet' && rewardPoolV2Address) {
+      refetchRewardPoolData();
+    }
+  }, [networkEnvironment, rewardPoolV2Address, refetchRewardPoolData]);
+
+  const refetchAll = useCallback(() => {
+    refetchStETH();
+    refetchLINK();
+    refetchRewards();
+  }, [refetchStETH, refetchLINK, refetchRewards]);
+
   return {
     stETH: stETHData,
     LINK: LINKData,
-    networkEnvironment
+    networkEnvironment,
+    refetch: {
+      stETHPoolData: refetchStETH,
+      linkPoolData: refetchLINK,
+      rewardPoolData: refetchRewards,
+      refetchAll
+    }
   };
 }
 

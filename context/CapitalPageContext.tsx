@@ -26,6 +26,9 @@ import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
 import { formatPowerFactorPrecise } from "@/lib/utils/power-factor-utils";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 
+// Import hooks that provide refetch functions
+import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+
 // Static ABI imports as fallbacks - keep these for reliability
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
 import DepositPoolAbi from "@/app/abi/DepositPool.json"; // V2 ABI - Now using!
@@ -405,6 +408,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const rewardPoolV2Address = useMemo(() => getContractAddress(l1ChainId, 'rewardPoolV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const l1SenderV2Address = useMemo(() => getContractAddress(l1ChainId, 'l1SenderV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
 
+  // --- Pool Data Hook with Refetch Functions ---
+  const capitalPoolData = useCapitalPoolData();
+
   // --- Dynamic Contract Loading with getContract ---
   const dynamicContracts = useMemo(() => {
     if (!publicClient) return {};
@@ -561,7 +567,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     functionName: 'getCurrentUserReward',
     args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!poolContractAddress && !!userAddress, refetchInterval: 15000 } 
+    query: { enabled: !!poolContractAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 } 
   });
   const currentUserRewardData = useMemo(() => currentUserRewardDataRaw as bigint | undefined, [currentUserRewardDataRaw]);
 
@@ -658,7 +664,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     functionName: 'getLatestUserReward',
     args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 15000 }
+    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 }
   });
 
   // --- V2 DepositPool Reads (LINK) ---
@@ -694,26 +700,26 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     functionName: 'getLatestUserReward',
     args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: 15000 }
+    query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 }
   });
 
   // --- V2 User Multiplier Reads (Power Factor) ---
-  const { data: stETHV2UserMultiplier, isLoading: isLoadingStETHV2Multiplier, refetch: refetchStETHV2Multiplier } = useReadContract({
+  const { data: stETHV2UserMultiplier, isLoading: isLoadingStETHV2Multiplier } = useReadContract({
     address: distributorV2Address,
     abi: ERC1967ProxyAbi,
     functionName: 'getCurrentUserMultiplier',
     args: [BigInt(0), userAddress || zeroAddress], // Pool ID 0 for stETH
     chainId: l1ChainId,
-    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 30000 }
+    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 3 * 60 * 1000 }
   });
 
-  const { data: linkV2UserMultiplier, isLoading: isLoadingLinkV2Multiplier, refetch: refetchLinkV2Multiplier } = useReadContract({
+  const { data: linkV2UserMultiplier, isLoading: isLoadingLinkV2Multiplier } = useReadContract({
     address: distributorV2Address,
     abi: ERC1967ProxyAbi,
     functionName: 'getCurrentUserMultiplier',
     args: [BigInt(1), userAddress || zeroAddress], // Pool ID 1 for LINK
     chainId: l1ChainId,
-    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 30000 }
+    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 3 * 60 * 1000 }
   });
 
   // Debug logging for reward values
@@ -860,7 +866,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const intervalId = setInterval(() => {
       setCurrentTimestampSeconds(BigInt(Math.floor(Date.now() / 1000)));
-    }, 1000); // Update every second
+    }, 30000); // Update every 30 seconds (reduced from 1 second to prevent excessive re-renders)
 
     return () => clearInterval(intervalId); // Cleanup on unmount
   }, []);
@@ -1288,9 +1294,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchLinkV2User();
           refetchStETHV2Reward();
           refetchLinkV2Reward();
+          // Refetch pool data to update total staked amounts and APY calculations
+          capitalPoolData.refetch.refetchAll();
           setActiveModal(null); // Close modal on success
       }
-  }, [isStakeSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, refetchStETHV2Reward, refetchLinkV2Reward, setActiveModal]);
+  }, [isStakeSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
   
   useEffect(() => {
       if (isClaimSuccess) {
@@ -1300,9 +1308,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchMorBalance();
           refetchStETHV2Reward();
           refetchLinkV2Reward();
+          // Refetch reward pool data to update reward calculations
+          capitalPoolData.refetch.rewardPoolData();
           setActiveModal(null); // Close modal on success
       }
-  }, [isClaimSuccess, refetchUserData, refetchUserReward, refetchMorBalance, refetchStETHV2Reward, refetchLinkV2Reward, setActiveModal]);
+  }, [isClaimSuccess, refetchUserData, refetchUserReward, refetchMorBalance, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
   
   useEffect(() => {
       if (isWithdrawSuccess) {
@@ -1313,9 +1323,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchLinkBalance();
           refetchStETHV2User();
           refetchLinkV2User();
+          // Refetch pool data to update total staked amounts and APY calculations
+          capitalPoolData.refetch.refetchAll();
           setActiveModal(null); // Close modal on success
       }
-  }, [isWithdrawSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, setActiveModal]);
+  }, [isWithdrawSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, capitalPoolData.refetch, setActiveModal]);
 
   useEffect(() => {
       if (isLockClaimSuccess) {
