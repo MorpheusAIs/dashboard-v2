@@ -61,6 +61,9 @@ export function DepositModal() {
     setActiveModal,
     preReferrerAddress,
     setPreReferrerAddress,
+    // Get current lock end timestamps to validate against shorter periods
+    stETHV2ClaimUnlockTimestamp,
+    linkV2ClaimUnlockTimestamp,
     // Get contract details for power factor hook
     l1ChainId,
   } = useCapitalContext();
@@ -319,9 +322,33 @@ export function DepositModal() {
     return powerFactor.currentResult.unlockDate || null;
   }, [powerFactor.currentResult.unlockDate]);
 
-  // Validation
+  // Validation - separate lock period validation from other validations
+  const lockPeriodError = useMemo(() => {
+    // Check if new lock period would be shorter than existing position
+    if (lockValue && parseInt(lockValue, 10) > 0) {
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const lockDurationSeconds = durationToSeconds(lockValue, lockUnit);
+      const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDurationSeconds;
+      
+      // Get existing lock end timestamp for selected asset
+      const existingLockEnd = selectedAsset === 'stETH' 
+        ? stETHV2ClaimUnlockTimestamp 
+        : linkV2ClaimUnlockTimestamp;
+      
+      if (existingLockEnd && existingLockEnd > BigInt(0) && proposedClaimLockEnd < existingLockEnd) {
+        const existingDate = new Date(Number(existingLockEnd) * 1000);
+        const proposedDate = new Date(Number(proposedClaimLockEnd) * 1000);
+        return `Lock period too short. Your existing ${selectedAsset} position is locked until ${existingDate.toLocaleDateString()}. New deposits must have a lock period that ends on or after this date.`;
+      }
+    }
+    return null;
+  }, [lockValue, lockUnit, selectedAsset, stETHV2ClaimUnlockTimestamp, linkV2ClaimUnlockTimestamp]);
+
   const validationError = useMemo(() => {
     if (amountBigInt <= BigInt(0)) return null;
+    
+    // Return lock period error if exists
+    if (lockPeriodError) return lockPeriodError;
     
     // TODO: Add minimal stake validation once PoolLimitsData interface is updated
     // const minimalStake = currentAsset?.protocolDetails?.minimalStake;
@@ -334,7 +361,7 @@ export function DepositModal() {
     }
     
     return null;
-  }, [amountBigInt, currentAsset, selectedAsset]);
+  }, [amountBigInt, currentAsset, selectedAsset, lockPeriodError]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -371,7 +398,24 @@ export function DepositModal() {
           console.log("Referrer address for deposit:", finalReferrerAddress);
         }
         
-        console.log('🏦 Proceeding with deposit:', { selectedAsset, amount, lockDuration });
+        // Debug lock period validation
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDuration;
+        const existingLockEnd = selectedAsset === 'stETH' 
+          ? stETHV2ClaimUnlockTimestamp 
+          : linkV2ClaimUnlockTimestamp;
+        
+        console.log('🏦 Proceeding with deposit:', { 
+          selectedAsset, 
+          amount, 
+          lockDuration: lockDuration.toString(),
+          currentTimestamp,
+          proposedClaimLockEnd: proposedClaimLockEnd.toString(),
+          existingLockEnd: existingLockEnd?.toString(),
+          proposedDate: new Date(Number(proposedClaimLockEnd) * 1000).toISOString(),
+          existingDate: existingLockEnd ? new Date(Number(existingLockEnd) * 1000).toISOString() : 'none'
+        });
+        
         await deposit(selectedAsset, amount, lockDuration);
       }
     } catch (error) {
@@ -556,7 +600,8 @@ export function DepositModal() {
                     }
                   }}
                   className={`bg-background pr-32 text-base ${
-                    validationError ? '!border-red-500 border-2' : 
+                    // Only show red border for balance-related errors, not lock period errors
+                    (validationError && !lockPeriodError) ? '!border-red-500 border-2' : 
                     formError ? '!border-red-500 border-2' : 
                     showWarning ? 'border-yellow-500 border' : 'border-gray-700 border'
                   }`}
@@ -584,8 +629,8 @@ export function DepositModal() {
                 </div>
               </div>
               
-              {/* Validation error message */}
-              {validationError && (
+              {/* Validation error message - only show balance-related errors here */}
+              {validationError && !lockPeriodError && (
                 <p className="text-red-500 text-sm mt-1">
                   {validationError}
                 </p>
@@ -608,7 +653,7 @@ export function DepositModal() {
                   setFormError(null); // Clear form error on input change
                 }}
                 onBlur={() => validateReferrerAddress(referrerAddress)}
-                className={`bg-background border-gray-700 text-base ${
+                className={`bg-background border-gray-700 text-sm ${
                   referrerAddressError && !referrerAddressError.includes('Resolving') ? 'border-red-500' : 
                   isResolvingEns ? 'border-yellow-500' :
                   resolvedAddress ? 'border-green-500' : ''
@@ -680,6 +725,7 @@ export function DepositModal() {
               <p className="text-xs text-gray-400">
                 Power Factor activates after 6 months, scales up to x9.7 at 6 years, and remains capped at x9.7 for longer periods
               </p>
+
               <div className="flex gap-2">
                 <Input
                   type="text"
@@ -691,14 +737,18 @@ export function DepositModal() {
                     handleLockValueChange(e.target.value);
                     setFormError(null); // Clear form error on input change
                   }}
-                  className="bg-background border-gray-700 flex-1 text-base"
+                  className={`bg-background flex-1 text-base ${
+                    lockPeriodError ? '!border-red-500 border-2' : 'border-gray-700 border'
+                  }`}
                   disabled={isProcessingDeposit}
                 />
                 <div className="relative w-32" ref={timeLockDropdownRef}>
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-between bg-background border-gray-700 hover:bg-gray-800"
+                    className={`w-full justify-between bg-background hover:bg-gray-800 ${
+                      lockPeriodError ? '!border-red-500 border-2' : 'border-gray-700 border'
+                    }`}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -731,6 +781,13 @@ export function DepositModal() {
                   )}
                 </div>
               </div>
+              
+              {/* Lock period validation error message */}
+              {lockPeriodError && (
+                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
+                  {lockPeriodError}
+                </div>
+              )}
             </div>
 
             {/* Summary Section */}
@@ -828,7 +885,8 @@ export function DepositModal() {
               className={
                 isProcessingDeposit || 
                 !!validationError || 
-                !!referrerAddressError || 
+                !!referrerAddressError ||
+                !!lockPeriodError ||
                 !!powerFactor.currentResult.error ||
                 !powerFactor.currentResult.isValid ||
                 amountBigInt <= BigInt(0) || 
@@ -844,6 +902,7 @@ export function DepositModal() {
                 isProcessingDeposit || 
                 !!validationError || 
                 !!referrerAddressError ||
+                !!lockPeriodError ||
                 !!powerFactor.currentResult.error ||
                 !powerFactor.currentResult.isValid ||
                 amountBigInt <= BigInt(0) || 
