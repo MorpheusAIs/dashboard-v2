@@ -89,45 +89,48 @@ export function ChartSection() {
                 borderWidth={2}
                 borderRadius="rounded-xl"
             />
-            {/* Conditional Rendering for Chart */}
-            {(chartLoading || metricsLoading) && (
-              <div className="flex justify-center items-center h-full">
-                <p>Loading Chart...</p>
-              </div>
-            )}
-            {(chartError || metricsError) && (
-              <div className="flex justify-center items-center h-full text-red-500">
-                <p>{chartError || metricsError}</p>
-              </div>
-            )}
-            {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length > 0 && (
-              <div className="relative h-full overflow-hidden">
-                <DepositStethChart data={chartData} />
-                {isLoadingHistorical && (
-                  <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded z-5">
-                    Loading historical data...
-                  </div>
-                )}
-              </div>
-            )}
-            {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length === 0 && (
-              <div className="flex flex-col justify-center items-center h-full text-center">
-                <p className="text-gray-400 mb-4">
-                  {networkEnv === 'testnet' 
-                    ? "You are viewing testnet. No historical deposit data available." 
-                    : "No deposit data available."} 
-                </p>
-                {networkEnv === 'testnet' && (
-                  <button 
-                    className="copy-button-secondary px-4 py-2 rounded-lg"
-                    onClick={() => switchToChain(mainnet.id)}
-                    disabled={isNetworkSwitching}
-                  >
-                    {isNetworkSwitching ? "Switching..." : "Switch to Mainnet"}
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Chart content container - positioned absolutely to not affect glow effect */}
+            <div className="absolute inset-0 rounded-xl">
+              {/* Conditional Rendering for Chart */}
+              {(chartLoading || metricsLoading) && (
+                <div className="flex justify-center items-center h-full">
+                  <p>Loading Chart...</p>
+                </div>
+              )}
+              {(chartError || metricsError) && (
+                <div className="flex justify-center items-center h-full text-red-500">
+                  <p>{chartError || metricsError}</p>
+                </div>
+              )}
+              {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length > 0 && (
+                <div className="relative h-full overflow-hidden rounded-xl">
+                  <DepositStethChart data={chartData} />
+                  {isLoadingHistorical && (
+                    <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded z-5">
+                      Loading historical data...
+                    </div>
+                  )}
+                </div>
+              )}
+              {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length === 0 && (
+                <div className="flex flex-col justify-center items-center h-full text-center">
+                  <p className="text-gray-400 mb-4">
+                    {networkEnv === 'testnet' 
+                      ? "You are viewing testnet. No historical deposit data available." 
+                      : "No deposit data available."} 
+                  </p>
+                  {networkEnv === 'testnet' && (
+                    <button 
+                      className="copy-button-secondary px-4 py-2 rounded-lg"
+                      onClick={() => switchToChain(mainnet.id)}
+                      disabled={isNetworkSwitching}
+                    >
+                      {isNetworkSwitching ? "Switching..." : "Switch to Mainnet"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
     </>
