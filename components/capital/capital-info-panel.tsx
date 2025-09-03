@@ -115,18 +115,20 @@ export function CapitalInfoPanel() {
           </div>
 
           {/* Assets Table */}
-          <div className="flex-1 overflow-hidden">
-            <div className="space-y-1">
-              {/* Header */}
-              <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800">
-                <div>Asset</div>
-                <div className="text-center">APR</div>
-                <div className="text-center">Total Deposited</div>
-                <div className="text-center">Action</div>
-              </div>
-
-              {/* Asset Rows */}
-              {assets.map((asset) => {
+          <div className="flex-1 flex flex-col">
+            {/* Fixed Header */}
+            <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10">
+              <div>Asset</div>
+              <div className="text-center">APR</div>
+              <div className="text-center">Total Deposited</div>
+              <div className="text-center">Action</div>
+            </div>
+            
+            {/* Scrollable Asset Rows */}
+            <div className="relative flex-1 max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+              <div className="space-y-1 py-1">
+                {/* Asset Rows */}
+                {assets.map((asset) => {
                 const AssetRow = (
                   <div key={asset.symbol} className={`grid grid-cols-4 gap-2 items-center px-2 py-3 rounded-lg transition-colors ${
                     asset.disabled 
@@ -185,22 +187,9 @@ export function CapitalInfoPanel() {
                   </div>
                 );
 
-                // // Wrap disabled assets with tooltip
-                // if (asset.disabled) {
-                //   return (
-                //     <Tooltip key={asset.symbol}>
-                //       <TooltipTrigger asChild>
-                //         {AssetRow}
-                //       </TooltipTrigger>
-                //       <TooltipContent className="bg-black text-white border-black rounded-lg">
-                //         <p>Coming Soon</p>
-                //       </TooltipContent>
-                //     </Tooltip>
-                //   );
-                // }
-
                 return AssetRow;
               })}
+              </div>
             </div>
           </div>
         </div>
