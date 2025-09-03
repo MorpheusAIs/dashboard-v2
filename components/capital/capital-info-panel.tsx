@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Asset } from "./types/asset";
 import { parseStakedAmount } from "./utils/parse-staked-amount";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
+import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
 
 export function CapitalInfoPanel() {
   const {
@@ -22,35 +23,45 @@ export function CapitalInfoPanel() {
 
 
 
-  // Dynamic assets data based on network environment
-  const assets: Asset[] = [
-    {
-      symbol: "stETH",
-      apy: poolData.stETH.apy,
-      totalStaked: poolData.stETH.totalStaked,
-      icon: "eth"
-    },
-    {
-      symbol: "LINK",
-      apy: poolData.LINK.apy,
-      totalStaked: poolData.LINK.totalStaked,
-      icon: "link"
-    },
-    {
-      symbol: "wBTC",
-      apy: "11.25%",
-      totalStaked: "849",
-      icon: "btc",
-      disabled: true
-    },
-    {
-      symbol: "USDC",
-      apy: "10.67%",
-      totalStaked: "15,267",
-      icon: "usdc",
-      disabled: true
-    },
-  ];
+  // Get network environment from pool data
+  const networkEnvironment: NetworkEnvironment = poolData.networkEnvironment as NetworkEnvironment;
+  
+  // Dynamic assets data based on network environment and centralized config
+  const configuredAssets = getAssetsForNetwork(networkEnvironment);
+  
+  const assets: Asset[] = configuredAssets.map(assetConfig => {
+    const { symbol } = assetConfig.metadata;
+    
+    // Get live data for supported assets, placeholder data for disabled ones
+    if (symbol === 'stETH') {
+      return {
+        symbol: assetConfig.metadata.symbol,
+        apy: poolData.stETH.apy,
+        totalStaked: poolData.stETH.totalStaked,
+        icon: assetConfig.metadata.icon,
+        disabled: assetConfig.metadata.disabled,
+      };
+    }
+    
+    if (symbol === 'LINK') {
+      return {
+        symbol: assetConfig.metadata.symbol,
+        apy: poolData.LINK.apy,
+        totalStaked: poolData.LINK.totalStaked,
+        icon: assetConfig.metadata.icon,
+        disabled: assetConfig.metadata.disabled,
+      };
+    }
+    
+    // For other assets (mainnet-only), use placeholder data until supported
+    return {
+      symbol: assetConfig.metadata.symbol,
+      apy: symbol === 'wBTC' ? "11.25%" : symbol === 'USDC' ? "10.67%" : "Coming Soon",
+      totalStaked: symbol === 'wBTC' ? "849" : symbol === 'USDC' ? "15,267" : "0",
+      icon: assetConfig.metadata.icon,
+      disabled: assetConfig.metadata.disabled || networkEnvironment === 'testnet', // Disable on testnet if not stETH/LINK
+    };
+  });
 
   const handleStakeClick = (assetSymbol: AssetSymbol) => {
     // Set the selected asset in the context before opening the modal

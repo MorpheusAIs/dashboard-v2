@@ -31,6 +31,7 @@ import type { AssetSymbol } from "@/context/CapitalPageContext";
 import type { UserAsset } from "./types/user-asset";
 import { useDailyEmissions } from "./hooks/use-daily-emissions";
 import { useTotalMorEarned } from "@/hooks/use-total-mor-earned";
+import { getAssetConfig, type NetworkEnvironment } from "./constants/asset-config";
 
 
 export function UserAssetsPanel() {
@@ -49,6 +50,8 @@ export function UserAssetsPanel() {
     // V2-specific claim data
     stETHV2CanClaim,
     linkV2CanClaim,
+    stETHV2ClaimUnlockTimestamp,
+    linkV2ClaimUnlockTimestamp,
     stETHV2ClaimUnlockTimestampFormatted,
     linkV2ClaimUnlockTimestampFormatted,
   } = useCapitalContext();
@@ -128,23 +131,55 @@ export function UserAssetsPanel() {
     return amount.toFixed(1);
   };
 
-  // Helper function to get unlock date for specific asset
+    // Helper function to get unlock date for specific asset
   const getAssetUnlockDate = useCallback((assetSymbol: 'stETH' | 'LINK'): string | null => {
+    let unlockDate: string | null = null;
+    let rawFormatted: string;
+    let rawTimestamp: bigint | undefined;
+
+    // Get raw data for debugging
+    if (assetSymbol === 'stETH') {
+      rawFormatted = stETHV2ClaimUnlockTimestampFormatted;
+      rawTimestamp = stETHV2ClaimUnlockTimestamp;
+    } else {
+      rawFormatted = linkV2ClaimUnlockTimestampFormatted;
+      rawTimestamp = linkV2ClaimUnlockTimestamp;
+    }
+
+    // Debug logging
+    console.log(`🔍 Raw data for ${assetSymbol}:`, {
+      rawTimestamp,
+      rawFormatted,
+      isTimestampUndefined: rawTimestamp === undefined,
+      isFormattedPlaceholder: rawFormatted === "--- --, ----",
+      formattedType: typeof rawFormatted
+    });
+
     // Use V2-specific unlock timestamps
     if (assetSymbol === 'stETH') {
-      return stETHV2ClaimUnlockTimestampFormatted && stETHV2ClaimUnlockTimestampFormatted !== "--- --, ----" 
-        ? stETHV2ClaimUnlockTimestampFormatted 
+      unlockDate = stETHV2ClaimUnlockTimestampFormatted && stETHV2ClaimUnlockTimestampFormatted !== "--- --, ----"
+        ? stETHV2ClaimUnlockTimestampFormatted
         : null;
     }
-    
+
     if (assetSymbol === 'LINK') {
-      return linkV2ClaimUnlockTimestampFormatted && linkV2ClaimUnlockTimestampFormatted !== "--- --, ----" 
-        ? linkV2ClaimUnlockTimestampFormatted 
+      unlockDate = linkV2ClaimUnlockTimestampFormatted && linkV2ClaimUnlockTimestampFormatted !== "--- --, ----"
+        ? linkV2ClaimUnlockTimestampFormatted
         : null;
     }
-    
-    return null;
-  }, [stETHV2ClaimUnlockTimestampFormatted, linkV2ClaimUnlockTimestampFormatted]);
+
+    // Log unlock date for debugging
+    console.log(`🔓 getAssetUnlockDate for ${assetSymbol}:`, {
+      rawTimestamp,
+      rawFormatted,
+      processedDate: unlockDate,
+      isValid: unlockDate !== null,
+      conditionCheck: rawFormatted && rawFormatted !== "--- --, ----",
+      assetSymbol
+    });
+
+    return unlockDate;
+  }, [stETHV2ClaimUnlockTimestampFormatted, linkV2ClaimUnlockTimestampFormatted, stETHV2ClaimUnlockTimestamp, linkV2ClaimUnlockTimestamp]);
 
   // Helper function to check if asset rewards can be claimed
   const canAssetClaim = useCallback((assetSymbol: 'stETH' | 'LINK'): boolean => {
@@ -154,39 +189,70 @@ export function UserAssetsPanel() {
     return false;
   }, [stETHV2CanClaim, linkV2CanClaim]);
 
-  // Helper function to check if unlock date has passed (for withdraw functionality)
-  const isUnlockDateReached = useCallback((unlockDate: string | null): boolean => {
-    if (!unlockDate || unlockDate === "--- --, ----" || unlockDate === "Never" || unlockDate === "Invalid Date") {
-      return false; // No unlock date set, invalid, or never unlocks
-    }
-    
-    try {
-      // Parse the unlock date string (format: "Aug 16, 2025, 5:30 PM" from toLocaleString)
-      const unlockDateTime = new Date(unlockDate);
-      const currentDate = new Date();
-      
-      // Validate that the date was parsed correctly
-      if (isNaN(unlockDateTime.getTime())) {
-        console.error('Invalid unlock date parsed:', unlockDate);
-        return false;
-      }
-      
-      // Compare dates including time
-      const unlockReached = currentDate >= unlockDateTime;
-      
-      return unlockReached;
-    } catch (error) {
-      console.error('Error parsing unlock date:', unlockDate, error);
-      return false; // If parsing fails, assume not unlocked
-    }
-  }, []);
-
-  // Check if user has any assets staked (stETH or LINK)
+  // Check if user has any assets staked (stETH or LINK) - moved up for dependency
   const hasStakedAssets = useMemo(() => {
     const stethDeposited = parseDepositAmount(assets.stETH?.userDepositedFormatted);
     const linkDeposited = parseDepositAmount(assets.LINK?.userDepositedFormatted);
     return stethDeposited > 0 || linkDeposited > 0;
   }, [assets]);
+
+  // Helper function to check if unlock date has passed (for withdraw functionality)
+  const isUnlockDateReached = useCallback((unlockDate: string | null): boolean => {
+    console.log('🔍 isUnlockDateReached called with:', unlockDate);
+
+    if (!unlockDate || unlockDate === "--- --, ----" || unlockDate === "Never" || unlockDate === "Invalid Date") {
+      console.log('❌ Unlock date check failed - invalid/null date:', unlockDate);
+      // Fallback: If we have no unlock date but user has staked assets, allow withdrawal
+      // This handles cases where timestamp data is missing but user should still be able to withdraw
+      const hasStakedAssetsCheck = hasStakedAssets;
+      console.log('🔄 Fallback check for staked assets:', hasStakedAssetsCheck);
+      if (hasStakedAssetsCheck) {
+        console.log('✅ Allowing withdrawal due to fallback - user has staked assets');
+        return true;
+      }
+      return false; // No unlock date set, invalid, or never unlocks
+    }
+
+    try {
+      // Parse the unlock date string (format: "Aug 16, 2025, 5:30 PM" from toLocaleString)
+      const unlockDateTime = new Date(unlockDate);
+      const currentDate = new Date();
+
+      console.log('📅 Date parsing details:', {
+        unlockDateString: unlockDate,
+        unlockDateTime: unlockDateTime,
+        unlockDateTimeParsed: unlockDateTime.toISOString(),
+        currentDate: currentDate.toISOString(),
+        unlockDateTimeValid: !isNaN(unlockDateTime.getTime())
+      });
+
+      // Validate that the date was parsed correctly
+      if (isNaN(unlockDateTime.getTime())) {
+        console.error('❌ Invalid unlock date parsed:', unlockDate, '- Date object:', unlockDateTime);
+        return false;
+      }
+
+      // Compare dates including time
+      const unlockReached = currentDate >= unlockDateTime;
+
+      console.log('✅ Unlock date comparison result:', {
+        unlockDate: unlockDate,
+        unlockDateTime: unlockDateTime.toISOString(),
+        currentDate: currentDate.toISOString(),
+        timeDifferenceMs: currentDate.getTime() - unlockDateTime.getTime(),
+        timeDifferenceHours: (currentDate.getTime() - unlockDateTime.getTime()) / (1000 * 60 * 60),
+        unlockReached,
+        shouldAllowWithdraw: unlockReached
+      });
+
+      return unlockReached;
+    } catch (error) {
+      console.error('❌ Error parsing unlock date:', unlockDate, error);
+      return false; // If parsing fails, assume not unlocked
+    }
+  }, [hasStakedAssets]);
+
+
 
   // Check if any action is currently processing
   const isAnyActionProcessing = isProcessingDeposit || isProcessingClaim || isProcessingWithdraw || isProcessingChangeLock;
@@ -207,9 +273,14 @@ export function UserAssetsPanel() {
   useEffect(() => {
     async function fetchTokenPrices() {
       try {
+        // Get CoinGecko IDs from centralized asset config
+        const networkEnvironment: NetworkEnvironment = networkEnv as NetworkEnvironment;
+        const stethConfig = getAssetConfig('stETH', networkEnvironment);
+        const linkConfig = getAssetConfig('LINK', networkEnvironment);
+        
         const [stethPriceData, linkPriceData] = await Promise.all([
-          getTokenPrice('staked-ether', 'usd'), // stETH/Lido token ID
-          getTokenPrice('chainlink', 'usd')     // LINK token ID
+          getTokenPrice(stethConfig?.metadata.coinGeckoId || 'staked-ether', 'usd'),
+          getTokenPrice(linkConfig?.metadata.coinGeckoId || 'chainlink', 'usd')
         ]);
         
         setStethPrice(stethPriceData);
@@ -233,6 +304,12 @@ export function UserAssetsPanel() {
 
   // Helper function to handle dropdown menu actions and manage focus properly
   const handleDropdownAction = useCallback((modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claim' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => {
+    // Prevent action if another action is processing (but allow withdraw even during claim processing)
+    if (isAnyActionProcessing && modalType !== 'withdraw') {
+      console.log('Blocking action due to processing state:', modalType);
+      return;
+    }
+
     // Close dropdown first
     setOpenDropdownId(null);
     // Force focus to body to prevent ARIA conflicts
@@ -243,11 +320,12 @@ export function UserAssetsPanel() {
     if (assetSymbol) {
       setSelectedAsset(assetSymbol);
     }
+
     // Then open modal after a short delay to allow dropdown to close properly
     setTimeout(() => {
       setActiveModal(modalType);
-    }, 100);
-  }, [setActiveModal, setSelectedAsset]);
+    }, 150); // Increased delay to prevent race conditions
+  }, [setActiveModal, setSelectedAsset, isAnyActionProcessing]);
 
   // Handle dropdown state changes to manage focus
   const handleDropdownOpenChange = useCallback((assetId: string, open: boolean) => {
@@ -277,34 +355,57 @@ export function UserAssetsPanel() {
     const stethClaimable = parseDepositAmount(assets.stETH?.claimableAmountFormatted);
     const linkClaimable = parseDepositAmount(assets.LINK?.claimableAmountFormatted);
     
-    return [
-      {
-        id: "1",
-        symbol: "stETH",
-        assetSymbol: 'stETH' as AssetSymbol,
-        icon: "eth",
-        amountStaked: stethAmount,
-        available: stethAvailable,
-        dailyEmissions: stETHDailyEmissions,
-        powerFactor: parseFloat(assets.stETH?.userMultiplierFormatted?.replace('x', '') || '0'),
-        unlockDate: getAssetUnlockDate('stETH'),
-        availableToClaim: stethClaimable,
-        canClaim: canAssetClaim('stETH'),
+    const stethUnlockDate = getAssetUnlockDate('stETH');
+    const linkUnlockDate = getAssetUnlockDate('LINK');
+
+    console.log('🏗️ Creating userAssets array:', {
+      stETH: {
+        unlockDate: stethUnlockDate,
+        canWithdraw: isUnlockDateReached(stethUnlockDate),
+        amountStaked: stethAmount
       },
-      {
-        id: "2",
-        symbol: "LINK",
-        assetSymbol: 'LINK' as AssetSymbol,
-        icon: "link",
-        amountStaked: linkAmount,
-        available: linkAvailable,
-        dailyEmissions: linkDailyEmissions,
-        powerFactor: parseFloat(assets.LINK?.userMultiplierFormatted?.replace('x', '') || '0'),
-        unlockDate: getAssetUnlockDate('LINK'),
-        availableToClaim: linkClaimable,
-        canClaim: canAssetClaim('LINK'),
+      LINK: {
+        unlockDate: linkUnlockDate,
+        canWithdraw: isUnlockDateReached(linkUnlockDate),
+        amountStaked: linkAmount
       },
-    ].filter(asset => asset.amountStaked > 0 || asset.availableToClaim > 0); // Only show assets with activity
+      rawContextData: {
+        stETHV2ClaimUnlockTimestampFormatted,
+        linkV2ClaimUnlockTimestampFormatted
+      }
+    });
+
+    // Get network environment and supported assets from centralized config
+    const networkEnvironment: NetworkEnvironment = networkEnv as NetworkEnvironment;
+    const supportedAssets = ['stETH', 'LINK'] as const; // Only these have user data for now
+    
+    return supportedAssets.map((assetSymbol, index) => {
+      const assetConfigData = getAssetConfig(assetSymbol, networkEnvironment);
+      if (!assetConfigData) return null;
+      
+      const isStETH = assetSymbol === 'stETH';
+      const amount = isStETH ? stethAmount : linkAmount;
+      const available = isStETH ? stethAvailable : linkAvailable;
+      const claimable = isStETH ? stethClaimable : linkClaimable;
+      const emissions = isStETH ? stETHDailyEmissions : linkDailyEmissions;
+      const multiplier = isStETH ? assets.stETH?.userMultiplierFormatted : assets.LINK?.userMultiplierFormatted;
+      const unlockDate = getAssetUnlockDate(assetSymbol);
+      
+      return {
+        id: (index + 1).toString(),
+        symbol: assetConfigData.metadata.symbol,
+        assetSymbol: assetSymbol as AssetSymbol,
+        icon: assetConfigData.metadata.icon,
+        amountStaked: amount,
+        available: available,
+        dailyEmissions: emissions,
+        powerFactor: parseFloat(multiplier?.replace('x', '') || '0'),
+        unlockDate: unlockDate,
+        availableToClaim: claimable,
+        canClaim: canAssetClaim(assetSymbol),
+      };
+    })
+    .filter(asset => asset !== null && (asset.amountStaked > 0 || asset.availableToClaim > 0)) as UserAsset[]; // Only show assets with activity
   }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDate, stETHDailyEmissions, linkDailyEmissions]);
 
   // Calculate metrics from real asset data - now using userAssets for accurate table totals
