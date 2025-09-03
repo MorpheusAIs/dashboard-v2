@@ -79,7 +79,7 @@ export function ChartSection() {
           ))}
 
           {/* Deposit Chart (spans all columns, remaining height) */}
-          <div className="col-span-2 sm:col-span-4 relative h-full overflow-hidden">
+          <div className="col-span-2 sm:col-span-4 relative h-full">
             <GlowingEffect 
                 spread={40}
                 glow={true}

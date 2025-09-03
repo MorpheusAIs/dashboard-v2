@@ -121,7 +121,7 @@ function CapitalPageContent() {
         <CapitalInfoPanel />
 
         {/* --- Column 2: Deposit Chart (2/3 width) --- */}
-        <div className="lg:col-span-2 relative h-[500px] overflow-hidden"> {/* Chart container with fixed height and overflow hidden */}
+        <div className="lg:col-span-2 relative h-[500px]"> {/* Chart container with fixed height */}
           <ChartSection />
         </div>
 
