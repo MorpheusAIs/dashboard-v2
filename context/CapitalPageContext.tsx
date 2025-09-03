@@ -374,8 +374,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return networkEnv === 'mainnet' ? mainnetChains.arbitrum.id : testnetChains.arbitrumSepolia.id;
   }, [networkEnv]);
 
-  // V1 Contract Addresses (keep for backward compatibility)
-  const poolContractAddress = useMemo(() => getContractAddress(l1ChainId, 'erc1967Proxy', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
+  // Network-aware contract address selection to fix random ABI errors
+  // Both networks use ERC1967ProxyAbi (has all functions), but different addresses:
+  // Mainnet: V1 erc1967Proxy, Testnet: V2 stETHDepositPool  
+  const poolContractAddress = useMemo(() => {
+    const contractKey = networkEnv === 'mainnet' ? 'erc1967Proxy' : 'stETHDepositPool';
+    return getContractAddress(l1ChainId, contractKey, networkEnv) as `0x${string}` | undefined;
+  }, [l1ChainId, networkEnv]);
   const stEthContractAddress = useMemo(() => {
     const address = getContractAddress(l1ChainId, 'stETH', networkEnv) as `0x${string}` | undefined;
     if (networkEnv === 'testnet') {
@@ -470,10 +475,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return contracts;
   }, [publicClient, stEthContractAddress, linkTokenAddress, stETHDepositPoolAddress, linkDepositPoolAddress]);
 
+  // Keep using ERC1967ProxyAbi for both networks (it has all needed functions)
+  const poolAbi = ERC1967ProxyAbi;
+
   // --- Read Hooks --- 
   const { data: poolInfoResult } = useReadContract({
     address: poolContractAddress,
-    abi: ERC1967ProxyAbi,
+    abi: poolAbi,
     functionName: 'pools',
     args: [PUBLIC_POOL_ID],
     chainId: l1ChainId,
@@ -504,7 +512,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   const { data: poolLimitsResult } = useReadContract({
     address: poolContractAddress,
-    abi: ERC1967ProxyAbi,
+    abi: poolAbi,
     functionName: 'poolsLimits',
     args: [PUBLIC_POOL_ID],
     chainId: l1ChainId,
@@ -530,7 +538,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     data: totalDepositedDataRaw
   } = useReadContract({
     address: poolContractAddress,
-    abi: ERC1967ProxyAbi,
+    abi: poolAbi,
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
     query: { enabled: !!poolContractAddress }
@@ -539,7 +547,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   const { data: usersDataResult, isLoading: isLoadingUserDataRaw, refetch: refetchUserData } = useReadContract({
     address: poolContractAddress,
-    abi: ERC1967ProxyAbi,
+    abi: poolAbi,
     functionName: 'usersData',
     args: [userAddress || zeroAddress, PUBLIC_POOL_ID],
     chainId: l1ChainId,
@@ -570,7 +578,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   const { data: currentUserRewardDataRaw, isLoading: isLoadingUserReward, refetch: refetchUserReward } = useReadContract({
     address: poolContractAddress,
-    abi: ERC1967ProxyAbi,
+    abi: poolAbi,
     functionName: 'getCurrentUserReward',
     args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
     chainId: l1ChainId,
@@ -580,7 +588,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   const { data: currentUserMultiplierDataRaw, isLoading: isLoadingUserMultiplier, refetch: refetchUserMultiplier } = useReadContract({
     address: poolContractAddress,
-    abi: ERC1967ProxyAbi,
+    abi: poolAbi,
     functionName: 'getCurrentUserMultiplier',
     args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
     chainId: l1ChainId,
@@ -1245,7 +1253,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     if (!poolContractAddress || !l1ChainId || !userAddress || !canClaim) throw new Error("Claim prerequisites not met");
       await handleTransaction(() => claimAsync({
           address: poolContractAddress,
-          abi: ERC1967ProxyAbi,
+          abi: poolAbi,
           functionName: 'claim',
           args: [PUBLIC_POOL_ID, userAddress],
           chainId: l1ChainId,
@@ -1266,7 +1274,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       
       await handleTransaction(() => lockClaimAsync({
           address: poolContractAddress,
-          abi: ERC1967ProxyAbi,
+          abi: poolAbi,
           functionName: 'lockClaim',
           args: [PUBLIC_POOL_ID, finalLockEndTimestamp],
           chainId: l1ChainId,
@@ -1431,7 +1439,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   const { data: simulatedMultiplierResult, error: simulateMultiplierError, isLoading: isSimulatingMultiplier } = useSimulateContract({
     address: poolContractAddress,
-    abi: ERC1967ProxyAbi,
+    abi: poolAbi,
     functionName: 'getClaimLockPeriodMultiplier',
     args: useMemo(() => {
       if (!multiplierSimArgs) return undefined;
