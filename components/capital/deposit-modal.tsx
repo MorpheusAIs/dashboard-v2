@@ -24,27 +24,20 @@ import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 
 // Import Config and Utils
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
-import { 
+import {
   getMaxAllowedValue,
   durationToSeconds,
-  type TimeUnit 
+  type TimeUnit
 } from "@/lib/utils/power-factor-utils";
 
-// Regular expression for Ethereum addresses
-const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+// Import Constants
+import {
+  ETH_ADDRESS_REGEX,
+  assetOptions,
+  timeLockOptions
+} from "./constants/deposit-modal-constants";
 
-// Asset configuration
-const assetOptions = [
-  { value: "stETH", label: "stETH", symbol: "eth" },
-  { value: "LINK", label: "LINK", symbol: "link" },
-];
 
-// Time lock options
-const timeLockOptions = [
-  { value: "days", label: "Days" },
-  { value: "months", label: "Months" },
-  { value: "years", label: "Years" },
-];
 
 export function DepositModal() {
   // Get state and actions from V2 context
