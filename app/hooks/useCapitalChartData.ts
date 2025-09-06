@@ -302,9 +302,9 @@ export function useCapitalChartData() {
     return Math.floor(usdValue).toLocaleString();
   }, [chartData, stethPrice]);
 
-  const currentDailyRewardMOR = "2,836"; // Placeholder for Current Daily Reward in MOR
-  const avgApyRate = "15.37%"; // Placeholder for Average APY Rate
-  const activeStakers = "240"; // Placeholder for Active Stakers
+  const currentDailyRewardMOR = "N/A"; // Use N/A instead of fake placeholder
+  const avgApyRate = "N/A"; // Use N/A instead of fake placeholder
+  const activeStakers = "N/A"; // Use N/A instead of fake placeholder
 
   // Safeguard: Always return empty data for testnet
   const safeChartData = networkEnv === 'testnet' ? [] : chartData;
