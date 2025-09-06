@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useTransition, useRef } from "react";
 import { TokenIcon } from '@web3icons/react';
 import { DataTable, Column } from "@/components/ui/data-table";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
@@ -33,13 +33,121 @@ import { useDailyEmissions } from "./hooks/use-daily-emissions";
 import { useTotalMorEarned } from "@/hooks/use-total-mor-earned";
 import { getAssetConfig, type NetworkEnvironment } from "./constants/asset-config";
 
+// Enhanced price cache with retry logic and expiry
+interface TokenPriceCache {
+  stethPrice: number | null;
+  linkPrice: number | null;
+  morPrice: number | null;
+  timestamp: number;
+  retryCount: number;
+  lastSuccessfulFetch: number;
+}
+
+const TOKEN_PRICE_CACHE_KEY = 'morpheus_token_prices';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const PRICE_CACHE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes - for future use
+const PRICE_RETRY_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes before allowing retry
+const MAX_PRICE_RETRIES = 3;
+
+// Price cache management functions
+const getCachedPrices = (): TokenPriceCache | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(TOKEN_PRICE_CACHE_KEY);
+    if (!cached) return null;
+    
+    const parsedCache: TokenPriceCache = JSON.parse(cached);
+    return parsedCache;
+  } catch (error) {
+    console.warn('Error reading token prices cache:', error);
+    return null;
+  }
+};
+
+const setCachedPrices = (cache: TokenPriceCache): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(TOKEN_PRICE_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Error saving token prices cache:', error);
+  }
+};
+
+const shouldRetryPriceFetch = (cachedPrices: TokenPriceCache | null): boolean => {
+  if (!cachedPrices) return true;
+  
+  const now = Date.now();
+  const timeSinceLastTry = now - cachedPrices.timestamp;
+  const hasReachedMaxRetries = cachedPrices.retryCount >= MAX_PRICE_RETRIES;
+  const shouldRetryAfterCooldown = timeSinceLastTry > PRICE_RETRY_EXPIRY_MS;
+  
+  return !hasReachedMaxRetries && shouldRetryAfterCooldown;
+};
+
+// Export functions for use by other components (like chart-section.tsx)
+export { getCachedPrices, setCachedPrices, shouldRetryPriceFetch, MAX_PRICE_RETRIES };
+export type { TokenPriceCache };
+
+// Cache for user assets data to prevent flickering and provide fallbacks
+interface UserAssetsCache {
+  metricsData: {
+    stakedValue: string;
+    totalMorStaked: string;
+    dailyEmissionsEarned: string;
+    lifetimeEmissionsEarned: string;
+    totalAvailableToClaim: string;
+    referralRewards: string;
+  };
+  userAssets: UserAsset[];
+  stethPrice: number | null;
+  linkPrice: number | null;
+  timestamp: number;
+  userAddress: string;
+  networkEnv: string;
+}
+
+const USER_ASSETS_CACHE_KEY = 'morpheus_user_assets_cache';
+const CACHE_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+
+// Cache management functions
+const getCachedUserAssets = (userAddress: string, networkEnv: string): UserAssetsCache | null => {
+  if (typeof window === 'undefined' || !userAddress) return null;
+  try {
+    const cached = localStorage.getItem(`${USER_ASSETS_CACHE_KEY}_${userAddress}_${networkEnv}`);
+    if (!cached) return null;
+    
+    const parsedCache: UserAssetsCache = JSON.parse(cached);
+    const now = Date.now();
+    
+    // Check if cache is still valid (not expired)
+    if (now - parsedCache.timestamp > CACHE_EXPIRY_MS) {
+      localStorage.removeItem(`${USER_ASSETS_CACHE_KEY}_${userAddress}_${networkEnv}`);
+      return null;
+    }
+    
+    return parsedCache;
+  } catch (error) {
+    console.warn('Error reading user assets cache:', error);
+    return null;
+  }
+};
+
+const setCachedUserAssets = (cache: UserAssetsCache, userAddress: string, networkEnv: string): void => {
+  if (typeof window === 'undefined' || !userAddress) return;
+  try {
+    localStorage.setItem(`${USER_ASSETS_CACHE_KEY}_${userAddress}_${networkEnv}`, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Error saving user assets cache:', error);
+  }
+};
 
 export function UserAssetsPanel() {
   const {
     userAddress,
     setActiveModal,
     setSelectedAsset,
-    isLoadingUserData,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    isLoadingUserData, // Keep for potential future use
     assets, // Get all asset data
     networkEnv, // Add network environment
     // Processing states to properly disable buttons
@@ -92,16 +200,111 @@ export function UserAssetsPanel() {
     fullResult: totalMorEarnedResult,
   });
 
-  // Combined loading state for total daily emissions
-  const isDailyEmissionsLoading = isStETHEmissionsLoading || isLinkEmissionsLoading;
 
-  // State for sorting
+  // State for sorting with transition for smooth UI updates
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [isSorting, startSortTransition] = useTransition();
 
-  // State for token prices from CoinGecko
+  // State for token prices from CoinGecko with transition for smooth updates
   const [stethPrice, setStethPrice] = useState<number | null>(null);
   const [linkPrice, setLinkPrice] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [morPrice, setMorPrice] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [isPriceUpdating, startPriceTransition] = useTransition();
+  
+  // State for controlling initial vs background loading
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [shouldRefreshData, setShouldRefreshData] = useState(false);
+  const lastUserActionRef = useRef<string>('');
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track data freshness to prevent unnecessary skeleton states
+  const [hasValidData, setHasValidData] = useState(false);
+
+  // Combined loading state for total daily emissions - only during initial load
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isDailyEmissionsLoading = (isInitialLoad && !hasValidData) && (isStETHEmissionsLoading || isLinkEmissionsLoading);
+
+  // Load cached data on mount and when user/network changes
+  useEffect(() => {
+    // Always try to load cached prices first
+    const cachedPrices = getCachedPrices();
+    if (cachedPrices) {
+      console.log('💰 Loading cached token prices:', cachedPrices);
+      setStethPrice(cachedPrices.stethPrice);
+      setLinkPrice(cachedPrices.linkPrice);
+      setMorPrice(cachedPrices.morPrice);
+    }
+
+    if (!userAddress) {
+      setHasValidData(false);
+      setIsInitialLoad(true);
+      return;
+    }
+
+    const cachedData = getCachedUserAssets(userAddress, networkEnv);
+    if (cachedData) {
+      console.log('📦 Loading cached user assets data:', cachedData);
+      // Use cached prices if not already loaded from global cache
+      if (!cachedPrices) {
+        setStethPrice(cachedData.stethPrice);
+        setLinkPrice(cachedData.linkPrice);
+      }
+      setHasValidData(true);
+      setIsInitialLoad(false); // We have cached data, no need for skeleton
+    } else {
+      console.log('🔄 No cached data found, will show initial loading');
+      setIsInitialLoad(true);
+      setHasValidData(false);
+    }
+  }, [userAddress, networkEnv]);
+
+  // Smart refresh triggers: only refresh on page load or after user actions
+  useEffect(() => {
+    const currentActionState = `${isProcessingDeposit}-${isProcessingClaim}-${isProcessingWithdraw}-${isProcessingChangeLock}`;
+    
+    // Debug logging for processing states
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Processing state change:', {
+        previous: lastUserActionRef.current,
+        current: currentActionState,
+        shouldRefreshData
+      });
+    }
+    
+    // Only trigger if we have a previous state to compare against
+    if (lastUserActionRef.current && lastUserActionRef.current !== currentActionState) {
+      const wasProcessing = lastUserActionRef.current.includes('true');
+      const isProcessing = currentActionState.includes('true');
+      
+      // Only trigger refresh once when transitioning from processing to not processing
+      // and prevent multiple triggers by checking if refresh is already pending or timeout exists
+      if (wasProcessing && !isProcessing && !shouldRefreshData && !refreshTimeoutRef.current) {
+        console.log('🔄 User action completed, scheduling data refresh');
+        
+        // Use debounced refresh to prevent rapid-fire triggers
+        refreshTimeoutRef.current = setTimeout(() => {
+          console.log('🔄 Executing debounced data refresh after user action');
+          setShouldRefreshData(true);
+          refreshTimeoutRef.current = null;
+        }, 1000); // Increased to 1 second debounce for more stability
+      }
+    }
+    
+    lastUserActionRef.current = currentActionState;
+  }, [isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock]); // Removed shouldRefreshData to prevent re-triggering
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Helper function to safely parse deposit amount
   const parseDepositAmount = (depositValue: string | undefined): number => {
@@ -269,38 +472,154 @@ export function UserAssetsPanel() {
     setOpenDropdownId(null);
   }, [userAddress]);
 
-  // Fetch token prices from CoinGecko on component mount
+  // Fetch token prices with robust retry and fallback logic
   useEffect(() => {
-    async function fetchTokenPrices() {
+    // Only fetch if it's initial load or data refresh is needed
+    if (!isInitialLoad && !shouldRefreshData) return;
+    if (!userAddress) return;
+
+    async function fetchTokenPricesWithRetry() {
+      const cachedPrices = getCachedPrices();
+      
+      // Check if we should attempt a fresh fetch or use cache
+      if (cachedPrices && !shouldRetryPriceFetch(cachedPrices)) {
+        console.log('💰 Using cached prices due to retry limit or cooldown:', {
+          retryCount: cachedPrices.retryCount,
+          maxRetries: MAX_PRICE_RETRIES,
+          timeSinceLastTry: Date.now() - cachedPrices.timestamp
+        });
+        
+        // Use cached prices and reset loading flags
+        startPriceTransition(() => {
+          setStethPrice(cachedPrices.stethPrice);
+          setLinkPrice(cachedPrices.linkPrice);
+          setMorPrice(cachedPrices.morPrice);
+          setHasValidData(true);
+          if (isInitialLoad) setIsInitialLoad(false);
+          if (shouldRefreshData) setShouldRefreshData(false);
+        });
+        return;
+      }
+
       try {
+        console.log('💰 Attempting to fetch fresh token prices...', {
+          retryCount: cachedPrices?.retryCount || 0,
+          maxRetries: MAX_PRICE_RETRIES
+        });
+        
         // Get CoinGecko IDs from centralized asset config
         const networkEnvironment: NetworkEnvironment = networkEnv as NetworkEnvironment;
         const stethConfig = getAssetConfig('stETH', networkEnvironment);
         const linkConfig = getAssetConfig('LINK', networkEnvironment);
         
-        const [stethPriceData, linkPriceData] = await Promise.all([
+        const [stethPriceData, linkPriceData, morPriceData] = await Promise.all([
           getTokenPrice(stethConfig?.metadata.coinGeckoId || 'staked-ether', 'usd'),
-          getTokenPrice(linkConfig?.metadata.coinGeckoId || 'chainlink', 'usd')
+          getTokenPrice(linkConfig?.metadata.coinGeckoId || 'chainlink', 'usd'),
+          getTokenPrice('morpheus-network', 'usd') // MOR token
         ]);
         
-        setStethPrice(stethPriceData);
-        setLinkPrice(linkPriceData);
+        // Save successful prices to cache
+        const now = Date.now();
+        const newCache: TokenPriceCache = {
+          stethPrice: stethPriceData,
+          linkPrice: linkPriceData,
+          morPrice: morPriceData,
+          timestamp: now,
+          retryCount: 0, // Reset retry count on success
+          lastSuccessfulFetch: now
+        };
+        setCachedPrices(newCache);
         
-        // console.log('💰 Token prices fetched:', {
-        //   stETH: stethPriceData,
-        //   LINK: linkPriceData
-        // });
+        // Use transition to prevent UI blocking during price updates
+        startPriceTransition(() => {
+          setStethPrice(stethPriceData);
+          setLinkPrice(linkPriceData);
+          setMorPrice(morPriceData);
+          setHasValidData(true);
+          if (isInitialLoad) setIsInitialLoad(false);
+          if (shouldRefreshData) setShouldRefreshData(false);
+        });
+        
+        console.log('💰 Token prices fetched and cached successfully:', {
+          stETH: stethPriceData,
+          LINK: linkPriceData,
+          MOR: morPriceData
+        });
+        
       } catch (error) {
         console.error('Error fetching token prices:', error);
+        
+        // Increment retry count and update cache
+        const now = Date.now();
+        const newRetryCount = (cachedPrices?.retryCount || 0) + 1;
+        
+        if (cachedPrices) {
+          const updatedCache: TokenPriceCache = {
+            ...cachedPrices,
+            timestamp: now,
+            retryCount: newRetryCount
+          };
+          setCachedPrices(updatedCache);
+          
+          // Use cached prices as fallback
+          console.log('💰 Using cached prices as fallback after error:', {
+            stETH: cachedPrices.stethPrice,
+            LINK: cachedPrices.linkPrice,
+            MOR: cachedPrices.morPrice,
+            newRetryCount
+          });
+          
+          startPriceTransition(() => {
+            setStethPrice(cachedPrices.stethPrice);
+            setLinkPrice(cachedPrices.linkPrice);
+            setMorPrice(cachedPrices.morPrice);
+            setHasValidData(true);
+            if (isInitialLoad) setIsInitialLoad(false);
+            if (shouldRefreshData) setShouldRefreshData(false);
+          });
+        } else {
+          // No cache available, create empty cache with retry count
+          const errorCache: TokenPriceCache = {
+            stethPrice: null,
+            linkPrice: null,
+            morPrice: null,
+            timestamp: now,
+            retryCount: newRetryCount,
+            lastSuccessfulFetch: 0
+          };
+          setCachedPrices(errorCache);
+          
+          // Reset flags even on error to prevent stuck states
+          if (isInitialLoad) setIsInitialLoad(false);
+          if (shouldRefreshData) setShouldRefreshData(false);
+        }
       }
     }
 
-    fetchTokenPrices();
-  }, []);
+    // Safety timeout to reset refresh flag in case of hangs
+    const safetyTimeout = setTimeout(() => {
+      if (shouldRefreshData) {
+        console.warn('⚠️ Data refresh timeout, resetting flag');
+        setShouldRefreshData(false);
+      }
+      if (isInitialLoad) {
+        console.warn('⚠️ Initial load timeout, resetting flag');
+        setIsInitialLoad(false);
+      }
+    }, 15000); // 15 second timeout
+
+    fetchTokenPricesWithRetry();
+
+    return () => clearTimeout(safetyTimeout);
+  }, [isInitialLoad, shouldRefreshData, userAddress, networkEnv, startPriceTransition]);
 
   // State to control which dropdown is open (by asset ID)
   // This prevents multiple dropdowns from being open simultaneously and fixes ARIA focus conflicts
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  
+  // Transitions for smooth modal and dropdown interactions
+  const [isModalTransitioning, startModalTransition] = useTransition();
+  const [isDropdownTransitioning, startDropdownTransition] = useTransition();
 
   // Helper function to handle dropdown menu actions and manage focus properly
   const handleDropdownAction = useCallback((modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claim' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => {
@@ -310,43 +629,50 @@ export function UserAssetsPanel() {
       return;
     }
 
-    // Close dropdown first
-    setOpenDropdownId(null);
-    // Force focus to body to prevent ARIA conflicts
-    if (document.body) {
-      document.body.focus();
-    }
-    // Set the selected asset if provided (for asset-specific actions like withdraw)
-    if (assetSymbol) {
-      setSelectedAsset(assetSymbol);
-    }
-
-    // Then open modal after a short delay to allow dropdown to close properly
-    setTimeout(() => {
+    // Use transition for smooth modal opening
+    startModalTransition(() => {
+      // Close dropdown first
+      setOpenDropdownId(null);
+      // Force focus to body to prevent ARIA conflicts
+      if (document.body) {
+        document.body.focus();
+      }
+      // Set the selected asset if provided (for asset-specific actions like withdraw)
+      if (assetSymbol) {
+        setSelectedAsset(assetSymbol);
+      }
+      // Open modal directly without setTimeout - transition handles the smoothness
       setActiveModal(modalType);
-    }, 150); // Increased delay to prevent race conditions
-  }, [setActiveModal, setSelectedAsset, isAnyActionProcessing]);
+    });
+  }, [setActiveModal, setSelectedAsset, isAnyActionProcessing, startModalTransition]);
 
   // Handle dropdown state changes to manage focus
   const handleDropdownOpenChange = useCallback((assetId: string, open: boolean) => {
-    if (open) {
-      setOpenDropdownId(assetId);
-    } else {
-      setOpenDropdownId(null);
-      // When dropdown closes, ensure no element retains focus that could conflict with modals
-      setTimeout(() => {
+    startDropdownTransition(() => {
+      if (open) {
+        setOpenDropdownId(assetId);
+      } else {
+        setOpenDropdownId(null);
+        // When dropdown closes, ensure no element retains focus that could conflict with modals
+        // Using transition eliminates need for setTimeout
         if (document.activeElement && document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
-      }, 50);
-    }
-  }, []);
+      }
+    });
+  }, [startDropdownTransition]);
 
   // User assets data will be calculated first, then metrics will use it
 
   // User assets data with real staking amounts for stETH and LINK
   const userAssets: UserAsset[] = useMemo(() => {
-    if (!hasStakedAssets) return [];
+    // Try cached data first if we don't have fresh data
+    const cachedData = getCachedUserAssets(userAddress || '', networkEnv);
+    
+    if (!hasStakedAssets) {
+      // Return cached user assets if available, otherwise empty array
+      return cachedData?.userAssets || [];
+    }
 
     const stethAmount = parseDepositAmount(assets.stETH?.userDepositedFormatted);
     const linkAmount = parseDepositAmount(assets.LINK?.userDepositedFormatted);
@@ -410,8 +736,12 @@ export function UserAssetsPanel() {
 
   // Calculate metrics from real asset data - now using userAssets for accurate table totals
   const metricsData = useMemo(() => {
+    // Try to get cached data first if we don't have fresh data
+    const cachedData = getCachedUserAssets(userAddress || '', networkEnv);
+    const cachedPrices = getCachedPrices();
+    
     if (!hasStakedAssets) {
-      return {
+      const emptyMetrics = {
         stakedValue: "0",
         totalMorStaked: "0",
         dailyEmissionsEarned: "0",
@@ -419,15 +749,43 @@ export function UserAssetsPanel() {
         totalAvailableToClaim: "0",
         referralRewards: "0",
       };
+      
+      // Return cached data if available, otherwise empty state
+      return cachedData?.metricsData || emptyMetrics;
     }
 
     const stethStaked = parseDepositAmount(assets.stETH?.userDepositedFormatted);
     const linkStaked = parseDepositAmount(assets.LINK?.userDepositedFormatted);
     
-    // Calculate USD value using CoinGecko prices
-    const stethUSDValue = stethPrice ? stethStaked * stethPrice : 0;
-    const linkUSDValue = linkPrice ? linkStaked * linkPrice : 0;
+    // Critical fix: NEVER show 0 if user has staked assets
+    // Use current prices, fallback to cached prices, then fallback to cached metrics
+    let effectiveStethPrice = stethPrice;
+    let effectiveLinkPrice = linkPrice;
+    
+    // If current prices are null but user has assets, use cached prices
+    if (!effectiveStethPrice && cachedPrices?.stethPrice && (stethStaked > 0)) {
+      effectiveStethPrice = cachedPrices.stethPrice;
+      console.log('💰 Using cached stETH price for metrics calculation:', effectiveStethPrice);
+    }
+    if (!effectiveLinkPrice && cachedPrices?.linkPrice && (linkStaked > 0)) {
+      effectiveLinkPrice = cachedPrices.linkPrice;
+      console.log('💰 Using cached LINK price for metrics calculation:', effectiveLinkPrice);
+    }
+    
+    // Calculate USD value using effective prices (current or cached)
+    const stethUSDValue = effectiveStethPrice ? stethStaked * effectiveStethPrice : 0;
+    const linkUSDValue = effectiveLinkPrice ? linkStaked * effectiveLinkPrice : 0;
     const totalStakedValue = stethUSDValue + linkUSDValue;
+    
+    // If we still get 0 but user has staked assets, use the most recent cached metrics
+    if (totalStakedValue === 0 && (stethStaked > 0 || linkStaked > 0) && cachedData?.metricsData) {
+      console.log('⚠️ Price calculation failed but user has assets, using cached metrics:', {
+        stethStaked,
+        linkStaked,
+        cachedMetrics: cachedData.metricsData.stakedValue
+      });
+      return cachedData.metricsData;
+    }
     
     console.log('💰 USD Value Calculation:', {
       stethStaked,
@@ -462,7 +820,7 @@ export function UserAssetsPanel() {
     
     console.log('💰 Final lifetime earnings display value:', lifetimeEarnings);
     
-    return {
+    const freshMetrics = {
       stakedValue: Math.floor(totalStakedValue).toLocaleString(), // Format as whole dollars with commas
       totalMorStaked: "0", // TODO: Calculate total MOR staked if applicable
       dailyEmissionsEarned: formatNumber(totalDailyEmissions),
@@ -470,7 +828,28 @@ export function UserAssetsPanel() {
       totalAvailableToClaim: formatNumber(totalTableAvailableToClaim), // Sum from actual table rows
       referralRewards: "0", // TODO: Add referral rewards from context
     };
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, userAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned]);
+
+    // Save successful data to cache (only if we have valid prices and user data)
+    if (userAddress && (effectiveStethPrice || effectiveLinkPrice) && hasStakedAssets) {
+      try {
+        const cacheData: UserAssetsCache = {
+          metricsData: freshMetrics,
+          userAssets: userAssets,
+          stethPrice: effectiveStethPrice,
+          linkPrice: effectiveLinkPrice,
+          timestamp: Date.now(),
+          userAddress,
+          networkEnv
+        };
+        setCachedUserAssets(cacheData, userAddress, networkEnv);
+        console.log('💾 Saved fresh metrics to cache with effective prices');
+      } catch (error) {
+        console.warn('Error saving metrics to cache:', error);
+      }
+    }
+    
+    return freshMetrics;
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, userAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress]);
 
   // Sorting logic
   const sorting = useMemo(() => {
@@ -524,13 +903,14 @@ export function UserAssetsPanel() {
         accessorKey: "dailyEmissions",
         enableSorting: true,
         cell: (asset) => {
-          // Determine if this specific asset is loading
-          const isAssetLoading = (asset.symbol === 'stETH' && isStETHEmissionsLoading) || 
-                                 (asset.symbol === 'LINK' && isLinkEmissionsLoading);
+          // Only show skeleton during initial load, not during background updates
+          const shouldShowSkeleton = (isInitialLoad && !hasValidData) && 
+            ((asset.symbol === 'stETH' && isStETHEmissionsLoading) || 
+             (asset.symbol === 'LINK' && isLinkEmissionsLoading));
           
           return (
             <span className="text-gray-200">
-              {isAssetLoading ? (
+              {shouldShowSkeleton ? (
                 <Skeleton className="h-4 w-16" />
               ) : (
                 `${formatNumber(asset.dailyEmissions)} MOR`
@@ -594,57 +974,59 @@ export function UserAssetsPanel() {
             onOpenChange={(open) => handleDropdownOpenChange(asset.id, open)}
           >
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" disabled={isAnyActionProcessing}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" disabled={isAnyActionProcessing || isModalTransitioning || isDropdownTransitioning}>
                 <Ellipsis className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="mt-2">
-              <DropdownMenuItem onClick={() => handleDropdownAction('stakeMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing}>
+              <DropdownMenuItem onClick={() => handleDropdownAction('stakeMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing || isModalTransitioning}>
                 <TrendingUp className="mr-2 h-4 w-4" /> 
-                Stake Rewards
+                {isModalTransitioning ? 'Opening...' : 'Stake Rewards'}
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => handleDropdownAction('withdraw', asset.assetSymbol)} 
-                disabled={isAnyActionProcessing || !isUnlockDateReached(asset.unlockDate)}
+                disabled={isAnyActionProcessing || isModalTransitioning || !isUnlockDateReached(asset.unlockDate)}
                 className={!isUnlockDateReached(asset.unlockDate) ? "text-gray-500 cursor-not-allowed" : ""}
               >
                 <ArrowDownToLine className="mr-2 h-4 w-4" /> 
-                Withdraw
+                {isModalTransitioning ? 'Opening...' : 'Withdraw'}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)}
-                disabled={isAnyActionProcessing || asset.availableToClaim <= 0}
+                disabled={isAnyActionProcessing || isModalTransitioning || asset.availableToClaim <= 0}
                 className={asset.availableToClaim <= 0 ? "text-gray-500 cursor-not-allowed" : ""}
               >
                 <Lock className="mr-2 h-4 w-4" />
-                Lock Rewards
+                {isModalTransitioning ? 'Opening...' : 'Lock Rewards'}
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => handleDropdownAction('claimMorRewards', asset.assetSymbol)} 
-                disabled={isAnyActionProcessing || !asset.canClaim}
+                disabled={isAnyActionProcessing || isModalTransitioning || !asset.canClaim}
                 className={!asset.canClaim ? "text-gray-500 cursor-not-allowed" : ""}
               >
                 <HandCoins className="mr-2 h-4 w-4" /> 
-                Claim Rewards
+                {isModalTransitioning ? 'Opening...' : 'Claim Rewards'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ],
-    [isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange, isUnlockDateReached, isStETHEmissionsLoading, isLinkEmissionsLoading]
+    [isAnyActionProcessing, handleDropdownAction, openDropdownId, handleDropdownOpenChange, isUnlockDateReached, isStETHEmissionsLoading, isLinkEmissionsLoading, isModalTransitioning, isDropdownTransitioning, isInitialLoad, hasValidData]
   );
 
-  // Handle sorting change
+  // Handle sorting change with transition for smooth UI updates
   const handleSortingChange = (columnId: string) => {
-    if (sortColumn === columnId) {
-      // Toggle direction if same column
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      // New column, default to asc
-      setSortColumn(columnId);
-      setSortDirection('asc');
-    }
+    startSortTransition(() => {
+      if (sortColumn === columnId) {
+        // Toggle direction if same column
+        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        // New column, default to asc
+        setSortColumn(columnId);
+        setSortDirection('asc');
+      }
+    });
   };
 
   // Empty state component
@@ -657,9 +1039,9 @@ export function UserAssetsPanel() {
       <button
         className="copy-button"
         onClick={() => userAddress && setActiveModal('deposit')}
-        disabled={!userAddress || isAnyActionProcessing}
+        disabled={!userAddress || isAnyActionProcessing || isModalTransitioning}
         >
-          Deposit
+          {isModalTransitioning ? 'Opening...' : 'Deposit'}
         </button>
       )}
     </div>
@@ -689,11 +1071,11 @@ export function UserAssetsPanel() {
               <div className="flex flex-row items-center space-x-2">
                 {hasStakedAssets &&
                   <button
-                      className={!userAddress || isAnyActionProcessing ? "copy-button-secondary px-4 py-2 disabled:cursor-not-allowed" : "copy-button-base"}
+                      className={!userAddress || isAnyActionProcessing || isModalTransitioning ? "copy-button-secondary px-4 py-2 disabled:cursor-not-allowed" : "copy-button-base"}
                       onClick={() => setActiveModal('deposit')}
-                      disabled={!userAddress || isAnyActionProcessing}
+                      disabled={!userAddress || isAnyActionProcessing || isModalTransitioning}
                   >
-                    Deposit
+                    {isModalTransitioning ? 'Opening...' : 'Deposit'}
                   </button>
                 }
                 {/* <button
@@ -714,7 +1096,7 @@ export function UserAssetsPanel() {
                 isUSD={true}
                 disableGlow={true}
                 className="col-span-1"
-                isLoading={isLoadingUserData}
+                isLoading={isInitialLoad && !hasValidData}
               />
               <MetricCardMinimal
                 title="Current Daily Rewards"
@@ -723,7 +1105,7 @@ export function UserAssetsPanel() {
                 disableGlow={true}
                 autoFormatNumbers={true}
                 className="col-span-1"
-                isLoading={isLoadingUserData || isDailyEmissionsLoading}
+                isLoading={isInitialLoad && !hasValidData}
               />
                <MetricCardMinimal
                  title="Claimable Rewards"
@@ -732,7 +1114,7 @@ export function UserAssetsPanel() {
                  disableGlow={true}
                  autoFormatNumbers={true}
                  className="col-span-1"
-                 isLoading={isLoadingUserData}
+                 isLoading={isInitialLoad && !hasValidData}
                />
               <MetricCardMinimal
                 title="Total MOR Earned"
@@ -741,7 +1123,7 @@ export function UserAssetsPanel() {
                 disableGlow={true}
                 autoFormatNumbers={true}
                 className="col-span-1"
-                isLoading={isLoadingUserData || (networkEnv === 'testnet' && isTotalMorEarnedLoading)}
+                isLoading={isInitialLoad && !hasValidData}
               />
               {/* <MetricCardMinimal
                 title="MOR Staked"
@@ -754,12 +1136,12 @@ export function UserAssetsPanel() {
             </div>
 
             {/* Assets table or empty state */}
-            {hasStakedAssets || isLoadingUserData ? (
+            {hasStakedAssets || (isInitialLoad && !hasValidData) ? (
               <div className="[&>div]:max-h-[400px] overflow-auto custom-scrollbar">
                 <DataTable
                   columns={assetsColumns}
                   data={userAssets}
-                  isLoading={isLoadingUserData}
+                  isLoading={isInitialLoad && !hasValidData}
                   sorting={sorting}
                   onSortingChange={handleSortingChange}
                   loadingRows={2}
