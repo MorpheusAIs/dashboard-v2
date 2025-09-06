@@ -17,42 +17,42 @@ export const POWER_FACTOR_CONSTANTS = {
 } as const;
 
 // Debug constants and real calendar calculations on load
-if (process.env.NODE_ENV !== 'production') {
-  console.log('🔢 [Power Factor Debug] Constants loaded:', POWER_FACTOR_CONSTANTS);
+// if (process.env.NODE_ENV !== 'production') {
+//   console.log('🔢 [Power Factor Debug] Constants loaded:', POWER_FACTOR_CONSTANTS);
   
-  // Test REAL calendar conversion consistency
-  console.group('🧪 [Power Factor Debug] REAL Calendar Time Consistency Test');
+//   // Test REAL calendar conversion consistency
+//   console.group('🧪 [Power Factor Debug] REAL Calendar Time Consistency Test');
   
-  const now = new Date();
+//   const now = new Date();
   
-  // Calculate 1 year from now
-  const oneYearFromNow = new Date(now);
-  oneYearFromNow.setFullYear(now.getFullYear() + 1);
-  const oneYearSeconds = Math.floor((oneYearFromNow.getTime() - now.getTime()) / 1000);
+//   // Calculate 1 year from now
+//   const oneYearFromNow = new Date(now);
+//   oneYearFromNow.setFullYear(now.getFullYear() + 1);
+//   const oneYearSeconds = Math.floor((oneYearFromNow.getTime() - now.getTime()) / 1000);
   
-  // Calculate 12 months from now
-  const twelveMonthsFromNow = new Date(now);
-  twelveMonthsFromNow.setMonth(now.getMonth() + 12);
-  const twelveMonthsSeconds = Math.floor((twelveMonthsFromNow.getTime() - now.getTime()) / 1000);
+//   // Calculate 12 months from now
+//   const twelveMonthsFromNow = new Date(now);
+//   twelveMonthsFromNow.setMonth(now.getMonth() + 12);
+//   const twelveMonthsSeconds = Math.floor((twelveMonthsFromNow.getTime() - now.getTime()) / 1000);
   
-  // Calculate 6 years from now (for max power factor test)
-  const sixYearsFromNow = new Date(now);
-  sixYearsFromNow.setFullYear(now.getFullYear() + 6);
-  const sixYearsSeconds = Math.floor((sixYearsFromNow.getTime() - now.getTime()) / 1000);
-  const sixYearsDays = sixYearsSeconds / 86400;
+//   // Calculate 6 years from now (for max power factor test)
+//   const sixYearsFromNow = new Date(now);
+//   sixYearsFromNow.setFullYear(now.getFullYear() + 6);
+//   const sixYearsSeconds = Math.floor((sixYearsFromNow.getTime() - now.getTime()) / 1000);
+//   const sixYearsDays = sixYearsSeconds / 86400;
   
-  console.log('📅 Real Calendar Results:');
-  console.log('  1 year from now (seconds):', oneYearSeconds);
-  console.log('  12 months from now (seconds):', twelveMonthsSeconds);
-  console.log('  Difference (should be 0):', oneYearSeconds - twelveMonthsSeconds);
-  console.log('  6 years from now (seconds):', sixYearsSeconds);
-  console.log('  6 years from now (days):', sixYearsDays.toFixed(2));
-  console.log('  vs approximation (365.25 * 6):', (365.25 * 6).toFixed(2));
-  console.log('  Difference (days):', (sixYearsDays - (365.25 * 6)).toFixed(2));
+//   console.log('📅 Real Calendar Results:');
+//   console.log('  1 year from now (seconds):', oneYearSeconds);
+//   console.log('  12 months from now (seconds):', twelveMonthsSeconds);
+//   console.log('  Difference (should be 0):', oneYearSeconds - twelveMonthsSeconds);
+//   console.log('  6 years from now (seconds):', sixYearsSeconds);
+//   console.log('  6 years from now (days):', sixYearsDays.toFixed(2));
+//   console.log('  vs approximation (365.25 * 6):', (365.25 * 6).toFixed(2));
+//   console.log('  Difference (days):', (sixYearsDays - (365.25 * 6)).toFixed(2));
   
-  console.log('🎯 Contract maximum is x9.7 for 6 years (actual implementation, not theoretical)!');
-  console.groupEnd();
-}
+//   console.log('🎯 Contract maximum is x9.7 for 6 years (actual implementation, not theoretical)!');
+//   console.groupEnd();
+// }
 
 /**
  * Convert duration value and unit to seconds using CONTRACT-EXPECTED calculations
@@ -64,10 +64,10 @@ export function durationToSeconds(value: string, unit: TimeUnit): bigint {
   const numValue = parseInt(value, 10);
   if (isNaN(numValue) || numValue <= 0) return BigInt(0);
   
-  if (process.env.NODE_ENV !== 'production') {
-    console.group('📅 [Contract Duration] Contract-Expected Calculation');
-    console.log('Input:', { value, unit, numValue });
-  }
+  // if (process.env.NODE_ENV !== 'production') {
+  //   console.group('📅 [Contract Duration] Contract-Expected Calculation');
+  //   console.log('Input:', { value, unit, numValue });
+  // }
   
   let diffSeconds: number;
   
@@ -75,9 +75,14 @@ export function durationToSeconds(value: string, unit: TimeUnit): bigint {
   switch (unit) {
     case "days":
       diffSeconds = numValue * 86400; // 24 * 60 * 60
+      // Add 5-minute safety buffer to prevent timing race conditions
+      // This ensures we always meet minimum requirements even with transaction delays
+      diffSeconds += 300; // 5 minutes = 300 seconds
       break;
     case "months":
       diffSeconds = numValue * 30 * 86400; // 30 days per month (contract expectation)
+      // Add 5-minute safety buffer for timing
+      diffSeconds += 300;
       break;
     case "years":
       // Special case: For 6 years, use the EXACT value the contract expects for maximum power factor
@@ -96,20 +101,23 @@ export function durationToSeconds(value: string, unit: TimeUnit): bigint {
           console.log(`  ${numValue} years = ${diffSeconds} seconds = ${diffSeconds / 86400} days`);
         }
       }
+      // Add 5-minute safety buffer for years as well
+      diffSeconds += 300;
       break;
     default:
       return BigInt(0);
   }
   
   if (process.env.NODE_ENV !== 'production') {
-    console.log('Duration (seconds):', diffSeconds);
-    console.log('Duration (days):', diffSeconds / 86400);
+    console.log('Duration (seconds) with safety buffer:', diffSeconds);
+    console.log('Duration (days) with buffer:', diffSeconds / 86400);
+    console.log('Safety buffer: 300 seconds (5 minutes)');
     
     // Special debug for maximum lock
     if (unit === 'years' && numValue === 6) {
       console.log('🎯 [MAX LOCK DEBUG]');
       console.log('  Contract expects exactly 189,216,000 seconds for maximum power factor');
-      console.log('  This equals exactly:', diffSeconds / 86400, 'days');
+      console.log('  With safety buffer:', diffSeconds, 'seconds');
       console.log('  Should now achieve x9.7 maximum (actual contract implementation)!');
     }
     
@@ -342,9 +350,9 @@ export function calculateUnlockDate(
   
   const unlockDate = new Date(startDate);
   
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('📅 [Unlock Date] Calculating with REAL calendar for display:', { value, unit, startDate: startDate.toISOString() });
-  }
+  // if (process.env.NODE_ENV !== 'production') {
+  //   console.log('📅 [Unlock Date] Calculating with REAL calendar for display:', { value, unit, startDate: startDate.toISOString() });
+  // }
   
   // Use REAL calendar math for accurate user display
   // (Different from durationToSeconds which uses contract-expected values)
@@ -364,16 +372,16 @@ export function calculateUnlockDate(
       return null;
   }
   
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('📅 [Unlock Date] Real calendar result:', unlockDate.toISOString());
-    const daysDiff = (unlockDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-    console.log('📅 [Unlock Date] Real calendar days:', daysDiff.toFixed(2));
+  // if (process.env.NODE_ENV !== 'production') {
+  //   console.log('📅 [Unlock Date] Real calendar result:', unlockDate.toISOString());
+  //   const daysDiff = (unlockDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+  //   console.log('📅 [Unlock Date] Real calendar days:', daysDiff.toFixed(2));
     
-    // Show difference between display date and contract calculation
-    if (unit === 'years' && numValue === 6) {
-      console.log('📅 [Unlock Date] Note: Display uses real calendar, power factor uses contract-expected 2190 days → x9.7');
-    }
-  }
+  //   // Show difference between display date and contract calculation
+  //   if (unit === 'years' && numValue === 6) {
+  //     console.log('📅 [Unlock Date] Note: Display uses real calendar, power factor uses contract-expected 2190 days → x9.7');
+  //   }
+  // }
   
   return unlockDate;
 }
