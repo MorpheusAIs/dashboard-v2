@@ -47,7 +47,7 @@ export interface CapitalPoolData {
  * - Implements coefficient-based APR calculation following v7 protocol documentation
  * - Replaces old V1 ERC1967Proxy workaround with proper v2 contract functions
  * 
- * Returns live data for testnet (Sepolia) and placeholder data for mainnet
+ * Returns live data for both testnet (Sepolia) and mainnet (V2 contracts deployed)
  */
 export function useCapitalPoolData(): CapitalPoolData {
   const chainId = useChainId();
@@ -90,12 +90,12 @@ export function useCapitalPoolData(): CapitalPoolData {
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
     query: { 
-      enabled: networkEnvironment === 'testnet' && !!stETHDepositPoolAddress,
+      enabled: !!stETHDepositPoolAddress,
       refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
 
-  // Read LINK pool data (only for testnet)  
+  // Read LINK pool data (all networks)  
   const {
     data: LINKTotalDeposited,
     isLoading: isLoadingLINK,
@@ -107,7 +107,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
     query: { 
-      enabled: networkEnvironment === 'testnet' && !!linkDepositPoolAddress,
+      enabled: !!linkDepositPoolAddress,
       refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
@@ -129,8 +129,8 @@ export function useCapitalPoolData(): CapitalPoolData {
     args: [BigInt(0), lastCalculatedTimestamp, currentTimestamp], // Pool index 0
     chainId: l1ChainId,
     query: { 
-      enabled: networkEnvironment === 'testnet' && !!rewardPoolV2Address,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes for testnet
+      enabled: !!rewardPoolV2Address,
+      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
 
@@ -192,14 +192,9 @@ export function useCapitalPoolData(): CapitalPoolData {
 
 
 
-  // V7 Protocol APR Calculation using LIVE contract data
+  // V7 Protocol APR Calculation using LIVE contract data (both mainnet and testnet)
   const calculateV7APR = useMemo(() => {
-    // For mainnet, use placeholder values until v7 contracts are deployed
-    if (networkEnvironment === 'mainnet') {
-      return { stETH: '8.65%', LINK: '15.54%' };
-    }
-
-    // For testnet, use LIVE v7 protocol data for accurate APR calculation
+    // Use LIVE v7 protocol data for accurate APR calculation (both networks)
     if (!periodRewardsData || !stETHTotalDeposited || !LINKTotalDeposited) {
       console.warn('🔢 V7 APR Calculation: Missing LIVE contract data, showing N/A', {
         periodRewardsData: periodRewardsData ? 'LIVE DATA AVAILABLE' : 'MISSING',
@@ -242,20 +237,30 @@ export function useCapitalPoolData(): CapitalPoolData {
         // Calculate hourly rate: poolRewards / totalDeposited
         const hourlyRate = Number(formatUnits(poolRewardShare, 18)) / Number(formatUnits(totalDeposited, 18));
         
-        // Convert to annual rate (testnet: rewards every minute, so 60*24*365 minutes per year)
-        const minutesPerYear = 60 * 24 * 365; // 525,600 minutes
-        const minutesInPeriod = Number(periodDurationSeconds) / 60;
-        const rewardRatePerMinute = hourlyRate / minutesInPeriod;
-        const annualRate = rewardRatePerMinute * minutesPerYear * 100; // Convert to percentage
+        // Convert to annual rate based on network reward timing
+        let annualRate: number;
         
-        console.log(`📊 [${assetSymbol}] LIVE APR CALCULATION:`, {
+        if (networkEnvironment === 'testnet') {
+          // Testnet: rewards distributed per minute, scale to annual
+          const minutesPerYear = 60 * 24 * 365; // 525,600 minutes
+          const minutesInPeriod = Number(periodDurationSeconds) / 60;
+          const rewardRatePerMinute = hourlyRate / minutesInPeriod;
+          annualRate = rewardRatePerMinute * minutesPerYear * 100; // Convert to percentage
+        } else {
+          // Mainnet: rewards distributed daily, scale 1-hour sample to annual
+          const hoursPerYear = 24 * 365; // 8,760 hours
+          const rewardRatePerHour = hourlyRate; // Already hourly from 1-hour period
+          annualRate = rewardRatePerHour * hoursPerYear * 100; // Convert to percentage
+        }
+        
+        console.log(`📊 [${assetSymbol}] LIVE APR CALCULATION (${networkEnvironment}):`, {
+          calculationMethod: networkEnvironment === 'testnet' ? 'per-minute scaled to annual' : 'daily scaled from 1-hour sample to annual',
           poolRewardShare: formatUnits(poolRewardShare, 18),
           totalDepositedETH: formatUnits(totalDeposited, 18),
           hourlyRate: hourlyRate.toFixed(6),
-          minutesInPeriod,
-          rewardRatePerMinute: rewardRatePerMinute.toFixed(8),
+          networkEnv: networkEnvironment,
           annualRate: annualRate.toFixed(2),
-          finalFormatted: annualRate > 1000 
+          finalFormatted: annualRate > 1000
             ? `${Math.round(annualRate).toLocaleString()}%`
             : `${annualRate.toFixed(2)}%`
         });
@@ -289,17 +294,7 @@ export function useCapitalPoolData(): CapitalPoolData {
 
   // Format the data using V7 Protocol APR calculation
   const stETHData = useMemo(() => {
-    if (networkEnvironment === 'mainnet') {
-      // Placeholder data for mainnet
-      return {
-        totalStaked: '61,849',
-        apy: calculateV7APR.stETH,
-        isLoading: false,
-        error: null
-      };
-    }
-
-    // Live data for testnet using v7 protocol
+    // Use live data for both mainnet and testnet
     const totalStaked = stETHTotalDeposited ? 
       parseFloat(formatUnits(stETHTotalDeposited as bigint, 18)).toLocaleString('en-US', {
         minimumFractionDigits: 0,
@@ -327,17 +322,7 @@ export function useCapitalPoolData(): CapitalPoolData {
   ]);
 
   const LINKData = useMemo(() => {
-    if (networkEnvironment === 'mainnet') {
-      // Placeholder data for mainnet
-      return {
-        totalStaked: '8,638',
-        apy: calculateV7APR.LINK,
-        isLoading: false,
-        error: null
-      };
-    }
-
-    // Live data for testnet using v7 protocol
+    // Use live data for both mainnet and testnet
     const totalStaked = LINKTotalDeposited ? 
       parseFloat(formatUnits(LINKTotalDeposited as bigint, 18)).toLocaleString('en-US', {
         minimumFractionDigits: 0,
@@ -366,22 +351,22 @@ export function useCapitalPoolData(): CapitalPoolData {
 
   // Create refetch functions with proper error handling
   const refetchStETH = useCallback(() => {
-    if (networkEnvironment === 'testnet' && stETHDepositPoolAddress) {
+    if (stETHDepositPoolAddress) {
       refetchStETHPoolData();
     }
-  }, [networkEnvironment, stETHDepositPoolAddress, refetchStETHPoolData]);
+  }, [stETHDepositPoolAddress, refetchStETHPoolData]);
 
   const refetchLINK = useCallback(() => {
-    if (networkEnvironment === 'testnet' && linkDepositPoolAddress) {
+    if (linkDepositPoolAddress) {
       refetchLinkPoolData();
     }
-  }, [networkEnvironment, linkDepositPoolAddress, refetchLinkPoolData]);
+  }, [linkDepositPoolAddress, refetchLinkPoolData]);
 
   const refetchRewards = useCallback(() => {
-    if (networkEnvironment === 'testnet' && rewardPoolV2Address) {
+    if (rewardPoolV2Address) {
       refetchRewardPoolData();
     }
-  }, [networkEnvironment, rewardPoolV2Address, refetchRewardPoolData]);
+  }, [rewardPoolV2Address, refetchRewardPoolData]);
 
   const refetchAll = useCallback(() => {
     refetchStETH();
