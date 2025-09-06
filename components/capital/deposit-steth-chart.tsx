@@ -6,6 +6,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useInteractiveChart } from "@/app/hooks/useInteractiveChart"
 import { useResponsiveChart } from "@/app/hooks/useResponsiveChart"
+import { AssetSwitcher } from "@/components/capital/asset-switcher"
+import { getAssetColor, type TokenType } from "@/mock-data"
 
 export type DataPoint = {
     date: string;
@@ -14,11 +16,24 @@ export type DataPoint = {
 
 type DepositStethChartProps = {
     data?: DataPoint[];
+    selectedAsset?: TokenType;
+    onAssetChange?: (asset: TokenType) => void;
+    showAssetSwitcher?: boolean;
+    availableAssets?: Array<{ token: TokenType; deposits: number; }>;
 };
 
-export function DepositStethChart({ data: initialData }: DepositStethChartProps) {
+export function DepositStethChart({ 
+    data: initialData, 
+    selectedAsset = 'stETH',
+    onAssetChange,
+    showAssetSwitcher = false,
+    availableAssets
+}: DepositStethChartProps) {
     const chartRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    
+    // Get colors for the selected asset
+    const assetColors = getAssetColor(selectedAsset);
 
     const {
         zoomedData,
@@ -101,7 +116,18 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                         style={{ touchAction: 'pan-y' }} 
                     >
                          <div className="absolute top-2 left-0 right-0 z-10 px-1 sm:px-0 flex justify-between items-center">
-                            <h3 className="text-md sm:text-lg font-semibold text-white ml-4">Total stETH Deposits</h3>
+                            <div className="flex items-center space-x-3 ml-4">
+                                <h3 className="text-md sm:text-lg font-semibold text-white">
+                                    Total Deposits in
+                                </h3>
+                                {showAssetSwitcher && onAssetChange && (
+                                    <AssetSwitcher
+                                        selectedAsset={selectedAsset}
+                                        onAssetChangeAction={onAssetChange}
+                                        availableAssets={availableAssets}
+                                    />
+                                )}
+                            </div>
                             <div className="flex items-center space-x-2 mr-2 sm:mr-4"> 
                                 <ToggleGroup 
                                     type="single"
@@ -136,8 +162,8 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                                 >
                                     <defs>
                                         <linearGradient id="colorDeposits" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#34d399" stopOpacity={0.5} /> 
-                                            <stop offset="95%" stopColor="#34d399" stopOpacity={0.05} />
+                                            <stop offset="5%" stopColor={assetColors.gradient.start} stopOpacity={0.5} /> 
+                                            <stop offset="95%" stopColor={assetColors.gradient.end} stopOpacity={0.05} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid vertical={false} strokeDasharray="3 3" strokeOpacity={0.3}/>
@@ -177,7 +203,7 @@ export function DepositStethChart({ data: initialData }: DepositStethChartProps)
                                     <Area
                                         type="monotone"
                                         dataKey="deposits"
-                                        stroke="#34d399" 
+                                        stroke={assetColors.primary} 
                                         strokeWidth={2}
                                         fillOpacity={1}
                                         fill="url(#colorDeposits)"
