@@ -3,8 +3,52 @@
 import { useState, useEffect, useMemo } from "react";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { getTokenPrice } from "@/app/services/token-price.service";
+import { getCachedPrices, setCachedPrices, shouldRetryPriceFetch, type TokenPriceCache } from "@/components/capital/user-assets-panel";
 
+// Cache for last known good TVL data
+interface TVLCache {
+  totalValueLockedUSD: string;
+  timestamp: number;
+  stethAmount: number;
+  linkAmount: number;
+  stethPrice: number;
+  linkPrice: number;
+}
 
+const TVL_CACHE_KEY = 'morpheus_tvl_cache';
+const CACHE_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+
+// Cache management functions
+const getCachedTVL = (): TVLCache | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(TVL_CACHE_KEY);
+    if (!cached) return null;
+    
+    const parsedCache: TVLCache = JSON.parse(cached);
+    const now = Date.now();
+    
+    // Check if cache is still valid (not expired)
+    if (now - parsedCache.timestamp > CACHE_EXPIRY_MS) {
+      localStorage.removeItem(TVL_CACHE_KEY);
+      return null;
+    }
+    
+    return parsedCache;
+  } catch (error) {
+    console.warn('Error reading TVL cache:', error);
+    return null;
+  }
+};
+
+const setCachedTVL = (cache: TVLCache): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(TVL_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Error saving TVL cache:', error);
+  }
+};
 
 export interface CapitalMetrics {
   totalValueLockedUSD: string;
@@ -17,8 +61,8 @@ export interface CapitalMetrics {
 
 /**
  * Custom hook to calculate live capital metrics from pool data
- * Shows live data from mainnet when on mainnet/arbitrum/base networks
- * Shows testnet data when on sepolia/arbitrum sepolia networks
+ * Uses live V2 contract data for both mainnet and testnet networks
+ * Accounts for different reward timing (mainnet: daily, testnet: per-minute)
  */
 export function useCapitalMetrics(): CapitalMetrics {
   const poolData = useCapitalPoolData();
@@ -34,10 +78,26 @@ export function useCapitalMetrics(): CapitalMetrics {
   const [isLoadingActiveStakers, setIsLoadingActiveStakers] = useState<boolean>(false);
   const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
 
-  // Fetch token prices from CoinGecko
+  // Fetch token prices from shared cache or CoinGecko with retry logic
   useEffect(() => {
-    async function fetchTokenPrices() {
-      setIsLoadingPrices(true);
+    async function fetchTokenPricesWithCache() {
+      // Always try to load cached prices first
+      const cachedPrices = getCachedPrices();
+      if (cachedPrices) {
+        console.log('💰 [Metrics] Loading cached token prices:', cachedPrices);
+        setStethPrice(cachedPrices.stethPrice);
+        setLinkPrice(cachedPrices.linkPrice);
+        setIsLoadingPrices(false);
+        
+        // Don't fetch if we've hit retry limit
+        if (!shouldRetryPriceFetch(cachedPrices)) {
+          console.log('💰 [Metrics] Using cached prices due to retry limit');
+          return;
+        }
+      } else {
+        setIsLoadingPrices(true);
+      }
+      
       setPriceError(null);
       
       try {
@@ -49,19 +109,46 @@ export function useCapitalMetrics(): CapitalMetrics {
         setStethPrice(stethPriceData);
         setLinkPrice(linkPriceData);
         
-        // console.log('💰 Token prices fetched for metrics:', {
-        //   stETH: stethPriceData,
-        //   LINK: linkPriceData
-        // });
+        // Update shared cache if we got fresh data
+        const now = Date.now();
+        const updatedCache: TokenPriceCache = {
+          stethPrice: stethPriceData,
+          linkPrice: linkPriceData,
+          morPrice: cachedPrices?.morPrice || null, // Keep existing MOR price
+          timestamp: now,
+          retryCount: 0,
+          lastSuccessfulFetch: now
+        };
+        setCachedPrices(updatedCache);
+        
+        console.log('💰 [Metrics] Token prices fetched and cached:', {
+          stETH: stethPriceData,
+          LINK: linkPriceData
+        });
       } catch (error) {
         console.error('Error fetching token prices for metrics:', error);
-        setPriceError('Failed to fetch token prices');
+        
+        // Update retry count in cache
+        if (cachedPrices) {
+          const updatedCache: TokenPriceCache = {
+            ...cachedPrices,
+            timestamp: Date.now(),
+            retryCount: (cachedPrices.retryCount || 0) + 1
+          };
+          setCachedPrices(updatedCache);
+          
+          // Use cached prices on error
+          setStethPrice(cachedPrices.stethPrice);
+          setLinkPrice(cachedPrices.linkPrice);
+        } else {
+          setPriceError('Failed to fetch token prices');
+        }
       } finally {
         setIsLoadingPrices(false);
       }
     }
 
-    fetchTokenPrices();
+    fetchTokenPricesWithCache();
   }, []);
 
   // Fetch active stakers count from Dune API (testnet and mainnet)
@@ -155,23 +242,77 @@ export function useCapitalMetrics(): CapitalMetrics {
     // Core metrics errors (DON'T include active stakers errors - they're non-critical)
     const hasError = poolData.stETH.error || poolData.LINK.error || priceError;
 
-    if (hasError) {
+    // If still loading, show loading state instead of zeros
+    if (isLoading) {
       return {
-        totalValueLockedUSD: "0",
-        currentDailyRewardMOR: "0",
-        avgApyRate: "0%",
-        isLoading: false,
-        error: hasError.toString()
+        totalValueLockedUSD: "...",
+        currentDailyRewardMOR: "...",
+        avgApyRate: "...%",
+        isLoading: true,
+        error: null
       };
+    }
+
+    // If there are errors but we still have partial data, try to calculate with available data
+    if (hasError) {
+      console.warn('⚠️ Partial error in capital metrics, attempting calculation with available data:', {
+        stETHError: poolData.stETH.error?.message,
+        linkError: poolData.LINK.error?.message,
+        priceError,
+        availableData: {
+          stETHData: { totalStaked: poolData.stETH.totalStaked, apy: poolData.stETH.apy },
+          linkData: { totalStaked: poolData.LINK.totalStaked, apy: poolData.LINK.apy },
+          prices: { stethPrice, linkPrice }
+        }
+      });
+      
+      // Only return error state if we have NO usable data at all
+      if ((!poolData.stETH.totalStaked || poolData.stETH.totalStaked === '0') && 
+          (!poolData.LINK.totalStaked || poolData.LINK.totalStaked === '0')) {
+        // Try cached data as last resort
+        const cachedTVL = getCachedTVL();
+        if (cachedTVL) {
+          console.log('📦 Using cached TVL data as last resort due to complete error:', cachedTVL);
+          return {
+            totalValueLockedUSD: `${cachedTVL.totalValueLockedUSD} (cached)`,
+            currentDailyRewardMOR: "Error",
+            avgApyRate: "Error",
+            isLoading: false,
+            error: hasError.toString()
+          };
+        }
+        
+        return {
+          totalValueLockedUSD: "Error",
+          currentDailyRewardMOR: "Error",
+          avgApyRate: "Error",
+          isLoading: false,
+          error: hasError.toString()
+        };
+      }
+      // Continue with calculation even with partial errors
     }
 
     // Calculate Total Value Locked in USD
     const stethAmount = parsePoolAmount(poolData.stETH.totalStaked);
     const linkAmount = parsePoolAmount(poolData.LINK.totalStaked);
     
-    const stethUSDValue = stethPrice ? stethAmount * stethPrice : 0;
-    const linkUSDValue = linkPrice ? linkAmount * linkPrice : 0;
+    // Handle missing price data more gracefully
+    const stethUSDValue = (stethPrice && stethAmount > 0) ? stethAmount * stethPrice : 0;
+    const linkUSDValue = (linkPrice && linkAmount > 0) ? linkAmount * linkPrice : 0;
     const totalValueLockedUSD = Math.floor(stethUSDValue + linkUSDValue);
+    
+    // Log calculation details for debugging
+    console.log('💰 TVL Calculation Debug:', {
+      stethAmount,
+      linkAmount,
+      stethPrice,
+      linkPrice,
+      stethUSDValue,
+      linkUSDValue,
+      totalValueLockedUSD,
+      networkEnv: poolData.networkEnvironment
+    });
 
     // Calculate average APY (weighted by USD value)
     let avgApy = 0;
@@ -185,14 +326,9 @@ export function useCapitalMetrics(): CapitalMetrics {
       avgApy = (stethApyNum * stethWeight) + (linkApyNum * linkWeight);
     }
 
-    // Calculate LIVE daily MOR emissions from actual contract data
+    // Calculate LIVE daily MOR emissions from actual contract data (both networks)
     const currentDailyRewardMOR = (() => {
-      if (poolData.networkEnvironment === 'mainnet') {
-        // For mainnet, use placeholder values until v7 contracts are deployed
-        return "2,836";
-      }
-
-      // For testnet, calculate from live APR data and total deposited amounts
+      // Calculate from live APR data and total deposited amounts for all networks
       try {
         // Parse APR values to get the underlying rates
         const stETHAPR = parseFloat(poolData.stETH.apy.replace('%', '').replace(/,/g, ''));
@@ -224,12 +360,51 @@ export function useCapitalMetrics(): CapitalMetrics {
 
       } catch (error) {
         console.error('Error calculating daily emissions:', error);
-        return "150"; // Fallback for testnet
+        return "N/A"; // Show unavailable instead of fake numbers
+      }
+    })();
+
+    // Save successful calculation to cache
+    if (totalValueLockedUSD > 0 && stethPrice && linkPrice) {
+      const cacheData: TVLCache = {
+        totalValueLockedUSD: totalValueLockedUSD.toLocaleString(),
+        timestamp: Date.now(),
+        stethAmount,
+        linkAmount,
+        stethPrice,
+        linkPrice
+      };
+      setCachedTVL(cacheData);
+    }
+
+    // Provide better display values based on data availability
+    const totalValueLockedUSDDisplay = (() => {
+      if (totalValueLockedUSD > 0) {
+        return totalValueLockedUSD.toLocaleString();
+      } else if ((stethAmount > 0 || linkAmount > 0) && (!stethPrice || !linkPrice)) {
+        // We have pool deposits but missing price data - try to use cached price
+        const cachedTVL = getCachedTVL();
+        if (cachedTVL && (cachedTVL.stethAmount > 0 || cachedTVL.linkAmount > 0)) {
+          console.log('📦 Using cached TVL data due to missing price data:', cachedTVL);
+          return `${cachedTVL.totalValueLockedUSD} (cached)`;
+        }
+        return "Price loading...";
+      } else if (stethAmount === 0 && linkAmount === 0) {
+        // No deposits in either pool
+        return "0";
+      } else {
+        // Some other issue - try cache
+        const cachedTVL = getCachedTVL();
+        if (cachedTVL) {
+          console.log('📦 Using cached TVL data due to calculation error:', cachedTVL);
+          return `${cachedTVL.totalValueLockedUSD} (cached)`;
+        }
+        return "Calculating...";
       }
     })();
 
     return {
-      totalValueLockedUSD: totalValueLockedUSD.toLocaleString(),
+      totalValueLockedUSD: totalValueLockedUSDDisplay,
       currentDailyRewardMOR,
       avgApyRate: `${avgApy.toFixed(2)}%`,
       isLoading,
