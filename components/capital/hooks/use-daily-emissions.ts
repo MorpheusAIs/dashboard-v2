@@ -15,10 +15,12 @@ import DepositPoolAbi from "@/app/abi/DepositPool.json";
 /**
  * Hook for calculating daily emissions based on V7 protocol reward distribution
  * 
- * APPROACH: Similar to APR calculation but focuses on user's daily reward share
- * - Uses RewardPoolV2.getPeriodRewards() for actual reward rate
+ * APPROACH: Uses live contract data from both mainnet and testnet V2 contracts
+ * - Uses RewardPoolV2.getPeriodRewards() for actual reward rate (1-hour period)
  * - Calculates user's share based on their stake vs total pool stake
- * - Accounts for testnet (per-minute) vs mainnet (daily) reward timing
+ * - Accounts for different reward timing:
+ *   * TESTNET: Rewards distributed per minute → scales to daily rate
+ *   * MAINNET: Rewards distributed daily → scales 1-hour sample to daily rate
  * 
  * @param currentReward User's current claimable rewards (unused - kept for compatibility)
  * @param userDeposited User's deposited/staked amount in the pool
@@ -62,7 +64,7 @@ export function useDailyEmissions(
   }, []);
   const lastCalculatedTimestamp = useMemo(() => currentTimestamp - BigInt(3600), [currentTimestamp]); // 1 hour ago
 
-  // Read period rewards from RewardPoolV2 (with proper arguments like APR code)
+  // Read period rewards from RewardPoolV2 (now works on both networks)
   const { 
     data: periodRewardsData, 
     isLoading: isPeriodRewardsLoading,
@@ -74,12 +76,12 @@ export function useDailyEmissions(
     args: [BigInt(0), lastCalculatedTimestamp, currentTimestamp], // Pool index 0, same as APR code
     chainId: l1ChainId,
     query: { 
-      enabled: Boolean(rewardPoolV2Address && networkEnvironment === 'testnet'),
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes instead of every minute
+      enabled: Boolean(rewardPoolV2Address), // Now enabled for both mainnet and testnet
+      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
 
-  // Read total deposited from the specific deposit pool (same as working APR code)
+  // Read total deposited from the specific deposit pool (now works on both networks)
   const { 
     data: totalVirtualStakeData, 
     isLoading: isTotalStakeLoading,
@@ -90,20 +92,15 @@ export function useDailyEmissions(
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
     query: { 
-      enabled: Boolean(depositPoolAddress && networkEnvironment === 'testnet'),
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes instead of every 30 seconds
+      enabled: Boolean(depositPoolAddress), // Now enabled for both mainnet and testnet
+      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
 
-  // Determine overall loading state
+  // Determine overall loading state (both networks now make contract calls)
   const isLoading = useMemo(() => {
-    // For testnet: loading if either contract call is loading or fetching
-    if (networkEnvironment === 'testnet') {
-      return isPeriodRewardsLoading || isTotalStakeLoading || isPeriodRewardsFetching || isTotalStakeFetching;
-    }
-    // For mainnet: no network calls, so never loading
-    return false;
-  }, [networkEnvironment, isPeriodRewardsLoading, isTotalStakeLoading, isPeriodRewardsFetching, isTotalStakeFetching]);
+    return isPeriodRewardsLoading || isTotalStakeLoading || isPeriodRewardsFetching || isTotalStakeFetching;
+  }, [isPeriodRewardsLoading, isTotalStakeLoading, isPeriodRewardsFetching, isTotalStakeFetching]);
 
   // Calculate daily emissions
   const dailyEmissions = useMemo(() => {
@@ -113,25 +110,7 @@ export function useDailyEmissions(
       return 0;
     }
     
-    // For mainnet, return placeholder until V7 contracts are deployed
-    if (networkEnvironment === 'mainnet') {
-      // Use simplified calculation based on typical MOR emission rates
-      // This is a placeholder - actual mainnet calculation will use live contract data
-      
-      const userStakedEth = Number(formatUnits(userDeposited, 18));
-      // Placeholder: ~8-12% APR = ~0.02-0.03% daily rate
-      const placeholderDailyRate = userStakedEth * 0.0003; // 0.03% daily
-      
-      console.log(`📊 [${assetSymbol}] Mainnet placeholder daily emissions:`, {
-        userStakedEth,
-        placeholderDailyRate,
-        note: 'Using placeholder until V7 contracts deploy to mainnet'
-      });
-      
-      return placeholderDailyRate;
-    }
-
-    // For testnet, use live contract data
+    // Use live contract data for all networks (V2 contracts now deployed on mainnet)
     console.log(`📊 [${assetSymbol}] Contract data check:`, {
       periodRewardsData: periodRewardsData?.toString(),
       totalDepositedData: totalVirtualStakeData?.toString(),
@@ -176,16 +155,17 @@ export function useDailyEmissions(
       const periodDurationMinutes = Number(periodDurationSeconds) / 60;
       
       if (networkEnvironment === 'testnet') {
-        // Testnet: rewards every minute, so scale to daily (1440 minutes per day)
+        // Testnet: rewards distributed per minute, scale 1-hour period to daily rate
         const rewardsPerMinute = userPeriodRewards / periodDurationMinutes;
         dailyRate = rewardsPerMinute * (24 * 60); // 1440 minutes per day
       } else {
-        // Mainnet: rewards daily (this branch shouldn't execute but included for completeness)
-        const periodDurationDays = Number(periodDurationSeconds) / (24 * 60 * 60);
-        dailyRate = userPeriodRewards / periodDurationDays;
+        // Mainnet: rewards distributed daily, scale 1-hour period to daily rate
+        const periodDurationDays = Number(periodDurationSeconds) / (24 * 60 * 60); // 1 hour = 1/24 days
+        dailyRate = userPeriodRewards / periodDurationDays; // Scale to full day
       }
       
-      console.log(`📊 [${assetSymbol}] Daily emissions calculated:`, {
+      console.log(`📊 [${assetSymbol}] Daily emissions calculated (${networkEnvironment}):`, {
+        calculationMethod: networkEnvironment === 'testnet' ? 'per-minute scaled to daily' : 'daily scaled from 1-hour period',
         userDeposited: Number(formatUnits(userDeposited, 18)),
         totalDeposited: Number(formatUnits(totalDeposited, 18)),
         userShareOfPool: (userShareOfPool * 100).toFixed(4) + '%',
