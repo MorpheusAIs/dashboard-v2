@@ -3,35 +3,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { apolloClients } from '@/lib/apollo-client';
 import { gql } from '@apollo/client';
+import { getChainById } from '@/config/networks';
 
-// GraphQL queries to get pool interactions for calculating total MOR earned
-const GET_STETH_POOL_INTERACTIONS = gql`
-  query GetStETHPoolInteractions($userAddress: String!, $stETHPool: String!) {
+// Generic GraphQL query to get pool interactions for any asset pool
+const GET_POOL_INTERACTIONS = gql`
+  query GetPoolInteractions($userAddress: String!, $poolAddress: String!) {
     poolInteractions(
       orderBy: blockTimestamp
       orderDirection: desc
       where: {
-        depositPool: $stETHPool
-        user_contains: $userAddress
-      }
-    ) {
-      blockTimestamp
-      rate
-      totalStaked
-      user {
-        address
-      }
-    }
-  }
-`;
-
-const GET_LINK_POOL_INTERACTIONS = gql`
-  query GetLINKPoolInteractions($userAddress: String!, $linkPool: String!) {
-    poolInteractions(
-      orderBy: blockTimestamp
-      orderDirection: desc
-      where: {
-        depositPool: $linkPool
+        depositPool: $poolAddress
         user_contains: $userAddress
       }
     ) {
@@ -54,25 +35,57 @@ interface PoolInteraction {
   };
 }
 
-interface CombinedPoolInteractionsData {
-  stETHInteractions: PoolInteraction[];
-  linkInteractions: PoolInteraction[];
+interface PoolInteractionsData {
+  [assetSymbol: string]: PoolInteraction[];
+}
+
+export interface AssetEarnings {
+  [assetSymbol: string]: number;
 }
 
 export interface TotalMorEarnedData {
   totalEarned: number;
+  assetEarnings: AssetEarnings;
+  // Legacy fields for backward compatibility
   stETHEarned: number;
   linkEarned: number;
   isLoading: boolean;
   error: string | null;
 }
 
-// Pool contract addresses for Capital v2 (Sepolia testnet)
-// From config/networks.ts - trying both pools as user says both assets are in same pool
-const CAPITAL_V2_POOLS = {
-  stETH: '0xFea33A23F97d785236F22693eDca564782ae98d0', // stETHDepositPool from config
-  LINK: '0x7f4f17be21219D7DA4C8E0d0B9be6a778354E5A5',  // linkDepositPool from config (used in original test)
-};
+/**
+ * Get all deposit pool addresses for Capital v2 by network from network configuration
+ * Automatically discovers all deposit pools by scanning for contracts ending with "DepositPool"
+ */
+function getCapitalV2Pools(networkEnv: 'mainnet' | 'testnet') {
+  // Get network chain configuration (using sepolia for testnet, mainnet for mainnet)
+  const chainId = networkEnv === 'testnet' ? 11155111 : 1; // Sepolia : Ethereum mainnet
+  const chainConfig = getChainById(chainId, networkEnv);
+  
+  if (!chainConfig?.contracts) {
+    console.warn(`No chain config found for ${networkEnv}`);
+    return {};
+  }
+  
+  const pools: Record<string, string> = {};
+  
+  // Dynamically discover all deposit pools by scanning contract names
+  Object.entries(chainConfig.contracts).forEach(([contractName, contract]) => {
+    if (contractName.endsWith('DepositPool') && contract?.address) {
+      // Extract asset symbol from contract name (e.g., "stETHDepositPool" -> "stETH")
+      const assetSymbol = contractName.replace('DepositPool', '');
+      pools[assetSymbol] = contract.address;
+    }
+  });
+  
+  console.log(`🏗️ Built pool configuration for ${networkEnv}:`, {
+    discoveredPools: Object.keys(pools),
+    pools,
+    totalPoolsFound: Object.keys(pools).length
+  });
+  
+  return pools;
+}
 
 /**
  * Calculates total MOR earned from historical pool interaction data
@@ -153,12 +166,12 @@ export function useTotalMorEarned(
   userAddress: string | null,
   networkEnv: 'mainnet' | 'testnet'
 ): TotalMorEarnedData {
-  const [data, setData] = useState<CombinedPoolInteractionsData | null>(null);
+  const [data, setData] = useState<PoolInteractionsData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Only fetch data for testnet users with addresses
-  const shouldFetch = userAddress && networkEnv === 'testnet';
+  // Fetch data for users with addresses on both networks
+  const shouldFetch = userAddress && (networkEnv === 'testnet' || networkEnv === 'mainnet');
 
   console.log('🔍 useTotalMorEarned hook called:', {
     userAddress,
@@ -193,15 +206,20 @@ export function useTotalMorEarned(
         setIsLoading(true);
         setError(null);
 
-        const client = apolloClients.CapitalV2Sepolia;
+        // Select GraphQL client based on network environment
+        const client = networkEnv === 'testnet' ? apolloClients.CapitalV2Sepolia : apolloClients.CapitalV2Sepolia; // TODO: Add mainnet capital endpoint when available
         console.log('📡 Client check:', {
+          networkEnv,
           clientExists: !!client,
           clientType: typeof client,
           apolloClientsKeys: Object.keys(apolloClients),
+          note: networkEnv === 'mainnet' ? 'Using testnet endpoint temporarily for mainnet (TODO: Add mainnet capital GraphQL endpoint)' : 'Using testnet endpoint'
         });
+        const currentPools = getCapitalV2Pools(networkEnv);
         console.log('📡 Using pools:', {
-          stETH: CAPITAL_V2_POOLS.stETH,
-          LINK: CAPITAL_V2_POOLS.LINK,
+          networkEnv,
+          availablePools: Object.keys(currentPools),
+          pools: currentPools,
         });
 
         // Test with known working address if current user has no data
@@ -219,49 +237,48 @@ export function useTotalMorEarned(
           finalAddress: finalAddress,
         });
 
-        // Execute both queries in parallel with proper variables
-        const [stETHResult, linkResult] = await Promise.all([
+        // Execute queries for all discovered pools dynamically
+        const queryPromises = Object.entries(currentPools).map(([assetSymbol, poolAddress]) =>
           client.query({
-            query: GET_STETH_POOL_INTERACTIONS,
+            query: GET_POOL_INTERACTIONS,
             variables: {
               userAddress: finalAddress,
-              stETHPool: CAPITAL_V2_POOLS.stETH.toLowerCase(),
+              poolAddress: poolAddress.toLowerCase(),
             },
             fetchPolicy: 'no-cache', // Force fresh data to avoid caching issues
             errorPolicy: 'all',
-          }),
-          client.query({
-            query: GET_LINK_POOL_INTERACTIONS,
-            variables: {
-              userAddress: finalAddress,
-              linkPool: CAPITAL_V2_POOLS.LINK.toLowerCase(),
-            },
-            fetchPolicy: 'no-cache', // Force fresh data to avoid caching issues
-            errorPolicy: 'all',
-          })
-        ]);
+          }).then(result => ({ assetSymbol, result }))
+        );
 
+        // Execute all available queries
+        const results = await Promise.all(queryPromises);
+        
         if (!isCancelled) {
-          if (stETHResult.error) {
-            throw new Error(`stETH query error: ${stETHResult.error.message}`);
-          }
-          if (linkResult.error) {
-            throw new Error(`LINK query error: ${linkResult.error.message}`);
+          // Check for errors and process results
+          const poolInteractionsData: PoolInteractionsData = {};
+          
+          for (const { assetSymbol, result } of results) {
+            if (result.error) {
+              throw new Error(`${assetSymbol} pool query error: ${result.error.message}`);
+            }
+            
+            poolInteractionsData[assetSymbol] = result.data?.poolInteractions || [];
           }
           
-          // Combine the results
-          const combinedData: CombinedPoolInteractionsData = {
-            stETHInteractions: stETHResult.data.poolInteractions || [],
-            linkInteractions: linkResult.data.poolInteractions || [],
-          };
-          
-          setData(combinedData);
+          setData(poolInteractionsData);
           console.log('📊 Pool interactions fetched:', {
-            stETHInteractions: combinedData.stETHInteractions?.length || 0,
-            linkInteractions: combinedData.linkInteractions?.length || 0,
+            discoveredAssets: Object.keys(poolInteractionsData),
+            interactionCounts: Object.fromEntries(
+              Object.entries(poolInteractionsData).map(([asset, interactions]) => [
+                asset, interactions.length
+              ])
+            ),
             userAddress,
-            stETHSample: combinedData.stETHInteractions?.[0],
-            linkSample: combinedData.linkInteractions?.[0],
+            sampleData: Object.fromEntries(
+              Object.entries(poolInteractionsData).map(([asset, interactions]) => [
+                asset, interactions[0] || null
+              ])
+            ),
           });
         }
       } catch (err) {
@@ -296,38 +313,53 @@ export function useTotalMorEarned(
     console.log('🔄 useMemo calculatedEarnings called:', {
       hasData: !!data,
       dataKeys: data ? Object.keys(data) : null,
-      stETHInteractionsCount: data?.stETHInteractions?.length || 0,
-      linkInteractionsCount: data?.linkInteractions?.length || 0,
+      assetCounts: data ? Object.fromEntries(
+        Object.entries(data).map(([asset, interactions]) => [asset, interactions.length])
+      ) : null,
     });
 
     if (!data) {
       console.log('❌ No data available for earnings calculation');
       return {
         totalEarned: 0,
+        assetEarnings: {},
         stETHEarned: 0,
         linkEarned: 0,
       };
     }
 
-    const stETHEarned = calculateTotalEarned(data.stETHInteractions || [], 'stETH');
-    const linkEarned = calculateTotalEarned(data.linkInteractions || [], 'LINK');
-    const totalEarned = stETHEarned + linkEarned;
+    // Calculate earnings for each discovered asset
+    const assetEarnings: AssetEarnings = {};
+    let totalEarned = 0;
+
+    Object.entries(data).forEach(([assetSymbol, interactions]) => {
+      const earned = calculateTotalEarned(interactions || [], assetSymbol);
+      assetEarnings[assetSymbol] = earned;
+      totalEarned += earned;
+    });
+
+    // Maintain backward compatibility with legacy fields
+    const stETHEarned = assetEarnings.stETH || 0;
+    const linkEarned = assetEarnings.LINK || 0;
 
     console.log('🚨 CRITICAL DEBUG - Final calculated MOR earnings:', {
+      assetEarnings,
+      totalEarned,
+      discoveredAssets: Object.keys(assetEarnings),
+      // Legacy compatibility debug
       stETHEarned,
       linkEarned,
-      totalEarned,
-      ISSUE_CHECK: `stETH: ${stETHEarned.toFixed(2)} vs LINK: ${linkEarned.toFixed(2)}`,
-      stETHInteractionsCount: data.stETHInteractions?.length || 0,
-      linkInteractionsCount: data.linkInteractions?.length || 0,
-      stETHFirstRate: data.stETHInteractions?.[0]?.rate,
-      stETHLastRate: data.stETHInteractions?.[data.stETHInteractions?.length - 1]?.rate,
-      linkFirstRate: data.linkInteractions?.[0]?.rate,
-      linkLastRate: data.linkInteractions?.[data.linkInteractions?.length - 1]?.rate,
+      ISSUE_CHECK: `Total from ${Object.keys(assetEarnings).length} assets: ${totalEarned.toFixed(2)}`,
+      detailedBreakdown: Object.fromEntries(
+        Object.entries(assetEarnings).map(([asset, earned]) => [
+          asset, `${earned.toFixed(2)} MOR`
+        ])
+      ),
     });
 
     return {
       totalEarned,
+      assetEarnings,
       stETHEarned,
       linkEarned,
     };
@@ -341,6 +373,9 @@ export function useTotalMorEarned(
 
   console.log('🏁 useTotalMorEarned hook returning:', {
     totalEarned: finalResult.totalEarned,
+    assetEarnings: finalResult.assetEarnings,
+    discoveredAssets: Object.keys(finalResult.assetEarnings),
+    // Legacy compatibility
     stETHEarned: finalResult.stETHEarned,
     linkEarned: finalResult.linkEarned,
     isLoading: finalResult.isLoading,
