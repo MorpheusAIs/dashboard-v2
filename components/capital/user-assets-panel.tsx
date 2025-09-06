@@ -664,8 +664,8 @@ export function UserAssetsPanel() {
 
   // User assets data will be calculated first, then metrics will use it
 
-  // User assets data with real staking amounts for stETH and LINK
-  const userAssets: UserAsset[] = useMemo(() => {
+  // User assets data with real staking amounts for stETH and LINK (unsorted)
+  const unsortedUserAssets: UserAsset[] = useMemo(() => {
     // Try cached data first if we don't have fresh data
     const cachedData = getCachedUserAssets(userAddress || '', networkEnv);
     
@@ -734,6 +734,61 @@ export function UserAssetsPanel() {
     .filter(asset => asset !== null && (asset.amountStaked > 0 || asset.availableToClaim > 0)) as UserAsset[]; // Only show assets with activity
   }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDate, stETHDailyEmissions, linkDailyEmissions]);
 
+  // Apply sorting to user assets data without triggering data refetch
+  const userAssets: UserAsset[] = useMemo(() => {
+    if (!sortColumn || !unsortedUserAssets.length) {
+      return unsortedUserAssets;
+    }
+
+    const sortedAssets = [...unsortedUserAssets].sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
+
+      // Get values based on column id
+      switch (sortColumn) {
+        case 'amountStaked':
+          aValue = a.amountStaked;
+          bValue = b.amountStaked;
+          break;
+        case 'available':
+          aValue = a.available;
+          bValue = b.available;
+          break;
+        case 'dailyEmissions':
+          aValue = a.dailyEmissions;
+          bValue = b.dailyEmissions;
+          break;
+        case 'availableToClaim':
+          aValue = a.availableToClaim;
+          bValue = b.availableToClaim;
+          break;
+        case 'asset':
+        default:
+          // Sort by symbol for asset column
+          aValue = a.symbol;
+          bValue = b.symbol;
+          break;
+      }
+
+      // Handle numeric sorting
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+
+      // Handle string sorting
+      const aString = String(aValue || '').toLowerCase();
+      const bString = String(bValue || '').toLowerCase();
+      
+      if (sortDirection === 'asc') {
+        return aString.localeCompare(bString);
+      } else {
+        return bString.localeCompare(aString);
+      }
+    });
+
+    return sortedAssets;
+  }, [unsortedUserAssets, sortColumn, sortDirection]);
+
   // Calculate metrics from real asset data - now using userAssets for accurate table totals
   const metricsData = useMemo(() => {
     // Try to get cached data first if we don't have fresh data
@@ -801,7 +856,7 @@ export function UserAssetsPanel() {
     const totalDailyEmissions = stETHDailyEmissions + linkDailyEmissions;
     
     // Calculate total available to claim from table rows (sum of each row's "Available to Claim")
-    const totalTableAvailableToClaim = userAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
+    const totalTableAvailableToClaim = unsortedUserAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
     
     // Calculate lifetime earnings using subgraph data (testnet) or fallback to current claimable
     console.log('🔍 UserAssetsPanel lifetime earnings calculation:', {
@@ -834,7 +889,7 @@ export function UserAssetsPanel() {
       try {
         const cacheData: UserAssetsCache = {
           metricsData: freshMetrics,
-          userAssets: userAssets,
+          userAssets: unsortedUserAssets,
           stethPrice: effectiveStethPrice,
           linkPrice: effectiveLinkPrice,
           timestamp: Date.now(),
@@ -849,7 +904,7 @@ export function UserAssetsPanel() {
     }
     
     return freshMetrics;
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, userAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress]);
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress]);
 
   // Sorting logic
   const sorting = useMemo(() => {
