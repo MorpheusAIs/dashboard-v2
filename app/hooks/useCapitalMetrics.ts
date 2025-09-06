@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
-import { getTokenPrice } from "@/app/services/token-price.service";
-import { getCachedPrices, setCachedPrices, shouldRetryPriceFetch, type TokenPriceCache } from "@/components/capital/user-assets-panel";
+import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
 
 // Cache for last known good TVL data
 interface TVLCache {
@@ -66,90 +65,20 @@ export interface CapitalMetrics {
  */
 export function useCapitalMetrics(): CapitalMetrics {
   const poolData = useCapitalPoolData();
-  
-  // State for token prices from CoinGecko
-  const [stethPrice, setStethPrice] = useState<number | null>(null);
-  const [linkPrice, setLinkPrice] = useState<number | null>(null);
-  const [isLoadingPrices, setIsLoadingPrices] = useState<boolean>(true);
-  const [priceError, setPriceError] = useState<string | null>(null);
+
+  // Use shared token prices hook
+  const { stethPrice, linkPrice, isPriceUpdating } = useTokenPrices({
+    isInitialLoad: true,
+    shouldRefreshData: false,
+    userAddress: undefined,
+    networkEnv: poolData.networkEnvironment || 'mainnet'
+  });
 
   // State for active stakers from Dune API (both testnet and mainnet)
   const [activeStakersCount, setActiveStakersCount] = useState<number | null>(null);
   const [isLoadingActiveStakers, setIsLoadingActiveStakers] = useState<boolean>(false);
   const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
 
-  // Fetch token prices from shared cache or CoinGecko with retry logic
-  useEffect(() => {
-    async function fetchTokenPricesWithCache() {
-      // Always try to load cached prices first
-      const cachedPrices = getCachedPrices();
-      if (cachedPrices) {
-        console.log('💰 [Metrics] Loading cached token prices:', cachedPrices);
-        setStethPrice(cachedPrices.stethPrice);
-        setLinkPrice(cachedPrices.linkPrice);
-        setIsLoadingPrices(false);
-        
-        // Don't fetch if we've hit retry limit
-        if (!shouldRetryPriceFetch(cachedPrices)) {
-          console.log('💰 [Metrics] Using cached prices due to retry limit');
-          return;
-        }
-      } else {
-        setIsLoadingPrices(true);
-      }
-      
-      setPriceError(null);
-      
-      try {
-        const [stethPriceData, linkPriceData] = await Promise.all([
-          getTokenPrice('staked-ether', 'usd'), // stETH/Lido token ID
-          getTokenPrice('chainlink', 'usd')     // LINK token ID
-        ]);
-        
-        setStethPrice(stethPriceData);
-        setLinkPrice(linkPriceData);
-        
-        // Update shared cache if we got fresh data
-        const now = Date.now();
-        const updatedCache: TokenPriceCache = {
-          stethPrice: stethPriceData,
-          linkPrice: linkPriceData,
-          morPrice: cachedPrices?.morPrice || null, // Keep existing MOR price
-          timestamp: now,
-          retryCount: 0,
-          lastSuccessfulFetch: now
-        };
-        setCachedPrices(updatedCache);
-        
-        console.log('💰 [Metrics] Token prices fetched and cached:', {
-          stETH: stethPriceData,
-          LINK: linkPriceData
-        });
-      } catch (error) {
-        console.error('Error fetching token prices for metrics:', error);
-        
-        // Update retry count in cache
-        if (cachedPrices) {
-          const updatedCache: TokenPriceCache = {
-            ...cachedPrices,
-            timestamp: Date.now(),
-            retryCount: (cachedPrices.retryCount || 0) + 1
-          };
-          setCachedPrices(updatedCache);
-          
-          // Use cached prices on error
-          setStethPrice(cachedPrices.stethPrice);
-          setLinkPrice(cachedPrices.linkPrice);
-        } else {
-          setPriceError('Failed to fetch token prices');
-        }
-      } finally {
-        setIsLoadingPrices(false);
-      }
-    }
-
-    fetchTokenPricesWithCache();
-  }, []);
 
   // Fetch active stakers count from Dune API (testnet and mainnet)
   useEffect(() => {
@@ -238,9 +167,9 @@ export function useCapitalMetrics(): CapitalMetrics {
   // Calculate core metrics from live pool data (excluding active stakers to avoid blocking)
   const coreMetrics = useMemo(() => {
     // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
-    const isLoading = poolData.stETH.isLoading || poolData.LINK.isLoading || isLoadingPrices;
+    const isLoading = poolData.stETH.isLoading || poolData.LINK.isLoading || isPriceUpdating;
     // Core metrics errors (DON'T include active stakers errors - they're non-critical)
-    const hasError = poolData.stETH.error || poolData.LINK.error || priceError;
+    const hasError = poolData.stETH.error || poolData.LINK.error;
 
     // If still loading, show loading state instead of zeros
     if (isLoading) {
@@ -258,7 +187,6 @@ export function useCapitalMetrics(): CapitalMetrics {
       console.warn('⚠️ Partial error in capital metrics, attempting calculation with available data:', {
         stETHError: poolData.stETH.error?.message,
         linkError: poolData.LINK.error?.message,
-        priceError,
         availableData: {
           stETHData: { totalStaked: poolData.stETH.totalStaked, apy: poolData.stETH.apy },
           linkData: { totalStaked: poolData.LINK.totalStaked, apy: poolData.LINK.apy },
@@ -410,7 +338,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       isLoading,
       error: null
     };
-  }, [poolData, stethPrice, linkPrice, isLoadingPrices, priceError]);
+  }, [poolData, stethPrice, linkPrice, isPriceUpdating]);
 
   // Combine core metrics with active stakers display
   const metrics = useMemo(() => ({
