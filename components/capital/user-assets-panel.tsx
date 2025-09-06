@@ -725,7 +725,7 @@ export function UserAssetsPanel() {
         amountStaked: amount,
         available: available,
         dailyEmissions: emissions,
-        powerFactor: parseFloat(multiplier?.replace('x', '') || '0'),
+        powerFactor: multiplier || "x1.0", // Keep the formatted string with 'x' prefix
         unlockDate: unlockDate,
         availableToClaim: claimable,
         canClaim: canAssetClaim(assetSymbol),
@@ -923,7 +923,7 @@ export function UserAssetsPanel() {
         id: "powerFactor",
         header: "Power Factor",
         accessorKey: "powerFactor",
-        enableSorting: true,
+        enableSorting: false, // Disable sorting for now since it's a formatted string
         cell: (asset) => (
           <span className="text-gray-200">
             {asset.powerFactor}

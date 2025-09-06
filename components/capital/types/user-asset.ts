@@ -8,7 +8,7 @@ export interface UserAsset {
   amountStaked: number;
   available: number;
   dailyEmissions: number;
-  powerFactor: number;
+  powerFactor: string;
   unlockDate: string | null;
   availableToClaim: number;
   canClaim: boolean;
