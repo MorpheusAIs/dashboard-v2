@@ -7,6 +7,8 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { getEndOfDayTimestamps, buildDepositsQuery } from "@/app/graphql/queries/capital";
 import { getTokenPrice } from "@/app/services/token-price.service";
+import { shouldUseMockData, getFormattedMockData, getMockMetrics, type TokenType } from "@/mock-data";
+import { useAvailableAssets } from "@/hooks/use-available-assets";
 
 export interface DataPoint {
   date: string;
@@ -17,6 +19,14 @@ export interface DataPoint {
 export function useCapitalChartData() {
   const { networkEnv, poolInfo } = useCapitalContext();
   const { switchToChain, isNetworkSwitching } = useNetwork();
+  
+  // Get available assets with positive balances for live data
+  const { 
+    availableAssets, 
+    hasMultipleAssets, 
+    primaryAsset, 
+    availableTokens 
+  } = useAvailableAssets();
 
   // State for chart data, loading, and error
   const [chartData, setChartData] = useState<DataPoint[]>([]);
@@ -24,6 +34,21 @@ export function useCapitalChartData() {
   const [chartError, setChartError] = useState<string | null>(null);
   const [isLoadingHistorical, setIsLoadingHistorical] = useState<boolean>(false);
   const [stethPrice, setStethPrice] = useState<number | null>(null);
+  
+  // State for selected asset and data cache
+  const [selectedAsset, setSelectedAsset] = useState<TokenType>(primaryAsset);
+  const [assetDataCache, setAssetDataCache] = useState<Record<TokenType, DataPoint[]>>({} as Record<TokenType, DataPoint[]>);
+  const [isLoadingNewAsset, setIsLoadingNewAsset] = useState<boolean>(false);
+  
+  // Determine if we should use mock data
+  const useMockData = shouldUseMockData();
+  
+  // Update selected asset if primary asset changes (for live data)
+  useEffect(() => {
+    if (!useMockData && primaryAsset !== selectedAsset && primaryAsset) {
+      setSelectedAsset(primaryAsset);
+    }
+  }, [primaryAsset, selectedAsset, useMockData]);
 
   useEffect(() => {
     async function fetchPrice() {
@@ -204,8 +229,108 @@ export function useCapitalChartData() {
     }
   }, [networkEnv, chartData.length]);
 
-  // Main effect to handle recent data loading
+  // Optimized asset switching with caching and background loading
+  const loadAssetData = useCallback(async (asset: TokenType) => {
+    if (!useMockData) return null;
+
+    // Check if data is already cached
+    if (assetDataCache[asset]) {
+      console.log(`📦 Using cached data for ${asset}`);
+      return assetDataCache[asset];
+    }
+
+    try {
+      const mockData = getFormattedMockData(asset);
+      const chartDataWithTimestamp = mockData.map((item) => ({
+        ...item,
+        timestamp: Math.floor(new Date(item.date).getTime() / 1000)
+      }));
+
+      // Cache the data
+      setAssetDataCache(prev => ({
+        ...prev,
+        [asset]: chartDataWithTimestamp
+      }));
+
+      console.log(`📊 Loaded and cached ${mockData.length} data points for ${asset}`);
+      return chartDataWithTimestamp;
+    } catch (error) {
+      console.error(`Error loading mock data for ${asset}:`, error);
+      return null;
+    }
+  }, [useMockData, assetDataCache]);
+
+  // Effect to handle asset changes with smooth transitions
   useEffect(() => {
+    if (!useMockData) return;
+
+    const handleAssetChange = async () => {
+      // Don't show global loading for asset switches
+      setIsLoadingNewAsset(true);
+      setChartError(null);
+
+      try {
+        const newData = await loadAssetData(selectedAsset);
+        if (newData) {
+          // Update chart data immediately from cache/new load
+          setChartData(newData);
+        }
+      } catch (error) {
+        console.error('Error switching asset:', error);
+        setChartError(`Failed to load ${selectedAsset} data`);
+      } finally {
+        setIsLoadingNewAsset(false);
+      }
+    };
+
+    handleAssetChange();
+  }, [selectedAsset, useMockData, loadAssetData]);
+
+  // Initial data loading effect
+  useEffect(() => {
+    // Handle mock data case
+    if (useMockData) {
+      console.log('🔧 Using mock data for chart visualization');
+      setChartLoading(true);
+      setChartError(null);
+      
+      // Pre-load all asset data in background for smooth switching
+      const preloadAllAssets = async () => {
+        try {
+          // Load initial asset first
+          const initialData = await loadAssetData(selectedAsset);
+          if (initialData) {
+            setChartData(initialData);
+            setChartLoading(false);
+          }
+
+          // Pre-load other assets in background
+          const availableAssets: TokenType[] = ['stETH', 'LINK', 'wETH', 'USDC', 'USDT', 'wBTC'];
+          const otherAssets = availableAssets.filter(asset => asset !== selectedAsset);
+          
+          // Load other assets without blocking UI
+          setTimeout(async () => {
+            for (const asset of otherAssets) {
+              await loadAssetData(asset);
+              // Small delay between loads to avoid blocking
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            console.log('🚀 All asset data pre-loaded for smooth switching');
+          }, 100);
+
+        } catch (error) {
+          console.error('Error in initial data loading:', error);
+          setChartError('Failed to load chart data');
+          setChartData([]);
+          setChartLoading(false);
+        }
+      };
+
+      preloadAllAssets();
+      return;
+    }
+
+    // Original real data fetching logic
     if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0) {
       setChartLoading(false);
       return;
@@ -244,10 +369,16 @@ export function useCapitalChartData() {
         setChartData([]);
         setChartLoading(false);
       });
-  }, [networkEnv, recentTimestamps, fetchRecentData, processDataPoints]);
+  }, [useMockData, selectedAsset, loadAssetData, networkEnv, recentTimestamps, fetchRecentData, processDataPoints]);
 
   // Effect to load historical data in background after recent data loads
   useEffect(() => {
+    // Skip historical data loading for mock data
+    if (useMockData) {
+      setIsLoadingHistorical(false);
+      return;
+    }
+
     if (!hasHistoricalData || chartLoading || networkEnv === 'testnet') {
       return;
     }
@@ -286,7 +417,10 @@ export function useCapitalChartData() {
         console.error('Error fetching historical chart data:', error);
         setIsLoadingHistorical(false);
       });
-  }, [hasHistoricalData, chartLoading, networkEnv, fetchHistoricalData, processDataPoints]);
+  }, [hasHistoricalData, chartLoading, networkEnv, fetchHistoricalData, processDataPoints, useMockData]);
+
+  // Use mock metrics if mock data is enabled
+  const mockMetrics = useMockData ? getMockMetrics(selectedAsset) : null;
 
   // Mock data for metric cards (will be moved to the hook's return)
   const totalDepositsMOR = useMemo(() => {
@@ -296,20 +430,24 @@ export function useCapitalChartData() {
   }, [chartData]);
 
   const totalValueLockedUSD = useMemo(() => {
+    // Use mock metrics if available
+    if (useMockData && mockMetrics) {
+      return mockMetrics.totalValueLockedUSD;
+    }
+    
     if (!stethPrice || chartData.length === 0) return "0";
     const lastDeposit = chartData[chartData.length - 1]?.deposits || 0;
     const usdValue = lastDeposit * stethPrice;
     return Math.floor(usdValue).toLocaleString();
-  }, [chartData, stethPrice]);
+  }, [chartData, stethPrice, useMockData, mockMetrics]);
+  const currentDailyRewardMOR = mockMetrics?.currentDailyRewardMOR || "N/A";
+  const avgApyRate = mockMetrics?.avgApyRate || "N/A";
+  const activeStakers = mockMetrics?.activeStakers || "N/A";
 
-  const currentDailyRewardMOR = "N/A"; // Use N/A instead of fake placeholder
-  const avgApyRate = "N/A"; // Use N/A instead of fake placeholder
-  const activeStakers = "N/A"; // Use N/A instead of fake placeholder
-
-  // Safeguard: Always return empty data for testnet
-  const safeChartData = networkEnv === 'testnet' ? [] : chartData;
-  const safeChartLoading = networkEnv === 'testnet' ? false : chartLoading;
-  const safeIsLoadingHistorical = networkEnv === 'testnet' ? false : isLoadingHistorical;
+  // Safeguard: Always return empty data for testnet (unless using mock data)
+  const safeChartData = (networkEnv === 'testnet' && !useMockData) ? [] : chartData;
+  const safeChartLoading = (networkEnv === 'testnet' && !useMockData) ? false : chartLoading;
+  const safeIsLoadingHistorical = (networkEnv === 'testnet' && !useMockData) ? false : isLoadingHistorical;
 
   return {
     chartData: safeChartData,
@@ -324,5 +462,15 @@ export function useCapitalChartData() {
     networkEnv,
     switchToChain,
     isNetworkSwitching,
+    selectedAsset,
+    setSelectedAsset,
+    useMockData,
+    isLoadingNewAsset,
+    // Dynamic asset detection for live data
+    availableAssets,
+    hasMultipleAssets,
+    availableTokens,
+    // Always show asset switcher, but dynamic buttons based on available assets
+    showAssetSwitcher: true,
   };
 } 
