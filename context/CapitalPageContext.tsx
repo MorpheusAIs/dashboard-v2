@@ -374,12 +374,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return networkEnv === 'mainnet' ? mainnetChains.arbitrum.id : testnetChains.arbitrumSepolia.id;
   }, [networkEnv]);
 
-  // Network-aware contract address selection to fix random ABI errors
-  // Both networks use ERC1967ProxyAbi (has all functions), but different addresses:
-  // Mainnet: V1 erc1967Proxy, Testnet: V2 stETHDepositPool  
-  const poolContractAddress = useMemo(() => {
-    const contractKey = networkEnv === 'mainnet' ? 'erc1967Proxy' : 'stETHDepositPool';
-    return getContractAddress(l1ChainId, contractKey, networkEnv) as `0x${string}` | undefined;
+  // V2 Contract addresses - now unified across all networks
+  // Both mainnet and testnet use V2 DepositPool contracts
+  const stETHDepositPoolAddress = useMemo(() => {
+    return getContractAddress(l1ChainId, 'stETHDepositPool', networkEnv) as `0x${string}` | undefined;
   }, [l1ChainId, networkEnv]);
   const stEthContractAddress = useMemo(() => {
     const address = getContractAddress(l1ChainId, 'stETH', networkEnv) as `0x${string}` | undefined;
@@ -395,8 +393,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [l1ChainId, networkEnv]);
   const morContractAddress = useMemo(() => getContractAddress(l2ChainId, 'morToken', networkEnv) as `0x${string}` | undefined, [l2ChainId, networkEnv]);
 
-  // V2 Contract Addresses
-  const stETHDepositPoolAddress = useMemo(() => getContractAddress(l1ChainId, 'stETHDepositPool', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const linkDepositPoolAddress = useMemo(() => getContractAddress(l1ChainId, 'linkDepositPool', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const linkTokenAddress = useMemo(() => {
     const address = getContractAddress(l1ChainId, 'linkToken', networkEnv) as `0x${string}` | undefined;
@@ -475,17 +471,17 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return contracts;
   }, [publicClient, stEthContractAddress, linkTokenAddress, stETHDepositPoolAddress, linkDepositPoolAddress]);
 
-  // Keep using ERC1967ProxyAbi for both networks (it has all needed functions)
-  const poolAbi = ERC1967ProxyAbi;
+  // Use DepositPool ABI for all V2 contract interactions
+  const poolAbi = DepositPoolAbi;
 
-  // --- Read Hooks --- 
+  // --- Read Hooks (V2 Contract Calls) --- 
   const { data: poolInfoResult } = useReadContract({
-    address: poolContractAddress,
+    address: stETHDepositPoolAddress,
     abi: poolAbi,
-    functionName: 'pools',
+    functionName: 'rewardPoolsProtocolDetails',
     args: [PUBLIC_POOL_ID],
     chainId: l1ChainId,
-    query: { enabled: !!poolContractAddress }
+    query: { enabled: !!stETHDepositPoolAddress }
   });
   const poolInfo = useMemo((): PoolInfoData | undefined => {
     if (!poolInfoResult) return undefined;
@@ -511,12 +507,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [poolInfoResult]);
 
   const { data: poolLimitsResult } = useReadContract({
-    address: poolContractAddress,
+    address: stETHDepositPoolAddress,
     abi: poolAbi,
-    functionName: 'poolsLimits',
+    functionName: 'rewardPoolsProtocolDetails',
     args: [PUBLIC_POOL_ID],
     chainId: l1ChainId,
-    query: { enabled: !!poolContractAddress }
+    query: { enabled: !!stETHDepositPoolAddress }
   });
   const poolLimits = useMemo((): PoolLimitsData | undefined => {
      if (!poolLimitsResult) return undefined;
@@ -537,21 +533,21 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const { 
     data: totalDepositedDataRaw
   } = useReadContract({
-    address: poolContractAddress,
+    address: stETHDepositPoolAddress,
     abi: poolAbi,
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
-    query: { enabled: !!poolContractAddress }
+    query: { enabled: !!stETHDepositPoolAddress }
   });
   const totalDepositedData = useMemo(() => totalDepositedDataRaw as bigint | undefined, [totalDepositedDataRaw]);
 
   const { data: usersDataResult, isLoading: isLoadingUserDataRaw, refetch: refetchUserData } = useReadContract({
-    address: poolContractAddress,
+    address: stETHDepositPoolAddress,
     abi: poolAbi,
     functionName: 'usersData',
     args: [userAddress || zeroAddress, PUBLIC_POOL_ID],
     chainId: l1ChainId,
-    query: { enabled: !!poolContractAddress && !!userAddress }
+    query: { enabled: !!stETHDepositPoolAddress && !!userAddress }
   });
   const userData = useMemo((): UserPoolData | undefined => {
     if (!usersDataResult) return undefined;
@@ -577,22 +573,22 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [usersDataResult]);
 
   const { data: currentUserRewardDataRaw, isLoading: isLoadingUserReward, refetch: refetchUserReward } = useReadContract({
-    address: poolContractAddress,
+    address: stETHDepositPoolAddress,
     abi: poolAbi,
-    functionName: 'getCurrentUserReward',
+    functionName: 'getLatestUserReward',
     args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!poolContractAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 } 
+    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 } 
   });
   const currentUserRewardData = useMemo(() => currentUserRewardDataRaw as bigint | undefined, [currentUserRewardDataRaw]);
 
   const { data: currentUserMultiplierDataRaw, isLoading: isLoadingUserMultiplier, refetch: refetchUserMultiplier } = useReadContract({
-    address: poolContractAddress,
-    abi: poolAbi,
+    address: distributorV2Address,
+    abi: ERC1967ProxyAbi, // DistributorV2 uses this ABI
     functionName: 'getCurrentUserMultiplier',
     args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!poolContractAddress && !!userAddress } 
+    query: { enabled: !!distributorV2Address && !!userAddress } 
   });
   const currentUserMultiplierData = useMemo(() => currentUserMultiplierDataRaw as bigint | undefined, [currentUserMultiplierDataRaw]);
 
@@ -640,9 +636,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: stEthContractAddress,
     abi: ERC20Abi,
     functionName: 'allowance',
-    args: [userAddress || zeroAddress, poolContractAddress || zeroAddress],
+    args: [userAddress || zeroAddress, stETHDepositPoolAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!userAddress && !!stEthContractAddress && !!poolContractAddress }
+    query: { enabled: !!userAddress && !!stEthContractAddress && !!stETHDepositPoolAddress }
   });
   // allowanceData removed as it was unused
 
@@ -957,7 +953,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     });
     
     return result;
-  }, [poolInfo, poolLimits, userData, currentUserRewardData, userAddress, chainId, networkEnv, l1ChainId, poolContractAddress]);
+  }, [poolInfo, poolLimits, userData, currentUserRewardData, userAddress, chainId, networkEnv, l1ChainId, stETHDepositPoolAddress]);
 
   // --- Early Eligibility Checks (temporary - will be overridden with V2-specific logic later) ---
   // These early definitions prevent dependency issues in function callbacks
@@ -1250,9 +1246,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // Removed unused legacy functions: approveStEth, legacyDeposit
 
   const claim = useCallback(async () => {
-    if (!poolContractAddress || !l1ChainId || !userAddress || !canClaim) throw new Error("Claim prerequisites not met");
+    if (!stETHDepositPoolAddress || !l1ChainId || !userAddress || !canClaim) throw new Error("Claim prerequisites not met");
       await handleTransaction(() => claimAsync({
-          address: poolContractAddress,
+          address: stETHDepositPoolAddress,
           abi: poolAbi,
           functionName: 'claim',
           args: [PUBLIC_POOL_ID, userAddress],
@@ -1262,18 +1258,18 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           success: "Successfully claimed MOR!",
           error: "Claim failed"
       });
-  }, [claimAsync, poolContractAddress, l1ChainId, userAddress, canClaim, handleTransaction]);
+  }, [claimAsync, stETHDepositPoolAddress, l1ChainId, userAddress, canClaim, handleTransaction]);
 
   // Removed unused legacyWithdraw function
   
   const changeLock = useCallback(async (lockValue: string, lockUnit: TimeUnit) => {
-      if (!poolContractAddress || !l1ChainId) throw new Error("Change lock prerequisites not met");
+      if (!stETHDepositPoolAddress || !l1ChainId) throw new Error("Change lock prerequisites not met");
       const durationSeconds = durationToSeconds(lockValue, lockUnit);
       if (durationSeconds <= BigInt(0)) throw new Error("Invalid lock duration");
       const finalLockEndTimestamp = BigInt(Math.floor(Date.now() / 1000)) + durationSeconds;
       
       await handleTransaction(() => lockClaimAsync({
-          address: poolContractAddress,
+          address: stETHDepositPoolAddress,
           abi: poolAbi,
           functionName: 'lockClaim',
           args: [PUBLIC_POOL_ID, finalLockEndTimestamp],
@@ -1283,7 +1279,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           success: "Successfully updated lock period!",
           error: "Lock update failed"
       });
-  }, [lockClaimAsync, poolContractAddress, l1ChainId, handleTransaction]);
+  }, [lockClaimAsync, stETHDepositPoolAddress, l1ChainId, handleTransaction]);
 
 
   
@@ -1438,8 +1434,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const [multiplierSimArgs, setMultiplierSimArgs] = useState<{value: string, unit: TimeUnit} | null>(null);
 
   const { data: simulatedMultiplierResult, error: simulateMultiplierError, isLoading: isSimulatingMultiplier } = useSimulateContract({
-    address: poolContractAddress,
-    abi: poolAbi,
+    address: distributorV2Address,
+    abi: ERC1967ProxyAbi, // DistributorV2 uses this ABI
     functionName: 'getClaimLockPeriodMultiplier',
     args: useMemo(() => {
       if (!multiplierSimArgs) return undefined;
@@ -1451,7 +1447,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }, [multiplierSimArgs]),
     chainId: l1ChainId,
     query: { 
-      enabled: !!multiplierSimArgs && !!poolContractAddress && !!l1ChainId, // Only run when args are set
+      enabled: !!multiplierSimArgs && !!distributorV2Address && !!l1ChainId, // Only run when args are set
     } 
   });
 
