@@ -400,11 +400,11 @@ export function UserAssetsPanel() {
                   userAssets={userAssets}
                   isLoading={isInitialLoad && !hasValidData}
                   sorting={sorting}
-                  onSortingChange={handleSortingChange}
-                  onDropdownOpenChange={handleDropdownOpenChange}
-                  onDropdownAction={handleDropdownAction}
+                  onSortingChangeAction={handleSortingChange}
+                  onDropdownOpenChangeAction={handleDropdownOpenChange}
+                  onDropdownActionAction={handleDropdownAction}
                   openDropdownId={openDropdownId}
-                  isUnlockDateReached={isUnlockDateReachedCallback}
+                  isUnlockDateReachedAction={isUnlockDateReachedCallback}
                   isAnyActionProcessing={isAnyActionProcessing}
                   isModalTransitioning={isModalTransitioning}
                   isDropdownTransitioning={isDropdownTransitioning}
