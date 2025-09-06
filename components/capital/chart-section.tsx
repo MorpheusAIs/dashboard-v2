@@ -17,17 +17,33 @@ export function ChartSection() {
     networkEnv,
     switchToChain,
     isNetworkSwitching,
+    selectedAsset,
+    setSelectedAsset,
+    useMockData,
+    totalValueLockedUSD: mockTotalValueLockedUSD,
+    currentDailyRewardMOR: mockCurrentDailyRewardMOR,
+    avgApyRate: mockAvgApyRate,
+    activeStakers: mockActiveStakers,
+    // Dynamic asset switching support
+    availableAssets,
+    hasMultipleAssets,
   } = useCapitalChartData();
 
   // Get live metrics data from pool contracts
   const {
-    totalValueLockedUSD,
-    currentDailyRewardMOR,
-    avgApyRate,
-    activeStakers,
+    totalValueLockedUSD: liveValueLockedUSD,
+    currentDailyRewardMOR: liveDailyRewardMOR,
+    avgApyRate: liveAvgApyRate,
+    activeStakers: liveActiveStakers,
     isLoading: metricsLoading,
     error: metricsError,
   } = useCapitalMetrics();
+
+  // Use mock or live metrics based on useMockData
+  const totalValueLockedUSD = useMockData ? mockTotalValueLockedUSD : liveValueLockedUSD;
+  const currentDailyRewardMOR = useMockData ? mockCurrentDailyRewardMOR : liveDailyRewardMOR;
+  const avgApyRate = useMockData ? mockAvgApyRate : liveAvgApyRate;
+  const activeStakers = useMockData ? mockActiveStakers : liveActiveStakers;
 
   const metricCards = [
     {
@@ -104,10 +120,21 @@ export function ChartSection() {
               )}
               {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length > 0 && (
                 <div className="relative h-full overflow-hidden rounded-xl">
-                  <DepositStethChart data={chartData} />
+                  <DepositStethChart 
+                    data={chartData}
+                    selectedAsset={selectedAsset}
+                    onAssetChange={setSelectedAsset}
+                    showAssetSwitcher={true} // Always show asset switcher
+                    availableAssets={useMockData ? undefined : availableAssets} // Pass live assets when not using mock data
+                  />
                   {isLoadingHistorical && (
                     <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded z-5">
                       Loading historical data...
+                    </div>
+                  )}
+                  {!useMockData && hasMultipleAssets && (
+                    <div className="absolute top-2 left-2 text-xs text-green-400 bg-gray-800 px-2 py-1 rounded z-5">
+                      {availableAssets?.length || 0} pools with deposits
                     </div>
                   )}
                 </div>
