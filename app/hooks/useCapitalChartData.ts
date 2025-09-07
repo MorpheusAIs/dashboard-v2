@@ -7,7 +7,7 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { getEndOfDayTimestamps, buildDepositsQuery } from "@/app/graphql/queries/capital";
 import { getTokenPrice } from "@/app/services/token-price.service";
-import { shouldUseMockData, getFormattedMockData, getMockMetrics, type TokenType } from "@/mock-data";
+import { shouldUseMockData, getFormattedMockData, getMockMetrics, type TokenType } from "@/mock-data/index";
 import { useAvailableAssets } from "@/hooks/use-available-assets";
 
 export interface DataPoint {
