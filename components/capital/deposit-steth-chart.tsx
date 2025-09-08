@@ -7,7 +7,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useInteractiveChart } from "@/app/hooks/useInteractiveChart"
 import { useResponsiveChart } from "@/app/hooks/useResponsiveChart"
 import { AssetSwitcher } from "@/components/capital/asset-switcher"
-import { getAssetColor, type TokenType } from "../../mock-data"
+import { getAssetColor, type TokenType } from "@/mock-data"
 
 export type DataPoint = {
     date: string;

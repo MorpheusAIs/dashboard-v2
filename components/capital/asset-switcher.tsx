@@ -1,6 +1,6 @@
 "use client";
 
-import { getAvailableAssets, type TokenType } from "../../mock-data";
+import { getAvailableAssets, type TokenType } from "@/mock-data";
 
 interface AssetSwitcherProps {
   selectedAsset: TokenType;

@@ -24,6 +24,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@/mock-data": [
+        "./mock-data/index.ts"
       ]
     },
     "target": "ES2017"

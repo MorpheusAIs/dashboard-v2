@@ -9,7 +9,7 @@
 import { useMemo } from 'react';
 import { useCapitalPoolData } from '@/hooks/use-capital-pool-data';
 import { getSupportedAssetSymbols, type AssetSymbol } from '@/components/capital/constants/asset-config';
-import type { TokenType } from '../mock-data';
+import type { TokenType } from '@/mock-data';
 
 // Map AssetSymbol to TokenType for compatibility
 const ASSET_SYMBOL_TO_TOKEN_TYPE: Record<AssetSymbol, TokenType> = {
