@@ -856,6 +856,44 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const { isLoading: isConfirmingWithdraw, isSuccess: isWithdrawSuccess, isError: isWithdrawError, error: withdrawError } = useWaitForTransactionReceipt({ hash: withdrawHash, chainId: l1ChainId });
   const { isLoading: isConfirmingLockClaim, isSuccess: isLockClaimSuccess, isError: isLockClaimError, error: lockClaimError } = useWaitForTransactionReceipt({ hash: lockClaimHash, chainId: l1ChainId });
 
+  // --- Transaction Success Tracking (prevents repeated toasts) ---
+  const [lastHandledApprovalHash, setLastHandledApprovalHash] = useState<`0x${string}` | null>(null);
+  const [lastHandledStakeHash, setLastHandledStakeHash] = useState<`0x${string}` | null>(null);
+  const [lastHandledClaimHash, setLastHandledClaimHash] = useState<`0x${string}` | null>(null);
+  const [lastHandledWithdrawHash, setLastHandledWithdrawHash] = useState<`0x${string}` | null>(null);
+  const [lastHandledLockClaimHash, setLastHandledLockClaimHash] = useState<`0x${string}` | null>(null);
+
+  // Reset tracking when new transactions start
+  useEffect(() => {
+    if (approveHash && approveHash !== lastHandledApprovalHash) {
+      setLastHandledApprovalHash(null);
+    }
+  }, [approveHash, lastHandledApprovalHash]);
+
+  useEffect(() => {
+    if (stakeHash && stakeHash !== lastHandledStakeHash) {
+      setLastHandledStakeHash(null);
+    }
+  }, [stakeHash, lastHandledStakeHash]);
+
+  useEffect(() => {
+    if (claimHash && claimHash !== lastHandledClaimHash) {
+      setLastHandledClaimHash(null);
+    }
+  }, [claimHash, lastHandledClaimHash]);
+
+  useEffect(() => {
+    if (withdrawHash && withdrawHash !== lastHandledWithdrawHash) {
+      setLastHandledWithdrawHash(null);
+    }
+  }, [withdrawHash, lastHandledWithdrawHash]);
+
+  useEffect(() => {
+    if (lockClaimHash && lockClaimHash !== lastHandledLockClaimHash) {
+      setLastHandledLockClaimHash(null);
+    }
+  }, [lockClaimHash, lastHandledLockClaimHash]);
+
   // --- Combined Loading States (NOW PROPERLY USED!) ---
   const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier || isLoadingStETHV2User || isLoadingLinkV2User || isLoadingStETHV2Multiplier || isLoadingLinkV2Multiplier; 
   const isLoadingBalances = isLoadingStEthBalance || isLoadingMorBalance || isLoadingLinkBalance;
@@ -1285,21 +1323,22 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   
   // --- Transaction Success/Error Effects (Update to close modal) ---
   useEffect(() => {
-    if (isApprovalSuccess) {
+    if (isApprovalSuccess && approveHash && approveHash !== lastHandledApprovalHash) {
         toast.success("Approval successful!");
         refetchAllowance();
         refetchStETHV2Allowance();
         refetchLinkV2Allowance();
+        setLastHandledApprovalHash(approveHash);
         // Don't close modal after approval
     }
-  }, [isApprovalSuccess, refetchAllowance, refetchStETHV2Allowance, refetchLinkV2Allowance]);
-  
+  }, [isApprovalSuccess, approveHash, lastHandledApprovalHash, refetchAllowance, refetchStETHV2Allowance, refetchLinkV2Allowance]);
+
   useEffect(() => {
-      if (isStakeSuccess) {
+      if (isStakeSuccess && stakeHash && stakeHash !== lastHandledStakeHash) {
           toast.success(`Stake confirmed!`);
           refetchUserData();
           refetchUserReward();
-          refetchStEthBalance(); 
+          refetchStEthBalance();
           refetchLinkBalance();
           refetchStETHV2User();
           refetchLinkV2User();
@@ -1307,12 +1346,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchLinkV2Reward();
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
+          setLastHandledStakeHash(stakeHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isStakeSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
-  
+  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
+
   useEffect(() => {
-      if (isClaimSuccess) {
+      if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHash) {
           toast.success("Claim confirmed!");
           refetchUserData();
           refetchUserReward();
@@ -1321,12 +1361,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchLinkV2Reward();
           // Refetch reward pool data to update reward calculations
           capitalPoolData.refetch.rewardPoolData();
+          setLastHandledClaimHash(claimHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isClaimSuccess, refetchUserData, refetchUserReward, refetchMorBalance, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
-  
+  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
+
   useEffect(() => {
-      if (isWithdrawSuccess) {
+      if (isWithdrawSuccess && withdrawHash && withdrawHash !== lastHandledWithdrawHash) {
           toast.success("Withdrawal confirmed!");
           refetchUserData();
           refetchUserReward();
@@ -1336,18 +1377,20 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchLinkV2User();
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
+          setLastHandledWithdrawHash(withdrawHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isWithdrawSuccess, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, capitalPoolData.refetch, setActiveModal]);
+  }, [isWithdrawSuccess, withdrawHash, lastHandledWithdrawHash, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, capitalPoolData.refetch, setActiveModal]);
 
   useEffect(() => {
-      if (isLockClaimSuccess) {
+      if (isLockClaimSuccess && lockClaimHash && lockClaimHash !== lastHandledLockClaimHash) {
           toast.success("Lock period update confirmed!");
           refetchUserData();
           refetchUserMultiplier();
+          setLastHandledLockClaimHash(lockClaimHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isLockClaimSuccess, refetchUserData, refetchUserMultiplier, setActiveModal]);
+  }, [isLockClaimSuccess, lockClaimHash, lastHandledLockClaimHash, refetchUserData, refetchUserMultiplier, setActiveModal]);
 
   // --- Transaction Error Effects ---
   useEffect(() => {
