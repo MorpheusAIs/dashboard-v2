@@ -202,15 +202,77 @@ export function DepositModal() {
     setProcessedApprovalSuccess(false);
   }, [checkApprovalStatus]);
 
-  // Handle approval success
+  // Handle approval success with improved timing and retry logic
   useEffect(() => {
     if (isApprovalSuccess && amount && parseFloat(amount) > 0 && !processedApprovalSuccess) {
       setProcessedApprovalSuccess(true);
-      setTimeout(() => {
-        checkApprovalStatus();
-      }, 1000);
+      
+      // Add debugging for LINK approval issues
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🎯 [Deposit Modal] Approval success detected:', {
+          selectedAsset,
+          amount,
+          isApprovalSuccess,
+          l1ChainId
+        });
+      }
+      
+      // Check approval status with progressive delays for better reliability
+      const checkWithRetry = async (attempt = 1, maxAttempts = 4) => {
+        try {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`🔍 [Deposit Modal] Checking approval status (attempt ${attempt}/${maxAttempts}) for ${selectedAsset}`);
+          }
+          
+          const needsApproval = await checkAndUpdateApprovalNeeded(selectedAsset, amount);
+          
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`🔍 [Deposit Modal] Approval check result (attempt ${attempt}):`, {
+              selectedAsset,
+              amount,
+              needsApproval,
+              currentlyNeedsApproval
+            });
+          }
+          
+          if (!needsApproval) {
+            // Approval detected successfully
+            setCurrentlyNeedsApproval(false);
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('✅ [Deposit Modal] Approval confirmed, button should change to "Confirm Deposit"');
+            }
+            return;
+          }
+          
+          // If approval still needed and we have attempts left, retry with exponential backoff
+          if (attempt < maxAttempts) {
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // 1s, 2s, 4s, max 5s
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`⏳ [Deposit Modal] Approval not detected yet, retrying in ${delay}ms...`);
+            }
+            setTimeout(() => checkWithRetry(attempt + 1, maxAttempts), delay);
+          } else {
+            // Final attempt failed, log the issue
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn('❌ [Deposit Modal] Approval status check failed after all attempts:', {
+                selectedAsset,
+                amount,
+                finalNeedsApproval: needsApproval
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`[Deposit Modal] Error checking approval status (attempt ${attempt}):`, error);
+          if (attempt < maxAttempts) {
+            setTimeout(() => checkWithRetry(attempt + 1, maxAttempts), 2000);
+          }
+        }
+      };
+      
+      // Start the retry sequence
+      checkWithRetry();
     }
-  }, [isApprovalSuccess, amount, processedApprovalSuccess, checkApprovalStatus]);
+  }, [isApprovalSuccess, amount, processedApprovalSuccess, checkApprovalStatus, selectedAsset, checkAndUpdateApprovalNeeded, currentlyNeedsApproval]);
 
   // Referrer address validation function
   const validateReferrerAddress = useCallback((address: string) => {

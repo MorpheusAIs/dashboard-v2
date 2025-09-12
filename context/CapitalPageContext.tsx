@@ -1020,24 +1020,59 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       const amountBigInt = amountString ? parseUnits(amountString, 18) : BigInt(0);
       if (amountBigInt <= BigInt(0)) return false;
       
+      // Add debugging for approval checking
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔍 [Capital Context] Checking approval needed for ${asset}:`, {
+          amount: amountString,
+          amountBigInt: amountBigInt.toString(),
+          chainId: l1ChainId
+        });
+      }
+      
       // Refetch the current allowance to get the latest value
       let currentAllowanceValue: bigint;
       if (asset === 'stETH') {
         const { data: latestAllowance } = await refetchStETHV2Allowance();
         currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`📊 [Capital Context] stETH allowance check:`, {
+            latestAllowance: latestAllowance?.toString(),
+            currentAllowanceValue: currentAllowanceValue.toString(),
+            amountBigInt: amountBigInt.toString(),
+            needsApproval: currentAllowanceValue < amountBigInt
+          });
+        }
       } else if (asset === 'LINK') {
         const { data: latestAllowance } = await refetchLinkV2Allowance();
         currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`📊 [Capital Context] LINK allowance check:`, {
+            latestAllowance: latestAllowance?.toString(),
+            currentAllowanceValue: currentAllowanceValue.toString(),
+            amountBigInt: amountBigInt.toString(),
+            needsApproval: currentAllowanceValue < amountBigInt
+          });
+        }
       } else {
         return false;
       }
       
-      return currentAllowanceValue < amountBigInt;
+      const needsApproval = currentAllowanceValue < amountBigInt;
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`✅ [Capital Context] Final approval check result for ${asset}:`, {
+          needsApproval,
+          currentAllowance: currentAllowanceValue.toString(),
+          requiredAmount: amountBigInt.toString()
+        });
+      }
+      
+      return needsApproval;
     } catch (error) {
-      console.error("Error checking approval status:", error);
+      console.error(`Error checking approval status for ${asset}:`, error);
       return false; 
     }
-  }, [refetchStETHV2Allowance, refetchLinkV2Allowance]);
+  }, [refetchStETHV2Allowance, refetchLinkV2Allowance, l1ChainId]);
 
   // --- Formatted Data ---
   const userDepositFormatted = formatBigInt(userData?.deposited, 18, 2);
@@ -1324,14 +1359,28 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Transaction Success/Error Effects (Update to close modal) ---
   useEffect(() => {
     if (isApprovalSuccess && approveHash && approveHash !== lastHandledApprovalHash) {
+        // Add debugging for approval success
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('🎉 [Capital Context] Approval transaction confirmed:', {
+            approveHash,
+            chainId: l1ChainId,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         toast.success("Approval successful!");
         refetchAllowance();
         refetchStETHV2Allowance();
         refetchLinkV2Allowance();
         setLastHandledApprovalHash(approveHash);
+        
+        // Add debugging for allowance refetch
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('🔄 [Capital Context] Refetching allowances after approval success');
+        }
         // Don't close modal after approval
     }
-  }, [isApprovalSuccess, approveHash, lastHandledApprovalHash, refetchAllowance, refetchStETHV2Allowance, refetchLinkV2Allowance]);
+  }, [isApprovalSuccess, approveHash, lastHandledApprovalHash, refetchAllowance, refetchStETHV2Allowance, refetchLinkV2Allowance, l1ChainId]);
 
   useEffect(() => {
       if (isStakeSuccess && stakeHash && stakeHash !== lastHandledStakeHash) {
