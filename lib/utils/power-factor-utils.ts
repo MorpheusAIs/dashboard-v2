@@ -1,7 +1,7 @@
 import { formatUnits } from "viem";
 
 // Time unit types
-export type TimeUnit = "days" | "months" | "years";
+export type TimeUnit = "minutes" | "days" | "months" | "years";
 
 // Power factor constants based on ACTUAL contract behavior
 export const POWER_FACTOR_CONSTANTS = {
@@ -73,6 +73,12 @@ export function durationToSeconds(value: string, unit: TimeUnit): bigint {
   
   // Use contract-expected calculations to match exactly what the contract expects
   switch (unit) {
+    case "minutes":
+      diffSeconds = numValue * 60; // 60 seconds per minute
+      // Add 5-minute safety buffer to prevent timing race conditions
+      // This ensures we always meet minimum requirements even with transaction delays
+      diffSeconds += 300; // 5 minutes = 300 seconds
+      break;
     case "days":
       diffSeconds = numValue * 86400; // 24 * 60 * 60
       // Add 5-minute safety buffer to prevent timing race conditions
@@ -95,7 +101,7 @@ export function durationToSeconds(value: string, unit: TimeUnit): bigint {
         }
       } else {
         // For other year values, use standard 365 days per year
-        diffSeconds = numValue * 365 * 86400; 
+        diffSeconds = numValue * 365 * 86400;
         if (process.env.NODE_ENV !== 'production' && numValue >= 5) {
           console.log(`🔍 [${numValue}-YEAR DEBUG] Using standard calculation:`);
           console.log(`  ${numValue} years = ${diffSeconds} seconds = ${diffSeconds / 86400} days`);
@@ -234,6 +240,9 @@ export function validateLockDuration(value: string, unit: TimeUnit): {
   // Convert to total months for easier comparison
   let totalMonths: number;
   switch (unit) {
+    case "minutes":
+      totalMonths = numValue / (30 * 24 * 60); // Convert minutes to months
+      break;
     case "days":
       totalMonths = numValue / 30; // Approximate
       break;
@@ -278,6 +287,9 @@ export function willActivatePowerFactor(value: string, unit: TimeUnit): boolean 
   // Convert to total months for comparison
   let totalMonths: number;
   switch (unit) {
+    case "minutes":
+      totalMonths = numValue / (30 * 24 * 60); // Convert minutes to months
+      break;
     case "days":
       totalMonths = numValue / 30; // Approximate
       break;
@@ -357,6 +369,9 @@ export function calculateUnlockDate(
   // Use REAL calendar math for accurate user display
   // (Different from durationToSeconds which uses contract-expected values)
   switch (unit) {
+    case "minutes":
+      unlockDate.setMinutes(startDate.getMinutes() + numValue);
+      break;
     case "days":
       unlockDate.setDate(startDate.getDate() + numValue);
       break;
@@ -411,6 +426,26 @@ export function validateMaxYears(value: string): boolean {
 }
 
 /**
+ * Get the minimum allowed value for a given time unit
+ * @param unit - Time unit
+ * @returns Minimum allowed value as number
+ */
+export function getMinAllowedValue(unit: TimeUnit): number {
+  switch (unit) {
+    case "years":
+      return 1; // Minimum 1 year (equivalent to 12 months)
+    case "months":
+      return 6; // Minimum 6 months as per protocol requirements
+    case "days":
+      return 180; // Minimum ~6 months in days (not used anymore)
+    case "minutes":
+      return 262800; // Minimum ~6 months in minutes (not used anymore)
+    default:
+      return 1;
+  }
+}
+
+/**
  * Get the maximum allowed value for a given time unit using real calendar calculations
  * @param unit - Time unit
  * @returns Maximum allowed value as number
@@ -428,13 +463,26 @@ export function getMaxAllowedValue(unit: TimeUnit): number {
       endDate.setFullYear(startDate.getFullYear() + POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS);
       const diffMs = endDate.getTime() - startDate.getTime();
       const actualDaysFor6Years = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
+
       if (process.env.NODE_ENV !== 'production') {
         console.log('📅 [Max Days Calculation] Real calendar days for 6 years from now:', actualDaysFor6Years);
         console.log('📅 [Max Days Calculation] vs approximation (365.25 * 6):', Math.floor(365.25 * 6));
       }
-      
+
       return actualDaysFor6Years;
+    case "minutes":
+      // Calculate minutes for 6 years using the same real calendar calculation
+      const startDateMinutes = new Date();
+      const endDateMinutes = new Date(startDateMinutes);
+      endDateMinutes.setFullYear(startDateMinutes.getFullYear() + POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS);
+      const diffMsMinutes = endDateMinutes.getTime() - startDateMinutes.getTime();
+      const actualMinutesFor6Years = Math.floor(diffMsMinutes / (1000 * 60));
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('📅 [Max Minutes Calculation] Real calendar minutes for 6 years from now:', actualMinutesFor6Years);
+      }
+
+      return actualMinutesFor6Years;
     default:
       return 0;
   }

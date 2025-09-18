@@ -26,6 +26,7 @@ import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
 import {
   getMaxAllowedValue,
+  getMinAllowedValue,
   durationToSeconds,
   type TimeUnit
 } from "@/lib/utils/power-factor-utils";
@@ -592,13 +593,14 @@ export function DepositModal() {
     }
   }, [referrerAddress, resolvedAddress, isResolvingEns, validateReferrerAddress]);
 
-  // Validate lock value based on unit
+  // Validate lock value based on unit (both minimum and maximum)
   const validateLockValue = useCallback((value: string, unit: TimeUnit) => {
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue <= 0) return true; // Let basic validation handle this
     
+    const minAllowed = getMinAllowedValue(unit);
     const maxAllowed = getMaxAllowedValue(unit);
-    return numValue <= maxAllowed;
+    return numValue >= minAllowed && numValue <= maxAllowed;
   }, []);
 
   // Handle lock value changes with validation
@@ -618,9 +620,9 @@ export function DepositModal() {
     
     // Validate current value with new unit
     if (lockValue && !validateLockValue(lockValue, unit)) {
-      // If current value is invalid for new unit, reset to a valid value
-      const maxAllowed = getMaxAllowedValue(unit);
-      setLockValue(maxAllowed.toString());
+      // If current value is invalid for new unit, reset to minimum valid value
+      const minAllowed = getMinAllowedValue(unit);
+      setLockValue(minAllowed.toString());
     }
   }, [lockValue, validateLockValue]);
 
@@ -1063,9 +1065,9 @@ export function DepositModal() {
 
             {/* Time Lock Period */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-white">Time Lock Period</Label>
+              <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
               <p className="text-xs text-gray-400">
-                Power Factor activates after 6 months, scales up to x9.7 at 6 years, and remains capped at x9.7 for longer periods
+                Minimum 6 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x9.7 at 6 years, and remains capped at x9.7 for longer periods
               </p>
 
               <div className="flex gap-2">

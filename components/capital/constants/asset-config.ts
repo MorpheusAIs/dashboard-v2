@@ -63,7 +63,6 @@ export const assetMetadata: Record<AssetSymbol, AssetMetadata> = {
     icon: 'usdc',
     decimals: 6,
     coinGeckoId: 'usd-coin',
-    disabled: true, // Not yet supported on testnet
   },
   USDT: {
     symbol: 'USDT',
@@ -71,7 +70,6 @@ export const assetMetadata: Record<AssetSymbol, AssetMetadata> = {
     icon: 'usdt',
     decimals: 6,
     coinGeckoId: 'tether',
-    disabled: true, // Not yet supported on testnet
   },
   wBTC: {
     symbol: 'wBTC',
@@ -79,7 +77,6 @@ export const assetMetadata: Record<AssetSymbol, AssetMetadata> = {
     icon: 'btc',
     decimals: 8,
     coinGeckoId: 'wrapped-bitcoin',
-    disabled: true, // Not yet supported on testnet
   },
   wETH: {
     symbol: 'wETH',
@@ -87,7 +84,6 @@ export const assetMetadata: Record<AssetSymbol, AssetMetadata> = {
     icon: 'eth',
     decimals: 18,
     coinGeckoId: 'weth',
-    disabled: true, // Not yet supported on testnet
   },
 };
 
@@ -183,7 +179,6 @@ export const assetOptions = [
 ];
 
 export const timeLockOptions = [
-  { value: "days", label: "Days" },
   { value: "months", label: "Months" },
   { value: "years", label: "Years" },
 ];
