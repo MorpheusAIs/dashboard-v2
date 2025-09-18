@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { formatUnits, parseUnits, isAddress } from "viem";
-import { useEnsAddress } from "wagmi";
+import { useEnsAddress, useBalance } from "wagmi";
 import { TokenIcon } from '@web3icons/react';
 import { 
   Dialog, 
@@ -33,9 +33,14 @@ import {
 // Import Constants
 import {
   ETH_ADDRESS_REGEX,
-  assetOptions,
   timeLockOptions
 } from "./constants/deposit-modal-constants";
+
+// Import dynamic asset configuration
+import {
+  getAssetsForNetwork,
+  type AssetContractInfo
+} from "./constants/asset-config";
 
 
 
@@ -70,7 +75,186 @@ export function DepositModal() {
     return l1ChainId ? getContractAddress(l1ChainId, 'erc1967Proxy', networkEnv) as `0x${string}` | undefined : undefined;
   }, [l1ChainId, networkEnv]);
 
+  // Get available assets for current network environment
+  const availableAssets = useMemo((): AssetContractInfo[] => {
+    return getAssetsForNetwork(networkEnv);
+  }, [networkEnv]);
+
+  // Create asset options for dropdown (only include assets with deposit pools)
+  const assetOptions = useMemo(() => {
+    // Mapping from asset symbols to their deposit pool contract keys (same as use-capital-pool-data.ts)
+    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
+      stETH: 'stETHDepositPool',
+      LINK: 'linkDepositPool', 
+      USDC: 'usdcDepositPool',
+      USDT: 'usdtDepositPool',
+      wBTC: 'wbtcDepositPool',
+      wETH: 'wethDepositPool',
+    };
+    
+    const l1ChainId = networkEnv === 'mainnet' ? 1 : 11155111; // mainnet : sepolia
+    
+    return availableAssets
+      .filter(asset => {
+        // Only include assets that have deposit pools deployed
+        const contractKey = depositPoolMapping[asset.metadata.symbol];
+        const hasDepositPool = contractKey && getContractAddress(l1ChainId, contractKey, networkEnv);
+        return hasDepositPool && !asset.metadata.disabled;
+      })
+      .map(asset => ({
+        value: asset.metadata.symbol,
+        label: asset.metadata.symbol,
+        name: asset.metadata.name,
+        symbol: asset.metadata.icon, // For TokenIcon component
+      }));
+  }, [availableAssets, networkEnv]);
+
   const isOpen = activeModal === 'deposit';
+
+  // Individual balance hooks for assets that might not be in the context assets object
+  // This ensures we can validate balances for all assets even if deposit pools aren't deployed
+  const individualBalances = useMemo(() => {
+    const balanceHooks: Record<string, { address: `0x${string}`; decimals: number }> = {};
+    
+    availableAssets.forEach(asset => {
+      const symbol = asset.metadata.symbol;
+      // Only create balance hooks for assets not already in the assets object
+      // or if we need them for validation
+      balanceHooks[symbol] = {
+        address: asset.address,
+        decimals: asset.metadata.decimals
+      };
+    });
+    
+    console.log('🔧 Individual balances setup:', {
+      networkEnv,
+      l1ChainId,
+      userAddress,
+      availableAssets: availableAssets.map(a => ({ symbol: a.metadata.symbol, address: a.address, decimals: a.metadata.decimals })),
+      balanceHooks
+    });
+    
+    return balanceHooks;
+  }, [availableAssets, networkEnv, l1ChainId, userAddress]);
+
+  // Balance hooks for each asset to ensure we can validate all assets
+  const stETHBalance = useBalance({
+    address: userAddress,
+    token: individualBalances.stETH?.address,
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!individualBalances.stETH?.address }
+  });
+
+  const linkBalance = useBalance({
+    address: userAddress,
+    token: individualBalances.LINK?.address,
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!individualBalances.LINK?.address }
+  });
+
+  const usdcBalance = useBalance({
+    address: userAddress,
+    token: individualBalances.USDC?.address,
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!individualBalances.USDC?.address }
+  });
+
+  const usdtBalance = useBalance({
+    address: userAddress,
+    token: individualBalances.USDT?.address,
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!individualBalances.USDT?.address }
+  });
+
+  const wbtcBalance = useBalance({
+    address: userAddress,
+    token: individualBalances.wBTC?.address,
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!individualBalances.wBTC?.address }
+  });
+
+  const wethBalance = useBalance({
+    address: userAddress,
+    token: individualBalances.wETH?.address,
+    chainId: l1ChainId,
+    query: { enabled: !!userAddress && !!individualBalances.wETH?.address }
+  });
+  
+  // Debug logging for balance hooks - show ALL assets
+  console.log('⚖️ Balance hooks status:', {
+    userAddress,
+    l1ChainId,
+    stETH: {
+      token: individualBalances.stETH?.address,
+      enabled: !!userAddress && !!individualBalances.stETH?.address,
+      data: stETHBalance.data ? {
+        value: stETHBalance.data.value.toString(),
+        formatted: stETHBalance.data.formatted
+      } : null,
+      isLoading: stETHBalance.isLoading,
+      error: stETHBalance.error?.message
+    },
+    LINK: {
+      token: individualBalances.LINK?.address,
+      enabled: !!userAddress && !!individualBalances.LINK?.address,
+      data: linkBalance.data ? {
+        value: linkBalance.data.value.toString(),
+        formatted: linkBalance.data.formatted
+      } : null,
+      isLoading: linkBalance.isLoading,
+      error: linkBalance.error?.message
+    },
+    USDC: {
+      token: individualBalances.USDC?.address,
+      enabled: !!userAddress && !!individualBalances.USDC?.address,
+      data: usdcBalance.data ? {
+        value: usdcBalance.data.value.toString(),
+        formatted: usdcBalance.data.formatted
+      } : null,
+      isLoading: usdcBalance.isLoading,
+      error: usdcBalance.error?.message
+    },
+    USDT: {
+      token: individualBalances.USDT?.address,
+      enabled: !!userAddress && !!individualBalances.USDT?.address,
+      data: usdtBalance.data ? {
+        value: usdtBalance.data.value.toString(),
+        formatted: usdtBalance.data.formatted
+      } : null,
+      isLoading: usdtBalance.isLoading,
+      error: usdtBalance.error?.message
+    },
+    wBTC: {
+      token: individualBalances.wBTC?.address,
+      enabled: !!userAddress && !!individualBalances.wBTC?.address,
+      data: wbtcBalance.data ? {
+        value: wbtcBalance.data.value.toString(),
+        formatted: wbtcBalance.data.formatted
+      } : null,
+      isLoading: wbtcBalance.isLoading,
+      error: wbtcBalance.error?.message
+    },
+    wETH: {
+      token: individualBalances.wETH?.address,
+      enabled: !!userAddress && !!individualBalances.wETH?.address,
+      data: wethBalance.data ? {
+        value: wethBalance.data.value.toString(),
+        formatted: wethBalance.data.formatted
+      } : null,
+      isLoading: wethBalance.isLoading,
+      error: wethBalance.error?.message
+    }
+  });
+
+  // Create a lookup for individual balances
+  const assetBalances = useMemo(() => ({
+    stETH: stETHBalance,
+    LINK: linkBalance,
+    USDC: usdcBalance,
+    USDT: usdtBalance,
+    wBTC: wbtcBalance,
+    wETH: wethBalance,
+  }), [stETHBalance, linkBalance, usdcBalance, usdtBalance, wbtcBalance, wethBalance]);
 
   // Form state
   const [amount, setAmount] = useState("");
@@ -153,16 +337,84 @@ export function DepositModal() {
     // }
   }, [lockValue, lockUnit, powerFactor, poolContractAddress, l1ChainId]);
 
-  // Current asset data
-  const currentAsset = assets[selectedAsset];
+  // Note: We no longer use currentAsset directly, instead using currentAssetBalance for validation
+  
+  // Get user balance for validation - prioritize context assets, fallback to individual balance hooks
+  const getUserBalanceForAsset = useCallback((asset: AssetSymbol) => {
+    // Debug logging to see what's happening with each asset
+    console.log(`🔍 Getting balance for ${asset}:`, {
+      contextAsset: assets[asset] ? {
+        balance: assets[asset].userBalance?.toString(),
+        formatted: assets[asset].userBalanceFormatted
+      } : null,
+      individualBalance: assetBalances[asset] ? {
+        data: assetBalances[asset].data ? {
+          value: assetBalances[asset].data.value?.toString(),
+          decimals: assetBalances[asset].data.decimals,
+          formatted: assetBalances[asset].data.formatted
+        } : null,
+        isLoading: assetBalances[asset].isLoading,
+        error: assetBalances[asset].error?.message
+      } : null
+    });
+    
+    // First try to get balance from context assets (preferred as it has formatted values)
+    if (assets[asset]?.userBalance !== undefined) {
+      return {
+        balance: assets[asset].userBalance,
+        formatted: assets[asset].userBalanceFormatted
+      };
+    }
+    
+    // Fallback to individual balance hooks for assets not in context
+    const individualBalance = assetBalances[asset];
+    if (individualBalance?.data) {
+      return {
+        balance: individualBalance.data.value,
+        formatted: formatUnits(individualBalance.data.value, individualBalance.data.decimals)
+      };
+    }
+    
+    return { balance: BigInt(0), formatted: '0' };
+  }, [assets, assetBalances]);
+  
+  const currentAssetBalance = getUserBalanceForAsset(selectedAsset);
+  
+  // Helper function to truncate (not round) to 2 decimal places for display
+  const truncateToTwoDecimals = useCallback((numStr: string): string => {
+    const num = Number(numStr);
+    if (num === 0) return '0.00';
+    
+    // Convert to string and find decimal point
+    const str = num.toString();
+    const decimalIndex = str.indexOf('.');
+    
+    if (decimalIndex === -1) {
+      // No decimal point, add .00
+      return str + '.00';
+    } else if (str.length - decimalIndex - 1 <= 2) {
+      // Already has 2 or fewer decimal places, pad if needed
+      const decimals = str.length - decimalIndex - 1;
+      return decimals === 1 ? str + '0' : str;
+    } else {
+      // Truncate to 2 decimal places (don't round)
+      return str.slice(0, decimalIndex + 3);
+    }
+  }, []);
   
   const amountBigInt = useMemo(() => {
     try {
-      return amount ? parseUnits(amount, 18) : BigInt(0);
+      if (!amount) return BigInt(0);
+      
+      // Get the correct decimals for the selected asset
+      const assetInfo = availableAssets.find(asset => asset.metadata.symbol === selectedAsset);
+      const decimals = assetInfo?.metadata.decimals || 18;
+      
+      return parseUnits(amount, decimals);
     } catch { 
       return BigInt(0);
     }
-  }, [amount]);
+  }, [amount, selectedAsset, availableAssets]);
 
   // ENS Resolution
   const isEnsName = useMemo(() => {
@@ -411,18 +663,33 @@ export function DepositModal() {
     // Return lock period error if exists
     if (lockPeriodError) return lockPeriodError;
     
+    // Debug validation logic
+    console.log(`💰 Validation for ${selectedAsset}:`, {
+      amountBigInt: amountBigInt.toString(),
+      currentAssetBalance: {
+        balance: currentAssetBalance.balance?.toString(),
+        formatted: currentAssetBalance.formatted
+      },
+      comparison: currentAssetBalance.balance ? {
+        amountGreaterThanBalance: amountBigInt > currentAssetBalance.balance,
+        amountStr: amountBigInt.toString(),
+        balanceStr: currentAssetBalance.balance.toString()
+      } : null
+    });
+    
     // TODO: Add minimal stake validation once PoolLimitsData interface is updated
     // const minimalStake = currentAsset?.protocolDetails?.minimalStake;
     // if (minimalStake && amountBigInt < minimalStake) {
     //   return `Minimum deposit is ${formatUnits(minimalStake, 18)} ${selectedAsset}`;
     // }
     
-    if (currentAsset?.userBalance && amountBigInt > currentAsset.userBalance) {
+    // Check if we have balance data (including 0 balance) and if amount exceeds it
+    if (currentAssetBalance.balance !== undefined && amountBigInt > currentAssetBalance.balance) {
       return `Insufficient ${selectedAsset} balance`;
     }
     
     return null;
-  }, [amountBigInt, currentAsset, selectedAsset, lockPeriodError]);
+  }, [amountBigInt, currentAssetBalance, selectedAsset, lockPeriodError]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -512,11 +779,14 @@ export function DepositModal() {
   };
 
   const handleMaxAmount = () => {
-    if (currentAsset?.userBalance) {
-      const maxAmount = formatUnits(currentAsset.userBalance, 18);
-      // Limit to 2 decimal places
-      const formattedAmount = Number(maxAmount).toFixed(2);
-      setAmount(formattedAmount);
+    if (currentAssetBalance.balance && currentAssetBalance.balance > BigInt(0)) {
+      // Get the correct decimals for the selected asset
+      const assetInfo = availableAssets.find(asset => asset.metadata.symbol === selectedAsset);
+      const decimals = assetInfo?.metadata.decimals || 18;
+      
+      // Use the raw amount with full precision - don't round or truncate
+      const maxAmount = formatUnits(currentAssetBalance.balance, decimals);
+      setAmount(maxAmount);
       setFormError(null); // Clear form error when max amount is selected
     }
   };
@@ -607,13 +877,17 @@ export function DepositModal() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 flex items-center justify-center">
-                      <TokenIcon symbol={selectedAsset === 'stETH' ? 'eth' : 'link'} variant="background" size="26" />
+                      <TokenIcon 
+                        symbol={availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.icon || 'eth'} 
+                        variant="background" 
+                        size="26" 
+                      />
                     </div>
                     <span>{selectedAsset}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-gray-400 text-sm">
-                      {Number(assets[selectedAsset]?.userBalanceFormatted || '0').toFixed(2)} Available
+                      {truncateToTwoDecimals(currentAssetBalance.formatted || '0')} Available
                     </span>
                     <ChevronDown className={`h-4 w-4 opacity-50 transition-transform ${assetDropdownOpen ? 'rotate-180' : ''}`} />
                   </div>
@@ -629,7 +903,7 @@ export function DepositModal() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          setSelectedAsset(asset.value as 'stETH' | 'LINK');
+                          setSelectedAsset(asset.value as AssetSymbol);
                           setAssetDropdownOpen(false);
                           setFormError(null); // Clear form error on asset change
                         }}
@@ -641,7 +915,7 @@ export function DepositModal() {
                           <span className="text-white">{asset.label}</span>
                         </div>
                                                   <span className="text-gray-400 text-sm">
-                            {Number(assets[asset.value as 'stETH' | 'LINK']?.userBalanceFormatted || '0').toFixed(2)} Available
+                            {truncateToTwoDecimals(getUserBalanceForAsset(asset.value as AssetSymbol).formatted || '0')} Available
                           </span>
                       </button>
                     ))}
@@ -681,16 +955,16 @@ export function DepositModal() {
                   }}
                 />
                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
-                  {currentAsset?.userBalanceFormatted && (
+                  {currentAssetBalance.formatted && Number(currentAssetBalance.formatted) > 0 && (
                     <span className="text-xs text-gray-400 mr-2">
-                      {Number(currentAsset.userBalanceFormatted).toFixed(2)} {selectedAsset}
+                      {truncateToTwoDecimals(currentAssetBalance.formatted)} {selectedAsset}
                     </span>
                   )}
                   <button
                     type="button"
                     className="h-8 px-2 text-xs copy-button-secondary"
                     onClick={handleMaxAmount}
-                    disabled={!currentAsset?.userBalance || isProcessingDeposit}
+                    disabled={!currentAssetBalance.balance || currentAssetBalance.balance <= BigInt(0) || isProcessingDeposit}
                   >
                     Max
                   </button>
