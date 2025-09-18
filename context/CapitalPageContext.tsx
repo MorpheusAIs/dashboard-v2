@@ -22,6 +22,11 @@ import {
   getContractAddress, 
   type NetworkEnvironment 
 } from "@/config/networks";
+import { 
+  getAssetConfig, 
+  type AssetSymbol,
+  getAssetsForNetwork
+} from "@/components/capital/constants/asset-config";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
 import { formatPowerFactorPrecise } from "@/lib/utils/power-factor-utils";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
@@ -76,8 +81,8 @@ interface UserPoolData {
 type ActiveModal = "deposit" | "withdraw" | "claim" | "changeLock" | "stakeMorRewards" | "claimMorRewards" | null;
 type TimeUnit = "days" | "months" | "years";
 
-// V2 Asset Types
-export type AssetSymbol = 'stETH' | 'LINK';
+// V2 Asset Types (imported from asset-config.ts)
+// All assets are dynamically supported based on network configuration
 
 // Contract types for better typing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1147,42 +1152,31 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [userAddress, l1ChainId]); // Add userAddress and l1ChainId as dependencies
   
-  // V2 Asset-aware functions
+  // V2 Asset-aware functions - Dynamic approval using distributor address
   const approveToken = useCallback(async (asset: AssetSymbol) => {
-    if (asset === 'stETH') {
-      if (!stETHDepositPoolAddress || !stEthContractAddress || !l1ChainId) {
-        throw new Error("stETH approve prerequisites not met");
-      }
-      await handleTransaction(() => approveAsync({
-          address: stEthContractAddress,
-          abi: ERC20Abi,
-          functionName: 'approve',
-        args: [stETHDepositPoolAddress, maxInt256],
-          chainId: l1ChainId,
-      }), {
-        loading: "Requesting stETH approval...",
-        success: "stETH approval successful!", 
-        error: "stETH approval failed",
-        skipClose: true
-      });
-    } else if (asset === 'LINK') {
-      if (!linkDepositPoolAddress || !linkTokenAddress || !l1ChainId) {
-        throw new Error("LINK approve prerequisites not met");
-      }
-      await handleTransaction(() => approveAsync({
-        address: linkTokenAddress,
-        abi: ERC20Abi,
-        functionName: 'approve',
-        args: [linkDepositPoolAddress, maxInt256],
-        chainId: l1ChainId,
-      }), {
-        loading: "Requesting LINK approval...",
-        success: "LINK approval successful!", 
-        error: "LINK approval failed",
-        skipClose: true
-      });
+    if (!distributorV2Address || !l1ChainId) {
+      throw new Error("Distributor address or chain ID not available");
     }
-  }, [approveAsync, stETHDepositPoolAddress, stEthContractAddress, linkDepositPoolAddress, linkTokenAddress, l1ChainId, handleTransaction]);
+
+    // Get asset configuration for current network environment
+    const assetInfo = getAssetConfig(asset, networkEnv);
+    if (!assetInfo) {
+      throw new Error(`Asset ${asset} not supported on ${networkEnv}`);
+    }
+
+    await handleTransaction(() => approveAsync({
+      address: assetInfo.address,
+      abi: ERC20Abi,
+      functionName: 'approve',
+      args: [distributorV2Address, maxInt256], // Use distributor address as spender
+      chainId: l1ChainId,
+    }), {
+      loading: `Requesting ${asset} approval...`,
+      success: `${asset} approval successful!`, 
+      error: `${asset} approval failed`,
+      skipClose: true
+    });
+  }, [approveAsync, distributorV2Address, l1ChainId, networkEnv, handleTransaction]);
 
   const deposit = useCallback(async (asset: AssetSymbol, amountString: string, lockDurationSeconds?: bigint) => {
       const amountBigInt = parseUnits(amountString, 18);
@@ -1780,61 +1774,103 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     });
   }, [claimAsync, stETHDepositPoolAddress, linkDepositPoolAddress, stETHReferralRewards, linkReferralRewards, l1ChainId, userAddress, handleTransaction]);
 
-  // --- Build Assets Structure ---
-  const assets = useMemo((): Record<AssetSymbol, AssetData> => ({
-    stETH: {
-      symbol: 'stETH' as AssetSymbol,
-      config: {
-        symbol: 'stETH' as AssetSymbol,
-        depositPoolAddress: stETHDepositPoolAddress || zeroAddress,
-        tokenAddress: stEthContractAddress || zeroAddress,
-        decimals: 18,
-        icon: 'eth',
-      },
-      userBalance: stEthBalance,
-      userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
-      userAllowance: stETHV2Allowance,
-      claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
-      userMultiplier: stETHV2UserMultiplier as bigint || BigInt(0),
-      totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
-      protocolDetails: stETHV2ProtocolParsed || null,
-      poolData: null,
-      userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
-      userDepositedFormatted: formatBigInt(stETHV2UserParsed?.deposited, 18, 2),
-      claimableAmountFormatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2),
-      userMultiplierFormatted: stETHV2UserMultiplier ? 
-        formatPowerFactorPrecise(stETHV2UserMultiplier as bigint) : 
-        (stETHV2UserParsed?.deposited && BigInt(stETHV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
-      totalDepositedFormatted: formatBigInt(stETHV2TotalDeposited as bigint, 18, 2),
-      minimalStakeFormatted: stETHV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
-    },
-    LINK: {
-      symbol: 'LINK' as AssetSymbol,
-      config: {
-        symbol: 'LINK' as AssetSymbol,
-        depositPoolAddress: linkDepositPoolAddress || zeroAddress,
-        tokenAddress: linkTokenAddress || zeroAddress,
-        decimals: 18,
-        icon: 'link',
-      },
-      userBalance: linkBalance,
-      userDeposited: linkV2UserParsed?.deposited || BigInt(0),
-      userAllowance: linkV2Allowance,
-      claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
-      userMultiplier: linkV2UserMultiplier as bigint || BigInt(0),
-      totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
-      protocolDetails: linkV2ProtocolParsed || null,
-      poolData: null,
-      userBalanceFormatted: formatBigInt(linkBalance, 18, 4),
-      userDepositedFormatted: formatBigInt(linkV2UserParsed?.deposited, 18, 2),
-      claimableAmountFormatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
-      userMultiplierFormatted: linkV2UserMultiplier ? 
-        formatPowerFactorPrecise(linkV2UserMultiplier as bigint) : 
-        (linkV2UserParsed?.deposited && BigInt(linkV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
-      totalDepositedFormatted: formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
-      minimalStakeFormatted: linkV2ProtocolParsed ? formatBigInt(BigInt(100), 18, 0) : "---", // TODO: Get from protocol details
-    },
-  }), [
+  // --- Build Assets Structure Dynamically ---
+  const assets = useMemo((): Record<AssetSymbol, AssetData> => {
+    const availableAssets = getAssetsForNetwork(networkEnv);
+    const assetsRecord: Record<string, AssetData> = {};
+
+    availableAssets.forEach((assetInfo) => {
+      const symbol = assetInfo.metadata.symbol;
+      
+      // Get specific contract addresses and data for implemented assets
+      if (symbol === 'stETH') {
+        assetsRecord[symbol] = {
+          symbol,
+          config: {
+            symbol,
+            depositPoolAddress: stETHDepositPoolAddress || zeroAddress,
+            tokenAddress: assetInfo.address,
+            decimals: assetInfo.metadata.decimals,
+            icon: assetInfo.metadata.icon,
+          },
+          userBalance: stEthBalance,
+          userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
+          userAllowance: stETHV2Allowance,
+          claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
+          userMultiplier: stETHV2UserMultiplier as bigint || BigInt(0),
+          totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
+          protocolDetails: stETHV2ProtocolParsed || null,
+          poolData: null,
+          userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
+          userDepositedFormatted: formatBigInt(stETHV2UserParsed?.deposited, 18, 2),
+          claimableAmountFormatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2),
+          userMultiplierFormatted: stETHV2UserMultiplier ? 
+            formatPowerFactorPrecise(stETHV2UserMultiplier as bigint) : 
+            (stETHV2UserParsed?.deposited && BigInt(stETHV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
+          totalDepositedFormatted: formatBigInt(stETHV2TotalDeposited as bigint, 18, 2),
+          minimalStakeFormatted: "100", // TODO: Get from protocol details
+        };
+      } else if (symbol === 'LINK' && networkEnv === 'testnet') {
+        // LINK only supported on testnet
+        assetsRecord[symbol] = {
+          symbol,
+          config: {
+            symbol,
+            depositPoolAddress: linkDepositPoolAddress || zeroAddress,
+            tokenAddress: assetInfo.address,
+            decimals: assetInfo.metadata.decimals,
+            icon: assetInfo.metadata.icon,
+          },
+          userBalance: linkBalance,
+          userDeposited: linkV2UserParsed?.deposited || BigInt(0),
+          userAllowance: linkV2Allowance,
+          claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
+          userMultiplier: linkV2UserMultiplier as bigint || BigInt(0),
+          totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
+          protocolDetails: linkV2ProtocolParsed || null,
+          poolData: null,
+          userBalanceFormatted: formatBigInt(linkBalance, 18, 4),
+          userDepositedFormatted: formatBigInt(linkV2UserParsed?.deposited, 18, 2),
+          claimableAmountFormatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
+          userMultiplierFormatted: linkV2UserMultiplier ? 
+            formatPowerFactorPrecise(linkV2UserMultiplier as bigint) : 
+            (linkV2UserParsed?.deposited && BigInt(linkV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
+          totalDepositedFormatted: formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
+          minimalStakeFormatted: "100", // TODO: Get from protocol details
+        };
+      } else {
+        // Placeholder for other assets (USDC, USDT, wBTC, wETH, etc.)
+        // These will have default/empty values until their contracts are implemented
+        assetsRecord[symbol] = {
+          symbol,
+          config: {
+            symbol,
+            depositPoolAddress: zeroAddress, // TODO: Get from config once contracts are deployed
+            tokenAddress: assetInfo.address,
+            decimals: assetInfo.metadata.decimals,
+            icon: assetInfo.metadata.icon,
+          },
+          userBalance: BigInt(0), // TODO: Add contract reads for these assets
+          userDeposited: BigInt(0),
+          userAllowance: BigInt(0),
+          claimableAmount: BigInt(0),
+          userMultiplier: BigInt(0),
+          totalDeposited: BigInt(0),
+          protocolDetails: null,
+          poolData: null,
+          userBalanceFormatted: "0",
+          userDepositedFormatted: "0",
+          claimableAmountFormatted: "0",
+          userMultiplierFormatted: "---",
+          totalDepositedFormatted: "0",
+          minimalStakeFormatted: "100",
+        };
+      }
+    });
+
+    return assetsRecord as Record<AssetSymbol, AssetData>;
+  }, [
+    networkEnv,
     stETHDepositPoolAddress, stEthContractAddress, stEthBalance, stETHV2UserParsed, stETHV2Allowance, 
     stETHV2CurrentUserReward, stETHV2UserMultiplier, stETHV2TotalDeposited, stETHV2ProtocolParsed,
     linkDepositPoolAddress, linkTokenAddress, linkBalance, linkV2UserParsed, linkV2Allowance,
