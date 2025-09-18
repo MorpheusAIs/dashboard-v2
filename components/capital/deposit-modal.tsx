@@ -979,6 +979,11 @@ export function DepositModal() {
                   {validationError}
                 </p>
               )}
+              
+              {/* Deposit lock period info */}
+              <p className="text-xs text-gray-400 mt-2">
+                Deposits are locked for the first 7 days.
+              </p>
             </div>
 
             {/* Referrer Address */}
