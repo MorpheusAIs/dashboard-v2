@@ -9,9 +9,11 @@ import {
   calculatePowerFactorFromDuration,
   type TimeUnit
 } from "@/lib/utils/power-factor-utils";
+import { getContractAddress } from "@/config/networks";
+import { useNetwork } from "@/context/network-context";
 
 // Import ABI for the contract
-import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
+import LockMultiplierMathAbi from "@/app/abi/LockMultiplierMath.json";
 
 export interface PowerFactorResult {
   powerFactor: string;
@@ -26,7 +28,6 @@ export interface PowerFactorResult {
 export interface UsePowerFactorParams {
   contractAddress?: `0x${string}`;
   chainId?: number;
-  poolId?: bigint;
   enabled?: boolean;
   isMainnetStETH?: boolean;
 }
@@ -136,13 +137,19 @@ function useMainnetStETHPowerFactor() {
 function useContractPowerFactor({
   contractAddress,
   chainId,
-  poolId = BigInt(0),
   enabled = true,
 }: Omit<UsePowerFactorParams, 'isMainnetStETH'>) {
+  const { environment } = useNetwork();
   const [lockValue, setLockValue] = useState<string>("");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("months");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
+
+  // Get the LockMultiplierMath contract address
+  const lockMultiplierMathAddress = useMemo(() => {
+    if (!chainId) return undefined;
+    return getContractAddress(chainId, 'lockMultiplierMath', environment);
+  }, [chainId, environment]);
 
   // Calculate lock timestamps for contract call
   const contractArgs = useMemo(() => {
@@ -151,12 +158,13 @@ function useContractPowerFactor({
       console.log('Lock Value:', lockValue);
       console.log('Lock Unit:', lockUnit);
       console.log('Enabled:', enabled);
-      console.log('Pool ID:', poolId.toString());
+      console.log('Chain ID:', chainId);
+      console.log('LockMultiplierMath Address:', lockMultiplierMathAddress);
     }
 
-    if (!lockValue || !enabled) {
+    if (!lockValue || !enabled || !lockMultiplierMathAddress) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log('Early return: No lock value or not enabled');
+        console.log('Early return: No lock value, not enabled, or no contract address');
         console.groupEnd();
       }
       return undefined;
@@ -182,7 +190,7 @@ function useContractPowerFactor({
 
     const lockStart = BigInt(Math.floor(Date.now() / 1000)); // Current timestamp
     const lockEnd = lockStart + durationSeconds;
-    const args = [poolId, lockStart, lockEnd];
+    const args = [lockStart, lockEnd];
 
     if (process.env.NODE_ENV !== 'production') {
       console.log('Duration Seconds:', durationSeconds.toString());
@@ -190,7 +198,7 @@ function useContractPowerFactor({
       console.log('Lock End Timestamp:', lockEnd.toString());
       console.log('Final Contract Args:', args.map(arg => arg.toString()));
 
-      // Special debugging for maximum lock periods to investigate 10.7x issue
+      // Special debugging for maximum lock periods
       const durationYears = Number(durationSeconds) / (365.25 * 24 * 60 * 60);
       if (durationYears >= 5.5) {
         console.log('🎯 [MAX LOCK DEBUG] Detected maximum lock period');
@@ -203,7 +211,7 @@ function useContractPowerFactor({
     }
 
     return args;
-  }, [lockValue, lockUnit, poolId, enabled]);
+  }, [lockValue, lockUnit, enabled, lockMultiplierMathAddress]);
 
   // Contract call to get the multiplier
   const {
@@ -212,13 +220,13 @@ function useContractPowerFactor({
     error: contractError,
     refetch,
   } = useReadContract({
-    address: contractAddress,
-    abi: ERC1967ProxyAbi,
-    functionName: 'getClaimLockPeriodMultiplier',
+    address: lockMultiplierMathAddress as `0x${string}`,
+    abi: LockMultiplierMathAbi,
+    functionName: 'getLockPeriodMultiplier',
     args: contractArgs,
     chainId,
     query: {
-      enabled: !!contractArgs && !!contractAddress && !!chainId && enabled,
+      enabled: !!contractArgs && !!lockMultiplierMathAddress && !!chainId && enabled,
       retry: 3,
       retryDelay: 1000,
     }
@@ -427,22 +435,28 @@ export function usePowerFactor(params: UsePowerFactorParams) {
 export function usePowerFactorCalculation({
   contractAddress,
   chainId,
-  poolId = BigInt(0),
 }: Omit<UsePowerFactorParams, 'enabled'>) {
-  const [tempArgs, setTempArgs] = useState<[bigint, bigint, bigint] | undefined>();
+  const { environment } = useNetwork();
+  const [tempArgs, setTempArgs] = useState<[bigint, bigint] | undefined>();
+
+  // Get the LockMultiplierMath contract address
+  const lockMultiplierMathAddress = useMemo(() => {
+    if (!chainId) return undefined;
+    return getContractAddress(chainId, 'lockMultiplierMath', environment);
+  }, [chainId, environment]);
 
   const {
     data: rawMultiplier,
     isLoading,
     error: contractError,
   } = useReadContract({
-    address: contractAddress,
-    abi: ERC1967ProxyAbi,
-    functionName: 'getClaimLockPeriodMultiplier',
+    address: lockMultiplierMathAddress as `0x${string}`,
+    abi: LockMultiplierMathAbi,
+    functionName: 'getLockPeriodMultiplier',
     args: tempArgs,
     chainId,
     query: {
-      enabled: !!tempArgs && !!contractAddress && !!chainId,
+      enabled: !!tempArgs && !!lockMultiplierMathAddress && !!chainId,
       retry: 2,
       retryDelay: 1000,
     }
@@ -487,7 +501,7 @@ export function usePowerFactorCalculation({
     const unlockDate = calculateUnlockDate(value, unit);
 
     // Set args to trigger the contract call
-    setTempArgs([poolId, lockStart, lockEnd]);
+    setTempArgs([lockStart, lockEnd]);
 
     // Wait for the result (this is a simplified approach)
     // In a real implementation, you might want to use a more sophisticated polling mechanism
@@ -537,7 +551,7 @@ export function usePowerFactorCalculation({
 
       checkResult();
     });
-  }, [poolId, contractAddress, chainId, isLoading, contractError, rawMultiplier]);
+  }, [contractAddress, chainId, isLoading, contractError, rawMultiplier]);
 
   return {
     calculate,
