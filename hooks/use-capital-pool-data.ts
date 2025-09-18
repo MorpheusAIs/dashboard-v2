@@ -259,25 +259,34 @@ export function useCapitalPoolData(): CapitalPoolData {
   // Debug contract call results
   React.useEffect(() => {
     console.log('🔍 DYNAMIC CONTRACT CALL DEBUG:', {
+      currentChainId: chainId,
       networkEnvironment,
       chainId: l1ChainId,
       configuredAssets: configuredAssets.map(a => a.metadata.symbol),
       depositPoolAddresses,
       contractData: Object.fromEntries(
-        Object.entries(contractData).map(([symbol, contract]) => [
-          symbol,
-          contract.data ? {
-            raw: contract.data.toString(),
-            formatted: formatUnits(contract.data as bigint, 18)
-          } : 'MISSING'
-        ])
+        Object.entries(contractData).map(([symbol, contract]) => {
+          // Find the asset config to get correct decimals
+          const assetConfig = configuredAssets.find(a => a.metadata.symbol === symbol);
+          const decimals = assetConfig?.metadata.decimals || 18;
+          
+          return [
+            symbol,
+            contract.data ? {
+              raw: contract.data.toString(),
+              formatted: formatUnits(contract.data as bigint, decimals),
+              decimals: decimals // Show which decimals were used
+            } : 'MISSING'
+          ];
+        })
       ),
       distributedRewardsData: Object.fromEntries(
         Object.entries(distributedRewardsData).map(([symbol, rewardData]) => [
           symbol,
           rewardData.data ? {
             raw: rewardData.data.toString(),
-            formatted: formatUnits(rewardData.data as bigint, 18)
+            formatted: formatUnits(rewardData.data as bigint, 18), // MOR rewards are always 18 decimals
+            decimals: 18 // MOR token uses 18 decimals
           } : 'MISSING'
         ])
       ),
@@ -286,9 +295,24 @@ export function useCapitalPoolData(): CapitalPoolData {
       ),
       errors: Object.fromEntries(
         Object.entries(contractData).map(([symbol, contract]) => [symbol, contract.error?.message])
-      )
+      ),
+      specificUSDCData: {
+        address: depositPoolAddresses.USDC,
+        hasData: !!contractData.USDC?.data,
+        isLoading: contractData.USDC?.isLoading,
+        error: contractData.USDC?.error?.message,
+        rawData: contractData.USDC?.data?.toString()
+      },
+      specificUSDTData: {
+        address: depositPoolAddresses.USDT,
+        hasData: !!contractData.USDT?.data,
+        isLoading: contractData.USDT?.isLoading,
+        error: contractData.USDT?.error?.message,
+        rawData: contractData.USDT?.data?.toString()
+      }
     });
   }, [
+    chainId,
     networkEnvironment, 
     l1ChainId,
     configuredAssets,
@@ -346,8 +370,13 @@ export function useCapitalPoolData(): CapitalPoolData {
 
       // 🚨 PLACEHOLDER CALCULATION - NOT ACCURATE 🚨
       // This is just to show the structure - replace with actual rate calculation
-      const totalDeposited = Number(formatUnits(contract.data as bigint, 18));
-      const accumulatedRewards = Number(formatUnits(rewardData.data as bigint, 18));
+      
+      // Get correct decimals for this asset from configuration
+      const assetConfig = configuredAssets.find(a => a.metadata.symbol === symbol);
+      const assetDecimals = assetConfig?.metadata.decimals || 18;
+      
+      const totalDeposited = Number(formatUnits(contract.data as bigint, assetDecimals));
+      const accumulatedRewards = Number(formatUnits(rewardData.data as bigint, 18)); // MOR rewards always 18 decimals
       
       // Placeholder: assume rewards accumulated over 30 days for demonstration
       const assumedDays = 30;
@@ -372,7 +401,8 @@ export function useCapitalPoolData(): CapitalPoolData {
   }, [
     networkEnvironment,
     contractData,
-    distributedRewardsData
+    distributedRewardsData,
+    configuredAssets
   ]);
 
   // Generate asset pool data dynamically
@@ -381,6 +411,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     
     configuredAssets.forEach(assetConfig => {
       const symbol = assetConfig.metadata.symbol;
+      const decimals = assetConfig.metadata.decimals; // Get decimals from asset config
       const contract = contractData[symbol as keyof typeof contractData];
       const hasDepositPoolAddress = !!depositPoolAddresses[symbol];
       const depositPoolAddress = depositPoolAddresses[symbol];
@@ -392,7 +423,8 @@ export function useCapitalPoolData(): CapitalPoolData {
         contractExists: !!contract,
         contractData: contract?.data?.toString(),
         contractLoading: contract?.isLoading,
-        contractError: contract?.error?.message
+        contractError: contract?.error?.message,
+        decimals // Log the correct decimals
       });
       
       if (!hasDepositPoolAddress) {
@@ -421,8 +453,8 @@ export function useCapitalPoolData(): CapitalPoolData {
           error: (contract.error || distributedReward?.error) as Error | null
         };
       } else {
-        // Asset has valid data
-        const totalStaked = parseFloat(formatUnits(contract.data as bigint, 18)).toLocaleString('en-US', {
+        // Asset has valid data - use correct decimals from config
+        const totalStaked = parseFloat(formatUnits(contract.data as bigint, decimals)).toLocaleString('en-US', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2
         });
