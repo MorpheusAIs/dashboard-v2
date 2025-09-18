@@ -1008,81 +1008,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   let canWithdraw = false;
   let canClaim = false;
 
-  // Asset-aware utility functions (kept token-specific to avoid circular dependencies)
-  const needsApproval = useCallback((asset: AssetSymbol, amountString: string): boolean => {
-    try {
-      const amountBigInt = amountString ? parseUnits(amountString, 18) : BigInt(0);
-      if (amountBigInt <= BigInt(0)) return false;
-      
-      if (asset === 'stETH') {
-        return stETHV2Allowance < amountBigInt;
-      } else if (asset === 'LINK') {
-        return linkV2Allowance < amountBigInt;
-      }
-      return false;
-    } catch {
-      return false; 
-    }
-  }, [stETHV2Allowance, linkV2Allowance]);
-
-  const checkAndUpdateApprovalNeeded = useCallback(async (asset: AssetSymbol, amountString: string): Promise<boolean> => {
-    try {
-      const amountBigInt = amountString ? parseUnits(amountString, 18) : BigInt(0);
-      if (amountBigInt <= BigInt(0)) return false;
-      
-      // Add debugging for approval checking
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔍 [Capital Context] Checking approval needed for ${asset}:`, {
-          amount: amountString,
-          amountBigInt: amountBigInt.toString(),
-          chainId: l1ChainId
-        });
-      }
-      
-      // Refetch the current allowance to get the latest value
-      let currentAllowanceValue: bigint;
-      if (asset === 'stETH') {
-        const { data: latestAllowance } = await refetchStETHV2Allowance();
-        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`📊 [Capital Context] stETH allowance check:`, {
-            latestAllowance: latestAllowance?.toString(),
-            currentAllowanceValue: currentAllowanceValue.toString(),
-            amountBigInt: amountBigInt.toString(),
-            needsApproval: currentAllowanceValue < amountBigInt
-          });
-        }
-      } else if (asset === 'LINK') {
-        const { data: latestAllowance } = await refetchLinkV2Allowance();
-        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`📊 [Capital Context] LINK allowance check:`, {
-            latestAllowance: latestAllowance?.toString(),
-            currentAllowanceValue: currentAllowanceValue.toString(),
-            amountBigInt: amountBigInt.toString(),
-            needsApproval: currentAllowanceValue < amountBigInt
-          });
-        }
-      } else {
-        return false;
-      }
-      
-      const needsApproval = currentAllowanceValue < amountBigInt;
-      
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`✅ [Capital Context] Final approval check result for ${asset}:`, {
-          needsApproval,
-          currentAllowance: currentAllowanceValue.toString(),
-          requiredAmount: amountBigInt.toString()
-        });
-      }
-      
-      return needsApproval;
-    } catch (error) {
-      console.error(`Error checking approval status for ${asset}:`, error);
-      return false; 
-    }
-  }, [refetchStETHV2Allowance, refetchLinkV2Allowance, l1ChainId]);
+  // Asset-aware utility functions will be defined after assets declaration due to dependencies
 
   // --- Formatted Data ---
   const userDepositFormatted = formatBigInt(userData?.deposited, 18, 2);
@@ -1178,102 +1104,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     });
   }, [approveAsync, distributorV2Address, l1ChainId, networkEnv, handleTransaction]);
 
-  const deposit = useCallback(async (asset: AssetSymbol, amountString: string, lockDurationSeconds?: bigint) => {
-      const amountBigInt = parseUnits(amountString, 18);
-      if (amountBigInt <= BigInt(0)) throw new Error("Invalid deposit amount");
-      
-    // Default to 0 seconds lock if not provided
-    const lockDuration = lockDurationSeconds || BigInt(0);
-    
-    if (asset === 'stETH') {
-      if (!stETHDepositPoolAddress || !l1ChainId) throw new Error("stETH deposit prerequisites not met");
-      console.log('🏦 stETH Deposit Details:', {
-        asset,
-        depositPoolAddress: stETHDepositPoolAddress,
-        amount: amountString,
-        amountBigInt: amountBigInt.toString(),
-        lockDuration: lockDuration.toString(),
-        poolIndex: V2_REWARD_POOL_INDEX.toString(),
-        chainId: l1ChainId
-      });
-      await handleTransaction(() => {
-        // Calculate timestamp right before transaction for maximum safety
-        const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
-        console.log('🕒 Final timestamp calculated right before transaction:', {
-          currentTimestamp: Math.floor(Date.now() / 1000),
-          lockDuration: lockDuration.toString(),
-          claimLockEnd: claimLockEnd.toString(),
-          claimLockEndDate: new Date(Number(claimLockEnd) * 1000).toISOString()
-        });
-        return stakeAsync({
-          address: stETHDepositPoolAddress,
-          abi: DepositPoolAbi,
-          functionName: 'stake',
-          args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
-          chainId: l1ChainId,
-        });
-      }, {
-        loading: "Requesting stETH deposit...",
-        success: `Successfully deposited ${amountString} stETH!`, 
-        error: "stETH deposit failed"
-      });
-    } else if (asset === 'LINK') {
-      if (!linkDepositPoolAddress || !l1ChainId) throw new Error("LINK deposit prerequisites not met");
-      if (!linkTokenAddress) throw new Error("LINK token address not resolved");
-      
-      // Additional validation for LINK staking
-      if (!linkBalance || linkBalance <= BigInt(0)) {
-        throw new Error("Insufficient LINK balance");
-      }
-      if (amountBigInt > linkBalance) {
-        throw new Error(`Insufficient LINK balance. Required: ${formatBigInt(amountBigInt, 18, 4)}, Available: ${formatBigInt(linkBalance, 18, 4)}`);
-      }
-      if (!linkV2Allowance || linkV2Allowance < amountBigInt) {
-        throw new Error(`Insufficient LINK allowance. Please approve LINK spending first. Required: ${formatBigInt(amountBigInt, 18, 4)}, Current: ${formatBigInt(linkV2Allowance || BigInt(0), 18, 4)}`);
-      }
-      console.log('🔗 LINK Deposit Details:', {
-        asset,
-        depositPoolAddress: linkDepositPoolAddress,
-        tokenAddress: linkTokenAddress,
-        amount: amountString,
-        amountBigInt: amountBigInt.toString(),
-        lockDuration: lockDuration.toString(),
-        poolIndex: V2_REWARD_POOL_INDEX.toString(),
-        chainId: l1ChainId,
-        userBalance: formatBigInt(linkBalance, 18, 4),
-        userAllowance: linkV2Allowance?.toString(),
-        // Comparison with successful transaction from Jul 29, 2025
-        successfulTxComparison: {
-          poolIndex: { current: V2_REWARD_POOL_INDEX.toString(), successful: "0", match: V2_REWARD_POOL_INDEX.toString() === "0" },
-          amount: { current: amountBigInt.toString(), successful: "10000000000000000000" },
-          lockDuration: { current: lockDuration.toString(), successful: "86400" },
-          claimLockEnd: { current: (BigInt(Math.floor(Date.now() / 1000)) + lockDuration).toString(), note: "Unix timestamp = current_time + lock_duration" },
-          referrer: { current: zeroAddress, successful: "0x0000000000000000000000000000000000000000", match: zeroAddress === "0x0000000000000000000000000000000000000000" }
-        }
-      });
-      await handleTransaction(() => {
-        // Calculate timestamp right before transaction for maximum safety
-        const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
-        console.log('🕒 Final timestamp calculated right before transaction:', {
-          currentTimestamp: Math.floor(Date.now() / 1000),
-          lockDuration: lockDuration.toString(),
-          claimLockEnd: claimLockEnd.toString(),
-          claimLockEndDate: new Date(Number(claimLockEnd) * 1000).toISOString()
-        });
-        return stakeAsync({
-          address: linkDepositPoolAddress,
-          abi: DepositPoolAbi,
-          functionName: 'stake',
-          args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
-          chainId: l1ChainId,
-        });
-      }, {
-        loading: "Requesting LINK deposit...",
-        success: `Successfully deposited ${amountString} LINK!`, 
-        error: "LINK deposit failed"
-      });
-    }
-  }, [stakeAsync, stETHDepositPoolAddress, linkDepositPoolAddress, linkTokenAddress, l1ChainId, handleTransaction, linkBalance, linkV2Allowance]);
+  // Deposit function will be defined after assets declaration due to dependencies
 
   const withdraw = useCallback(async (asset: AssetSymbol, amountString: string) => {
     const amountBigInt = parseUnits(amountString, 18);
@@ -1876,6 +1707,159 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     linkDepositPoolAddress, linkTokenAddress, linkBalance, linkV2UserParsed, linkV2Allowance,
     linkV2CurrentUserReward, linkV2UserMultiplier, linkV2TotalDeposited, linkV2ProtocolParsed
   ]);
+
+  // --- Asset-aware utility functions (now that assets is available) ---
+  const needsApproval = useCallback((asset: AssetSymbol, amountString: string): boolean => {
+    try {
+      // Get asset configuration for correct decimals
+      const assetInfo = getAssetConfig(asset, networkEnv);
+      if (!assetInfo) return false;
+      
+      const amountBigInt = amountString ? parseUnits(amountString, assetInfo.metadata.decimals) : BigInt(0);
+      if (amountBigInt <= BigInt(0)) return false;
+      
+      // Get asset data for current allowance
+      const assetData = assets[asset];
+      if (!assetData) return false;
+      
+      return assetData.userAllowance < amountBigInt;
+    } catch {
+      return false; 
+    }
+  }, [networkEnv, assets]);
+
+  const checkAndUpdateApprovalNeeded = useCallback(async (asset: AssetSymbol, amountString: string): Promise<boolean> => {
+    try {
+      // Get asset configuration for correct decimals
+      const assetInfo = getAssetConfig(asset, networkEnv);
+      if (!assetInfo) return false;
+      
+      const amountBigInt = amountString ? parseUnits(amountString, assetInfo.metadata.decimals) : BigInt(0);
+      if (amountBigInt <= BigInt(0)) return false;
+      
+      // Add debugging for approval checking
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔍 [Capital Context] Checking approval needed for ${asset}:`, {
+          amount: amountString,
+          amountBigInt: amountBigInt.toString(),
+          decimals: assetInfo.metadata.decimals,
+          chainId: l1ChainId
+        });
+      }
+      
+      // For now, we only have specific refetch functions for stETH and LINK
+      // TODO: Add generic allowance refetch when other assets are implemented
+      let currentAllowanceValue: bigint;
+      if (asset === 'stETH') {
+        const { data: latestAllowance } = await refetchStETHV2Allowance();
+        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+      } else if (asset === 'LINK') {
+        const { data: latestAllowance } = await refetchLinkV2Allowance();
+        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
+      } else {
+        // For other assets, use the current allowance from assets data
+        // This is a fallback until specific refetch functions are implemented
+        const assetData = assets[asset];
+        currentAllowanceValue = assetData?.userAllowance ?? BigInt(0);
+        console.warn(`${asset} allowance refetch not implemented, using cached value`);
+      }
+      
+      const needsApproval = currentAllowanceValue < amountBigInt;
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`✅ [Capital Context] Final approval check result for ${asset}:`, {
+          needsApproval,
+          currentAllowance: currentAllowanceValue.toString(),
+          requiredAmount: amountBigInt.toString(),
+          decimals: assetInfo.metadata.decimals
+        });
+      }
+      
+      return needsApproval;
+    } catch (error) {
+      console.error(`Error checking approval status for ${asset}:`, error);
+      return false; 
+    }
+  }, [refetchStETHV2Allowance, refetchLinkV2Allowance, l1ChainId, networkEnv, assets]);
+
+  const deposit = useCallback(async (asset: AssetSymbol, amountString: string, lockDurationSeconds?: bigint) => {
+    // Get asset configuration and data
+    const assetInfo = getAssetConfig(asset, networkEnv);
+    if (!assetInfo) {
+      throw new Error(`Asset ${asset} not supported on ${networkEnv}`);
+    }
+
+    const assetData = assets[asset];
+    if (!assetData) {
+      throw new Error(`Asset ${asset} data not available`);
+    }
+
+    // Parse amount with correct decimals for the asset
+    const amountBigInt = parseUnits(amountString, assetInfo.metadata.decimals);
+    if (amountBigInt <= BigInt(0)) throw new Error("Invalid deposit amount");
+    
+    // Check if deposit pool is available (not zero address)
+    if (assetData.config.depositPoolAddress === zeroAddress) {
+      throw new Error(`${asset} deposits not yet supported. Deposit pool contract not deployed.`);
+    }
+
+    // Validate user balance
+    if (assetData.userBalance <= BigInt(0)) {
+      throw new Error(`No ${asset} balance available`);
+    }
+    
+    if (amountBigInt > assetData.userBalance) {
+      throw new Error(`Insufficient ${asset} balance. Required: ${formatBigInt(amountBigInt, assetInfo.metadata.decimals, 4)}, Available: ${assetData.userBalanceFormatted}`);
+    }
+
+    // Validate allowance
+    if (assetData.userAllowance < amountBigInt) {
+      throw new Error(`Insufficient ${asset} allowance. Please approve ${asset} spending first. Required: ${formatBigInt(amountBigInt, assetInfo.metadata.decimals, 4)}, Current: ${formatBigInt(assetData.userAllowance, assetInfo.metadata.decimals, 4)}`);
+    }
+
+    if (!l1ChainId) throw new Error("Chain ID not available");
+
+    // Default to 0 seconds lock if not provided
+    const lockDuration = lockDurationSeconds || BigInt(0);
+    
+    console.log(`🏦 ${asset} Deposit Details:`, {
+      asset,
+      depositPoolAddress: assetData.config.depositPoolAddress,
+      tokenAddress: assetData.config.tokenAddress,
+      amount: amountString,
+      amountBigInt: amountBigInt.toString(),
+      lockDuration: lockDuration.toString(),
+      poolIndex: V2_REWARD_POOL_INDEX.toString(),
+      chainId: l1ChainId,
+      userBalance: assetData.userBalanceFormatted,
+      userAllowance: formatBigInt(assetData.userAllowance, assetInfo.metadata.decimals, 4),
+      decimals: assetInfo.metadata.decimals
+    });
+
+    await handleTransaction(() => {
+      // Calculate timestamp right before transaction for maximum safety
+      const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
+      console.log('🕒 Final timestamp calculated right before transaction:', {
+        currentTimestamp: Math.floor(Date.now() / 1000),
+        lockDuration: lockDuration.toString(),
+        claimLockEnd: claimLockEnd.toString(),
+        claimLockEndDate: new Date(Number(claimLockEnd) * 1000).toISOString(),
+        asset
+      });
+      
+      return stakeAsync({
+        address: assetData.config.depositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'stake',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
+        chainId: l1ChainId,
+      });
+    }, {
+      loading: `Requesting ${asset} deposit...`,
+      success: `Successfully deposited ${amountString} ${asset}!`, 
+      error: `${asset} deposit failed`
+    });
+  }, [stakeAsync, l1ChainId, networkEnv, assets, handleTransaction]);
 
   // --- Generic Eligibility Checks (using assets structure) ---
   canWithdraw = useMemo(() => {
