@@ -415,6 +415,63 @@ export function formatUnlockDate(unlockDate: Date): string {
 }
 
 /**
+ * Calculate power factor from duration using MRC42 formula (client-side fallback)
+ * @param value - Duration value as string
+ * @param unit - Time unit
+ * @returns Power factor string (e.g., "x1.5")
+ */
+export function calculatePowerFactorFromDuration(value: string, unit: TimeUnit): string {
+  const numValue = parseInt(value, 10);
+  if (isNaN(numValue) || numValue <= 0) return "x1.0";
+
+  // Convert to total months for calculation
+  let totalMonths: number;
+  switch (unit) {
+    case "minutes":
+      totalMonths = numValue / (30 * 24 * 60); // Convert minutes to months
+      break;
+    case "days":
+      totalMonths = numValue / 30; // Approximate
+      break;
+    case "months":
+      totalMonths = numValue;
+      break;
+    case "years":
+      totalMonths = numValue * 12;
+      break;
+  }
+
+  // No power factor benefit until minimum activation period (6 months)
+  if (totalMonths < POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS) {
+    return "x1.0";
+  }
+
+  // Maximum period in months (6 years = 72 months)
+  const maxMonths = POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS * 12;
+
+  // Progressive scaling formula
+  // At 6 months: ~1.0x, at 72 months (6 years): 10.7x
+  // Using a logarithmic curve that starts slow and accelerates
+  const progressRatio = (totalMonths - POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS) /
+                        (maxMonths - POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS);
+
+  // Apply logarithmic scaling for more realistic progression
+  // Start at 1.0x and scale up to MAX_POWER_FACTOR
+  const baseMultiplier = 1.0;
+  const maxMultiplier = POWER_FACTOR_CONSTANTS.MAX_POWER_FACTOR;
+
+  // Use exponential growth formula: base + (max - base) * (1 - e^(-k * progressRatio))
+  // This gives us slow initial growth that accelerates
+  const k = 2.5; // Growth rate constant (tuned for realistic progression)
+  const multiplier = baseMultiplier + (maxMultiplier - baseMultiplier) * (1 - Math.exp(-k * progressRatio));
+
+  // Ensure we don't exceed the maximum
+  const cappedMultiplier = Math.min(multiplier, maxMultiplier);
+
+  return `x${cappedMultiplier.toFixed(1)}`;
+}
+
+/**
  * Validate that years input doesn't exceed maximum
  * @param value - Years value as string
  * @returns True if valid, false if exceeds maximum
