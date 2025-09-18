@@ -32,34 +32,15 @@ export function CapitalInfoPanel() {
   const assets: Asset[] = configuredAssets.map(assetConfig => {
     const { symbol } = assetConfig.metadata;
     
-    // Get live data for supported assets, placeholder data for disabled ones
-    if (symbol === 'stETH') {
-      return {
-        symbol: assetConfig.metadata.symbol,
-        apy: poolData.stETH.apy,
-        totalStaked: poolData.stETH.totalStaked,
-        icon: assetConfig.metadata.icon,
-        disabled: assetConfig.metadata.disabled,
-      };
-    }
+    // Get data from the dynamic hook
+    const assetData = poolData.assets[symbol];
     
-    if (symbol === 'LINK') {
-      return {
-        symbol: assetConfig.metadata.symbol,
-        apy: poolData.LINK.apy,
-        totalStaked: poolData.LINK.totalStaked,
-        icon: assetConfig.metadata.icon,
-        disabled: assetConfig.metadata.disabled,
-      };
-    }
-    
-    // For other assets (mainnet-only), use placeholder data until supported
     return {
       symbol: assetConfig.metadata.symbol,
-      apy: symbol === 'wBTC' ? "11.25%" : symbol === 'USDC' ? "10.67%" : "Coming Soon",
-      totalStaked: symbol === 'wBTC' ? "849" : symbol === 'USDC' ? "15,267" : "0",
+      apy: assetData?.apy || 'N/A',
+      totalStaked: assetData?.totalStaked || 'N/A',
       icon: assetConfig.metadata.icon,
-      disabled: assetConfig.metadata.disabled || networkEnvironment === 'testnet', // Disable on testnet if not stETH/LINK
+      disabled: assetConfig.metadata.disabled || assetData?.totalStaked === 'N/A',
     };
   });
 
@@ -92,7 +73,7 @@ export function CapitalInfoPanel() {
                   <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
                     Live Data
                   </span>
-                  {(poolData.stETH.apy === 'N/A' || poolData.LINK.apy === 'N/A') ? (
+                  {Object.values(poolData.assets).some(asset => asset.apy === 'N/A') ? (
                     <span className="px-2 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 text-xs font-medium">
                       Contract Debug
                     </span>
@@ -158,16 +139,19 @@ export function CapitalInfoPanel() {
                     <div className={`text-right text-sm font-semibold ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
-                      {(asset.symbol === 'stETH' && poolData.stETH.isLoading) || 
-                       (asset.symbol === 'LINK' && poolData.LINK.isLoading) ? (
-                        <Skeleton className="h-4 w-12 bg-gray-700" />
-                      ) : poolData.networkEnvironment === 'testnet' && 
-                          ((asset.symbol === 'stETH' && poolData.stETH.error) || 
-                           (asset.symbol === 'LINK' && poolData.LINK.error)) ? (
-                        <span className="text-red-400 text-xs">Error</span>
-                      ) : (
-                        <NumberFlow value={parseStakedAmount(asset.totalStaked)} />
-                      )}
+                      {(() => {
+                        const assetPoolData = poolData.assets[asset.symbol as AssetSymbol];
+                        if (assetPoolData?.isLoading) {
+                          return <Skeleton className="h-4 w-12 bg-gray-700" />;
+                        }
+                        if (assetPoolData?.error) {
+                          return <span className="text-red-400 text-xs">Error</span>;
+                        }
+                        if (asset.totalStaked === 'N/A') {
+                          return 'N/A';
+                        }
+                        return <NumberFlow value={parseStakedAmount(asset.totalStaked)} />;
+                      })()}
                     </div>
 
                     {/* Stake Button */}

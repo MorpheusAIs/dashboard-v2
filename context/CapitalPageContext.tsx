@@ -28,6 +28,9 @@ import {
   type AssetSymbol,
   getAssetsForNetwork
 } from "@/components/capital/constants/asset-config";
+
+// Re-export AssetSymbol for use by other components
+export type { AssetSymbol } from "@/components/capital/constants/asset-config";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
 import { formatPowerFactorPrecise } from "@/lib/utils/power-factor-utils";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
