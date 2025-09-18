@@ -20,7 +20,8 @@ import {
   testnetChains, 
   mainnetChains, 
   getContractAddress, 
-  type NetworkEnvironment 
+  type NetworkEnvironment,
+  type ContractAddresses
 } from "@/config/networks";
 import { 
   getAssetConfig, 
@@ -1606,107 +1607,189 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     });
   }, [claimAsync, stETHDepositPoolAddress, linkDepositPoolAddress, stETHReferralRewards, linkReferralRewards, l1ChainId, userAddress, handleTransaction]);
 
-  // --- Build Assets Structure Dynamically ---
+  // --- Dynamic Asset-to-Contract Mapping ---
+  // Maps asset symbols to their corresponding deposit pool contract names in networks.ts
+  const getDepositPoolContractName = useCallback((symbol: AssetSymbol): keyof ContractAddresses | null => {
+    const mapping: Record<AssetSymbol, keyof ContractAddresses> = {
+      'stETH': 'stETHDepositPool',
+      'LINK': 'linkDepositPool', 
+      'USDC': 'usdcDepositPool',
+      'USDT': 'usdtDepositPool',
+      'wBTC': 'wbtcDepositPool',
+      'wETH': 'wethDepositPool',
+    };
+    return mapping[symbol] || null;
+  }, []);
+
+  // Helper to get available assets that have both metadata AND deployed contracts
+  const getAvailableAssetsWithContracts = useCallback(() => {
+    const assetsFromConfig = getAssetsForNetwork(networkEnv);
+    const availableAssets: typeof assetsFromConfig = [];
+    
+    assetsFromConfig.forEach(assetInfo => {
+      const symbol = assetInfo.metadata.symbol;
+      const depositPoolContractName = getDepositPoolContractName(symbol);
+      
+      if (depositPoolContractName && l1ChainId) {
+        const depositPoolAddress = getContractAddress(l1ChainId, depositPoolContractName, networkEnv);
+        
+        // Only include assets that have:
+        // 1. Metadata in asset-config.ts
+        // 2. Deposit pool contract defined in networks.ts
+        // 3. Non-empty deposit pool address (contract is deployed)
+        if (depositPoolAddress && depositPoolAddress !== '' && depositPoolAddress !== zeroAddress) {
+          availableAssets.push(assetInfo);
+          
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`✅ [Dynamic Assets] ${symbol} available:`, {
+              symbol,
+              tokenAddress: assetInfo.address,
+              depositPoolAddress,
+              networkEnv,
+              chainId: l1ChainId
+            });
+          }
+        } else {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`❌ [Dynamic Assets] ${symbol} not available - no deposit pool deployed:`, {
+              symbol,
+              depositPoolContractName,
+              depositPoolAddress,
+              networkEnv,
+              chainId: l1ChainId
+            });
+          }
+        }
+      } else {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`❌ [Dynamic Assets] ${symbol} not available - no deposit pool contract mapping:`, {
+            symbol,
+            depositPoolContractName,
+            networkEnv,
+            chainId: l1ChainId
+          });
+        }
+      }
+    });
+    
+    return availableAssets;
+  }, [networkEnv, l1ChainId, getDepositPoolContractName]);
+
+  // --- Build Assets Structure Dynamically (Network + Config Cross-Reference) ---
   const assets = useMemo((): Record<AssetSymbol, AssetData> => {
-    const availableAssets = getAssetsForNetwork(networkEnv);
+    const availableAssets = getAvailableAssetsWithContracts();
     const assetsRecord: Record<string, AssetData> = {};
+
+    // Data mapping for assets that have contract reads implemented
+    const assetDataMapping: Record<AssetSymbol, {
+      userBalance: bigint;
+      userDeposited: bigint;
+      userAllowance: bigint;
+      claimableAmount: bigint;
+      userMultiplier: bigint;
+      totalDeposited: bigint;
+      protocolDetails: PoolLimitsData | null;
+    }> = {
+      'stETH': {
+        userBalance: stEthBalance,
+        userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
+        userAllowance: stETHV2Allowance,
+        claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
+        userMultiplier: stETHV2UserMultiplier as bigint || BigInt(0),
+        totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
+        protocolDetails: stETHV2ProtocolParsed || null,
+      },
+      'LINK': {
+        userBalance: linkBalance,
+        userDeposited: linkV2UserParsed?.deposited || BigInt(0),
+        userAllowance: linkV2Allowance,
+        claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
+        userMultiplier: linkV2UserMultiplier as bigint || BigInt(0),
+        totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
+        protocolDetails: linkV2ProtocolParsed || null,
+      },
+      // Placeholder data for other assets (will be BigInt(0) until contract reads are implemented)
+      'USDC': {
+        userBalance: BigInt(0),
+        userDeposited: BigInt(0),
+        userAllowance: BigInt(0),
+        claimableAmount: BigInt(0),
+        userMultiplier: BigInt(0),
+        totalDeposited: BigInt(0),
+        protocolDetails: null,
+      },
+      'USDT': {
+        userBalance: BigInt(0),
+        userDeposited: BigInt(0),
+        userAllowance: BigInt(0),
+        claimableAmount: BigInt(0),
+        userMultiplier: BigInt(0),
+        totalDeposited: BigInt(0),
+        protocolDetails: null,
+      },
+      'wBTC': {
+        userBalance: BigInt(0),
+        userDeposited: BigInt(0),
+        userAllowance: BigInt(0),
+        claimableAmount: BigInt(0),
+        userMultiplier: BigInt(0),
+        totalDeposited: BigInt(0),
+        protocolDetails: null,
+      },
+      'wETH': {
+        userBalance: BigInt(0),
+        userDeposited: BigInt(0),
+        userAllowance: BigInt(0),
+        claimableAmount: BigInt(0),
+        userMultiplier: BigInt(0),
+        totalDeposited: BigInt(0),
+        protocolDetails: null,
+      },
+    };
 
     availableAssets.forEach((assetInfo) => {
       const symbol = assetInfo.metadata.symbol;
+      const depositPoolContractName = getDepositPoolContractName(symbol);
       
-      // Get specific contract addresses and data for implemented assets
-      if (symbol === 'stETH') {
-        assetsRecord[symbol] = {
-          symbol,
-          config: {
-            symbol,
-            depositPoolAddress: stETHDepositPoolAddress || zeroAddress,
-            tokenAddress: assetInfo.address,
-            decimals: assetInfo.metadata.decimals,
-            icon: assetInfo.metadata.icon,
-          },
-          userBalance: stEthBalance,
-          userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
-          userAllowance: stETHV2Allowance,
-          claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
-          userMultiplier: stETHV2UserMultiplier as bigint || BigInt(0),
-          totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
-          protocolDetails: stETHV2ProtocolParsed || null,
-          poolData: null,
-          userBalanceFormatted: formatBigInt(stEthBalance, 18, 4),
-          userDepositedFormatted: formatBigInt(stETHV2UserParsed?.deposited, 18, 2),
-          claimableAmountFormatted: formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2),
-          userMultiplierFormatted: stETHV2UserMultiplier ? 
-            formatPowerFactorPrecise(stETHV2UserMultiplier as bigint) : 
-            (stETHV2UserParsed?.deposited && BigInt(stETHV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
-          totalDepositedFormatted: formatBigInt(stETHV2TotalDeposited as bigint, 18, 2),
-          minimalStakeFormatted: "100", // TODO: Get from protocol details
-        };
-      } else if (symbol === 'LINK' && networkEnv === 'testnet') {
-        // LINK only supported on testnet
-        assetsRecord[symbol] = {
-          symbol,
-          config: {
-            symbol,
-            depositPoolAddress: linkDepositPoolAddress || zeroAddress,
-            tokenAddress: assetInfo.address,
-            decimals: assetInfo.metadata.decimals,
-            icon: assetInfo.metadata.icon,
-          },
-          userBalance: linkBalance,
-          userDeposited: linkV2UserParsed?.deposited || BigInt(0),
-          userAllowance: linkV2Allowance,
-          claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
-          userMultiplier: linkV2UserMultiplier as bigint || BigInt(0),
-          totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
-          protocolDetails: linkV2ProtocolParsed || null,
-          poolData: null,
-          userBalanceFormatted: formatBigInt(linkBalance, 18, 4),
-          userDepositedFormatted: formatBigInt(linkV2UserParsed?.deposited, 18, 2),
-          claimableAmountFormatted: formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
-          userMultiplierFormatted: linkV2UserMultiplier ? 
-            formatPowerFactorPrecise(linkV2UserMultiplier as bigint) : 
-            (linkV2UserParsed?.deposited && BigInt(linkV2UserParsed.deposited) > BigInt(0) ? "x1.0" : "---"),
-          totalDepositedFormatted: formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
-          minimalStakeFormatted: "100", // TODO: Get from protocol details
-        };
-      } else {
-        // Placeholder for other assets (USDC, USDT, wBTC, wETH, etc.)
-        // These will have default/empty values until their contracts are implemented
-        assetsRecord[symbol] = {
-          symbol,
-          config: {
-            symbol,
-            depositPoolAddress: zeroAddress, // TODO: Get from config once contracts are deployed
-            tokenAddress: assetInfo.address,
-            decimals: assetInfo.metadata.decimals,
-            icon: assetInfo.metadata.icon,
-          },
-          userBalance: BigInt(0), // TODO: Add contract reads for these assets
-          userDeposited: BigInt(0),
-          userAllowance: BigInt(0),
-          claimableAmount: BigInt(0),
-          userMultiplier: BigInt(0),
-          totalDeposited: BigInt(0),
-          protocolDetails: null,
-          poolData: null,
-          userBalanceFormatted: "0",
-          userDepositedFormatted: "0",
-          claimableAmountFormatted: "0",
-          userMultiplierFormatted: "---",
-          totalDepositedFormatted: "0",
-          minimalStakeFormatted: "100",
-        };
+      if (!depositPoolContractName || !l1ChainId) return;
+      
+      const depositPoolAddress = getContractAddress(l1ChainId, depositPoolContractName, networkEnv);
+      const assetData = assetDataMapping[symbol];
+      
+      if (!assetData) {
+        console.warn(`No asset data mapping found for ${symbol}`);
+        return;
       }
+
+      assetsRecord[symbol] = {
+        symbol,
+        config: {
+          symbol,
+          depositPoolAddress: depositPoolAddress as `0x${string}`,
+          tokenAddress: assetInfo.address,
+          decimals: assetInfo.metadata.decimals,
+          icon: assetInfo.metadata.icon,
+        },
+        ...assetData,
+        poolData: null,
+        userBalanceFormatted: formatBigInt(assetData.userBalance, assetInfo.metadata.decimals, 4),
+        userDepositedFormatted: formatBigInt(assetData.userDeposited, assetInfo.metadata.decimals, 2),
+        claimableAmountFormatted: formatBigInt(assetData.claimableAmount, 18, 2), // MOR rewards are always 18 decimals
+        userMultiplierFormatted: assetData.userMultiplier ? 
+          formatPowerFactorPrecise(assetData.userMultiplier) : 
+          (assetData.userDeposited > BigInt(0) ? "x1.0" : "---"),
+        totalDepositedFormatted: formatBigInt(assetData.totalDeposited, assetInfo.metadata.decimals, 2),
+        minimalStakeFormatted: "100", // TODO: Get from protocol details
+      };
     });
 
     return assetsRecord as Record<AssetSymbol, AssetData>;
   }, [
-    networkEnv,
-    stETHDepositPoolAddress, stEthContractAddress, stEthBalance, stETHV2UserParsed, stETHV2Allowance, 
-    stETHV2CurrentUserReward, stETHV2UserMultiplier, stETHV2TotalDeposited, stETHV2ProtocolParsed,
-    linkDepositPoolAddress, linkTokenAddress, linkBalance, linkV2UserParsed, linkV2Allowance,
-    linkV2CurrentUserReward, linkV2UserMultiplier, linkV2TotalDeposited, linkV2ProtocolParsed
+    getAvailableAssetsWithContracts, getDepositPoolContractName, l1ChainId, networkEnv,
+    stEthBalance, stETHV2UserParsed, stETHV2Allowance, stETHV2CurrentUserReward, 
+    stETHV2UserMultiplier, stETHV2TotalDeposited, stETHV2ProtocolParsed,
+    linkBalance, linkV2UserParsed, linkV2Allowance, linkV2CurrentUserReward,
+    linkV2UserMultiplier, linkV2TotalDeposited, linkV2ProtocolParsed
   ]);
 
   // --- Asset-aware utility functions (now that assets is available) ---
