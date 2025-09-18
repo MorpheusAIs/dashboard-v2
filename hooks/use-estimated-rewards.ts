@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { useReadContract } from "wagmi";
 import { 
   calculateEstimatedRewards,
@@ -9,7 +9,6 @@ import {
 
 // Import ABI for contract calls
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
-import DepositPoolAbi from "@/app/abi/DepositPool.json";
 
 export interface EstimatedRewardsResult {
   estimatedRewards: string;
@@ -39,14 +38,13 @@ export interface UseEstimatedRewardsParams {
   depositAmount: string; // Amount user wants to deposit
   powerFactorString: string; // Power factor from power factor hook (e.g., "x2.5")
   lockValue: string; // Lock duration value
-  lockUnit: "minutes" | "days" | "months" | "years"; // Lock duration unit
+  lockUnit: "days" | "months" | "years"; // Lock duration unit
   
   // Optional existing user data (for existing users vs new deposits)
   existingUserData?: UserRateData;
   
   // Control
   enabled?: boolean;
-  isMainnetStETH?: boolean; // New flag for mainnet stETH specific handling
 }
 
 /**
@@ -63,13 +61,8 @@ export function useEstimatedRewards({
   lockUnit,
   existingUserData,
   enabled = true,
-  isMainnetStETH = false,
 }: UseEstimatedRewardsParams): EstimatedRewardsResult {
   
-  // Use dynamic ABI and function name
-  const abiToUse = isMainnetStETH ? DepositPoolAbi : ERC1967ProxyAbi;
-  const functionNameToUse = isMainnetStETH ? 'rewardPoolsData' : 'poolsData';
-
   // Fetch current pool rate data
   const {
     data: poolRateDataRaw,
@@ -78,8 +71,8 @@ export function useEstimatedRewards({
     refetch: refetchPoolRateData,
   } = useReadContract({
     address: contractAddress,
-    abi: abiToUse,
-    functionName: functionNameToUse,
+    abi: ERC1967ProxyAbi,
+    functionName: 'poolsData',
     args: [poolId],
     chainId,
     query: {
@@ -89,17 +82,6 @@ export function useEstimatedRewards({
       refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
     }
   });
-
-  // Add debug logging
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('📋 [Estimated Rewards] ABI Selection:', {
-        isMainnetStETH,
-        abiUsed: isMainnetStETH ? 'DepositPoolAbi' : 'ERC1967ProxyAbi',
-        functionUsed: functionNameToUse
-      });
-    }
-  }, [isMainnetStETH]);
 
   // Parse pool rate data
   const poolRateData = useMemo((): PoolRateData | null => {
@@ -263,9 +245,7 @@ export function useEstimatedRewards({
     lockValue,
     lockUnit,
     existingUserData,
-    refetchPoolRateData,
-    isMainnetStETH,
-    functionNameToUse
+    refetchPoolRateData
   ]);
 
   return calculation;
@@ -291,12 +271,8 @@ export function useEstimatedRewardsDisplay(params: UseEstimatedRewardsParams): s
 export function usePoolRateData(
   contractAddress?: `0x${string}`,
   chainId?: number,
-  poolId: bigint = BigInt(0),
-  isMainnetStETH = false
+  poolId: bigint = BigInt(0)
 ) {
-  const abiToUse = isMainnetStETH ? DepositPoolAbi : ERC1967ProxyAbi;
-  const functionNameToUse = isMainnetStETH ? 'rewardPoolsData' : 'poolsData';
-
   const {
     data: poolRateDataRaw,
     isLoading,
@@ -304,8 +280,8 @@ export function usePoolRateData(
     refetch: refetchPoolData,
   } = useReadContract({
     address: contractAddress,
-    abi: abiToUse,
-    functionName: functionNameToUse,
+    abi: ERC1967ProxyAbi,
+    functionName: 'poolsData',
     args: [poolId],
     chainId,
     query: {

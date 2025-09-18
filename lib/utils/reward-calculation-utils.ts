@@ -254,13 +254,11 @@ export function formatRewardsForDisplay(rewardsWei: bigint): string {
  * @param unit - Time unit
  * @returns Duration in years as number
  */
-export function getLockDurationInYears(value: string, unit: "minutes" | "days" | "months" | "years"): number {
+export function getLockDurationInYears(value: string, unit: "days" | "months" | "years"): number {
   const numValue = parseInt(value, 10);
   if (isNaN(numValue) || numValue <= 0) return 0;
 
   switch (unit) {
-    case "minutes":
-      return numValue / (365.25 * 24 * 60); // Convert minutes to years
     case "days":
       return numValue / 365.25; // Account for leap years
     case "months":

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Dialog,
   DialogPortal,
@@ -14,24 +14,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronRight, Lock, LockOpen } from "lucide-react";
+import { ChevronRight, Clock, Lock, LockOpen } from "lucide-react";
 import { TokenIcon } from '@web3icons/react';
 import { Badge } from "@/components/ui/badge";
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { sepolia, mainnet } from 'wagmi/chains';
-
-// Import hooks for power factor and estimated rewards
-import { usePowerFactor } from "@/hooks/use-power-factor";
-import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
-
-// Import config and utils
-import { getContractAddress, type NetworkEnvironment, type ContractAddresses } from "@/config/networks";
-import {
-  getMaxAllowedValue,
-  getMinAllowedValue,
-  type TimeUnit
-} from "@/lib/utils/power-factor-utils";
 
 interface ClaimableAsset {
   symbol: AssetSymbol; // Now supports all assets dynamically
@@ -53,25 +41,16 @@ export function ClaimMorRewardsModal() {
     isProcessingClaim,
     isProcessingChangeLock,
     networkEnv,
-    l1ChainId,
   } = useCapitalContext();
 
   // Add network detection
   const { currentChainId, switchToChain, isNetworkSwitching } = useNetwork();
 
-  // Calculate network environment
-  const networkEnvCalculated = useMemo((): NetworkEnvironment => {
-    return [1, 42161, 8453].includes(l1ChainId || 0) ? 'mainnet' : 'testnet';
-  }, [l1ChainId]);
-
-  // Use the networkEnv from context, fallback to calculated
-  const effectiveNetworkEnv = networkEnv || networkEnvCalculated;
-
   // Determine correct network based on environment
   // Claims happen on L1 (Ethereum), not L2 (Arbitrum)
   const correctChainId = useMemo(() => {
-    return effectiveNetworkEnv === 'testnet' ? sepolia.id : mainnet.id;
-  }, [effectiveNetworkEnv]);
+    return networkEnv === 'testnet' ? sepolia.id : mainnet.id;
+  }, [networkEnv]);
 
   // Check if user is on correct network
   const isOnCorrectNetwork = useMemo(() => {
@@ -80,92 +59,28 @@ export function ClaimMorRewardsModal() {
 
   // Get network name for display
   const networkName = useMemo(() => {
-    return effectiveNetworkEnv === 'testnet' ? 'Ethereum Sepolia' : 'Ethereum Mainnet';
-  }, [effectiveNetworkEnv]);
-
-  // Use correct contract for power factor calculations based on network and asset
-  const poolContractAddress = useMemo(() => {
-    if (!l1ChainId) return undefined;
-
-    if (effectiveNetworkEnv === 'mainnet') {
-      // On mainnet, ALL assets use their specific deposit pool contracts for power factor
-      // (distributorV2 doesn't have getClaimLockPeriodMultiplier function)
-      const assetToPoolMapping: Partial<Record<AssetSymbol, keyof ContractAddresses>> = {
-        stETH: 'stETHDepositPool',
-        LINK: 'linkDepositPool',
-        USDC: 'usdcDepositPool',
-        USDT: 'usdtDepositPool',
-        wBTC: 'wbtcDepositPool',
-        wETH: 'wethDepositPool',
-      };
-
-      const poolContractKey = assetToPoolMapping[selectedAsset];
-      return poolContractKey ? getContractAddress(l1ChainId, poolContractKey, effectiveNetworkEnv) as `0x${string}` | undefined : undefined;
-    } else {
-      // Use distributorV2 for testnet
-      return getContractAddress(l1ChainId, 'distributorV2', effectiveNetworkEnv) as `0x${string}` | undefined;
-    }
-  }, [l1ChainId, effectiveNetworkEnv, selectedAsset]);
+    return networkEnv === 'testnet' ? 'Ethereum Sepolia' : 'Ethereum Mainnet';
+  }, [networkEnv]);
 
   const isOpen = activeModal === 'claimMorRewards';
 
   // State for lock duration (for lock rewards functionality)
-  const [lockValue, setLockValue] = useState<string>("3");
-  const [lockUnit, setLockUnit] = useState<TimeUnit>('months');
-
-  // Initialize power factor hook
-  const powerFactor = usePowerFactor({
-    contractAddress: poolContractAddress,
-    chainId: l1ChainId,
-    poolId: BigInt(0), // Main capital pool
-    enabled: true,
-    isMainnetStETH: effectiveNetworkEnv === 'mainnet' // Use client-side calculation for mainnet
-  });
-
-  // Validate lock value based on unit (both minimum and maximum)
-  const validateLockValue = React.useCallback((value: string, unit: TimeUnit) => {
-    const numValue = parseInt(value, 10);
-    if (isNaN(numValue) || numValue <= 0) return true; // Let basic validation handle this
-    
-    // For claim modal, use 3 months minimum instead of 6 months
-    const minAllowed = unit === 'months' ? 3 : getMinAllowedValue(unit);
-    const maxAllowed = getMaxAllowedValue(unit);
-    return numValue >= minAllowed && numValue <= maxAllowed;
-  }, []);
-
-  // Handle lock value changes with validation
-  const handleLockValueChange = React.useCallback((value: string) => {
-    if (value === '' || /^\d+$/.test(value)) {
-      // Check if the value is within limits for the current unit
-      if (value === '' || validateLockValue(value, lockUnit)) {
-        setLockValue(value);
-      }
-      // If invalid, don't update the state (effectively prevents the input)
-    }
-  }, [lockUnit, validateLockValue]);
-
-  // Handle lock unit changes with value validation
-  const handleLockUnitChange = React.useCallback((unit: TimeUnit) => {
-    setLockUnit(unit);
-    
-    // Validate current value with new unit
-    if (lockValue && !validateLockValue(lockValue, unit)) {
-      // If current value is invalid for new unit, reset to minimum valid value
-      const minAllowed = unit === 'months' ? 3 : getMinAllowedValue(unit);
-      setLockValue(minAllowed.toString());
-    }
-  }, [lockValue, validateLockValue]);
-
+  const [lockValue, setLockValue] = useState<string>("30");
+  const [lockUnit, setLockUnit] = useState<'days' | 'months' | 'years'>('days');
+  
   // Helper to convert lock duration to seconds
-  const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
+  const durationToSeconds = (value: string, unit: 'days' | 'months' | 'years'): bigint => {
     const numValue = parseFloat(value);
     if (isNaN(numValue) || numValue <= 0) return BigInt(0);
-
-    const secondsPerMonth = 30 * 24 * 60 * 60; // Approximate
-    const secondsPerYear = 365 * 24 * 60 * 60; // Approximate
+    
+    const secondsPerDay = 24 * 60 * 60;
+    const secondsPerMonth = 30 * secondsPerDay; // Approximate
+    const secondsPerYear = 365 * secondsPerDay; // Approximate
     const safetyBuffer = 300; // 5 minutes safety buffer to prevent timing race conditions
-
+    
     switch (unit) {
+      case 'days':
+        return BigInt(Math.floor(numValue * secondsPerDay) + safetyBuffer);
       case 'months':
         return BigInt(Math.floor(numValue * secondsPerMonth) + safetyBuffer);
       case 'years':
@@ -222,54 +137,6 @@ export function ClaimMorRewardsModal() {
       canClaim: selectedAssetCanClaim && claimableAmount > 0, // Use dynamic claim eligibility
     };
   }, [selectedAsset, assets, selectedAssetCanClaim]);
-
-  // Initialize estimated rewards hook (using claimable amount as deposit amount for estimation)
-  const estimatedRewards = useEstimatedRewards({
-    contractAddress: effectiveNetworkEnv === 'mainnet' && selectedAsset === 'stETH'
-      ? poolContractAddress // On mainnet stETH, use same contract for consistency
-      : poolContractAddress, // For claims, use the same contract as power factor
-    chainId: l1ChainId,
-    poolId: BigInt(0),
-    depositAmount: selectedAssetData?.claimableAmountFormatted || "0", // Use claimable amount for estimation
-    powerFactorString: powerFactor.currentResult.powerFactor,
-    lockValue,
-    lockUnit,
-    enabled: !!selectedAssetData && selectedAssetData.claimableAmount > 0 && (powerFactor?.currentResult?.isValid ?? false),
-    isMainnetStETH: effectiveNetworkEnv === 'mainnet' && selectedAsset === 'stETH'
-  });
-
-  // Calculate unlock date using utility function
-  const unlockDate = useMemo(() => {
-    const result = powerFactor?.currentResult;
-    return result && 'unlockDate' in result ? result.unlockDate || null : null;
-  }, [powerFactor?.currentResult]);
-
-  // Update power factor calculation when lock period changes
-  React.useEffect(() => {
-    // if (process.env.NODE_ENV !== 'production') {
-    //   console.group('🎛️ [Claim Modal Debug] Lock Period Change');
-    //   console.log('Lock Value:', lockValue);
-    //   console.log('Lock Unit:', lockUnit);
-    //   console.log('Power Factor Hook State:', {
-    //     contractAddress: poolContractAddress,
-    //     chainId: l1ChainId,
-    //     isLoading: powerFactor.isLoading,
-    //     contractError: powerFactor.contractError,
-    //     currentResult: powerFactor.currentResult
-    //   });
-    // }
-
-    if (lockValue && parseInt(lockValue, 10) > 0) {
-      // if (process.env.NODE_ENV !== 'production') {
-      //   console.log('Calling powerFactor.setLockPeriod');
-      // }
-      powerFactor.setLockPeriod(lockValue, lockUnit);
-    }
-
-    // if (process.env.NODE_ENV !== 'production') {
-    //   console.groupEnd();
-    // }
-  }, [lockValue, lockUnit, powerFactor, poolContractAddress, l1ChainId]);
 
   // Determine if network switch is needed
   const needsNetworkSwitch = useMemo(() => {
@@ -434,133 +301,34 @@ export function ClaimMorRewardsModal() {
 
                 {/* Lock Duration Selection (for Lock Rewards) */}
                 {selectedTotals.selectedAssets.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
-                    <p className="text-xs text-gray-400">
-                      Minimum 3 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x10.7 at 6 years, and remains capped at x10.7 for longer periods
-                    </p>
-
-                    <div className="flex gap-2">
+                  <div className="mb-6 p-4 rounded-lg bg-yellow-400/10 border border-yellow-400/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Clock className="h-4 w-4 text-yellow-400" />
+                      <Label className="text-sm font-medium text-yellow-400">Lock Duration (for increased multiplier)</Label>
+                    </div>
+                    <div className="flex items-center gap-3">
                       <Input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
+                        type="number"
                         value={lockValue}
-                        onChange={(e) => handleLockValueChange(e.target.value)}
-                        className="flex-1 bg-background border-gray-700 text-white"
-                        placeholder="3"
-                        min="3"
+                        onChange={(e) => setLockValue(e.target.value)}
+                        className="flex-1 bg-gray-800 border-gray-600 text-white"
+                        placeholder="30"
+                        min="1"
                       />
-                      <Select value={lockUnit} onValueChange={(value: TimeUnit) => handleLockUnitChange(value)}>
-                        <SelectTrigger className="w-32 bg-background border-gray-700 text-white">
+                      <Select value={lockUnit} onValueChange={(value: 'days' | 'months' | 'years') => setLockUnit(value)}>
+                        <SelectTrigger className="w-32 bg-gray-800 border-gray-600 text-white">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="days">Days</SelectItem>
                           <SelectItem value="months">Months</SelectItem>
                           <SelectItem value="years">Years</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-                )}
-
-                {/* Summary Section */}
-                {selectedAssetData && lockValue && parseInt(lockValue, 10) > 0 && powerFactor?.currentResult && (
-                  <div className="mb-6 p-4 rounded-md text-sm bg-emerald-500/20 rounded-lg mt-2 p-3">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Rewards to Lock</span>
-                        <span className="text-white">{selectedAssetData.claimableAmountFormatted} MOR</span>
-                      </div>
-                      {unlockDate && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-300">Unlock Date</span>
-                          <span className="text-white">
-                            {unlockDate.toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Power Factor</span>
-                        <span className="text-white">
-                          {(() => {
-                            const displayValue = powerFactor?.currentResult?.isLoading
-                              ? "Loading..."
-                              : (powerFactor?.currentResult?.powerFactor ?? 'x1.0');
-
-                            if (process.env.NODE_ENV !== 'production') {
-                              console.log('🎨 [Claim Modal] Power Factor Display:', {
-                                isLoading: powerFactor?.currentResult?.isLoading,
-                                powerFactorValue: powerFactor?.currentResult?.powerFactor,
-                                displayValue,
-                                fullCurrentResult: powerFactor?.currentResult
-                              });
-                            }
-
-                            return displayValue;
-                          })()}
-                        </span>
-                      </div>
-
-                      {/* Show power factor warning if applicable */}
-                      {(() => {
-                        const result = powerFactor?.currentResult;
-                        return result && 'warning' in result && result.warning ? (
-                          <div className="text-xs text-gray-400 mt-1">
-                            * {result.warning}
-                          </div>
-                        ) : null;
-                      })()}
-
-                      {/* Show power factor error if applicable */}
-                      {(() => {
-                        const result = powerFactor?.currentResult;
-                        return result && 'error' in result && result.error ? (
-                          <div className="text-xs text-red-400 mt-1">
-                            {result.error}
-                            {!poolContractAddress && (
-                              <div className="text-xs text-orange-400 mt-1">
-                                * Contract address not found. Please check network configuration.
-                              </div>
-                            )}
-                          </div>
-                        ) : null;
-                      })()}
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Est. Future Rewards</span>
-                        <span className="text-white">
-                          {estimatedRewards.estimatedRewards}
-                        </span>
-                      </div>
-
-                      {/* Show estimation note for valid calculations */}
-                      {estimatedRewards.isValid && estimatedRewards.estimatedRewards !== "---" && (
-                        <div className="text-xs text-gray-400 mt-1">
-                          * Estimated based on current pool rate and power factor
-                        </div>
-                      )}
-
-                      {/* Show error if calculation failed */}
-                      {estimatedRewards.error && !estimatedRewards.isLoading && (
-                        <div className="text-xs text-red-400 mt-1">
-                          {estimatedRewards.error}
-                          {estimatedRewards.error === "Failed to fetch pool data" && (
-                            <div className="text-xs text-orange-400 mt-1">
-                              * Unable to connect to {selectedAsset} deposit pool contract. Check network connection.
-                            </div>
-                          )}
-                          {!poolContractAddress && (
-                            <div className="text-xs text-orange-400 mt-1">
-                              * {selectedAsset} deposit pool not configured for this network.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-xs text-yellow-300 mt-2">
+                      Locking rewards increases your power factor for future rewards but delays claiming.
+                    </p>
                   </div>
                 )}
               </>

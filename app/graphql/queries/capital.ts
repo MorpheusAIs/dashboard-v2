@@ -18,7 +18,7 @@ export const getEndOfDayTimestamps = (startDate: Date, endDate: Date): number[] 
 };
 
 // Constructs the multi-alias GraphQL query string
-export const buildDepositsQuery = (timestamps: number[], depositPoolAddress?: string): ReturnType<typeof gql> => { 
+export const buildDepositsQuery = (timestamps: number[]): ReturnType<typeof gql> => { 
   // Handle empty timestamps array to avoid empty GraphQL query
   if (!timestamps || timestamps.length === 0) {
     return gql`
@@ -34,16 +34,12 @@ export const buildDepositsQuery = (timestamps: number[], depositPoolAddress?: st
   }
 
   let queryBody = '';
-  const normalizedDepositPool = depositPoolAddress?.toLowerCase();
   timestamps.forEach((ts, index) => {
-    const whereClause = normalizedDepositPool
-      ? `where: { timestamp_lte: "${ts}", depositPool: "${normalizedDepositPool}" }`
-      : `where: { timestamp_lte: "${ts}", pool: "0x00" }`;
     queryBody += `
       d${index}: poolInteractions(
         first: 1
         orderDirection: desc
-        ${whereClause}
+        where: { timestamp_lte: "${ts}", pool: "0x00" }
         orderBy: timestamp
       ) {
         totalStaked

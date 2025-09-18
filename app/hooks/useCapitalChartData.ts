@@ -9,16 +9,6 @@ import { getEndOfDayTimestamps, buildDepositsQuery } from "@/app/graphql/queries
 import { getTokenPrice } from "@/app/services/token-price.service";
 import { shouldUseMockData, getFormattedMockData, getMockMetrics, type TokenType } from "@/mock-data";
 import { useAvailableAssets } from "@/hooks/use-available-assets";
-import type { AssetSymbol } from "@/components/capital/constants/asset-config";
-
-const TOKEN_TO_ASSET_SYMBOL: Record<TokenType, AssetSymbol> = {
-  stETH: 'stETH',
-  LINK: 'LINK',
-  USDC: 'USDC',
-  USDT: 'USDT',
-  wBTC: 'wBTC',
-  wETH: 'wETH',
-};
 
 export interface DataPoint {
   date: string;
@@ -27,7 +17,7 @@ export interface DataPoint {
 }
 
 export function useCapitalChartData() {
-  const { networkEnv, poolInfo, assets } = useCapitalContext();
+  const { networkEnv, poolInfo } = useCapitalContext();
   const { switchToChain, isNetworkSwitching } = useNetwork();
   
   // Get available assets with positive balances for live data
@@ -96,32 +86,13 @@ export function useCapitalChartData() {
     };
   }, [poolInfo?.payoutStart]);
 
-  const depositPoolAddress = useMemo(() => {
-    if (useMockData) {
-      return null;
-    }
-
-    const assetSymbol = TOKEN_TO_ASSET_SYMBOL[selectedAsset];
-    if (!assetSymbol) {
-      return null;
-    }
-
-    const assetData = assets?.[assetSymbol];
-    const address = assetData?.config?.depositPoolAddress;
-    return address ? address.toLowerCase() : null;
-  }, [assets, selectedAsset, useMockData]);
-
   const RECENT_DEPOSITS_QUERY = useMemo(() => 
-    recentTimestamps.length > 0 && depositPoolAddress
-      ? buildDepositsQuery(recentTimestamps, depositPoolAddress)
-      : null,
-    [recentTimestamps, depositPoolAddress]
+    recentTimestamps.length > 0 ? buildDepositsQuery(recentTimestamps) : null, 
+    [recentTimestamps]
   );
   const HISTORICAL_DEPOSITS_QUERY = useMemo(() => 
-    historicalTimestamps.length > 0 && depositPoolAddress
-      ? buildDepositsQuery(historicalTimestamps, depositPoolAddress)
-      : null,
-    [historicalTimestamps, depositPoolAddress]
+    historicalTimestamps.length > 0 ? buildDepositsQuery(historicalTimestamps) : null, 
+    [historicalTimestamps]
   );
 
   // Fetch recent chart data
@@ -333,11 +304,8 @@ export function useCapitalChartData() {
             setChartLoading(false);
           }
 
-          // Pre-load other assets in background (network-aware)
-          // Only include assets that are configured for the current network
-          const availableAssets: TokenType[] = networkEnv === 'mainnet' 
-            ? ['stETH', 'wETH', 'USDC', 'USDT', 'wBTC'] // No LINK on mainnet
-            : ['stETH', 'LINK']; // Only stETH and LINK on testnet
+          // Pre-load other assets in background
+          const availableAssets: TokenType[] = ['stETH', 'LINK', 'wETH', 'USDC', 'USDT', 'wBTC'];
           const otherAssets = availableAssets.filter(asset => asset !== selectedAsset);
           
           // Load other assets without blocking UI
@@ -363,18 +331,8 @@ export function useCapitalChartData() {
     }
 
     // Original real data fetching logic
-    // Skip chart data for testnet OR mainnet (subgraph not deployed yet on mainnet)
-    if (!networkEnv || networkEnv === 'testnet') {
-      console.log(`📊 Skipping chart data fetch for ${networkEnv} - subgraph not available`);
+    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0) {
       setChartLoading(false);
-      setChartData([]);
-      return;
-    }
-
-    if (!depositPoolAddress || !RECENT_DEPOSITS_QUERY) {
-      console.log('⚠️ Missing deposit pool address for selected asset. Clearing chart data.');
-      setChartLoading(false);
-      setChartData([]);
       return;
     }
 
@@ -411,7 +369,7 @@ export function useCapitalChartData() {
         setChartData([]);
         setChartLoading(false);
       });
-  }, [useMockData, selectedAsset, loadAssetData, networkEnv, recentTimestamps, fetchRecentData, processDataPoints, depositPoolAddress, RECENT_DEPOSITS_QUERY]);
+  }, [useMockData, selectedAsset, loadAssetData, networkEnv, recentTimestamps, fetchRecentData, processDataPoints]);
 
   // Effect to load historical data in background after recent data loads
   useEffect(() => {
@@ -421,7 +379,7 @@ export function useCapitalChartData() {
       return;
     }
 
-    if (!hasHistoricalData || chartLoading || networkEnv === 'testnet' || !HISTORICAL_DEPOSITS_QUERY) {
+    if (!hasHistoricalData || chartLoading || networkEnv === 'testnet') {
       return;
     }
 
@@ -459,7 +417,7 @@ export function useCapitalChartData() {
         console.error('Error fetching historical chart data:', error);
         setIsLoadingHistorical(false);
       });
-  }, [hasHistoricalData, chartLoading, networkEnv, fetchHistoricalData, processDataPoints, useMockData, HISTORICAL_DEPOSITS_QUERY]);
+  }, [hasHistoricalData, chartLoading, networkEnv, fetchHistoricalData, processDataPoints, useMockData]);
 
   // Use mock metrics if mock data is enabled
   const mockMetrics = useMockData ? getMockMetrics(selectedAsset) : null;
@@ -486,11 +444,10 @@ export function useCapitalChartData() {
   const avgApyRate = mockMetrics?.avgApyRate || "N/A";
   const activeStakers = mockMetrics?.activeStakers || "N/A";
 
-  // Safeguard: Always return empty data for testnet unless mock data is enabled
-  const disableLiveData = networkEnv === 'testnet' && !useMockData;
-  const safeChartData = disableLiveData ? [] : chartData;
-  const safeChartLoading = disableLiveData ? false : chartLoading;
-  const safeIsLoadingHistorical = disableLiveData ? false : isLoadingHistorical;
+  // Safeguard: Always return empty data for testnet (unless using mock data)
+  const safeChartData = (networkEnv === 'testnet' && !useMockData) ? [] : chartData;
+  const safeChartLoading = (networkEnv === 'testnet' && !useMockData) ? false : chartLoading;
+  const safeIsLoadingHistorical = (networkEnv === 'testnet' && !useMockData) ? false : isLoadingHistorical;
 
   return {
     chartData: safeChartData,

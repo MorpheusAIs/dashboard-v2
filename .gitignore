@@ -56,9 +56,3 @@ package-lock.json
 
 
 create-web3-template/
-create-morpheus-template/
-Capital Contracts V2 Test Plan.xlsx
-.gitignore
-export-0x42bb446eae6dca7723a9ebdb81ea88afe77ef4b9.csv
-export-0xc0ed68f163d44b6e9985f0041fdf6f67c6bcff3f.csv
-templates/minimal/app/page.tsx

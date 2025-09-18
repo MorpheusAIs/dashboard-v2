@@ -10,12 +10,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import {
   Ellipsis,
   TrendingUp,
   ArrowDownToLine,
@@ -29,32 +23,6 @@ import { formatNumber } from "@/lib/utils";
 import { formatAssetAmount, formatStakedAmount } from "./utils/asset-formatters";
 import type { UserAsset } from "./types/user-asset";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
-
-// Helper function to format unlock date for tooltip in mm/dd/yyyy hh:mm format
-function formatUnlockDateForTooltip(unlockDate: string | null): string {
-  if (!unlockDate || unlockDate === "N/A") {
-    return "No unlock date available";
-  }
-
-  // Try to parse the date string and format it
-  try {
-    const date = new Date(unlockDate);
-    if (isNaN(date.getTime())) {
-      return "Invalid unlock date";
-    }
-
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-
-    return `${month}/${day}/${year} ${hours}:${minutes}`;
-  } catch (error) {
-    console.error("Error formatting unlock date:", error);
-    return "Error formatting date";
-  }
-}
 
 interface UserAssetsTableProps {
   userAssets: UserAsset[];
@@ -104,44 +72,9 @@ export function UserAssetsTable({
         accessorKey: "amountStaked",
         enableSorting: true,
         cell: (asset) => (
-          <div className="flex items-center gap-2">
-            <span className="text-gray-200">
-              {formatStakedAmount(asset.amountStaked)}
-            </span>
-            {asset.amountStaked > 0 && (
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="inline-block">
-                      <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums cursor-pointer ${
-                        isUnlockDateReachedAction(asset.unlockDate)
-                          ? "bg-emerald-400 hover:bg-emerald-500 text-black border-emerald-400"
-                          : "bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
-                      }`}>
-                        {isUnlockDateReachedAction(asset.unlockDate) ? (
-                          <LockOpen className="h-3 w-3" />
-                        ) : (
-                          <Lock className="h-3 w-3" />
-                        )}
-                      </Badge>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    avoidCollisions={false}
-                    className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
-                  >
-                    <p className="text-sm font-medium">
-                      {asset.canWithdraw
-                        ? "Unlocked"
-                        : `Locked until ${formatUnlockDateForTooltip(asset.unlockDate)}`
-                      }
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
+          <span className="text-gray-200">
+            {formatStakedAmount(asset.amountStaked)}
+          </span>
         ),
       },
       {
@@ -265,7 +198,7 @@ export function UserAssetsTable({
   );
 
   return (
-    <div className="[&>div]:max-h-[400px] overflow-auto custom-scrollbar rounded-xl">
+    <div className="[&>div]:max-h-[400px] overflow-auto custom-scrollbar">
       <DataTable
         columns={assetsColumns}
         data={userAssets}

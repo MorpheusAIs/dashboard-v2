@@ -30,6 +30,19 @@ import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
+// Interfaces
+// interface UserSubnet {
+//   id: string;
+//   name: string;
+//   description: string;
+//   network: string;
+//   status: string;
+//   stakeAmount: number;
+//   createdAt: string;
+//   image?: string;
+// }
+
+// Add this function near the top of the file, before the component definition
 /**
  * Validates if a URL is properly formatted and has a valid image file extension
  */
@@ -1143,8 +1156,6 @@ export default function BuildersPage() {
 
 
 
-
-
   return (
     <div className="page-container">
       <div className="page-grid">
@@ -1169,7 +1180,7 @@ export default function BuildersPage() {
         <div className="relative">
           <MetricCard
             title="Active Builders"
-            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Builders" }]}
+            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
             disableGlow={true}
           />
           <GlowingEffect 

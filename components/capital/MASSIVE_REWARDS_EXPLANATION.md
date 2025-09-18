@@ -41,4 +41,3 @@ When v7 contracts deploy to mainnet:
 - Same calculation logic, different timing
 
 This massive APR display is a **feature, not a bug** for testnet environments!
-

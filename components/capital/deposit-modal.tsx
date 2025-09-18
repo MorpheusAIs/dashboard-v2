@@ -23,7 +23,7 @@ import { usePowerFactor } from "@/hooks/use-power-factor";
 import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 
 // Import Config and Utils
-import { getContractAddress, type NetworkEnvironment, type ContractAddresses } from "@/config/networks";
+import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
 import {
   getMaxAllowedValue,
   getMinAllowedValue,
@@ -67,42 +67,19 @@ export function DepositModal() {
     l1ChainId,
   } = useCapitalContext();
 
-  // Calculate network environment  
+  // Calculate network environment and contract address
   const networkEnv = useMemo((): NetworkEnvironment => {
     return [1, 42161, 8453].includes(l1ChainId || 0) ? 'mainnet' : 'testnet';
   }, [l1ChainId]);
+
+  const poolContractAddress = useMemo(() => {
+    return l1ChainId ? getContractAddress(l1ChainId, 'erc1967Proxy', networkEnv) as `0x${string}` | undefined : undefined;
+  }, [l1ChainId, networkEnv]);
 
   // Get available assets for current network environment
   const availableAssets = useMemo((): AssetContractInfo[] => {
     return getAssetsForNetwork(networkEnv);
   }, [networkEnv]);
-
-  // Form state - selectedAsset must be declared early for contract address calculation
-  const [selectedAsset, setSelectedAsset] = useState<AssetSymbol>(contextSelectedAsset);
-
-  // Use correct contract for power factor calculations based on network and asset
-  const poolContractAddress = useMemo(() => {
-    if (!l1ChainId) return undefined;
-    
-    if (networkEnv === 'mainnet') {
-      // On mainnet, ALL assets use their specific deposit pool contracts for power factor
-      // (distributorV2 doesn't have getClaimLockPeriodMultiplier function)
-      const assetToPoolMapping: Partial<Record<AssetSymbol, keyof ContractAddresses>> = {
-        stETH: 'stETHDepositPool',
-        LINK: 'linkDepositPool', 
-        USDC: 'usdcDepositPool',
-        USDT: 'usdtDepositPool',
-        wBTC: 'wbtcDepositPool',
-        wETH: 'wethDepositPool',
-      };
-      
-      const poolContractKey = assetToPoolMapping[selectedAsset];
-      return poolContractKey ? getContractAddress(l1ChainId, poolContractKey, networkEnv) as `0x${string}` | undefined : undefined;
-    } else {
-      // Use distributorV2 for testnet
-      return getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined;
-    }
-  }, [l1ChainId, networkEnv, selectedAsset]);
 
   // Create asset options for dropdown (only include assets with deposit pools)
   const assetOptions = useMemo(() => {
@@ -280,7 +257,7 @@ export function DepositModal() {
     wETH: wethBalance,
   }), [stETHBalance, linkBalance, usdcBalance, usdtBalance, wbtcBalance, wethBalance]);
 
-  // Form state (continued - selectedAsset already declared earlier)
+  // Form state
   const [amount, setAmount] = useState("");
   const [referrerAddress, setReferrerAddress] = useState("");
   const [lockValue, setLockValue] = useState("6");
@@ -289,6 +266,7 @@ export function DepositModal() {
   const [referrerAddressError, setReferrerAddressError] = useState<string | null>(null);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
   const [timeLockDropdownOpen, setTimeLockDropdownOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<AssetSymbol>(contextSelectedAsset);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeLockDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -296,61 +274,20 @@ export function DepositModal() {
   const powerFactor = usePowerFactor({
     contractAddress: poolContractAddress,
     chainId: l1ChainId,
-    poolId: BigInt(0), // Main capital pool - back to 0
+    poolId: BigInt(0), // Main capital pool
     enabled: true,
-    isMainnetStETH: networkEnv === 'mainnet' // Use client-side calculation for mainnet
   });
-
-  // Get asset-specific deposit pool address for estimated rewards
-  const assetDepositPoolAddress = useMemo(() => {
-    if (!l1ChainId) return undefined;
-    
-    // Map asset symbols to deposit pool contract names
-    const assetToPoolMapping: Partial<Record<AssetSymbol, keyof ContractAddresses>> = {
-      stETH: 'stETHDepositPool',
-      LINK: 'linkDepositPool', 
-      USDC: 'usdcDepositPool',
-      USDT: 'usdtDepositPool',
-      wBTC: 'wbtcDepositPool',
-      wETH: 'wethDepositPool',
-    };
-    
-    const poolContractKey = assetToPoolMapping[selectedAsset];
-    return poolContractKey ? getContractAddress(l1ChainId, poolContractKey, networkEnv) as `0x${string}` | undefined : undefined;
-  }, [l1ChainId, networkEnv, selectedAsset]);
-
-  // Debug contract address resolution (after all variables are declared)
-  useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🏦 [Deposit Modal] Dynamic Contract Address Debug:', {
-        l1ChainId,
-        networkEnv,
-        selectedAsset,
-        powerFactorContract: poolContractAddress,
-        assetDepositPoolAddress,
-        contractStrategy: networkEnv === 'mainnet' 
-          ? `Using ${selectedAsset} deposit pool for both power factor and pool data`
-          : 'Using distributorV2 for power factor, asset-specific pool for data',
-        isPowerFactorContractValid: !!poolContractAddress && poolContractAddress !== '0x0000000000000000000000000000000000000000',
-        isDepositPoolValid: !!assetDepositPoolAddress && assetDepositPoolAddress !== '0x0000000000000000000000000000000000000000',
-        addressesAreSame: poolContractAddress === assetDepositPoolAddress
-      });
-    }
-  }, [l1ChainId, networkEnv, poolContractAddress, assetDepositPoolAddress, selectedAsset]);
 
   // Initialize estimated rewards hook (after state declarations)
   const estimatedRewards = useEstimatedRewards({
-    contractAddress: networkEnv === 'mainnet' && selectedAsset === 'stETH' 
-      ? poolContractAddress // On mainnet stETH, use same contract for consistency
-      : assetDepositPoolAddress, // Use asset-specific deposit pool for pool data
+    contractAddress: poolContractAddress,
     chainId: l1ChainId,
     poolId: BigInt(0),
     depositAmount: amount,
     powerFactorString: powerFactor.currentResult.powerFactor,
     lockValue,
     lockUnit,
-    enabled: !!amount && parseFloat(amount) > 0 && (powerFactor?.currentResult?.isValid ?? false),
-    isMainnetStETH: networkEnv === 'mainnet' && selectedAsset === 'stETH'
+    enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid,
   });
 
   // Debug hook initialization
@@ -691,8 +628,8 @@ export function DepositModal() {
 
   // Calculate unlock date using utility function
   const unlockDate = useMemo(() => {
-    return powerFactor?.currentResult?.unlockDate || null;
-  }, [powerFactor?.currentResult?.unlockDate]);
+    return powerFactor.currentResult.unlockDate || null;
+  }, [powerFactor.currentResult.unlockDate]);
 
   // Validation - separate lock period validation from other validations
   const lockPeriodError = useMemo(() => {
@@ -914,10 +851,6 @@ export function DepositModal() {
     }
   }, [isOpen, contextSelectedAsset, preReferrerAddress, referrerAddress, setPreReferrerAddress]);
 
-  if (!powerFactor) {
-    return <div>Loading power factor calculator...</div>;
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && setActiveModal(null)}>
       <DialogPortal>
@@ -925,7 +858,7 @@ export function DepositModal() {
           <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">Deposit Capital</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Deposit an asset to start earning MOR rewards. Power factor activates after 6 months and reaches maximum x10.7 at 6 years.
+              Deposit an asset to start earning MOR rewards. Power factor activates after 6 months and reaches maximum x9.7 at 6 years.
             </DialogDescription>
           </DialogHeader>
 
@@ -996,10 +929,6 @@ export function DepositModal() {
             {/* Stake Amount */}
             <div className="space-y-2">
               <Label className="text-sm font-medium text-white">Deposit Amount</Label>
-              {/* Deposit lock period info */}
-              <p className="text-xs text-gray-400 mt-2">
-                Deposits are locked for the first 7 days.
-              </p>
               <div className="relative">
                 <Input
                   type="text"
@@ -1051,6 +980,10 @@ export function DepositModal() {
                 </p>
               )}
               
+              {/* Deposit lock period info */}
+              <p className="text-xs text-gray-400 mt-2">
+                Deposits are locked for the first 7 days.
+              </p>
             </div>
 
             {/* Referrer Address */}
@@ -1103,8 +1036,9 @@ export function DepositModal() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => powerFactor?.retry?.()} 
-                      className="ml-2 text-blue-400 underline"
+                      onClick={() => refetchEns()}
+                      className="text-xs text-blue-400 hover:text-blue-300 underline"
+                      disabled={isProcessingDeposit}
                     >
                       Retry
                     </button>
@@ -1138,7 +1072,7 @@ export function DepositModal() {
             <div className="space-y-2">
               <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
               <p className="text-xs text-gray-400">
-                Minimum 6 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x10.7 at 6 years, and remains capped at x10.7 for longer periods
+                Minimum 6 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x9.7 at 6 years, and remains capped at x9.7 for longer periods
               </p>
 
               <div className="flex gap-2">
@@ -1206,7 +1140,7 @@ export function DepositModal() {
             </div>
 
             {/* Summary Section */}
-            {amount && parseFloat(amount) > 0 && lockValue && parseInt(lockValue, 10) > 0 && powerFactor?.currentResult && (
+            {amount && parseFloat(amount) > 0 && lockValue && parseInt(lockValue, 10) > 0 && (
               <div className="p-1 rounded-md text-sm bg-emerald-500/20 rounded-lg p-3">
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
@@ -1229,16 +1163,16 @@ export function DepositModal() {
                     <span className="text-gray-300">Power Factor</span>
                     <span className="text-white">
                       {(() => {
-                        const displayValue = powerFactor?.currentResult?.isLoading 
+                        const displayValue = powerFactor.currentResult.isLoading 
                           ? "Loading..." 
-                          : (powerFactor?.currentResult?.powerFactor ?? 'x1.0');
+                          : powerFactor.currentResult.powerFactor;
                         
                         if (process.env.NODE_ENV !== 'production') {
                           console.log('🎨 [Deposit Modal] Power Factor Display:', {
-                            isLoading: powerFactor?.currentResult?.isLoading,
-                            powerFactorValue: powerFactor?.currentResult?.powerFactor,
+                            isLoading: powerFactor.currentResult.isLoading,
+                            powerFactorValue: powerFactor.currentResult.powerFactor,
                             displayValue,
-                            fullCurrentResult: powerFactor?.currentResult
+                            fullCurrentResult: powerFactor.currentResult
                           });
                         }
                         
@@ -1248,21 +1182,16 @@ export function DepositModal() {
                   </div>
                   
                   {/* Show power factor warning if applicable */}
-                  {powerFactor?.currentResult?.warning && (
+                  {powerFactor.currentResult.warning && (
                     <div className="text-xs text-gray-400 mt-1">
-                      * {powerFactor?.currentResult?.warning}
+                      * {powerFactor.currentResult.warning}
                     </div>
                   )}
                   
                   {/* Show power factor error if applicable */}
-                  {powerFactor?.currentResult?.error && (
+                  {powerFactor.currentResult.error && (
                     <div className="text-xs text-red-400 mt-1">
-                      {powerFactor?.currentResult?.error}
-                      {!poolContractAddress && (
-                        <div className="text-xs text-orange-400 mt-1">
-                          * Contract address not found. Please check network configuration.
-                        </div>
-                      )}
+                      {powerFactor.currentResult.error}
                     </div>
                   )}
                   <div className="flex justify-between items-center">
@@ -1283,58 +1212,12 @@ export function DepositModal() {
                   {estimatedRewards.error && !estimatedRewards.isLoading && (
                     <div className="text-xs text-red-400 mt-1">
                       {estimatedRewards.error}
-                      {estimatedRewards.error === "Failed to fetch pool data" && (
-                        <div className="text-xs text-orange-400 mt-1">
-                          * Unable to connect to {selectedAsset} deposit pool contract. Check network connection.
-                        </div>
-                      )}
-                      {!assetDepositPoolAddress && (
-                        <div className="text-xs text-orange-400 mt-1">
-                          * {selectedAsset} deposit pool not configured for this network.
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
               </div>
                         )}
           </form>
-
-          {/* Debug information for development */}
-          {process.env.NODE_ENV !== 'production' && (
-            <div className="px-4 sm:px-0 mb-4 bg-gray-800 rounded-lg p-3">
-              <details className="text-xs">
-                <summary className="cursor-pointer text-gray-400 mb-2">Debug Information</summary>
-                <div className="space-y-1 text-gray-300">
-                  <div>Network: {networkEnv} (Chain: {l1ChainId})</div>
-                  <div>Selected Asset: {selectedAsset}</div>
-                  <div className="border-t border-gray-600 pt-1 mt-1">
-                    <div className="text-gray-400 text-xs">Contract Usage:</div>
-                    <div>Power Factor: {poolContractAddress || 'Not Found'}</div>
-                    <div>Pool Data: {networkEnv === 'mainnet' && selectedAsset === 'stETH' 
-                      ? poolContractAddress || 'Not Found'
-                      : assetDepositPoolAddress || 'Not Found'}</div>
-                    <div className="text-xs text-gray-400">
-                      {networkEnv === 'mainnet' && selectedAsset === 'stETH' 
-                        ? '(Using same contract - upgraded erc1967Proxy)'
-                        : '(Using separate contracts)'}
-                    </div>
-                  </div>
-                  <div className="border-t border-gray-600 pt-1 mt-1">
-                    <div className="text-gray-400 text-xs">Status:</div>
-                    <div>Power Factor Valid: {powerFactor?.currentResult?.isValid?.toString() ?? 'false'}</div>
-                    <div>Power Factor Error: {powerFactor?.currentResult?.error || 'None'}</div>
-                    { powerFactor?.currentResult?.error && (
-                      <div className="text-xs text-red-400 mt-1">Details in console (check for &quot;Power Factor detailed error&quot;)</div>
-                    ) }
-                    <div>Estimated Rewards Error: {estimatedRewards.error || 'None'}</div>
-                    <div>Approval Needed: {currentlyNeedsApproval.toString()}</div>
-                  </div>
-                  <div>User Address: {userAddress || 'Not Connected'}</div>
-                </div>
-              </details>
-            </div>
-          )}
 
           <DialogFooter className="flex-shrink-0 px-4 sm:px-0 sm:mt-4">
             <Button
@@ -1353,13 +1236,12 @@ export function DepositModal() {
                 !!validationError || 
                 !!referrerAddressError ||
                 !!lockPeriodError ||
-                !!powerFactor?.currentResult?.error ||
-                !(powerFactor?.currentResult?.isValid ?? false) ||
+                !!powerFactor.currentResult.error ||
+                !powerFactor.currentResult.isValid ||
                 amountBigInt <= BigInt(0) || 
                 !userAddress ||
                 !lockValue || 
-                parseInt(lockValue, 10) <= 0 ||
-                !poolContractAddress // Disable if no valid contract address
+                parseInt(lockValue, 10) <= 0
                   ? "copy-button-secondary px-2 py-2 text-sm opacity-50 cursor-not-allowed mb-2 sm:mb-0" 
                   : currentlyNeedsApproval
                   ? "copy-button-secondary px-2 py-2 text-sm mb-2 sm:mb-0" 
@@ -1370,13 +1252,12 @@ export function DepositModal() {
                 !!validationError || 
                 !!referrerAddressError ||
                 !!lockPeriodError ||
-                !!powerFactor?.currentResult?.error ||
-                !(powerFactor?.currentResult?.isValid ?? false) ||
+                !!powerFactor.currentResult.error ||
+                !powerFactor.currentResult.isValid ||
                 amountBigInt <= BigInt(0) || 
                 !userAddress ||
                 !lockValue ||
-                parseInt(lockValue, 10) <= 0 ||
-                !poolContractAddress // Disable if no valid contract address
+                parseInt(lockValue, 10) <= 0
               }
               onClick={(e) => {
                 e.preventDefault();

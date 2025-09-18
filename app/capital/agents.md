@@ -27,7 +27,6 @@
   - `useCapitalChartData` - Chart data hook
   - `useCapitalMetrics` - Live metrics hook
   - `GlowingEffect` - UI enhancement
-- **Data Source**: `/api/capital` → The Graph `morpheus-mainnet-v-2` subgraph (stETH deposit pool on mainnet)
 - **Features**: 4 metric cards + historical deposits chart
 
 ### 3. **UserAssetsPanel** (`components/capital/user-assets-panel.tsx`)

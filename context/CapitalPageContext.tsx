@@ -1338,8 +1338,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           // FIXED: Use 21 decimals as per documentation, not 24
           const rawFormatted = formatBigInt(simulatedMultiplierResult.result as bigint, 21, 1);
           const numValue = parseFloat(rawFormatted);
-          // Cap at official MRC42 maximum of 10.7x
-          const cappedValue = Math.min(numValue, 10.7);
+          // Cap at actual contract maximum of 9.7x
+          const cappedValue = Math.min(numValue, 9.7);
           const result = cappedValue.toFixed(1) + "x";
           
           if (process.env.NODE_ENV !== 'production') {

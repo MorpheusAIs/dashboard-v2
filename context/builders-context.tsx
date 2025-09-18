@@ -109,11 +109,8 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   }, [builders]);
 
   const totalMetrics = useMemo(() => {
-    // Count unique builder names instead of total subnets
-    const uniqueBuilderNames = new Set(builders.map(builder => builder.name));
-    
     return {
-      totalBuilders: uniqueBuilderNames.size,
+      totalBuilders: builders.length,
       totalStaked: builders.reduce((acc, builder) => acc + (builder.totalStaked || 0), 0),
       totalStaking: builders.reduce((acc, builder) => acc + (builder.stakingCount || 0), 0),
     };

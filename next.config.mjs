@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Turbopack is enabled by default in Next.js 15 for 'next dev'
   images: {
     remotePatterns: [
       {
@@ -13,9 +12,14 @@ const nextConfig = {
       }
     ],
   },
-  // Note: Webpack config removed for Turbopack compatibility
-  // Turbopack has better file watching and ignoring capabilities built-in
-  // If needed, Turbopack-specific configurations can be added via experimental.turbo
+  // Ignore specific files/folders during build
+  webpack: (config) => {
+    // Add files/folders to ignore
+    config.watchOptions = {
+      ignored: ['/DashBoard', '/DashBoard/*']
+    }
+    return config
+  },
   // Configure build output directory
   distDir: '.next',
   pageExtensions: ['tsx', 'ts', 'jsx', 'js', 'mdx'],
