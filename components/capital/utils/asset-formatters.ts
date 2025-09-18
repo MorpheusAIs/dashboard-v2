@@ -45,7 +45,13 @@ export const formatStakedAmount = (amount: number): string => {
 export const isUnlockDateReached = (unlockDate: string | null, hasStakedAssets: boolean): boolean => {
   console.log('🔍 isUnlockDateReached called with:', unlockDate);
 
-  if (!unlockDate || unlockDate === "--- --, ----" || unlockDate === "Never" || unlockDate === "Invalid Date") {
+  if (!unlockDate ||
+      unlockDate === "--- --, ----" ||
+      unlockDate === "Never" ||
+      unlockDate === "Invalid Date" ||
+      unlockDate === "No lock set" ||
+      unlockDate === "Assets unlocked" ||
+      unlockDate === "N/A") {
     console.log('❌ Unlock date check failed - invalid/null date:', unlockDate);
     // Fallback: If we have no unlock date but user has staked assets, allow withdrawal
     // This handles cases where timestamp data is missing but user should still be able to withdraw
@@ -97,6 +103,22 @@ export const isUnlockDateReached = (unlockDate: string | null, hasStakedAssets: 
 };
 
 /**
+ * Format unlock date for display - handles null dates gracefully
+ */
+export const formatUnlockDate = (unlockDate: string | null, assetSymbol: string): string => {
+  if (!unlockDate) {
+    // For LINK assets with no lock set, show user-friendly message
+    if (assetSymbol === 'LINK') {
+      return "Assets unlocked";
+    }
+    return "N/A";
+  }
+
+  // Return the formatted date as-is
+  return unlockDate;
+};
+
+/**
  * Check if user has any staked assets
  */
 export const hasStakedAssets = (assets: Record<AssetSymbol, MinimalAssetData>): boolean => {
@@ -128,9 +150,15 @@ export const getAssetUnlockDate = (
   }
 
   if (assetSymbol === 'LINK') {
-    unlockDate = linkV2ClaimUnlockTimestampFormatted && linkV2ClaimUnlockTimestampFormatted !== "--- --, ----"
-      ? linkV2ClaimUnlockTimestampFormatted
-      : null;
+    // For LINK, if no lock is set (shows as "--- --, ----"), treat as unlocked
+    // This handles cases where users deposit LINK without setting a claim lock
+    if (linkV2ClaimUnlockTimestampFormatted && linkV2ClaimUnlockTimestampFormatted !== "--- --, ----") {
+      unlockDate = linkV2ClaimUnlockTimestampFormatted;
+    } else {
+      // No lock set for LINK - user can claim/withdraw immediately
+      // Return null so the UI shows appropriate messaging (will be handled by caller)
+      unlockDate = null;
+    }
   }
 
   // Log unlock date for debugging
@@ -139,7 +167,8 @@ export const getAssetUnlockDate = (
     processedDate: unlockDate,
     isValid: unlockDate !== null,
     conditionCheck: rawFormatted && rawFormatted !== "--- --, ----",
-    assetSymbol
+    assetSymbol,
+    linkSpecialCase: assetSymbol === 'LINK' && rawFormatted === "--- --, ----" ? "Treated as unlocked - will show 'Assets unlocked'" : null
   });
 
   return unlockDate;

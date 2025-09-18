@@ -9,12 +9,16 @@ interface UseReferralDataProps {
 }
 
 export function useReferralData({ userAddress, networkEnvironment }: UseReferralDataProps) {
+  const isDev = process.env.NODE_ENV !== 'production';
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rawData, setRawData] = useState<CapitalReferralGraphQLResponse | null>(null);
 
   useEffect(() => {
     if (!userAddress) {
+      if (isDev) {
+        console.log('[useReferralData] No user address provided; skipping fetch.');
+      }
       setRawData(null);
       setError(null);
       return;
@@ -31,6 +35,14 @@ export function useReferralData({ userAddress, networkEnvironment }: UseReferral
           ? 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest'
           : getEndpointForNetwork('Ethereum'); // Use Ethereum mainnet
 
+        if (isDev) {
+          console.log('[useReferralData] Fetching referrals', {
+            userAddress,
+            networkEnvironment,
+            endpoint,
+          });
+        }
+
         const response = await fetchGraphQL<CapitalReferralGraphQLResponse>(
           endpoint,
           'getReferralsByReferrer',
@@ -40,6 +52,10 @@ export function useReferralData({ userAddress, networkEnvironment }: UseReferral
 
         if (response.errors && response.errors.length > 0) {
           throw new Error(response.errors[0].message);
+        }
+
+        if (isDev) {
+          console.log('[useReferralData] GraphQL response received', response);
         }
 
         setRawData(response);
@@ -57,6 +73,9 @@ export function useReferralData({ userAddress, networkEnvironment }: UseReferral
 
   const referralMetrics = useMemo(() => {
     if (!rawData?.data?.referrers || rawData.data.referrers.length === 0) {
+      if (isDev) {
+        console.log('[useReferralData] No referrals returned from GraphQL.');
+      }
       return {
         totalReferrals: 0,
         totalReferralAmount: BigInt(0),
@@ -83,11 +102,21 @@ export function useReferralData({ userAddress, networkEnvironment }: UseReferral
       }
     }, BigInt(0));
 
-    return {
+    const metrics = {
       totalReferrals: uniqueReferralAddresses.size,
       totalReferralAmount: totalAmount,
       uniqueReferrals: uniqueReferralAddresses
     };
+
+    if (isDev) {
+      console.log('[useReferralData] Computed referral metrics', {
+        totalReferrals: metrics.totalReferrals,
+        totalReferralAmount: metrics.totalReferralAmount.toString(),
+        uniqueReferralAddresses: Array.from(metrics.uniqueReferrals),
+      });
+    }
+
+    return metrics;
   }, [rawData, userAddress]);
 
   return {

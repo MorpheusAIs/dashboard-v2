@@ -18,7 +18,8 @@ import {
   parseDepositAmount,
   hasStakedAssets as checkHasStakedAssets,
   getAssetUnlockDate,
-  isUnlockDateReached
+  isUnlockDateReached,
+  formatUnlockDate
 } from "./utils/asset-formatters";
 import { getAssetConfig } from "./constants/asset-config";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
@@ -44,6 +45,10 @@ export function UserAssetsPanel() {
     linkV2CanClaim,
     stETHV2ClaimUnlockTimestampFormatted,
     linkV2ClaimUnlockTimestampFormatted,
+    // Add loading states to detect when data is loaded
+    isLoadingUserData,
+    isLoadingBalances,
+    isLoadingRewards,
   } = useCapitalContext();
 
   // Calculate daily emissions for each asset using real contract data
@@ -113,6 +118,37 @@ export function UserAssetsPanel() {
       setIsInitialLoad(true);
     }
   }, [userAddress, hasValidData]);
+
+  // Detect when initial data loading is complete for new wallets with no assets
+  useEffect(() => {
+    if (!userAddress || hasValidData || !isInitialLoad) return;
+    
+    // Check if all critical loading states are complete
+    const isDataLoadingComplete = !isLoadingUserData && !isLoadingBalances && !isLoadingRewards;
+    
+    if (isDataLoadingComplete) {
+      // Check if user truly has no assets (both no deposits and no claimable rewards)
+      const stethDeposited = assets.stETH?.userDeposited || BigInt(0);
+      const linkDeposited = assets.LINK?.userDeposited || BigInt(0);
+      const stethClaimable = assets.stETH?.claimableAmount || BigInt(0);
+      const linkClaimable = assets.LINK?.claimableAmount || BigInt(0);
+      
+      const hasNoAssets = stethDeposited === BigInt(0) && 
+                         linkDeposited === BigInt(0) && 
+                         stethClaimable === BigInt(0) && 
+                         linkClaimable === BigInt(0);
+      
+      if (hasNoAssets) {
+        console.log('✅ Data loading complete - user has no assets, showing empty state');
+        setHasValidData(true);
+        setIsInitialLoad(false);
+      } else {
+        console.log('✅ Data loading complete - user has assets, updating state');
+        setHasValidData(true);
+        setIsInitialLoad(false);
+      }
+    }
+  }, [userAddress, hasValidData, isInitialLoad, isLoadingUserData, isLoadingBalances, isLoadingRewards, assets.stETH?.userDeposited, assets.stETH?.claimableAmount, assets.LINK?.userDeposited, assets.LINK?.claimableAmount]);
 
   // Smart refresh triggers: only refresh on page load or after user actions
   useEffect(() => {
@@ -271,7 +307,8 @@ export function UserAssetsPanel() {
       const claimable = isStETH ? stethClaimable : linkClaimable;
       const emissions = isStETH ? stETHDailyEmissions : linkDailyEmissions;
       const multiplier = isStETH ? assets.stETH?.userMultiplierFormatted : assets.LINK?.userMultiplierFormatted;
-      const unlockDate = getAssetUnlockDateCallback(assetSymbol);
+      const rawUnlockDate = getAssetUnlockDateCallback(assetSymbol);
+      const displayUnlockDate = formatUnlockDate(rawUnlockDate, assetSymbol);
 
       return {
         id: (index + 1).toString(),
@@ -282,7 +319,7 @@ export function UserAssetsPanel() {
         available: available,
         dailyEmissions: emissions,
         powerFactor: multiplier || "x1.0",
-        unlockDate: unlockDate,
+        unlockDate: displayUnlockDate,
         availableToClaim: claimable,
         canClaim: canAssetClaim(assetSymbol),
       };
