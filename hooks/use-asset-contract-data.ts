@@ -173,8 +173,8 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
   
   // User multiplier
   const { data: userMultiplierData, isLoading: isLoadingMultiplier, refetch: refetchMultiplier } = useReadContract({
-    address: distributorV2Address,
-    abi: ERC1967ProxyAbi,
+    address: depositPoolAddress,
+    abi: DepositPoolAbi,
     functionName: 'getCurrentUserMultiplier',
     args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
     chainId: l1ChainId,

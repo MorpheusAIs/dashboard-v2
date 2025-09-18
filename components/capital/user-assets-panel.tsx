@@ -17,7 +17,6 @@ import { useTotalMorEarned } from "@/hooks/use-total-mor-earned";
 import {
   parseDepositAmount,
   hasStakedAssets as checkHasStakedAssets,
-  getAssetUnlockDate,
   isUnlockDateReached,
   formatUnlockDate
 } from "./utils/asset-formatters";
@@ -25,6 +24,7 @@ import { getAssetConfig } from "./constants/asset-config";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 import type { UserAsset } from "./types/user-asset";
 import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
+import { formatTimestamp } from "@/lib/utils/formatters";
 
 // Re-export cache functions for backward compatibility
 export { getCachedPrices, setCachedPrices, shouldRetryPriceFetch, MAX_PRICE_RETRIES, type TokenPriceCache } from "./hooks/use-token-prices";
@@ -41,7 +41,6 @@ export function UserAssetsPanel() {
     isProcessingClaim,
     isProcessingWithdraw,
     isProcessingChangeLock,
-    selectedAssetCanClaim, // Use dynamic claim eligibility
     withdrawUnlockTimestamp,
     // Add loading states to detect when data is loaded
     isLoadingUserData,
@@ -49,20 +48,58 @@ export function UserAssetsPanel() {
     isLoadingRewards,
   } = useCapitalContext();
 
-  // Calculate daily emissions for each asset using real contract data
-  const { emissions: stETHDailyEmissions, isLoading: isStETHEmissionsLoading } = useDailyEmissions(
+  // Calculate daily emissions for each asset dynamically using real contract data
+  const stETHEmissions = useDailyEmissions(
     assets.stETH?.claimableAmount,
     assets.stETH?.userDeposited,
     'stETH',
     networkEnv
   );
 
-  const { emissions: linkDailyEmissions, isLoading: isLinkEmissionsLoading } = useDailyEmissions(
+  const linkEmissions = useDailyEmissions(
     assets.LINK?.claimableAmount,
     assets.LINK?.userDeposited,
     'LINK',
     networkEnv
   );
+
+  const usdcEmissions = useDailyEmissions(
+    assets.USDC?.claimableAmount,
+    assets.USDC?.userDeposited,
+    'USDC',
+    networkEnv
+  );
+
+  const usdtEmissions = useDailyEmissions(
+    assets.USDT?.claimableAmount,
+    assets.USDT?.userDeposited,
+    'USDT',
+    networkEnv
+  );
+
+  const wbtcEmissions = useDailyEmissions(
+    assets.wBTC?.claimableAmount,
+    assets.wBTC?.userDeposited,
+    'wBTC',
+    networkEnv
+  );
+
+  const wethEmissions = useDailyEmissions(
+    assets.wETH?.claimableAmount,
+    assets.wETH?.userDeposited,
+    'wETH',
+    networkEnv
+  );
+
+  // Create a mapping of asset symbols to their emission data for easy lookup
+  const assetEmissions = {
+    stETH: stETHEmissions,
+    LINK: linkEmissions,
+    USDC: usdcEmissions,
+    USDT: usdtEmissions,
+    wBTC: wbtcEmissions,
+    wETH: wethEmissions,
+  };
 
   // Fetch total MOR earned from Capital v2 subgraph (testnet only)
   const totalMorEarnedResult = useTotalMorEarned(userAddress || null, networkEnv);
@@ -82,7 +119,7 @@ export function UserAssetsPanel() {
   const [hasValidData, setHasValidData] = useState(false);
 
   // Use extracted hooks - now with dynamic pricing for all assets
-  const { stethPrice, linkPrice, prices, getAssetPrice } = useTokenPrices({
+  const { stethPrice, linkPrice, getAssetPrice } = useTokenPrices({
     isInitialLoad,
     shouldRefreshData,
     userAddress,
@@ -99,9 +136,8 @@ export function UserAssetsPanel() {
     }
   });
 
-  // Combined loading state for total daily emissions - only during initial load
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const isDailyEmissionsLoading = (isInitialLoad && !hasValidData) && (isStETHEmissionsLoading || isLinkEmissionsLoading);
+  // Note: Daily emissions loading state is tracked individually in assetEmissions.*.isLoading
+  // Could be used for combined loading state if needed: Object.values(assetEmissions).some(emission => emission.isLoading)
 
   // Handle cache loading and initial state
   useEffect(() => {
@@ -197,26 +233,47 @@ export function UserAssetsPanel() {
     return checkHasStakedAssets(assets);
   }, [assets]);
 
-  // Helper function to get unlock date for specific asset - Simplified for now
+  // Helper function to get claim unlock date for specific asset using real contract data
   const getAssetUnlockDateCallback = useCallback((assetSymbol: AssetSymbol): string | null => {
-    // Simplified implementation for the migration
-    // TODO: Add proper unlock timestamp to AssetData interface for truly dynamic unlock dates
-    
     const asset = assets[assetSymbol];
     if (!asset || asset.userDeposited <= BigInt(0)) return null;
     
-    // For now, return a placeholder that indicates assets are ready to be unlocked
-    // This will be replaced with proper timestamp logic once AssetData includes unlock timestamps
-    return "Aug 16, 2025, 12:00 PM"; // Placeholder unlock date
+    // Use the real claim unlock timestamp from contract data
+    // The claimUnlockTimestampFormatted includes all 3 conditions from the contract:
+    // 1. Minimum claim lock period since last stake must have passed
+    // 2. Minimum interval since last claim must have passed  
+    // 3. Custom claim lock (claimLockEnd) must have expired
+    return asset.claimUnlockTimestampFormatted || null;
   }, [assets]);
 
-  // Helper function to check if asset rewards can be claimed - Now dynamic!
-  const canAssetClaim = useCallback((assetSymbol: AssetSymbol): boolean => {
-    // Use dynamic asset data instead of hardcoded logic
+  // Helper function to get withdraw unlock date for specific asset using withdraw logic
+  const getAssetWithdrawUnlockDateCallback = useCallback((assetSymbol: AssetSymbol): string | null => {
     const asset = assets[assetSymbol];
-    if (!asset) return false;
+    if (!asset || asset.userDeposited <= BigInt(0)) return null;
     
-    return asset.claimableAmount > BigInt(0); // Dynamic claim eligibility for any asset
+    // TEMPORARY: Use global withdrawUnlockTimestamp since per-asset withdraw unlock is not implemented yet
+    // TODO: Implement proper per-asset withdraw unlock timestamp calculation in useAssetContractData hook
+    if (withdrawUnlockTimestamp) {
+      // Format the global timestamp using the same utility
+      return formatTimestamp(withdrawUnlockTimestamp);
+    }
+    
+    // Fallback to asset's withdraw timestamp if available (currently undefined)
+    return asset.withdrawUnlockTimestampFormatted || null;
+  }, [assets, withdrawUnlockTimestamp]);
+
+  // Helper function to check if asset rewards can be claimed using complete unlock logic
+  const canAssetClaim = useCallback((assetSymbol: AssetSymbol): boolean => {
+    // Use dynamic asset data with proper claim unlock validation
+    const asset = assets[assetSymbol];
+    if (!asset || asset.claimableAmount <= BigInt(0)) return false;
+    
+    // Use the asset's own canClaim property which should include all 3 conditions:
+    // 1. Minimum claim lock period since last stake must have passed
+    // 2. Minimum interval since last claim must have passed  
+    // 3. Custom claim lock (claimLockEnd) must have expired
+    // 4. Must have claimable rewards > 0
+    return asset.canClaim;
   }, [assets]);
 
   // Helper function to check if staked asset can be withdrawn
@@ -230,6 +287,11 @@ export function UserAssetsPanel() {
   // Helper function to check if unlock date has passed (for withdraw functionality)
   const isUnlockDateReachedCallback = useCallback((unlockDate: string | null): boolean => {
     return isUnlockDateReached(unlockDate, hasStakedAssets);
+  }, [hasStakedAssets]);
+
+  // Helper function to check if withdraw unlock date has passed (for Amount Staked column badge)
+  const isWithdrawUnlockDateReachedCallback = useCallback((withdrawUnlockDate: string | null): boolean => {
+    return isUnlockDateReached(withdrawUnlockDate, hasStakedAssets);
   }, [hasStakedAssets]);
 
 
@@ -319,33 +381,33 @@ export function UserAssetsPanel() {
       const available = parseFloat(assetData.userBalanceFormatted) || 0;
       const claimable = parseFloat(assetData.claimableAmountFormatted) || 0;
       
-      // TODO: Replace with dynamic useDailyEmissions hook that accepts any asset
-      // For now, use existing emission calculations where available
-      const emissions = assetSymbol === 'stETH' ? stETHDailyEmissions : 
-                       assetSymbol === 'LINK' ? linkDailyEmissions : 
-                       0; // Will be calculated when emission hooks are extended for all assets
+      // Use dynamic emissions data based on asset symbol
+      const emissions = assetEmissions[assetSymbol]?.emissions || 0;
       
-      const multiplier = assetData.userMultiplierFormatted;
-      const rawUnlockDate = getAssetUnlockDateCallback(assetSymbol);
-      const displayUnlockDate = formatUnlockDate(rawUnlockDate, assetSymbol);
+        const multiplier = assetData.userMultiplierFormatted;
+        const rawClaimUnlockDate = getAssetUnlockDateCallback(assetSymbol);
+        const rawWithdrawUnlockDate = getAssetWithdrawUnlockDateCallback(assetSymbol);
+        const displayClaimUnlockDate = formatUnlockDate(rawClaimUnlockDate, assetSymbol);
+        const displayWithdrawUnlockDate = formatUnlockDate(rawWithdrawUnlockDate, assetSymbol);
 
-      return {
-        id: (index + 1).toString(),
-        symbol: assetData.symbol,
-        assetSymbol: assetSymbol,
-        icon: assetData.config.icon,
-        amountStaked: amount,
-        available: available,
-        dailyEmissions: emissions,
-        powerFactor: multiplier || "x1.0",
-        unlockDate: displayUnlockDate,
-        availableToClaim: claimable,
-        canClaim: canAssetClaim(assetSymbol),
-        canWithdraw: canAssetWithdraw(),
-      };
+        return {
+          id: (index + 1).toString(),
+          symbol: assetData.symbol,
+          assetSymbol: assetSymbol,
+          icon: assetData.config.icon,
+          amountStaked: amount,
+          available: available,
+          dailyEmissions: emissions,
+          powerFactor: multiplier || "x1.0",
+          unlockDate: displayClaimUnlockDate, // For "Claim Unlock Date" column
+          withdrawUnlockDate: displayWithdrawUnlockDate, // For "Amount Staked" badge/tooltip  
+          availableToClaim: claimable,
+          canClaim: canAssetClaim(assetSymbol),
+          canWithdraw: canAssetWithdraw(),
+        };
     })
     .filter(asset => asset !== null && (asset.amountStaked > 0 || asset.availableToClaim > 0)) as UserAsset[];
-  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, stETHDailyEmissions, linkDailyEmissions, canAssetWithdraw]);
+  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, getAssetWithdrawUnlockDateCallback, assetEmissions, canAssetWithdraw, networkEnv]);
 
   // Use sorting hook
   const { sortedUserAssets: userAssets, sorting, handleSortingChange } = useAssetsTable(unsortedUserAssets);
@@ -371,13 +433,10 @@ export function UserAssetsPanel() {
       return total + (stakedAmount * assetPrice);
     }, 0);
 
-    // Calculate total daily emissions dynamically
-    // TODO: Make emissions calculation dynamic for all assets
+    // Calculate total daily emissions dynamically across all available assets
     const totalDailyEmissions = Object.values(assets).reduce((total, asset) => {
-      // For now, only stETH and LINK have emission calculations
-      const emissions = asset.symbol === 'stETH' ? stETHDailyEmissions : 
-                       asset.symbol === 'LINK' ? linkDailyEmissions : 
-                       0; // Placeholder for other assets
+      // Get emissions for this asset dynamically from our assetEmissions mapping
+      const emissions = assetEmissions[asset.symbol as keyof typeof assetEmissions]?.emissions || 0;
       return total + emissions;
     }, 0);
 
@@ -418,7 +477,7 @@ export function UserAssetsPanel() {
     }
 
     return freshMetrics;
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, stETHDailyEmissions, linkDailyEmissions, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress, setCachedUserAssets]);
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, assetEmissions, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress, setCachedUserAssets, getAssetPrice]);
 
 
   return (
@@ -470,6 +529,7 @@ export function UserAssetsPanel() {
                   onDropdownActionAction={handleDropdownAction}
                   openDropdownId={openDropdownId}
                   isUnlockDateReachedAction={isUnlockDateReachedCallback}
+                  isWithdrawUnlockDateReachedAction={isWithdrawUnlockDateReachedCallback}
                   isAnyActionProcessing={isAnyActionProcessing}
                   isModalTransitioning={isModalTransitioning}
                   isDropdownTransitioning={isDropdownTransitioning}
