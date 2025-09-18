@@ -265,6 +265,7 @@ interface CapitalContextState {
   // Eligibility Flags (for selected asset)
   canWithdraw: boolean;
   canClaim: boolean;
+  selectedAssetCanClaim: boolean; // Dynamic claim eligibility for selected asset
 
   // V2-specific claim data for individual assets
   stETHV2CanClaim: boolean;
@@ -1905,25 +1906,29 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       // Don't close modal when changing assets - let the component handle it
     },
 
-    // Aggregated Data (across all assets)
-    totalDepositedUSD: (stETHV2TotalDeposited as bigint || BigInt(0)) + (linkV2TotalDeposited as bigint || BigInt(0)),
-    totalClaimableAmount: (stETHV2CurrentUserReward as bigint || BigInt(0)) + (linkV2CurrentUserReward as bigint || BigInt(0)),
+    // Aggregated Data (across all assets) - Dynamic calculation
+    totalDepositedUSD: Object.values(assets).reduce((total, asset) => total + asset.totalDeposited, BigInt(0)),
+    totalClaimableAmount: Object.values(assets).reduce((total, asset) => total + asset.claimableAmount, BigInt(0)),
     morBalance: morBalance,
 
-    // Formatted Data (aggregated)
-    totalDepositedUSDFormatted: formatBigInt((stETHV2TotalDeposited as bigint || BigInt(0)) + (linkV2TotalDeposited as bigint || BigInt(0)), 18, 2),
-    totalClaimableAmountFormatted: formatBigInt((stETHV2CurrentUserReward as bigint || BigInt(0)) + (linkV2CurrentUserReward as bigint || BigInt(0)), 18, 2),
+    // Formatted Data (aggregated) - Dynamic formatting
+    totalDepositedUSDFormatted: formatBigInt(
+      Object.values(assets).reduce((total, asset) => total + asset.totalDeposited, BigInt(0)), 
+      18, 2
+    ),
+    totalClaimableAmountFormatted: formatBigInt(
+      Object.values(assets).reduce((total, asset) => total + asset.claimableAmount, BigInt(0)), 
+      18, 2
+    ),
     morBalanceFormatted: formatBigInt(morBalance, 18, 4),
 
-    // Asset-specific formatted data (for selected asset)
-    selectedAssetUserBalanceFormatted: selectedAsset === 'stETH' ? formatBigInt(stEthBalance, 18, 4) : formatBigInt(linkBalance, 18, 4),
-    selectedAssetDepositedFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2UserParsed?.deposited, 18, 2) : formatBigInt(linkV2UserParsed?.deposited, 18, 2),
-    selectedAssetClaimableFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2CurrentUserReward as bigint, 18, 2) : formatBigInt(linkV2CurrentUserReward as bigint, 18, 2),
-    selectedAssetMultiplierFormatted: selectedAsset === 'stETH' ? 
-      (stETHV2UserMultiplier ? formatPowerFactorPrecise(stETHV2UserMultiplier as bigint) : "x1.0") :
-      (linkV2UserMultiplier ? formatPowerFactorPrecise(linkV2UserMultiplier as bigint) : "x1.0"),
-    selectedAssetTotalStakedFormatted: selectedAsset === 'stETH' ? formatBigInt(stETHV2TotalDeposited as bigint, 18, 2) : formatBigInt(linkV2TotalDeposited as bigint, 18, 2),
-    selectedAssetMinimalStakeFormatted: "100", // TODO: Asset-specific minimal stake
+    // Asset-specific formatted data (for selected asset) - Dynamic from assets structure
+    selectedAssetUserBalanceFormatted: assets[selectedAsset]?.userBalanceFormatted || "0",
+    selectedAssetDepositedFormatted: assets[selectedAsset]?.userDepositedFormatted || "0",
+    selectedAssetClaimableFormatted: assets[selectedAsset]?.claimableAmountFormatted || "0",
+    selectedAssetMultiplierFormatted: assets[selectedAsset]?.userMultiplierFormatted || "---",
+    selectedAssetTotalStakedFormatted: assets[selectedAsset]?.totalDepositedFormatted || "0",
+    selectedAssetMinimalStakeFormatted: assets[selectedAsset]?.minimalStakeFormatted || "100",
     
     // Calculated Data (for selected asset) - TODO: Make asset-aware
     withdrawUnlockTimestamp: withdrawUnlockTimestamp,
@@ -1935,13 +1940,19 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     canWithdraw: canWithdraw,
     canClaim: canClaim,
 
-    // V2-specific claim data for individual assets
+    // V2-specific claim data for individual assets (Legacy - maintained for backward compatibility)
+    // TODO: These could be replaced with dynamic asset-based claim data once all assets are implemented
     stETHV2CanClaim: stETHV2CanClaim,
     linkV2CanClaim: linkV2CanClaim,
     stETHV2ClaimUnlockTimestamp: stETHV2ClaimUnlockTimestamp,
     linkV2ClaimUnlockTimestamp: linkV2ClaimUnlockTimestamp,
     stETHV2ClaimUnlockTimestampFormatted: formatTimestamp(stETHV2ClaimUnlockTimestamp),
     linkV2ClaimUnlockTimestampFormatted: formatTimestamp(linkV2ClaimUnlockTimestamp),
+
+    // Dynamic asset-based claim data (for selected asset)
+    selectedAssetCanClaim: selectedAsset === 'stETH' ? stETHV2CanClaim : 
+                          selectedAsset === 'LINK' ? linkV2CanClaim : 
+                          false, // Default for unimplemented assets
 
     // V2 Referral Data
     referralData,
