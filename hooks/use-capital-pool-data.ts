@@ -7,8 +7,7 @@ import { formatUnits } from 'viem';
 import { NetworkEnvironment, getContractAddress, testnetChains, mainnetChains } from '@/config/networks';
 
 // Import ABIs
-import stETHDepositPoolV2Abi from '@/app/abi/stETHDepositPoolV2.json';
-import LINKDepositPoolV2Abi from '@/app/abi/LINKDepositPoolV2.json';
+import DepositPoolAbi from '@/app/abi/DepositPool.json'; // Use the generic ABI that has all functions
 import RewardPoolV2Abi from '@/app/abi/RewardPoolV2.json';
 
 export interface CapitalPoolData {
@@ -78,7 +77,7 @@ export function useCapitalPoolData(): CapitalPoolData {
 
 
 
-  // Read stETH pool data (only for testnet)
+  // Read stETH pool data (using generic ABI that has the function)
   const {
     data: stETHTotalDeposited,
     isLoading: isLoadingStETH,
@@ -86,7 +85,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     refetch: refetchStETHPoolData
   } = useReadContract({
     address: stETHDepositPoolAddress,
-    abi: stETHDepositPoolV2Abi,
+    abi: DepositPoolAbi,
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
     query: { 
@@ -95,7 +94,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     }
   });
 
-  // Read LINK pool data (all networks)  
+  // Read LINK pool data (using generic ABI that has the function)
   const {
     data: LINKTotalDeposited,
     isLoading: isLoadingLINK,
@@ -103,7 +102,7 @@ export function useCapitalPoolData(): CapitalPoolData {
     refetch: refetchLinkPoolData
   } = useReadContract({
     address: linkDepositPoolAddress,
-    abi: LINKDepositPoolV2Abi,
+    abi: DepositPoolAbi,
     functionName: 'totalDepositedInPublicPools',
     chainId: l1ChainId,
     query: { 

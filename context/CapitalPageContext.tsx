@@ -311,6 +311,11 @@ interface CapitalContextState {
   isProcessingChangeLock: boolean;
   isApprovalSuccess: boolean;
 
+  // Claim transaction states for enhanced balance monitoring
+  isClaimSuccess: boolean;
+  claimHash?: `0x${string}`;
+  lastHandledClaimHash: `0x${string}` | null;
+
   // V2 Action Functions (asset-aware)
   deposit: (asset: AssetSymbol, amount: string, lockDurationSeconds?: bigint) => Promise<void>;
   claim: () => Promise<void>; // Claims from all pools
@@ -1402,7 +1407,15 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
       if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHash) {
-          toast.success("Claim confirmed!");
+          // Don't show toast or close modal if we're in enhanced claim flow (activeModal === 'claim')
+          // The enhanced claim modal will handle its own toast notifications and balance monitoring
+          if (activeModal !== 'claim') {
+              toast.success("Claim confirmed!");
+              setActiveModal(null); // Close modal on success only for non-enhanced flows
+          } else {
+              console.log('🔄 Claim confirmed, letting enhanced claim modal handle balance monitoring');
+          }
+
           refetchUserData();
           refetchUserReward();
           refetchMorBalance();
@@ -1411,9 +1424,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           // Refetch reward pool data to update reward calculations
           capitalPoolData.refetch.rewardPoolData();
           setLastHandledClaimHash(claimHash);
-          setActiveModal(null); // Close modal on success
       }
-  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
+  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal, activeModal]);
 
   useEffect(() => {
       if (isWithdrawSuccess && withdrawHash && withdrawHash !== lastHandledWithdrawHash) {
@@ -1928,6 +1940,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isProcessingWithdraw: isProcessingWithdraw,
     isProcessingChangeLock: isProcessingChangeLock,
     isApprovalSuccess: isApprovalSuccess,
+
+    // Claim transaction states for enhanced balance monitoring
+    isClaimSuccess: isClaimSuccess,
+    claimHash: claimHash,
+    lastHandledClaimHash: lastHandledClaimHash,
 
     // V2 Action Functions (asset-aware)
     deposit,
