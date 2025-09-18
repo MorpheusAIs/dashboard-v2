@@ -17,6 +17,10 @@ export interface ContractAddresses {
   // V2 Contracts
   stETHDepositPool?: ChainContract;
   linkDepositPool?: ChainContract;
+  usdcDepositPool?: ChainContract;
+  usdtDepositPool?: ChainContract;
+  wbtcDepositPool?: ChainContract;
+  wethDepositPool?: ChainContract;
   distributorV2?: ChainContract;
   rewardPoolV2?: ChainContract;
   l1SenderV2?: ChainContract;
@@ -141,10 +145,22 @@ export const mainnetChains: Record<string, ChainConfig> = {
       }
     },
     contracts: {
+      // Legacy V1 contracts
       erc1967Proxy: toContract('0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790'),
       stETH: toContract('0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84'),
       layerZeroEndpoint: toContract('0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675'),
-      l1Factory: toContract('0x969C0F87623dc33010b4069Fea48316Ba2e45382')
+      l1Factory: toContract('0x969C0F87623dc33010b4069Fea48316Ba2e45382'),
+      
+      // V2 Contracts (Newly Deployed)
+      stETHDepositPool: toContract('0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790'),
+      // Placeholders for future mainnet deposit pools (add addresses when deployed)
+      usdcDepositPool: toContract(''),
+      usdtDepositPool: toContract(''),
+      wbtcDepositPool: toContract(''),
+      wethDepositPool: toContract(''),
+      distributorV2: toContract('0xDf1AC1AC255d91F5f4B1E3B4Aef57c5350F64C7A'),
+      rewardPoolV2: toContract('0xb7994dE339AEe515C9b2792831CD83f3C9D8df87'),
+      l1SenderV2: toContract('0x2Efd4430489e1a05A89c2f51811aC661B7E5FF84'),
     },
     isL1: true,
     layerZeroEndpointId: 101,
@@ -188,7 +204,7 @@ export const mainnetChains: Record<string, ChainConfig> = {
 // API URLs by environment
 export const apiUrls = {
   mainnet: {
-    graphql: 'https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest'
+    graphql: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest'
   },
   testnet: {
     graphql: 'https://api.studio.thegraph.com/query/73688/kkk/version/latest'
