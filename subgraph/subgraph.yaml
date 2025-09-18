@@ -1,0 +1,128 @@
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+dataSources:
+  # stETH Deposit Pool (Sepolia Testnet)
+  - kind: ethereum/contract
+    name: StETHDepositPool
+    network: sepolia
+    source:
+      address: "0xFea33A23F97d785236F22693eDca564782ae98d0"
+      abi: DepositPool
+      startBlock: 5500000  # Adjust based on deployment block
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - UserClaimEvent
+        - UserStakeEvent
+        - UserWithdrawEvent
+        - UserPoolStats
+        - UserGlobalStats
+        - PoolGlobalStats
+        - DailyClaimStats
+        - ActiveStakersCount
+      abis:
+        - name: DepositPool
+          file: ./abis/DepositPool.json
+      eventHandlers:
+        - event: UserClaimed(indexed uint256,indexed address,address,uint256)
+          handler: handleUserClaimed
+      callHandlers: []
+      blockHandlers: []
+      logHandlers:
+        # Handle UserStaked events (topic0: 0x04575f52b6b30177fc1f54050c9bdd9be3a3e76421fe02757adf437a09763ae0)
+        - handler: handleUserStaked
+          filter:
+            topics:
+              - "0x04575f52b6b30177fc1f54050c9bdd9be3a3e76421fe02757adf437a09763ae0"
+        # Handle UserWithdrawn events (topic0: 0xe2f02dc2168917563b46b1f788ea74861c381103710158efe9976c0bb3333677)
+        - handler: handleUserWithdrawn
+          filter:
+            topics:
+              - "0xe2f02dc2168917563b46b1f788ea74861c381103710158efe9976c0bb3333677"
+      file: ./src/mapping.ts
+
+  # LINK Deposit Pool (Sepolia Testnet)
+  - kind: ethereum/contract
+    name: LINKDepositPool
+    network: sepolia
+    source:
+      address: "0x7f4f17be21219D7DA4C8E0d0B9be6a778354E5A5"
+      abi: DepositPool
+      startBlock: 5500000  # Adjust based on deployment block
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - UserClaimEvent
+        - UserStakeEvent
+        - UserWithdrawEvent
+        - UserPoolStats
+        - UserGlobalStats
+        - PoolGlobalStats
+        - DailyClaimStats
+        - ActiveStakersCount
+      abis:
+        - name: DepositPool
+          file: ./abis/DepositPool.json
+      eventHandlers:
+        - event: UserClaimed(indexed uint256,indexed address,address,uint256)
+          handler: handleUserClaimed
+      callHandlers: []
+      blockHandlers: []
+      logHandlers:
+        # Handle UserStaked events (topic0: 0x04575f52b6b30177fc1f54050c9bdd9be3a3e76421fe02757adf437a09763ae0)
+        - handler: handleUserStaked
+          filter:
+            topics:
+              - "0x04575f52b6b30177fc1f54050c9bdd9be3a3e76421fe02757adf437a09763ae0"
+        # Handle UserWithdrawn events (topic0: 0xe2f02dc2168917563b46b1f788ea74861c381103710158efe9976c0bb3333677)
+        - handler: handleUserWithdrawn
+          filter:
+            topics:
+              - "0xe2f02dc2168917563b46b1f788ea74861c381103710158efe9976c0bb3333677"
+      file: ./src/mapping.ts
+
+# Templates for dynamic data source creation (if needed for mainnet later)
+templates:
+  - kind: ethereum/contract
+    name: DepositPool
+    network: sepolia
+    source:
+      abi: DepositPool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - UserClaimEvent
+        - UserStakeEvent
+        - UserWithdrawEvent
+        - UserPoolStats
+        - UserGlobalStats
+        - PoolGlobalStats
+        - DailyClaimStats
+        - ActiveStakersCount
+      abis:
+        - name: DepositPool
+          file: ./abis/DepositPool.json
+      eventHandlers:
+        - event: UserClaimed(indexed uint256,indexed address,address,uint256)
+          handler: handleUserClaimed
+      callHandlers: []
+      blockHandlers: []
+      logHandlers:
+        # Handle UserStaked events (topic0: 0x04575f52b6b30177fc1f54050c9bdd9be3a3e76421fe02757adf437a09763ae0)
+        - handler: handleUserStaked
+          filter:
+            topics:
+              - "0x04575f52b6b30177fc1f54050c9bdd9be3a3e76421fe02757adf437a09763ae0"
+        # Handle UserWithdrawn events (topic0: 0xe2f02dc2168917563b46b1f788ea74861c381103710158efe9976c0bb3333677)
+        - handler: handleUserWithdrawn
+          filter:
+            topics:
+              - "0xe2f02dc2168917563b46b1f788ea74861c381103710158efe9976c0bb3333677"
+      file: ./src/mapping.ts

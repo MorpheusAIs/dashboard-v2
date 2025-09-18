@@ -1,0 +1,186 @@
+# Capital Pool Subgraph Schema
+# Tracks UserClaimed events from stETH and LINK deposit pools
+
+# Individual claim transaction
+type UserClaimEvent @entity {
+  # Event ID: txHash-logIndex
+  id: ID!
+  
+  # Event data
+  user: Bytes! # User address who claimed
+  receiver: Bytes! # Address that received the tokens  
+  amount: BigInt! # Amount claimed in wei
+  poolId: BigInt! # Pool ID (0 for public pools)
+  
+  # Pool context
+  poolAddress: Bytes! # Contract address (stETH or LINK pool)
+  poolType: PoolType! # STETH or LINK
+  
+  # Transaction context
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+}
+
+# Individual stake/deposit transaction  
+type UserStakeEvent @entity {
+  # Event ID: txHash-logIndex
+  id: ID!
+  
+  # Event data
+  user: Bytes! # User address who staked
+  amount: BigInt! # Amount staked in wei
+  poolId: BigInt! # Pool ID from the event
+  
+  # Pool context
+  poolAddress: Bytes! # Contract address (stETH or LINK pool)
+  poolType: PoolType! # STETH or LINK
+  
+  # Transaction context
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+  
+  # Relationship back to user stats
+  userPoolStats: UserPoolStats!
+}
+
+# Individual withdrawal transaction
+type UserWithdrawEvent @entity {
+  # Event ID: txHash-logIndex  
+  id: ID!
+  
+  # Event data
+  user: Bytes! # User address who withdrew
+  amount: BigInt! # Amount withdrawn in wei
+  poolId: BigInt! # Pool ID from the event
+  
+  # Pool context
+  poolAddress: Bytes! # Contract address (stETH or LINK pool)
+  poolType: PoolType! # STETH or LINK
+  
+  # Transaction context
+  transactionHash: Bytes!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  logIndex: BigInt!
+  
+  # Relationship back to user stats
+  userPoolStats: UserPoolStats!
+}
+
+# Aggregated statistics per user per pool
+type UserPoolStats @entity {
+  # ID: userAddress-poolAddress
+  id: ID!
+  
+  # User and pool info
+  user: Bytes!
+  poolAddress: Bytes!
+  poolType: PoolType!
+  
+  # Aggregated claim data
+  totalClaimedAmount: BigInt! # Total MOR claimed from this pool
+  claimCount: BigInt! # Number of successful claims
+  firstClaimTimestamp: BigInt! # When user first claimed
+  lastClaimTimestamp: BigInt! # When user last claimed
+  
+  # Aggregated staking data (NEW)
+  totalStakedAmount: BigInt! # Total amount ever staked
+  totalWithdrawnAmount: BigInt! # Total amount ever withdrawn
+  currentStakedAmount: BigInt! # Current net staked amount (staked - withdrawn)
+  stakeCount: BigInt! # Number of stake transactions
+  withdrawalCount: BigInt! # Number of withdrawal transactions
+  firstStakeTimestamp: BigInt! # When user first staked
+  lastStakeTimestamp: BigInt! # When user last staked
+  lastWithdrawalTimestamp: BigInt! # When user last withdrew
+  
+  # Active status
+  isActiveStaker: Boolean! # True if currentStakedAmount > 0
+  
+  # Relationship to individual events
+  claims: [UserClaimEvent!]! @derivedFrom(field: "userPoolStats")
+  stakes: [UserStakeEvent!]! @derivedFrom(field: "userPoolStats")
+  withdrawals: [UserWithdrawEvent!]! @derivedFrom(field: "userPoolStats")
+}
+
+# Fast lookup for active stakers count
+type ActiveStakersCount @entity {
+  # ID: "global" or "STETH" or "LINK"
+  id: ID!
+  
+  # Count data
+  activeStakers: BigInt! # Number of active stakers
+  poolType: PoolType # Null for global count
+  
+  # Last updated
+  lastUpdatedTimestamp: BigInt!
+  lastUpdatedBlock: BigInt!
+}
+
+# Global statistics per user (across all pools)
+type UserGlobalStats @entity {
+  # ID: userAddress
+  id: ID! # User address
+  
+  # Aggregated data across all pools
+  totalClaimedAmount: BigInt! # Total MOR claimed across all pools
+  totalClaimCount: BigInt! # Total number of claims across all pools
+  firstClaimTimestamp: BigInt! # First claim across any pool
+  lastClaimTimestamp: BigInt! # Most recent claim across any pool
+  
+  # Pool-specific stats
+  stETHPoolStats: UserPoolStats
+  linkPoolStats: UserPoolStats
+  
+  # Activity tracking
+  activePools: [PoolType!]! # Which pools the user has claimed from
+}
+
+# Pool-level aggregated statistics
+type PoolGlobalStats @entity {
+  # ID: poolAddress
+  id: ID!
+  
+  # Pool info
+  poolAddress: Bytes!
+  poolType: PoolType!
+  
+  # Aggregated statistics
+  totalClaimedAmount: BigInt! # Total MOR claimed from this pool
+  totalClaimCount: BigInt! # Total number of claims
+  uniqueClaimers: BigInt! # Number of unique users who have claimed
+  
+  # Activity tracking
+  firstClaimTimestamp: BigInt! # First claim from this pool
+  lastClaimTimestamp: BigInt! # Most recent claim from this pool
+}
+
+# Enum for pool types
+enum PoolType {
+  STETH
+  LINK
+}
+
+# Daily aggregated statistics (useful for charts)
+type DailyClaimStats @entity {
+  # ID: date-poolAddress (e.g., "2024-01-15-0x123...")
+  id: ID!
+  
+  # Date and pool info
+  date: String! # YYYY-MM-DD format
+  poolAddress: Bytes!
+  poolType: PoolType!
+  
+  # Daily aggregates
+  dailyClaimedAmount: BigInt!
+  dailyClaimCount: BigInt!
+  uniqueDailyClaimers: BigInt!
+  
+  # Running totals (up to this date)
+  cumulativeClaimedAmount: BigInt!
+  cumulativeClaimCount: BigInt!
+  cumulativeUniqueClaimers: BigInt!
+}

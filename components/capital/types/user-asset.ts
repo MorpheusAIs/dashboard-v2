@@ -12,6 +12,7 @@ export interface UserAsset {
   unlockDate: string | null;
   availableToClaim: number;
   canClaim: boolean;
+  canWithdraw: boolean; // Whether the staked amount can be withdrawn
 }
 
 // Interface for tracking reward accumulation over time

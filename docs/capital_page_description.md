@@ -32,7 +32,7 @@ The page is broadly divided into two main sections:
         *   Available to Claim (MOR)
         *   Your Power Factor (Reward Multiplier - only shown on `/capital`, not `/dashboard/capital`)
     *   **Graphs:** This section, implemented within `src/common/InfoDashboard/index.vue`, shows historical data selectable by month and year. It uses an `<app-chart>` component and fetches data via GraphQL using the `useFirstApolloClient` composable. Data fetching is handled by helper functions located in `src/common/InfoDashboard/helpers.ts`.
-        *   **Subgraph Endpoint (Mainnet):** `https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest` (The Sepolia endpoint is different but configured similarly in `config.ts`).
+        *   **Subgraph Endpoint (Mainnet):** `https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest` (The Sepolia endpoint is different but configured similarly in `config.ts`).
         *   **Amount of Deposited stETH Graph:**
             *   Toggled via chart controls.
             *   **Helper Function:** `getChartData(poolId, payoutStart, month, year, apolloClient)`.
@@ -45,7 +45,7 @@ The page is broadly divided into two main sections:
                   d1: poolInteractions(
                     first: 1
                     orderDirection: desc
-                    where: {timestamp_lte: "<end_timestamp_day_1>", pool: "<pool_id>"}
+                    where: {timestamp_lte: "<end_timestamp_day_1>", depositPool: "<deposit_pool_address>"}
                     orderBy: timestamp
                   ) {
                     totalStaked
@@ -55,7 +55,7 @@ The page is broadly divided into two main sections:
                   d2: poolInteractions(
                     first: 1
                     orderDirection: desc
-                    where: {timestamp_lte: "<end_timestamp_day_2>", pool: "<pool_id>"}
+                    where: {timestamp_lte: "<end_timestamp_day_2>", depositPool: "<deposit_pool_address>"}
                     orderBy: timestamp
                   ) {
                     totalStaked

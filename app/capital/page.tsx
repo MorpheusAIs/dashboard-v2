@@ -9,7 +9,6 @@ import { mainnet } from "wagmi/chains";
 // Import Modals (updated to kebab-case)
 import { DepositModal } from "@/components/capital/deposit-modal";
 import { WithdrawModal } from "@/components/capital/withdraw-modal";
-import { ClaimModal } from "@/components/capital/claim-modal";
 import { ClaimMorRewardsModal } from "@/components/capital/claim-mor-rewards-modal";
 import { ChangeLockModal } from "@/components/capital/change-lock-modal";
 
@@ -27,7 +26,6 @@ import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext
 
 function CapitalPageContent() {
   const {
-    claimableAmountFormatted,
     // Raw data needed by modals
     userData,
     currentUserMultiplierData,
@@ -136,7 +134,6 @@ function CapitalPageContent() {
       {/* Render Modals */}
       <DepositModal />
       <WithdrawModal />
-      <ClaimModal claimableAmount={claimableAmountFormatted !== "---" ? claimableAmountFormatted : "0"} />
       <ClaimMorRewardsModal />
       <ChangeLockModal 
         currentUserMultiplierData={currentUserMultiplierData}

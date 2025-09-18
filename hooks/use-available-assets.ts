@@ -44,6 +44,10 @@ export function useAvailableAssets() {
   const parseDeposits = (amountStr: string): number => {
     try {
       if (!amountStr || typeof amountStr !== 'string') return 0;
+      
+      // Handle special values
+      if (amountStr === 'N/A' || amountStr === 'Coming Soon') return 0;
+      
       const cleanedValue = amountStr.replace(/,/g, '');
       const parsed = parseFloat(cleanedValue);
       return isNaN(parsed) ? 0 : parsed;
@@ -60,27 +64,17 @@ export function useAvailableAssets() {
     // Check each supported asset for positive deposits
     for (const assetSymbol of supportedAssets) {
       const tokenType = ASSET_SYMBOL_TO_TOKEN_TYPE[assetSymbol];
-      let deposits = 0;
-      let isLoading = false;
-      let hasError = false;
-
-      // Get deposit amount based on asset type
-      switch (assetSymbol) {
-        case 'stETH':
-          deposits = parseDeposits(poolData.stETH.totalStaked);
-          isLoading = poolData.stETH.isLoading;
-          hasError = !!poolData.stETH.error;
-          break;
-        case 'LINK':
-          deposits = parseDeposits(poolData.LINK.totalStaked);
-          isLoading = poolData.LINK.isLoading;
-          hasError = !!poolData.LINK.error;
-          break;
-        // Add other assets when they become available
-        default:
-          deposits = 0;
-          break;
+      const assetData = poolData.assets[assetSymbol];
+      
+      // Skip if asset data is not available
+      if (!assetData) {
+        continue;
       }
+
+      // Get deposit amount from the dynamic interface
+      const deposits = parseDeposits(assetData.totalStaked);
+      const isLoading = assetData.isLoading;
+      const hasError = !!assetData.error;
 
       // Only include assets with positive deposits (and not still loading)
       if (deposits > 0 && !isLoading && !hasError) {
@@ -95,12 +89,12 @@ export function useAvailableAssets() {
 
     // Sort by deposits descending (similar to mock data)
     return assets.sort((a, b) => b.deposits - a.deposits);
-  }, [supportedAssets, poolData, parseDeposits]);
+  }, [supportedAssets, poolData.assets, parseDeposits]);
 
   // Additional derived data
   const hasMultipleAssets = availableAssets.length > 1;
-  const isLoading = poolData.stETH.isLoading || poolData.LINK.isLoading;
-  const hasErrors = !!poolData.stETH.error || !!poolData.LINK.error;
+  const isLoading = Object.values(poolData.assets).some(asset => asset?.isLoading);
+  const hasErrors = Object.values(poolData.assets).some(asset => asset?.error);
   const primaryAsset = availableAssets[0]?.token || 'stETH'; // Default to stETH
 
   return {

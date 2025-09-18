@@ -75,7 +75,7 @@ const params: CowSwapWidgetParams = {
     "info": "#6c757d",
     "success": "#09ce9e"
   },
-  "standaloneMode": false,
+  "standaloneMode": true,
   "disableToastMessages": false,
   "disableProgressBar": false,
   "hideBridgeInfo": false,

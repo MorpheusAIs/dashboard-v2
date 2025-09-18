@@ -82,9 +82,90 @@ export function getMockGraphQLResponse(tokenType: TokenType = 'stETH') {
  * Returns true if mock data should be used
  */
 export function shouldUseMockData(): boolean {
-  // Use mock data in development or when NEXT_PUBLIC_USE_MOCK_DATA is set
-  return process.env.NODE_ENV === 'development' || 
-         process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true';
+  // IMPORTANT: Mock data should be disabled on production mainnet
+  // This function should only be used for development/testing purposes
+  
+  // Environment-based override: Never use mock data if explicitly set to mainnet
+  const envNetworkOverride = process.env.NEXT_PUBLIC_NETWORK_ENV;
+  if (envNetworkOverride === 'mainnet') {
+    console.log('🔒 Mock data disabled: NEXT_PUBLIC_NETWORK_ENV=mainnet (environment override)');
+    return false;
+  }
+  
+  // Production safety: Never use mock data in production
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🔒 Mock data disabled: NODE_ENV=production');
+    return false;
+  }
+  
+  // Explicit opt-in via env flag
+  const shouldUseMock = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true';
+                        
+  console.log('🎭 Mock data decision:', {
+    NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_USE_MOCK_DATA: process.env.NEXT_PUBLIC_USE_MOCK_DATA,
+    NEXT_PUBLIC_NETWORK_ENV: envNetworkOverride,
+    shouldUseMock
+  });
+  
+  return shouldUseMock;
+}
+
+/**
+ * Get total metrics across all mock assets (for display in metrics cards)
+ */
+export function getTotalMockMetrics() {
+  const allTokens: TokenType[] = ['stETH', 'LINK', 'wETH', 'USDC', 'USDT', 'wBTC'];
+  const tokenConfig = {
+    stETH: { price: 3500, dailyMOR: 3456, apr: 8.5, stakers: 1247 },
+    wETH: { price: 3500, dailyMOR: 2834, apr: 7.8, stakers: 892 },
+    LINK: { price: 25, dailyMOR: 4123, apr: 12.2, stakers: 2156 },
+    wBTC: { price: 95000, dailyMOR: 1567, apr: 11.25, stakers: 734 },
+    USDC: { price: 1, dailyMOR: 2789, apr: 10.67, stakers: 1834 },
+    USDT: { price: 1, dailyMOR: 2456, apr: 9.8, stakers: 1623 }
+  };
+  
+  let totalTVL = 0;
+  let totalDailyMOR = 0;
+  let totalActiveStakers = 0;
+  let weightedAPR = 0;
+  
+  allTokens.forEach(tokenType => {
+    const data = getMockData(tokenType);
+    const latestDeposits = data[data.length - 1]?.deposits || 0;
+    const config = tokenConfig[tokenType];
+    
+    // Calculate TVL for this token
+    const tokenTVL = latestDeposits * config.price;
+    totalTVL += tokenTVL;
+    
+    // Sum daily MOR emissions
+    totalDailyMOR += config.dailyMOR;
+    
+    // Sum active stakers
+    totalActiveStakers += config.stakers;
+    
+    // Weight APR by TVL for average calculation
+    weightedAPR += (config.apr * tokenTVL);
+  });
+  
+  // Calculate weighted average APR
+  const avgAPR = totalTVL > 0 ? weightedAPR / totalTVL : 0;
+  
+  return {
+    totalValueLockedUSD: Math.floor(totalTVL).toLocaleString(),
+    currentDailyRewardMOR: Math.round(totalDailyMOR).toLocaleString(),
+    avgApyRate: avgAPR.toFixed(2),
+    activeStakers: totalActiveStakers.toLocaleString()
+  };
+}
+
+/**
+ * Get total TVL across all mock assets (for display in metrics cards)
+ * @deprecated Use getTotalMockMetrics() instead for all metrics
+ */
+export function getTotalMockTVL(): string {
+  return getTotalMockMetrics().totalValueLockedUSD;
 }
 
 /**
@@ -182,6 +263,8 @@ export default {
   getMockGraphQLResponse,
   shouldUseMockData,
   getMockMetrics,
+  getTotalMockMetrics,
+  getTotalMockTVL,
   getAvailableAssets,
   getAssetColor
 };

@@ -5,6 +5,7 @@ import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalChartData } from "@/app/hooks/useCapitalChartData";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
+import { getTotalMockMetrics } from "@/mock-data";
 import { mainnet } from "wagmi/chains";
 
 export function ChartSection() {
@@ -20,10 +21,6 @@ export function ChartSection() {
     selectedAsset,
     setSelectedAsset,
     useMockData,
-    totalValueLockedUSD: mockTotalValueLockedUSD,
-    currentDailyRewardMOR: mockCurrentDailyRewardMOR,
-    avgApyRate: mockAvgApyRate,
-    activeStakers: mockActiveStakers,
     // Dynamic asset switching support
     availableAssets,
     hasMultipleAssets,
@@ -40,10 +37,22 @@ export function ChartSection() {
   } = useCapitalMetrics();
 
   // Use mock or live metrics based on useMockData
-  const totalValueLockedUSD = useMockData ? mockTotalValueLockedUSD : liveValueLockedUSD;
-  const currentDailyRewardMOR = useMockData ? mockCurrentDailyRewardMOR : liveDailyRewardMOR;
-  const avgApyRate = useMockData ? mockAvgApyRate : liveAvgApyRate;
-  const activeStakers = useMockData ? mockActiveStakers : liveActiveStakers;
+  // For mock data, always show totals across ALL pools (not asset-specific)
+  const totalMockMetrics = useMockData ? getTotalMockMetrics() : null;
+  const totalValueLockedUSD = useMockData ? totalMockMetrics!.totalValueLockedUSD : liveValueLockedUSD;
+  const currentDailyRewardMOR = useMockData ? totalMockMetrics!.currentDailyRewardMOR : liveDailyRewardMOR;
+  const avgApyRate = useMockData ? `${totalMockMetrics!.avgApyRate}%` : liveAvgApyRate;
+  const activeStakers = useMockData ? totalMockMetrics!.activeStakers : liveActiveStakers;
+  
+  // Debug logging to understand TVL source
+  console.log('📊 ChartSection TVL Debug:', {
+    useMockData,
+    networkEnv,
+    mockTVL: totalMockMetrics?.totalValueLockedUSD,
+    liveTVL: liveValueLockedUSD,
+    finalTVL: totalValueLockedUSD,
+    source: useMockData ? 'MOCK_DATA' : 'LIVE_DATA'
+  });
 
   const metricCards = [
     {
@@ -144,6 +153,8 @@ export function ChartSection() {
                   <p className="text-gray-400 mb-4">
                     {networkEnv === 'testnet' 
                       ? "You are viewing testnet. No historical deposit data available." 
+                      : networkEnv === 'mainnet'
+                      ? "Mainnet subgraph not deployed yet. Historical deposit data coming soon."
                       : "No deposit data available."} 
                   </p>
                   {networkEnv === 'testnet' && (

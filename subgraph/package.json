@@ -1,0 +1,36 @@
+{
+  "name": "morpheus-capital-claims-subgraph",
+  "version": "1.0.0",
+  "description": "Subgraph for tracking MOR token claims from Morpheus Capital deposit pools",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ morpheus-capital-claims",
+    "create-local": "graph create --node http://localhost:8020/ morpheus-capital-claims",
+    "remove-local": "graph remove --node http://localhost:8020/ morpheus-capital-claims",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 morpheus-capital-claims",
+    "test": "graph test",
+    "prepare": "npm run codegen"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.56.0",
+    "@graphprotocol/graph-ts": "0.30.0"
+  },
+  "devDependencies": {
+    "matchstick-as": "0.5.0"
+  },
+  "keywords": [
+    "morpheus",
+    "capital",
+    "claims",
+    "subgraph",
+    "ethereum",
+    "mor-token"
+  ],
+  "author": "Morpheus Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MorpheusAIs/dashboard-v2"
+  }
+}
