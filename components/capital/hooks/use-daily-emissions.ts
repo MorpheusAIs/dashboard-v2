@@ -5,8 +5,10 @@ import {
   testnetChains, 
   mainnetChains, 
   getContractAddress, 
-  type NetworkEnvironment 
+  type NetworkEnvironment,
+  type ContractAddresses
 } from "@/config/networks"; 
+import { type AssetSymbol } from "@/components/capital/constants/asset-config";
 
 // Import the proper ABIs that the working APR code uses
 import RewardPoolV2Abi from "@/app/abi/RewardPoolV2.json";
@@ -24,14 +26,14 @@ import DepositPoolAbi from "@/app/abi/DepositPool.json";
  * 
  * @param currentReward User's current claimable rewards (unused - kept for compatibility)
  * @param userDeposited User's deposited/staked amount in the pool
- * @param assetSymbol Asset symbol ('stETH' or 'LINK')
+ * @param assetSymbol Asset symbol (any AssetSymbol from configuration)
  * @param networkEnv Network environment (unused - determined from chainId, kept for compatibility)
  * @returns Object with daily emissions value and loading state
  */
 export function useDailyEmissions(
   currentReward: bigint | undefined, 
   userDeposited: bigint | undefined,
-  assetSymbol: string,
+  assetSymbol: AssetSymbol,
   networkEnv: string // eslint-disable-line @typescript-eslint/no-unused-vars
 ): { emissions: number; isLoading: boolean } {
   const chainId = useChainId();
@@ -50,8 +52,25 @@ export function useDailyEmissions(
     return getContractAddress(l1ChainId, 'rewardPoolV2', networkEnvironment) as `0x${string}` | undefined;
   }, [l1ChainId, networkEnvironment]);
 
+  // Dynamic deposit pool address mapping for all assets
+  const getDepositPoolContractKey = (symbol: AssetSymbol): keyof ContractAddresses | null => {
+    const mapping: Record<AssetSymbol, keyof ContractAddresses> = {
+      'stETH': 'stETHDepositPool',
+      'LINK': 'linkDepositPool',
+      'USDC': 'usdcDepositPool',
+      'USDT': 'usdtDepositPool',
+      'wBTC': 'wbtcDepositPool',
+      'wETH': 'wethDepositPool',
+    };
+    return mapping[symbol] || null;
+  };
+
   const depositPoolAddress = useMemo(() => {
-    const contractKey = assetSymbol === 'stETH' ? 'stETHDepositPool' : 'linkDepositPool';
+    const contractKey = getDepositPoolContractKey(assetSymbol);
+    if (!contractKey) {
+      console.warn(`No deposit pool contract mapping found for asset: ${assetSymbol}`);
+      return undefined;
+    }
     return getContractAddress(l1ChainId, contractKey, networkEnvironment) as `0x${string}` | undefined;
   }, [l1ChainId, networkEnvironment, assetSymbol]);
 

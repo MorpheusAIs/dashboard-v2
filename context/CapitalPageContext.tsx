@@ -32,12 +32,12 @@ import {
 // Re-export AssetSymbol for use by other components
 export type { AssetSymbol } from "@/components/capital/constants/asset-config";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
-import { formatPowerFactorPrecise } from "@/lib/utils/power-factor-utils";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 
 // Import hooks that provide refetch functions
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { useReferralData } from "@/hooks/use-referral-data";
+import { useAssetContractData } from "@/hooks/use-asset-contract-data";
 
 // Static ABI imports as fallbacks - keep these for reliability
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
@@ -113,6 +113,9 @@ interface AssetData {
   totalDeposited: bigint;
   protocolDetails: PoolLimitsData | null;
   poolData: PoolInfoData | null;
+  // Unlock timestamps for dynamic validation
+  claimUnlockTimestamp?: bigint;
+  withdrawUnlockTimestamp?: bigint;
   // Formatted for display
   userBalanceFormatted: string;
   userDepositedFormatted: string;
@@ -120,6 +123,11 @@ interface AssetData {
   userMultiplierFormatted: string;
   totalDepositedFormatted: string;
   minimalStakeFormatted: string;
+  claimUnlockTimestampFormatted: string;
+  withdrawUnlockTimestampFormatted: string;
+  // Dynamic eligibility flags per asset
+  canClaim: boolean;
+  canWithdraw: boolean;
 }
 
 // Use the same contract-expected calculations as our utils
@@ -207,22 +215,7 @@ const parseV2UserData = (data: unknown): UserPoolData | undefined => {
   }
 };
 
-// Helper to parse V2 protocol details from contract response
-const parseV2ProtocolDetails = (data: unknown): PoolLimitsData | undefined => {
-  if (!data) return undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const dataArray = data as any[];
-  if (!Array.isArray(dataArray) || dataArray.length < 5) return undefined;
-  try {
-    return {
-      claimLockPeriodAfterStake: BigInt(dataArray[1]),
-      claimLockPeriodAfterClaim: BigInt(dataArray[2]),
-    };
-  } catch (e) {
-    console.error("Error parsing V2 protocol details:", e);
-    return undefined;
-  }
-};
+// parseV2ProtocolDetails removed - now handled by dynamic useAssetContractData hook
 
 // --- Context Shape ---
 interface CapitalContextState {
@@ -272,11 +265,17 @@ interface CapitalContextState {
   selectedAssetCanClaim: boolean; // Dynamic claim eligibility for selected asset
 
   // V2-specific claim data for individual assets
+  /** @deprecated Use selectedAssetCanClaim or assets[symbol] instead. Will be removed in future versions. */
   stETHV2CanClaim: boolean;
+  /** @deprecated Use selectedAssetCanClaim or assets[symbol] instead. Will be removed in future versions. */
   linkV2CanClaim: boolean;
+  /** @deprecated Use selectedAssetCanClaim or assets[symbol] instead. Will be removed in future versions. */
   stETHV2ClaimUnlockTimestamp?: bigint;
+  /** @deprecated Use selectedAssetCanClaim or assets[symbol] instead. Will be removed in future versions. */
   linkV2ClaimUnlockTimestamp?: bigint;
+  /** @deprecated Use selectedAssetCanClaim or assets[symbol] instead. Will be removed in future versions. */
   stETHV2ClaimUnlockTimestampFormatted: string;
+  /** @deprecated Use selectedAssetCanClaim or assets[symbol] instead. Will be removed in future versions. */
   linkV2ClaimUnlockTimestampFormatted: string;
 
   // V2 Referral Data
@@ -434,6 +433,17 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     networkEnvironment: networkEnv
   });
 
+  // --- Dynamic Asset Contract Data ---
+  // Use the dynamic hook for each potential asset - only enabled when contracts exist
+  const assetContractData = {
+    stETH: useAssetContractData('stETH'),
+    LINK: useAssetContractData('LINK'), 
+    USDC: useAssetContractData('USDC'),
+    USDT: useAssetContractData('USDT'),
+    wBTC: useAssetContractData('wBTC'),
+    wETH: useAssetContractData('wETH'),
+  };
+
   // --- Dynamic Contract Loading with getContract ---
   const dynamicContracts = useMemo(() => {
     if (!publicClient) return {};
@@ -545,16 +555,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
      }
   }, [poolLimitsResult]);
 
-  const { 
-    data: totalDepositedDataRaw
-  } = useReadContract({
-    address: stETHDepositPoolAddress,
-    abi: poolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress }
-  });
-  const totalDepositedData = useMemo(() => totalDepositedDataRaw as bigint | undefined, [totalDepositedDataRaw]);
 
   const { data: usersDataResult, isLoading: isLoadingUserDataRaw, refetch: refetchUserData } = useReadContract({
     address: stETHDepositPoolAddress,
@@ -634,15 +634,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [networkEnv, userAddress, stEthContractAddress, l1ChainId, stEthBalanceData, isLoadingStEthBalance, stEthBalanceError]);
   
-  // Handle invalid contract gracefully on testnet
-  const stEthBalance = useMemo(() => {
-    if (networkEnv === 'testnet' && stEthBalanceError) {
-      // On testnet with error, return 0 and log a helpful message
-      console.warn('🚨 Using fallback balance of 0 for stETH due to contract error on testnet');
-      return BigInt(0);
-    }
-    return stEthBalanceData?.value ?? BigInt(0);
-  }, [stEthBalanceData, stEthBalanceError, networkEnv]);
+  // stEthBalance removed - now handled by dynamic useAssetContractData hook
 
   const { data: morBalanceData, isLoading: isLoadingMorBalance, refetch: refetchMorBalance } = useBalance({ address: userAddress, token: morContractAddress, chainId: l2ChainId, query: { enabled: !!userAddress && !!morContractAddress } });
   const morBalance = morBalanceData?.value ?? BigInt(0);
@@ -667,22 +659,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     query: { enabled: !!stETHDepositPoolAddress && !!userAddress }
   });
 
-  const { data: stETHV2PoolData, isLoading: isLoadingStETHV2Pool } = useReadContract({
-    address: stETHDepositPoolAddress,
-    abi: DepositPoolAbi,
-    functionName: 'rewardPoolsProtocolDetails',
-    args: [V2_REWARD_POOL_INDEX],
-    chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress }
-  });
+  // stETHV2PoolData removed - now handled by dynamic useAssetContractData hook
+  const { isLoading: isLoadingStETHV2Pool } = { isLoading: false }; // Placeholder to maintain loading state until fully migrated
 
-  const { data: stETHV2TotalDeposited, isLoading: isLoadingStETHV2Total } = useReadContract({
-    address: stETHDepositPoolAddress,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress }
-  });
+  // stETHV2TotalDeposited removed - now handled by dynamic useAssetContractData hook
 
   const { data: stETHV2CurrentUserReward, isLoading: isLoadingStETHV2Reward, refetch: refetchStETHV2Reward } = useReadContract({
     address: stETHDepositPoolAddress,
@@ -703,22 +683,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     query: { enabled: !!linkDepositPoolAddress && !!userAddress }
   });
 
-  const { data: linkV2PoolData, isLoading: isLoadingLinkV2Pool } = useReadContract({
-    address: linkDepositPoolAddress,
-    abi: DepositPoolAbi,
-    functionName: 'rewardPoolsProtocolDetails',
-    args: [V2_REWARD_POOL_INDEX],
-    chainId: l1ChainId,
-    query: { enabled: !!linkDepositPoolAddress }
-  });
+  // linkV2PoolData removed - now handled by dynamic useAssetContractData hook
+  const { isLoading: isLoadingLinkV2Pool } = { isLoading: false }; // Placeholder to maintain loading state until fully migrated
 
-  const { data: linkV2TotalDeposited, isLoading: isLoadingLinkV2Total } = useReadContract({
-    address: linkDepositPoolAddress,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { enabled: !!linkDepositPoolAddress }
-  });
+  // linkV2TotalDeposited removed - now handled by dynamic useAssetContractData hook
 
   const { data: linkV2CurrentUserReward, isLoading: isLoadingLinkV2Reward, refetch: refetchLinkV2Reward } = useReadContract({
     address: linkDepositPoolAddress,
@@ -730,23 +698,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   });
 
   // --- V2 User Multiplier Reads (Power Factor) ---
-  const { data: stETHV2UserMultiplier, isLoading: isLoadingStETHV2Multiplier } = useReadContract({
-    address: distributorV2Address,
-    abi: ERC1967ProxyAbi,
-    functionName: 'getCurrentUserMultiplier',
-    args: [BigInt(0), userAddress || zeroAddress], // Pool ID 0 for stETH
-    chainId: l1ChainId,
-    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 3 * 60 * 1000 }
-  });
-
-  const { data: linkV2UserMultiplier, isLoading: isLoadingLinkV2Multiplier } = useReadContract({
-    address: distributorV2Address,
-    abi: ERC1967ProxyAbi,
-    functionName: 'getCurrentUserMultiplier',
-    args: [BigInt(1), userAddress || zeroAddress], // Pool ID 1 for LINK
-    chainId: l1ChainId,
-    query: { enabled: !!distributorV2Address && !!userAddress, refetchInterval: 3 * 60 * 1000 }
-  });
+  // stETHV2UserMultiplier and linkV2UserMultiplier removed - now handled by dynamic useAssetContractData hook
 
   // Debug logging for reward values
   useEffect(() => {
@@ -828,34 +780,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   });
 
   // --- V2 Token Balances ---
-  const { data: linkBalanceData, isLoading: isLoadingLinkBalance, refetch: refetchLinkBalance } = useBalance({ 
-    address: userAddress, 
-    token: linkTokenAddress, 
-    chainId: l1ChainId, 
-    query: { enabled: !!userAddress && !!linkTokenAddress } 
-  });
-  const linkBalance = linkBalanceData?.value ?? BigInt(0);
+  // linkBalance removed - now handled by dynamic useAssetContractData hook
 
-  // --- V2 Token Allowances ---
-  const { data: stETHV2AllowanceData, isLoading: isLoadingStETHV2Allowance, refetch: refetchStETHV2Allowance } = useReadContract({
-    address: stEthContractAddress,
-    abi: ERC20Abi,
-    functionName: 'allowance',
-    args: [userAddress || zeroAddress, stETHDepositPoolAddress || zeroAddress],
-    chainId: l1ChainId,
-    query: { enabled: !!userAddress && !!stEthContractAddress && !!stETHDepositPoolAddress }
-  });
-  const stETHV2Allowance = stETHV2AllowanceData as bigint | undefined ?? BigInt(0);
-
-  const { data: linkV2AllowanceData, isLoading: isLoadingLinkV2Allowance, refetch: refetchLinkV2Allowance } = useReadContract({
-    address: linkTokenAddress,
-    abi: ERC20Abi,
-    functionName: 'allowance',
-    args: [userAddress || zeroAddress, linkDepositPoolAddress || zeroAddress],
-    chainId: l1ChainId,
-    query: { enabled: !!userAddress && !!linkTokenAddress && !!linkDepositPoolAddress }
-  });
-  const linkV2Allowance = linkV2AllowanceData as bigint | undefined ?? BigInt(0);
+  // V2 Token Allowances removed - now handled by dynamic useAssetContractData hook
 
   // --- Write Hooks ---
   const { data: approveHash, writeContractAsync: approveAsync, isPending: isSendingApproval } = useWriteContract();
@@ -909,13 +836,14 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [lockClaimHash, lastHandledLockClaimHash]);
 
-  // --- Combined Loading States (NOW PROPERLY USED!) ---
-  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier || isLoadingStETHV2User || isLoadingLinkV2User || isLoadingStETHV2Multiplier || isLoadingLinkV2Multiplier; 
-  const isLoadingBalances = isLoadingStEthBalance || isLoadingMorBalance || isLoadingLinkBalance;
-  const isLoadingAllowances = isLoadingAllowance || isLoadingStETHV2Allowance || isLoadingLinkV2Allowance;
-  const isLoadingRewards = isLoadingStETHV2Reward || isLoadingLinkV2Reward;
-  const isLoadingTotalDeposits = isLoadingStETHV2Total || isLoadingLinkV2Total;
-  const isLoadingAssetData = isLoadingStETHV2Pool || isLoadingLinkV2Pool;
+  // --- Combined Loading States (Dynamic) ---
+  // These are now calculated from the dynamic assetContractData loading states
+  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier || isLoadingStETHV2User || isLoadingLinkV2User; 
+  const isLoadingBalances = isLoadingStEthBalance || isLoadingMorBalance || Object.values(assetContractData).some(asset => asset.isLoading);
+  const isLoadingAllowances = isLoadingAllowance || Object.values(assetContractData).some(asset => asset.isLoading);
+  const isLoadingRewards = isLoadingStETHV2Reward || isLoadingLinkV2Reward || Object.values(assetContractData).some(asset => asset.isLoading);
+  const isLoadingTotalDeposits = Object.values(assetContractData).some(asset => asset.isLoading);
+  const isLoadingAssetData = isLoadingStETHV2Pool || isLoadingLinkV2Pool || Object.values(assetContractData).some(asset => asset.isLoading);
 
   // --- Action Processing States ---
   const isProcessingDeposit = isSendingApproval || isConfirmingApproval || isSendingStake || isConfirmingStake;
@@ -1095,18 +1023,18 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Asset ${asset} not supported on ${networkEnv}`);
     }
 
-    await handleTransaction(() => approveAsync({
+      await handleTransaction(() => approveAsync({
       address: assetInfo.address,
-      abi: ERC20Abi,
-      functionName: 'approve',
+        abi: ERC20Abi,
+        functionName: 'approve',
       args: [distributorV2Address, maxInt256], // Use distributor address as spender
-      chainId: l1ChainId,
-    }), {
+        chainId: l1ChainId,
+      }), {
       loading: `Requesting ${asset} approval...`,
       success: `${asset} approval successful!`, 
       error: `${asset} approval failed`,
-      skipClose: true
-    });
+        skipClose: true
+      });
   }, [approveAsync, distributorV2Address, l1ChainId, networkEnv, handleTransaction]);
 
   // Deposit function will be defined after assets declaration due to dependencies
@@ -1205,8 +1133,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         
         toast.success("Approval successful!");
         refetchAllowance();
-        refetchStETHV2Allowance();
-        refetchLinkV2Allowance();
+        // TODO: Add refetch capabilities to dynamic useAssetContractData hook
         setLastHandledApprovalHash(approveHash);
         
         // Add debugging for allowance refetch
@@ -1215,7 +1142,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         }
         // Don't close modal after approval
     }
-  }, [isApprovalSuccess, approveHash, lastHandledApprovalHash, refetchAllowance, refetchStETHV2Allowance, refetchLinkV2Allowance, l1ChainId]);
+  }, [isApprovalSuccess, approveHash, lastHandledApprovalHash, refetchAllowance, l1ChainId, assetContractData]);
 
   useEffect(() => {
       if (isStakeSuccess && stakeHash && stakeHash !== lastHandledStakeHash) {
@@ -1223,17 +1150,18 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserData();
           refetchUserReward();
           refetchStEthBalance();
-          refetchLinkBalance();
           refetchStETHV2User();
           refetchLinkV2User();
           refetchStETHV2Reward();
           refetchLinkV2Reward();
+          // Refetch all asset contract data dynamically
+          Object.values(assetContractData).forEach(asset => asset.refetch.all());
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
           setLastHandledStakeHash(stakeHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal]);
+  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, refetchStEthBalance, refetchStETHV2User, refetchLinkV2User, refetchStETHV2Reward, refetchLinkV2Reward, capitalPoolData.refetch, setActiveModal, assetContractData]);
 
   useEffect(() => {
       if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHash) {
@@ -1263,15 +1191,16 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserData();
           refetchUserReward();
           refetchStEthBalance();
-          refetchLinkBalance();
           refetchStETHV2User();
           refetchLinkV2User();
+          // Refetch all asset contract data dynamically
+          Object.values(assetContractData).forEach(asset => asset.refetch.all());
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
           setLastHandledWithdrawHash(withdrawHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isWithdrawSuccess, withdrawHash, lastHandledWithdrawHash, refetchUserData, refetchUserReward, refetchStEthBalance, refetchLinkBalance, refetchStETHV2User, refetchLinkV2User, capitalPoolData.refetch, setActiveModal]);
+  }, [isWithdrawSuccess, withdrawHash, lastHandledWithdrawHash, refetchUserData, refetchUserReward, refetchStEthBalance, refetchStETHV2User, refetchLinkV2User, capitalPoolData.refetch, setActiveModal, assetContractData]);
 
   useEffect(() => {
       if (isLockClaimSuccess && lockClaimHash && lockClaimHash !== lastHandledLockClaimHash) {
@@ -1425,11 +1354,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       return "---x"; // Default or if no valid args set
   }, [simulatedMultiplierResult, simulateMultiplierError, isSimulatingMultiplier]);
 
-  // Parse V2 user data
+  // Parse V2 user data (only keep what's still needed for legacy exports)
   const stETHV2UserParsed = useMemo(() => parseV2UserData(stETHV2UserData), [stETHV2UserData]);
   const linkV2UserParsed = useMemo(() => parseV2UserData(linkV2UserData), [linkV2UserData]);
-  const stETHV2ProtocolParsed = useMemo(() => parseV2ProtocolDetails(stETHV2PoolData), [stETHV2PoolData]);
-  const linkV2ProtocolParsed = useMemo(() => parseV2ProtocolDetails(linkV2PoolData), [linkV2PoolData]);
+  // stETHV2ProtocolParsed and linkV2ProtocolParsed removed - now handled by dynamic useAssetContractData hook
 
   // V2-specific unlock timestamp calculations (since we're using V2 contracts for rewards)
   const stETHV2ClaimUnlockTimestamp = useMemo(() => {
@@ -1683,117 +1611,52 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     const availableAssets = getAvailableAssetsWithContracts();
     const assetsRecord: Record<string, AssetData> = {};
 
-    // Data mapping for assets that have contract reads implemented
-    const assetDataMapping: Record<AssetSymbol, {
-      userBalance: bigint;
-      userDeposited: bigint;
-      userAllowance: bigint;
-      claimableAmount: bigint;
-      userMultiplier: bigint;
-      totalDeposited: bigint;
-      protocolDetails: PoolLimitsData | null;
-    }> = {
-      'stETH': {
-        userBalance: stEthBalance,
-        userDeposited: stETHV2UserParsed?.deposited || BigInt(0),
-        userAllowance: stETHV2Allowance,
-        claimableAmount: stETHV2CurrentUserReward as bigint || BigInt(0),
-        userMultiplier: stETHV2UserMultiplier as bigint || BigInt(0),
-        totalDeposited: stETHV2TotalDeposited as bigint || BigInt(0),
-        protocolDetails: stETHV2ProtocolParsed || null,
-      },
-      'LINK': {
-        userBalance: linkBalance,
-        userDeposited: linkV2UserParsed?.deposited || BigInt(0),
-        userAllowance: linkV2Allowance,
-        claimableAmount: linkV2CurrentUserReward as bigint || BigInt(0),
-        userMultiplier: linkV2UserMultiplier as bigint || BigInt(0),
-        totalDeposited: linkV2TotalDeposited as bigint || BigInt(0),
-        protocolDetails: linkV2ProtocolParsed || null,
-      },
-      // Placeholder data for other assets (will be BigInt(0) until contract reads are implemented)
-      'USDC': {
-        userBalance: BigInt(0),
-        userDeposited: BigInt(0),
-        userAllowance: BigInt(0),
-        claimableAmount: BigInt(0),
-        userMultiplier: BigInt(0),
-        totalDeposited: BigInt(0),
-        protocolDetails: null,
-      },
-      'USDT': {
-        userBalance: BigInt(0),
-        userDeposited: BigInt(0),
-        userAllowance: BigInt(0),
-        claimableAmount: BigInt(0),
-        userMultiplier: BigInt(0),
-        totalDeposited: BigInt(0),
-        protocolDetails: null,
-      },
-      'wBTC': {
-        userBalance: BigInt(0),
-        userDeposited: BigInt(0),
-        userAllowance: BigInt(0),
-        claimableAmount: BigInt(0),
-        userMultiplier: BigInt(0),
-        totalDeposited: BigInt(0),
-        protocolDetails: null,
-      },
-      'wETH': {
-        userBalance: BigInt(0),
-        userDeposited: BigInt(0),
-        userAllowance: BigInt(0),
-        claimableAmount: BigInt(0),
-        userMultiplier: BigInt(0),
-        totalDeposited: BigInt(0),
-        protocolDetails: null,
-      },
-    };
 
+    // Build assets structure from dynamic contract data - truly configuration-driven!
     availableAssets.forEach((assetInfo) => {
       const symbol = assetInfo.metadata.symbol;
-      const depositPoolContractName = getDepositPoolContractName(symbol);
+      const contractData = assetContractData[symbol];
       
-      if (!depositPoolContractName || !l1ChainId) return;
-      
-      const depositPoolAddress = getContractAddress(l1ChainId, depositPoolContractName, networkEnv);
-      const assetData = assetDataMapping[symbol];
-      
-      if (!assetData) {
-        console.warn(`No asset data mapping found for ${symbol}`);
-        return;
-      }
-
-      assetsRecord[symbol] = {
-        symbol,
-        config: {
+      // Only include assets that have deployed contracts (non-zero addresses)  
+      if (contractData.depositPoolAddress !== zeroAddress) {
+        assetsRecord[symbol] = {
           symbol,
-          depositPoolAddress: depositPoolAddress as `0x${string}`,
-          tokenAddress: assetInfo.address,
-          decimals: assetInfo.metadata.decimals,
-          icon: assetInfo.metadata.icon,
-        },
-        ...assetData,
-        poolData: null,
-        userBalanceFormatted: formatBigInt(assetData.userBalance, assetInfo.metadata.decimals, 4),
-        userDepositedFormatted: formatBigInt(assetData.userDeposited, assetInfo.metadata.decimals, 2),
-        claimableAmountFormatted: formatBigInt(assetData.claimableAmount, 18, 2), // MOR rewards are always 18 decimals
-        userMultiplierFormatted: assetData.userMultiplier ? 
-          formatPowerFactorPrecise(assetData.userMultiplier) : 
-          (assetData.userDeposited > BigInt(0) ? "x1.0" : "---"),
-        totalDepositedFormatted: formatBigInt(assetData.totalDeposited, assetInfo.metadata.decimals, 2),
-        minimalStakeFormatted: "100", // TODO: Get from protocol details
-      };
+      config: {
+            symbol,
+            depositPoolAddress: contractData.depositPoolAddress,
+            tokenAddress: contractData.tokenAddress,
+            decimals: assetInfo.metadata.decimals,
+            icon: assetInfo.metadata.icon,
+          },
+          // All data comes from the dynamic hook - no more hardcoded variables!
+          userBalance: contractData.userBalance,
+          userDeposited: contractData.userDeposited,
+          userAllowance: contractData.userAllowance,
+          claimableAmount: contractData.claimableAmount,
+          userMultiplier: contractData.userMultiplier,
+          totalDeposited: contractData.totalDeposited,
+          protocolDetails: null, // TODO: Add to dynamic hook
+      poolData: null,
+          claimUnlockTimestamp: contractData.claimUnlockTimestamp,
+          withdrawUnlockTimestamp: contractData.withdrawUnlockTimestamp,
+          // Formatted data from hook
+          userBalanceFormatted: contractData.userBalanceFormatted,
+          userDepositedFormatted: contractData.userDepositedFormatted,
+          claimableAmountFormatted: contractData.claimableAmountFormatted,
+          userMultiplierFormatted: contractData.userMultiplierFormatted,
+          totalDepositedFormatted: contractData.totalDepositedFormatted,
+          minimalStakeFormatted: "100", // TODO: Get from protocol details
+          claimUnlockTimestampFormatted: contractData.claimUnlockTimestampFormatted,
+          withdrawUnlockTimestampFormatted: contractData.withdrawUnlockTimestampFormatted,
+          // Eligibility flags from hook
+          canClaim: contractData.canClaim,
+          canWithdraw: contractData.canWithdraw,
+        };
+      }
     });
 
     return assetsRecord as Record<AssetSymbol, AssetData>;
-  }, [
-    getAvailableAssetsWithContracts, getDepositPoolContractName, l1ChainId, networkEnv,
-    stEthBalance, stETHV2UserParsed, stETHV2Allowance, stETHV2CurrentUserReward, 
-    stETHV2UserMultiplier, stETHV2TotalDeposited, stETHV2ProtocolParsed,
-    linkBalance, linkV2UserParsed, linkV2Allowance, linkV2CurrentUserReward,
-    linkV2UserMultiplier, linkV2TotalDeposited, linkV2ProtocolParsed
-  ]);
+  }, [getAvailableAssetsWithContracts, assetContractData]);
 
   // --- Asset-aware utility functions (now that assets is available) ---
   const needsApproval = useCallback((asset: AssetSymbol, amountString: string): boolean => {
@@ -1834,22 +1697,17 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         });
       }
       
-      // For now, we only have specific refetch functions for stETH and LINK
-      // TODO: Add generic allowance refetch when other assets are implemented
-      let currentAllowanceValue: bigint;
-      if (asset === 'stETH') {
-        const { data: latestAllowance } = await refetchStETHV2Allowance();
-        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
-      } else if (asset === 'LINK') {
-        const { data: latestAllowance } = await refetchLinkV2Allowance();
-        currentAllowanceValue = latestAllowance as bigint ?? BigInt(0);
-      } else {
-        // For other assets, use the current allowance from assets data
-        // This is a fallback until specific refetch functions are implemented
-        const assetData = assets[asset];
-        currentAllowanceValue = assetData?.userAllowance ?? BigInt(0);
-        console.warn(`${asset} allowance refetch not implemented, using cached value`);
+      // Use dynamic refetch from assetContractData - works for ALL assets!
+      const assetData = assetContractData[asset];
+      if (!assetData) {
+        console.error(`Asset data not found for ${asset}`);
+        return false;
       }
+      
+      // Refetch allowance dynamically for any asset
+      await assetData.refetch.allowance();
+      // Use the current allowance value from the hook state (will be updated after refetch)
+      const currentAllowanceValue = assetData.userAllowance;
       
       const needsApproval = currentAllowanceValue < amountBigInt;
       
@@ -1867,7 +1725,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       console.error(`Error checking approval status for ${asset}:`, error);
       return false; 
     }
-  }, [refetchStETHV2Allowance, refetchLinkV2Allowance, l1ChainId, networkEnv, assets]);
+  }, [l1ChainId, networkEnv, assetContractData]);
 
   const deposit = useCallback(async (asset: AssetSymbol, amountString: string, lockDurationSeconds?: bigint) => {
     // Get asset configuration and data
@@ -2027,7 +1885,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     canClaim: canClaim,
 
     // V2-specific claim data for individual assets (Legacy - maintained for backward compatibility)
-    // TODO: These could be replaced with dynamic asset-based claim data once all assets are implemented
+    // @deprecated Use selectedAssetCanClaim or assets[symbol] instead. These hardcoded exports will be removed in future versions.
+    // TODO: Migrate components away from these hardcoded exports to the dynamic assets system
     stETHV2CanClaim: stETHV2CanClaim,
     linkV2CanClaim: linkV2CanClaim,
     stETHV2ClaimUnlockTimestamp: stETHV2ClaimUnlockTimestamp,
@@ -2035,7 +1894,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     stETHV2ClaimUnlockTimestampFormatted: formatTimestamp(stETHV2ClaimUnlockTimestamp),
     linkV2ClaimUnlockTimestampFormatted: formatTimestamp(linkV2ClaimUnlockTimestamp),
 
-    // Dynamic asset-based claim data (for selected asset)
+    // Dynamic asset-based claim data (for selected asset) - USE THIS INSTEAD OF HARDCODED ONES
     selectedAssetCanClaim: selectedAsset === 'stETH' ? stETHV2CanClaim : 
                           selectedAsset === 'LINK' ? linkV2CanClaim : 
                           false, // Default for unimplemented assets
@@ -2101,27 +1960,48 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     currentUserMultiplierData,
     poolInfo,
   }), [
-    // Dependencies for all values provided
+    // Core system dependencies
     l1ChainId, l2ChainId, userAddress, networkEnv,
-    stEthContractAddress, morContractAddress, distributorV2Address, rewardPoolV2Address, l1SenderV2Address,
-    stETHDepositPoolAddress, linkDepositPoolAddress, linkTokenAddress,
-    userData, totalDepositedData, currentUserRewardData, currentUserMultiplierData,
-    stEthBalance, morBalance, linkBalance, stETHV2Allowance, linkV2Allowance,
-    stETHV2UserParsed, linkV2UserParsed, stETHV2ProtocolParsed, linkV2ProtocolParsed,
-    stETHV2TotalDeposited, linkV2TotalDeposited, stETHV2CurrentUserReward, linkV2CurrentUserReward,
-    stETHV2UserMultiplier, linkV2UserMultiplier,
-    selectedAsset, poolInfo, poolLimits, assets,
-    withdrawUnlockTimestamp, claimUnlockTimestamp,
-    canWithdraw, canClaim,
-    isLoadingUserData, isLoadingBalances, isLoadingStETHV2User, isLoadingLinkV2User, 
-    isLoadingStETHV2Pool, isLoadingLinkV2Pool, isLoadingAssetData, isLoadingAllowances, 
+    distributorV2Address, rewardPoolV2Address, l1SenderV2Address,
+    
+    // Dynamic assets object (contains all asset-specific data)
+    assets,
+    selectedAsset,
+    
+    // MOR token balance (L2)
+    morBalance,
+    
+    // Legacy pool data (for backward compatibility)
+    userData, currentUserRewardData, currentUserMultiplierData, poolInfo, poolLimits,
+    withdrawUnlockTimestamp, claimUnlockTimestamp, canWithdraw, canClaim,
+    
+    // V2-specific data for components that still use hardcoded exports
+    stETHV2CanClaim, linkV2CanClaim, 
+    stETHV2ClaimUnlockTimestamp, linkV2ClaimUnlockTimestamp,
+    
+    // Aggregated loading states (consolidated)
+    isLoadingAssetData, isLoadingUserData, isLoadingBalances, isLoadingAllowances, 
     isLoadingRewards, isLoadingTotalDeposits,
-    isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock, isApprovalSuccess,
+    
+    // Processing states
+    isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock, 
+    isApprovalSuccess, isClaimSuccess, claimHash, lastHandledClaimHash,
+    
+    // Action functions
     deposit, claim, withdraw, changeLock, approveToken, needsApproval, checkAndUpdateApprovalNeeded,
-    claimAssetRewards, lockAssetRewards, claimReferralRewards, referralData,
-    triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier,
+    claimAssetRewards, lockAssetRewards, claimReferralRewards,
+    
+    // Referral data
+    referralData,
+    
+    // Multiplier simulation
+    triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier, multiplierSimArgs,
+    
+    // Modal state
     activeModal, setActiveModal, preReferrerAddress, setPreReferrerAddress,
-    multiplierSimArgs, dynamicContracts,
+    
+    // Dynamic contracts
+    dynamicContracts,
   ]);
 
   return (

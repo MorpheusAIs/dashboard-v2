@@ -10,6 +10,7 @@ import type { Asset } from "./types/asset";
 import { parseStakedAmount } from "./utils/parse-staked-amount";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
+import { getContractAddress } from "@/config/networks";
 
 export function CapitalInfoPanel() {
   const {
@@ -35,12 +36,27 @@ export function CapitalInfoPanel() {
     // Get data from the dynamic hook
     const assetData = poolData.assets[symbol];
     
+    // Check if this asset has a deposit pool configured in networks.ts
+    // Use the same mapping logic as use-capital-pool-data.ts
+    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
+      stETH: 'stETHDepositPool',
+      LINK: 'linkDepositPool', 
+      USDC: 'usdcDepositPool',
+      USDT: 'usdtDepositPool',
+      wBTC: 'wbtcDepositPool',
+      wETH: 'wethDepositPool',
+    };
+    
+    const contractKey = depositPoolMapping[symbol];
+    const l1ChainId = networkEnvironment === 'mainnet' ? 1 : 11155111; // mainnet : sepolia
+    const hasDepositPool = contractKey && getContractAddress(l1ChainId, contractKey, networkEnvironment);
+    
     return {
       symbol: assetConfig.metadata.symbol,
-      apy: assetData?.apy || 'N/A',
-      totalStaked: assetData?.totalStaked || 'N/A',
+      apy: assetData?.apy || (hasDepositPool ? 'N/A' : 'Coming Soon'),
+      totalStaked: assetData?.totalStaked || (hasDepositPool ? '0' : 'N/A'),
       icon: assetConfig.metadata.icon,
-      disabled: assetConfig.metadata.disabled || assetData?.totalStaked === 'N/A',
+      disabled: assetConfig.metadata.disabled || (!hasDepositPool),
     };
   });
 

@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 
 // Import Context and Hooks
-import { useCapitalContext } from "@/context/CapitalPageContext";
+import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { usePowerFactor } from "@/hooks/use-power-factor";
 import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 
@@ -54,7 +54,7 @@ export function DepositModal() {
     setActiveModal,
     preReferrerAddress,
     setPreReferrerAddress,
-    // Get current lock end timestamps to validate against shorter periods
+    // Get current lock end timestamps to validate against shorter periods (legacy - needed for validation)
     stETHV2ClaimUnlockTimestamp,
     linkV2ClaimUnlockTimestamp,
     // Get contract details for power factor hook
@@ -81,7 +81,7 @@ export function DepositModal() {
   const [referrerAddressError, setReferrerAddressError] = useState<string | null>(null);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
   const [timeLockDropdownOpen, setTimeLockDropdownOpen] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<'stETH' | 'LINK'>(contextSelectedAsset);
+  const [selectedAsset, setSelectedAsset] = useState<AssetSymbol>(contextSelectedAsset);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeLockDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -385,10 +385,17 @@ export function DepositModal() {
       const lockDurationSeconds = durationToSeconds(lockValue, lockUnit);
       const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDurationSeconds;
       
-      // Get existing lock end timestamp for selected asset
-      const existingLockEnd = selectedAsset === 'stETH' 
-        ? stETHV2ClaimUnlockTimestamp 
-        : linkV2ClaimUnlockTimestamp;
+      // Get existing lock end timestamp for selected asset - Dynamic approach
+      // TODO: Add unlock timestamps to AssetData interface for proper dynamic validation
+      let existingLockEnd: bigint | undefined;
+      if (selectedAsset === 'stETH') {
+        existingLockEnd = stETHV2ClaimUnlockTimestamp;
+      } else if (selectedAsset === 'LINK') {
+        existingLockEnd = linkV2ClaimUnlockTimestamp;
+      } else {
+        // For other assets, no existing lock validation yet (until unlock timestamps are added to AssetData)
+        existingLockEnd = undefined;
+      }
       
       if (existingLockEnd && existingLockEnd > BigInt(0) && proposedClaimLockEnd < existingLockEnd) {
         const existingDate = new Date(Number(existingLockEnd) * 1000);
@@ -455,9 +462,16 @@ export function DepositModal() {
         // Debug lock period validation
         const currentTimestamp = Math.floor(Date.now() / 1000);
         const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDuration;
-        const existingLockEnd = selectedAsset === 'stETH' 
-          ? stETHV2ClaimUnlockTimestamp 
-          : linkV2ClaimUnlockTimestamp;
+        // Get existing lock end for debugging - Dynamic approach
+        let existingLockEnd: bigint | undefined;
+        if (selectedAsset === 'stETH') {
+          existingLockEnd = stETHV2ClaimUnlockTimestamp;
+        } else if (selectedAsset === 'LINK') {
+          existingLockEnd = linkV2ClaimUnlockTimestamp;
+        } else {
+          // For other assets, no existing lock data yet
+          existingLockEnd = undefined;
+        }
         
         console.log('🏦 Proceeding with deposit:', { 
           selectedAsset, 

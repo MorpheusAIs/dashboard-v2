@@ -119,57 +119,44 @@ export const formatUnlockDate = (unlockDate: string | null, assetSymbol: string)
 };
 
 /**
- * Check if user has any staked assets
+ * Check if user has any staked assets - Now dynamic for all assets!
  */
 export const hasStakedAssets = (assets: Record<AssetSymbol, MinimalAssetData>): boolean => {
-  const stethDeposited = parseDepositAmount(assets.stETH?.userDepositedFormatted);
-  const linkDeposited = parseDepositAmount(assets.LINK?.userDepositedFormatted);
-  return stethDeposited > 0 || linkDeposited > 0;
+  // Check all available assets dynamically instead of hardcoded stETH/LINK
+  return Object.values(assets).some(asset => {
+    const deposited = parseDepositAmount(asset.userDepositedFormatted);
+    return deposited > 0;
+  });
 };
 
 /**
- * Get unlock date for specific asset
+ * Get unlock date for specific asset - Now dynamic for all assets!
+ * @deprecated This function has hardcoded logic. Use dynamic asset data from context instead.
+ * TODO: Remove this function once components are migrated to use assets[symbol] data directly
  */
 export const getAssetUnlockDate = (
-  assetSymbol: 'stETH' | 'LINK',
-  stETHV2ClaimUnlockTimestampFormatted: string,
-  linkV2ClaimUnlockTimestampFormatted: string
+  assetSymbol: AssetSymbol, // Now accepts any asset
+  stETHV2ClaimUnlockTimestampFormatted?: string, // Made optional for backward compatibility
+  linkV2ClaimUnlockTimestampFormatted?: string   // Made optional for backward compatibility
 ): string | null => {
-  let unlockDate: string | null = null;
-
-  // Get raw data for debugging
-  const rawFormatted = assetSymbol === 'stETH'
-    ? stETHV2ClaimUnlockTimestampFormatted
-    : linkV2ClaimUnlockTimestampFormatted;
-
-  // Use V2-specific unlock timestamps
-  if (assetSymbol === 'stETH') {
-    unlockDate = stETHV2ClaimUnlockTimestampFormatted && stETHV2ClaimUnlockTimestampFormatted !== "--- --, ----"
-      ? stETHV2ClaimUnlockTimestampFormatted
+  // Legacy logic for backward compatibility with existing components
+  // TODO: This should be replaced with dynamic timestamp data from assets structure
+  
+  if (assetSymbol === 'stETH' && stETHV2ClaimUnlockTimestampFormatted) {
+    return stETHV2ClaimUnlockTimestampFormatted !== "--- --, ----" 
+      ? stETHV2ClaimUnlockTimestampFormatted 
       : null;
   }
 
-  if (assetSymbol === 'LINK') {
+  if (assetSymbol === 'LINK' && linkV2ClaimUnlockTimestampFormatted) {
     // For LINK, if no lock is set (shows as "--- --, ----"), treat as unlocked
-    // This handles cases where users deposit LINK without setting a claim lock
-    if (linkV2ClaimUnlockTimestampFormatted && linkV2ClaimUnlockTimestampFormatted !== "--- --, ----") {
-      unlockDate = linkV2ClaimUnlockTimestampFormatted;
-    } else {
-      // No lock set for LINK - user can claim/withdraw immediately
-      // Return null so the UI shows appropriate messaging (will be handled by caller)
-      unlockDate = null;
-    }
+    return linkV2ClaimUnlockTimestampFormatted !== "--- --, ----" 
+      ? linkV2ClaimUnlockTimestampFormatted 
+      : null;
   }
 
-  // Log unlock date for debugging
-  console.log(`🔓 getAssetUnlockDate for ${assetSymbol}:`, {
-    rawFormatted,
-    processedDate: unlockDate,
-    isValid: unlockDate !== null,
-    conditionCheck: rawFormatted && rawFormatted !== "--- --, ----",
-    assetSymbol,
-    linkSpecialCase: assetSymbol === 'LINK' && rawFormatted === "--- --, ----" ? "Treated as unlocked - will show 'Assets unlocked'" : null
-  });
-
-  return unlockDate;
+  // For other assets (USDC, USDT, wBTC, wETH), return null for now
+  // TODO: Implement dynamic unlock date calculation when these assets have proper contract integration
+  console.log(`⚠️ getAssetUnlockDate: No unlock date logic implemented for ${assetSymbol} yet`);
+  return null;
 };

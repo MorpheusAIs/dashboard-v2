@@ -17,12 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronRight, Clock, Lock, LockOpen } from "lucide-react";
 import { TokenIcon } from '@web3icons/react';
 import { Badge } from "@/components/ui/badge";
-import { useCapitalContext } from "@/context/CapitalPageContext";
+import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { sepolia, mainnet } from 'wagmi/chains';
 
 interface ClaimableAsset {
-  symbol: 'stETH' | 'LINK';
+  symbol: AssetSymbol; // Now supports all assets dynamically
   icon: string;
   claimableAmount: number;
   claimableAmountFormatted: string;
@@ -35,8 +35,7 @@ export function ClaimMorRewardsModal() {
     setActiveModal,
     selectedAsset,
     assets,
-    stETHV2CanClaim,
-    linkV2CanClaim,
+    selectedAssetCanClaim, // Use dynamic claim eligibility instead of hardcoded
     claimAssetRewards,
     lockAssetRewards,
     isProcessingClaim,
@@ -110,7 +109,7 @@ export function ClaimMorRewardsModal() {
     }
   };
 
-  // Get the selected asset data
+  // Get the selected asset data - Now fully dynamic!
   const selectedAssetData: ClaimableAsset | null = useMemo(() => {
     if (!selectedAsset) return null;
 
@@ -120,21 +119,24 @@ export function ClaimMorRewardsModal() {
     const claimableAmount = parseClaimableAmount(asset.claimableAmountFormatted);
 
     // Debug logging
-    // console.log('🔍 ClaimMorRewardsModal - Selected Asset Data:', {
-    //   selectedAsset,
-    //   claimableAmountFormatted: asset.claimableAmountFormatted,
-    //   parsed: claimableAmount,
-    //   canClaim: selectedAsset === 'stETH' ? stETHV2CanClaim : linkV2CanClaim,
-    // });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 ClaimMorRewardsModal - Dynamic Asset Data:', {
+        selectedAsset,
+        claimableAmountFormatted: asset.claimableAmountFormatted,
+        parsed: claimableAmount,
+        canClaim: selectedAssetCanClaim,
+        assetIcon: asset.config.icon
+      });
+    }
 
     return {
       symbol: selectedAsset,
-      icon: selectedAsset === 'stETH' ? 'eth' : 'link',
+      icon: asset.config.icon, // Use dynamic icon from asset config
       claimableAmount: claimableAmount,
       claimableAmountFormatted: asset.claimableAmountFormatted || '0',
-      canClaim: (selectedAsset === 'stETH' ? stETHV2CanClaim : linkV2CanClaim) && claimableAmount > 0,
+      canClaim: selectedAssetCanClaim && claimableAmount > 0, // Use dynamic claim eligibility
     };
-  }, [selectedAsset, assets, stETHV2CanClaim, linkV2CanClaim]);
+  }, [selectedAsset, assets, selectedAssetCanClaim]);
 
   // Determine if network switch is needed
   const needsNetworkSwitch = useMemo(() => {

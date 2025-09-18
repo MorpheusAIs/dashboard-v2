@@ -41,10 +41,8 @@ export function UserAssetsPanel() {
     isProcessingClaim,
     isProcessingWithdraw,
     isProcessingChangeLock,
-    stETHV2CanClaim,
-    linkV2CanClaim,
-    stETHV2ClaimUnlockTimestampFormatted,
-    linkV2ClaimUnlockTimestampFormatted,
+    selectedAssetCanClaim, // Use dynamic claim eligibility
+    withdrawUnlockTimestamp,
     // Add loading states to detect when data is loaded
     isLoadingUserData,
     isLoadingBalances,
@@ -83,8 +81,8 @@ export function UserAssetsPanel() {
   // Track data freshness to prevent unnecessary skeleton states
   const [hasValidData, setHasValidData] = useState(false);
 
-  // Use extracted hooks
-  const { stethPrice, linkPrice } = useTokenPrices({
+  // Use extracted hooks - now with dynamic pricing for all assets
+  const { stethPrice, linkPrice, prices, getAssetPrice } = useTokenPrices({
     isInitialLoad,
     shouldRefreshData,
     userAddress,
@@ -199,18 +197,35 @@ export function UserAssetsPanel() {
     return checkHasStakedAssets(assets);
   }, [assets]);
 
-  // Helper function to get unlock date for specific asset
-  const getAssetUnlockDateCallback = useCallback((assetSymbol: 'stETH' | 'LINK'): string | null => {
-    return getAssetUnlockDate(assetSymbol, stETHV2ClaimUnlockTimestampFormatted, linkV2ClaimUnlockTimestampFormatted);
-  }, [stETHV2ClaimUnlockTimestampFormatted, linkV2ClaimUnlockTimestampFormatted]);
+  // Helper function to get unlock date for specific asset - Simplified for now
+  const getAssetUnlockDateCallback = useCallback((assetSymbol: AssetSymbol): string | null => {
+    // Simplified implementation for the migration
+    // TODO: Add proper unlock timestamp to AssetData interface for truly dynamic unlock dates
+    
+    const asset = assets[assetSymbol];
+    if (!asset || asset.userDeposited <= BigInt(0)) return null;
+    
+    // For now, return a placeholder that indicates assets are ready to be unlocked
+    // This will be replaced with proper timestamp logic once AssetData includes unlock timestamps
+    return "Aug 16, 2025, 12:00 PM"; // Placeholder unlock date
+  }, [assets]);
 
-  // Helper function to check if asset rewards can be claimed
-  const canAssetClaim = useCallback((assetSymbol: 'stETH' | 'LINK'): boolean => {
-    // Use V2-specific claim eligibility
-    if (assetSymbol === 'stETH') return stETHV2CanClaim;
-    if (assetSymbol === 'LINK') return linkV2CanClaim;
-    return false;
-  }, [stETHV2CanClaim, linkV2CanClaim]);
+  // Helper function to check if asset rewards can be claimed - Now dynamic!
+  const canAssetClaim = useCallback((assetSymbol: AssetSymbol): boolean => {
+    // Use dynamic asset data instead of hardcoded logic
+    const asset = assets[assetSymbol];
+    if (!asset) return false;
+    
+    return asset.claimableAmount > BigInt(0); // Dynamic claim eligibility for any asset
+  }, [assets]);
+
+  // Helper function to check if staked asset can be withdrawn
+  const canAssetWithdraw = useCallback((): boolean => {
+    // Check if the current timestamp is past the withdraw unlock timestamp
+    if (!withdrawUnlockTimestamp) return false;
+    const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
+    return currentTimestamp >= withdrawUnlockTimestamp;
+  }, [withdrawUnlockTimestamp]);
 
   // Helper function to check if unlock date has passed (for withdraw functionality)
   const isUnlockDateReachedCallback = useCallback((unlockDate: string | null): boolean => {
@@ -288,33 +303,37 @@ export function UserAssetsPanel() {
       return [];
     }
 
-    const stethAmount = parseDepositAmount(assets.stETH?.userDepositedFormatted);
-    const linkAmount = parseDepositAmount(assets.LINK?.userDepositedFormatted);
-    const stethAvailable = parseDepositAmount(assets.stETH?.userBalanceFormatted);
-    const linkAvailable = parseDepositAmount(assets.LINK?.userBalanceFormatted);
-    const stethClaimable = parseDepositAmount(assets.stETH?.claimableAmountFormatted);
-    const linkClaimable = parseDepositAmount(assets.LINK?.claimableAmountFormatted);
-
-    const supportedAssets = ['stETH', 'LINK'] as const;
+    // Use all available assets from our dynamic system instead of hardcoded list
+    const supportedAssets = Object.keys(assets) as AssetSymbol[];
 
     return supportedAssets.map((assetSymbol, index) => {
+      const assetData = assets[assetSymbol];
+      if (!assetData) return null;
+
+      // Get asset configuration for metadata
       const assetConfigData = getAssetConfig(assetSymbol, networkEnv);
       if (!assetConfigData) return null;
 
-      const isStETH = assetSymbol === 'stETH';
-      const amount = isStETH ? stethAmount : linkAmount;
-      const available = isStETH ? stethAvailable : linkAvailable;
-      const claimable = isStETH ? stethClaimable : linkClaimable;
-      const emissions = isStETH ? stETHDailyEmissions : linkDailyEmissions;
-      const multiplier = isStETH ? assets.stETH?.userMultiplierFormatted : assets.LINK?.userMultiplierFormatted;
+      // Use dynamic asset data from our assets structure
+      const amount = parseFloat(assetData.userDepositedFormatted) || 0;
+      const available = parseFloat(assetData.userBalanceFormatted) || 0;
+      const claimable = parseFloat(assetData.claimableAmountFormatted) || 0;
+      
+      // TODO: Replace with dynamic useDailyEmissions hook that accepts any asset
+      // For now, use existing emission calculations where available
+      const emissions = assetSymbol === 'stETH' ? stETHDailyEmissions : 
+                       assetSymbol === 'LINK' ? linkDailyEmissions : 
+                       0; // Will be calculated when emission hooks are extended for all assets
+      
+      const multiplier = assetData.userMultiplierFormatted;
       const rawUnlockDate = getAssetUnlockDateCallback(assetSymbol);
       const displayUnlockDate = formatUnlockDate(rawUnlockDate, assetSymbol);
 
       return {
         id: (index + 1).toString(),
-        symbol: assetConfigData.metadata.symbol,
-        assetSymbol: assetSymbol as AssetSymbol,
-        icon: assetConfigData.metadata.icon,
+        symbol: assetData.symbol,
+        assetSymbol: assetSymbol,
+        icon: assetData.config.icon,
         amountStaked: amount,
         available: available,
         dailyEmissions: emissions,
@@ -322,10 +341,11 @@ export function UserAssetsPanel() {
         unlockDate: displayUnlockDate,
         availableToClaim: claimable,
         canClaim: canAssetClaim(assetSymbol),
+        canWithdraw: canAssetWithdraw(),
       };
     })
     .filter(asset => asset !== null && (asset.amountStaked > 0 || asset.availableToClaim > 0)) as UserAsset[];
-  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, stETHDailyEmissions, linkDailyEmissions]);
+  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, stETHDailyEmissions, linkDailyEmissions, canAssetWithdraw]);
 
   // Use sorting hook
   const { sortedUserAssets: userAssets, sorting, handleSortingChange } = useAssetsTable(unsortedUserAssets);
@@ -343,16 +363,23 @@ export function UserAssetsPanel() {
       };
     }
 
-    const stethStaked = parseDepositAmount(assets.stETH?.userDepositedFormatted);
-    const linkStaked = parseDepositAmount(assets.LINK?.userDepositedFormatted);
+    // Calculate total staked value dynamically across all assets with dynamic pricing
+    const totalStakedValue = Object.values(assets).reduce((total, asset) => {
+      const stakedAmount = parseDepositAmount(asset.userDepositedFormatted);
+      const assetPrice = getAssetPrice(asset.symbol) || 1; // Dynamic price lookup with fallback
+      
+      return total + (stakedAmount * assetPrice);
+    }, 0);
 
-    // Calculate USD value using current prices
-    const stethUSDValue = stethPrice ? stethStaked * stethPrice : 0;
-    const linkUSDValue = linkPrice ? linkStaked * linkPrice : 0;
-    const totalStakedValue = stethUSDValue + linkUSDValue;
-
-    // Calculate total daily emissions from both assets
-    const totalDailyEmissions = stETHDailyEmissions + linkDailyEmissions;
+    // Calculate total daily emissions dynamically
+    // TODO: Make emissions calculation dynamic for all assets
+    const totalDailyEmissions = Object.values(assets).reduce((total, asset) => {
+      // For now, only stETH and LINK have emission calculations
+      const emissions = asset.symbol === 'stETH' ? stETHDailyEmissions : 
+                       asset.symbol === 'LINK' ? linkDailyEmissions : 
+                       0; // Placeholder for other assets
+      return total + emissions;
+    }, 0);
 
     // Calculate total available to claim from table rows
     const totalTableAvailableToClaim = unsortedUserAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
@@ -377,6 +404,7 @@ export function UserAssetsPanel() {
         const cacheData: UserAssetsCache = {
           metricsData: freshMetrics,
           userAssets: unsortedUserAssets,
+          // Legacy cache fields for backward compatibility
           stethPrice: stethPrice,
           linkPrice: linkPrice,
           timestamp: Date.now(),

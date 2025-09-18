@@ -2,15 +2,24 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { getTokenPrice } from "@/app/services/token-price.service";
-import { getAssetConfig, type NetworkEnvironment } from "../constants/asset-config";
+import { 
+  getAssetConfig, 
+  type NetworkEnvironment, 
+  type AssetSymbol, 
+  getAssetsForNetwork 
+} from "../constants/asset-config";
 
 export interface TokenPriceCache {
-  stethPrice: number | null;
-  linkPrice: number | null;
+  // Dynamic prices for all assets
+  prices: Record<AssetSymbol, number | null>;
   morPrice: number | null;
   timestamp: number;
   retryCount: number;
   lastSuccessfulFetch: number;
+  
+  // Legacy fields for backward compatibility
+  stethPrice: number | null;
+  linkPrice: number | null;
 }
 
 const TOKEN_PRICE_CACHE_KEY = 'morpheus_token_prices';
@@ -68,18 +77,39 @@ export function useTokenPrices({
   userAddress,
   networkEnv
 }: UseTokenPricesOptions) {
-  const [stethPrice, setStethPrice] = useState<number | null>(null);
-  const [linkPrice, setLinkPrice] = useState<number | null>(null);
+  // Dynamic price state for all assets
+  const [prices, setPrices] = useState<Record<AssetSymbol, number | null>>({
+    stETH: null,
+    LINK: null,
+    USDC: null,
+    USDT: null,
+    wBTC: null,
+    wETH: null,
+  });
   const [morPrice, setMorPrice] = useState<number | null>(null);
   const [isPriceUpdating, startPriceTransition] = useTransition();
+  
+  // Legacy getters for backward compatibility
+  const stethPrice = prices.stETH;
+  const linkPrice = prices.LINK;
 
   // Load cached prices on mount
   useEffect(() => {
     const cachedPrices = getCachedPrices();
     if (cachedPrices) {
       console.log('💰 Loading cached token prices:', cachedPrices);
-      setStethPrice(cachedPrices.stethPrice);
-      setLinkPrice(cachedPrices.linkPrice);
+      
+      // Load dynamic prices if available
+      if (cachedPrices.prices) {
+        setPrices(cachedPrices.prices);
+      } else {
+        // Fallback to legacy cache structure
+        setPrices(prev => ({
+          ...prev,
+          stETH: cachedPrices.stethPrice,
+          LINK: cachedPrices.linkPrice,
+        }));
+      }
       setMorPrice(cachedPrices.morPrice);
     }
   }, []);
@@ -102,11 +132,14 @@ export function useTokenPrices({
         });
 
         // Use cached prices and reset loading flags
-        startPriceTransition(() => {
-          setStethPrice(cachedPrices.stethPrice);
-          setLinkPrice(cachedPrices.linkPrice);
-          setMorPrice(cachedPrices.morPrice);
-        });
+          startPriceTransition(() => {
+            setPrices(prev => ({
+              ...prev,
+              stETH: cachedPrices.stethPrice,
+              LINK: cachedPrices.linkPrice,
+            }));
+            setMorPrice(cachedPrices.morPrice);
+          });
         return;
       }
 
@@ -116,23 +149,51 @@ export function useTokenPrices({
           maxRetries: MAX_PRICE_RETRIES
         });
 
-        // Get CoinGecko IDs from centralized asset config
+        // Get all available assets and fetch prices dynamically
         const networkEnvironment: NetworkEnvironment = networkEnv as NetworkEnvironment;
-        const stethConfig = getAssetConfig('stETH', networkEnvironment);
-        const linkConfig = getAssetConfig('LINK', networkEnvironment);
-
-        const [stethPriceData, linkPriceData, morPriceData] = await Promise.all([
-          getTokenPrice(stethConfig?.metadata.coinGeckoId || 'staked-ether', 'usd'),
-          getTokenPrice(linkConfig?.metadata.coinGeckoId || 'chainlink', 'usd'),
-          getTokenPrice('morpheus-network', 'usd') // MOR token
+        const availableAssets = getAssetsForNetwork(networkEnvironment);
+        
+        // Create price fetch promises for all available assets
+        const assetPricePromises = availableAssets.map(async (assetInfo) => {
+          try {
+            const price = await getTokenPrice(assetInfo.metadata.coinGeckoId, 'usd');
+            return { symbol: assetInfo.metadata.symbol, price };
+          } catch (error) {
+            console.warn(`Failed to fetch price for ${assetInfo.metadata.symbol}:`, error);
+            return { symbol: assetInfo.metadata.symbol, price: null };
+          }
+        });
+        
+        // Fetch MOR price separately
+        const morPricePromise = getTokenPrice('morpheus-network', 'usd');
+        
+        const [assetPriceResults, morPriceData] = await Promise.all([
+          Promise.all(assetPricePromises),
+          morPricePromise
         ]);
+        
+        // Build dynamic prices object
+        const newPrices: Record<AssetSymbol, number | null> = {
+          stETH: null,
+          LINK: null,
+          USDC: null,
+          USDT: null,
+          wBTC: null,
+          wETH: null,
+        };
+        
+        assetPriceResults.forEach(({ symbol, price }) => {
+          newPrices[symbol] = price;
+        });
 
         // Save successful prices to cache
         const now = Date.now();
         const newCache: TokenPriceCache = {
-          stethPrice: stethPriceData,
-          linkPrice: linkPriceData,
+          prices: newPrices,
           morPrice: morPriceData,
+          // Legacy fields for backward compatibility
+          stethPrice: newPrices.stETH,
+          linkPrice: newPrices.LINK,
           timestamp: now,
           retryCount: 0, // Reset retry count on success
           lastSuccessfulFetch: now
@@ -141,14 +202,12 @@ export function useTokenPrices({
 
         // Use transition to prevent UI blocking during price updates
         startPriceTransition(() => {
-          setStethPrice(stethPriceData);
-          setLinkPrice(linkPriceData);
+          setPrices(newPrices);
           setMorPrice(morPriceData);
         });
 
         console.log('💰 Token prices fetched and cached successfully:', {
-          stETH: stethPriceData,
-          LINK: linkPriceData,
+          ...newPrices,
           MOR: morPriceData
         });
 
@@ -168,21 +227,36 @@ export function useTokenPrices({
           setCachedPrices(updatedCache);
 
           // Use cached prices as fallback
-          console.log('💰 Using cached prices as fallback after error:', {
+          const fallbackPrices = cachedPrices.prices || {
             stETH: cachedPrices.stethPrice,
             LINK: cachedPrices.linkPrice,
+            USDC: null,
+            USDT: null,
+            wBTC: null,
+            wETH: null,
+          };
+          
+          console.log('💰 Using cached prices as fallback after error:', {
+            ...fallbackPrices,
             MOR: cachedPrices.morPrice,
             newRetryCount
           });
 
           startPriceTransition(() => {
-            setStethPrice(cachedPrices.stethPrice);
-            setLinkPrice(cachedPrices.linkPrice);
+            setPrices(fallbackPrices);
             setMorPrice(cachedPrices.morPrice);
           });
         } else {
           // No cache available, create empty cache with retry count
           const errorCache: TokenPriceCache = {
+            prices: {
+              stETH: null,
+              LINK: null,
+              USDC: null,
+              USDT: null,
+              wBTC: null,
+              wETH: null,
+            },
             stethPrice: null,
             linkPrice: null,
             morPrice: null,
@@ -208,9 +282,19 @@ export function useTokenPrices({
   }, [isInitialLoad, shouldRefreshData, userAddress, networkEnv, startPriceTransition]);
 
   return {
+    // Legacy exports for backward compatibility
     stethPrice,
     linkPrice,
     morPrice,
-    isPriceUpdating
+    isPriceUpdating,
+    // Dynamic prices for all assets
+    prices,
+    // Helper to get price for any asset
+    getAssetPrice: (symbol: AssetSymbol) => prices[symbol],
+    // Individual asset price getters for clean access
+    usdcPrice: prices.USDC,
+    usdtPrice: prices.USDT,
+    wbtcPrice: prices.wBTC,
+    wethPrice: prices.wETH,
   };
 }
