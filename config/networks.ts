@@ -201,10 +201,40 @@ export const mainnetChains: Record<string, ChainConfig> = {
   }
 };
 
+// =====================================================
+// GraphQL Endpoint Fallback Configuration
+// =====================================================
+// The new mainnet subgraph is currently indexing. If it fails or returns errors,
+// you can quickly switch to the legacy endpoint by changing the flag below.
+//
+// USAGE:
+//   - Set to `false` (default): Uses new morpheus-mainnet-v-2 subgraph
+//   - Set to `true`: Uses legacy morpheus-dashboard subgraph  
+//
+// This affects ONLY the capital page (/capital) historical chart data.
+// Builder pages continue using their separate Apollo Client endpoints.
+//
+// To switch back to legacy endpoint in case of issues:
+//   1. Change USE_FALLBACK_MAINNET_GRAPHQL to `true`
+//   2. Restart the development server
+//   3. Capital page charts will use the old stable endpoint
+// =====================================================
+const USE_FALLBACK_MAINNET_GRAPHQL = false;
+
+// GraphQL endpoint URLs
+const MAINNET_GRAPHQL_ENDPOINTS = {
+  // New subgraph (currently indexing)
+  primary: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest',
+  // Legacy fallback subgraph
+  fallback: 'https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest'
+};
+
 // API URLs by environment
 export const apiUrls = {
   mainnet: {
-    graphql: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest'
+    graphql: USE_FALLBACK_MAINNET_GRAPHQL 
+      ? MAINNET_GRAPHQL_ENDPOINTS.fallback 
+      : MAINNET_GRAPHQL_ENDPOINTS.primary
   },
   testnet: {
     graphql: 'https://api.studio.thegraph.com/query/73688/kkk/version/latest'
@@ -253,4 +283,25 @@ export const getL2Chains = (environment: NetworkEnvironment) => {
 // Get GraphQL API URL for the environment
 export const getGraphQLApiUrl = (environment: NetworkEnvironment) => {
   return apiUrls[environment].graphql;
+};
+
+// Export GraphQL endpoint configuration for monitoring/debugging
+export const getGraphQLEndpointInfo = (environment: NetworkEnvironment) => {
+  if (environment === 'mainnet') {
+    return {
+      current: apiUrls.mainnet.graphql,
+      primary: MAINNET_GRAPHQL_ENDPOINTS.primary,
+      fallback: MAINNET_GRAPHQL_ENDPOINTS.fallback,
+      isFallback: USE_FALLBACK_MAINNET_GRAPHQL,
+      canToggle: true
+    };
+  }
+  
+  return {
+    current: apiUrls.testnet.graphql,
+    primary: apiUrls.testnet.graphql,
+    fallback: null,
+    isFallback: false,
+    canToggle: false
+  };
 }; 
