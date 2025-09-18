@@ -25,6 +25,7 @@ export interface ContractAddresses {
   rewardPoolV2?: ChainContract;
   l1SenderV2?: ChainContract;
   linkToken?: ChainContract;
+  lockMultiplierMath?: ChainContract;
 }
 
 // RPC configuration for better reliability
@@ -99,7 +100,7 @@ export const testnetChains: Record<string, ChainConfig> = {
       stETH: toContract('0xa878ad6ff38d6fae81fbb048384ce91979d448da'), // Lowercase to avoid checksum validation issues
       layerZeroEndpoint: toContract('0xae92d5aD7583AD66E49A0c67BAd18F6ba52dDDc1'),
       l1Factory: toContract('0xB791b1B02A8f7A32f370200c05EeeE12B9Bba10A'),
-      
+
       // V2 Contracts (Proxies)
       stETHDepositPool: toContract('0xFea33A23F97d785236F22693eDca564782ae98d0'),
       linkDepositPool: toContract('0x7f4f17be21219D7DA4C8E0d0B9be6a778354E5A5'),
@@ -107,6 +108,7 @@ export const testnetChains: Record<string, ChainConfig> = {
       rewardPoolV2: toContract('0xbFDbe9c7E6c8bBda228c6314E24E9043faeEfB32'),
       l1SenderV2: toContract('0x85e398705d7D77F1703b61DD422869A67B3B409d'),
       linkToken: toContract('0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5'),
+      lockMultiplierMath: toContract('0x345b8b23c38f70f1d77560c60493bb583f012cb0'),
     },
     isL1: true,
     layerZeroEndpointId: 10161,
@@ -150,7 +152,7 @@ export const mainnetChains: Record<string, ChainConfig> = {
       stETH: toContract('0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84'),
       layerZeroEndpoint: toContract('0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675'),
       l1Factory: toContract('0x969C0F87623dc33010b4069Fea48316Ba2e45382'),
-      
+
       // V2 Contracts (Newly Deployed)
       stETHDepositPool: toContract('0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790'),
       // Placeholders for future mainnet deposit pools (add addresses when deployed)
@@ -161,6 +163,7 @@ export const mainnetChains: Record<string, ChainConfig> = {
       distributorV2: toContract('0xDf1AC1AC255d91F5f4B1E3B4Aef57c5350F64C7A'),
       rewardPoolV2: toContract('0xb7994dE339AEe515C9b2792831CD83f3C9D8df87'),
       l1SenderV2: toContract('0x2Efd4430489e1a05A89c2f51811aC661B7E5FF84'),
+      lockMultiplierMath: toContract('0x345b8b23c38f70f1d77560c60493bb583f012cb0'),
     },
     isL1: true,
     layerZeroEndpointId: 101,
