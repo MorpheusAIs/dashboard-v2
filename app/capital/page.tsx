@@ -129,7 +129,7 @@ function CapitalPageContent() {
       <UserAssetsPanel />
 
       {/* Referral Panel */}
-      <ReferralPanel />
+      {/* <ReferralPanel /> */}
 
       {/* Render Modals */}
       <DepositModal />
