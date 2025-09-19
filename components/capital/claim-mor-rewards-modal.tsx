@@ -462,7 +462,7 @@ export function ClaimMorRewardsModal() {
 
                 {/* Summary Section */}
                 {selectedAssetData && lockValue && parseInt(lockValue, 10) > 0 && powerFactor?.currentResult && (
-                  <div className="mb-6 p-4 rounded-md text-sm bg-emerald-500/20 rounded-lg mt-2 p-3">
+                  <div className="mb-6 p-4 rounded-md text-sm bg-emerald-500/20 rounded-lg mt-2 p-3 max-h-64 overflow-y-auto">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-300">Rewards to Lock</span>
