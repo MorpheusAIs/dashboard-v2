@@ -400,15 +400,50 @@ export function DepositModal() {
   
   const currentAssetBalance = getUserBalanceForAsset(selectedAsset);
   
-  // Helper function to truncate (not round) to 2 decimal places for display
-  const truncateToTwoDecimals = useCallback((numStr: string): string => {
+  // Helper function to format balance with asset-specific decimal rules
+  const formatBalanceDisplay = useCallback((numStr: string, assetSymbol: AssetSymbol): string => {
     const num = Number(numStr);
     if (num === 0) return '0.00';
-    
+
     // Convert to string and find decimal point
     const str = num.toString();
     const decimalIndex = str.indexOf('.');
-    
+
+    // Asset-specific formatting rules
+    let targetDecimals: number;
+    if (assetSymbol === 'wETH' || assetSymbol === 'stETH') {
+      // wETH and stETH: 3 decimals if below 1, otherwise 2
+      targetDecimals = num < 1 ? 3 : 2;
+    } else if (assetSymbol === 'wBTC') {
+      // wBTC: 4 decimals if below 1, otherwise 2
+      targetDecimals = num < 1 ? 4 : 2;
+    } else {
+      // USDC, USDT and others: 2 decimals
+      targetDecimals = 2;
+    }
+
+    if (decimalIndex === -1) {
+      // No decimal point, add appropriate zeros
+      return str + '.' + '0'.repeat(targetDecimals);
+    } else if (str.length - decimalIndex - 1 <= targetDecimals) {
+      // Already has target or fewer decimal places, pad if needed
+      const currentDecimals = str.length - decimalIndex - 1;
+      return str + '0'.repeat(targetDecimals - currentDecimals);
+    } else {
+      // Truncate to target decimal places (don't round)
+      return str.slice(0, decimalIndex + targetDecimals + 1);
+    }
+  }, []);
+
+  // Helper function to truncate (not round) to 2 decimal places for display (legacy function for backward compatibility)
+  const truncateToTwoDecimals = useCallback((numStr: string): string => {
+    const num = Number(numStr);
+    if (num === 0) return '0.00';
+
+    // Convert to string and find decimal point
+    const str = num.toString();
+    const decimalIndex = str.indexOf('.');
+
     if (decimalIndex === -1) {
       // No decimal point, add .00
       return str + '.00';
@@ -937,7 +972,7 @@ export function DepositModal() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-gray-400 text-sm">
-                      {truncateToTwoDecimals(currentAssetBalance.formatted || '0')} Available
+                      {formatBalanceDisplay(currentAssetBalance.formatted || '0', selectedAsset)} Available
                     </span>
                     <ChevronDown className={`h-4 w-4 opacity-50 transition-transform ${assetDropdownOpen ? 'rotate-180' : ''}`} />
                   </div>
@@ -965,7 +1000,7 @@ export function DepositModal() {
                           <span className="text-white">{asset.label}</span>
                         </div>
                                                   <span className="text-gray-400 text-sm">
-                            {truncateToTwoDecimals(getUserBalanceForAsset(asset.value as AssetSymbol).formatted || '0')} Available
+                            {formatBalanceDisplay(getUserBalanceForAsset(asset.value as AssetSymbol).formatted || '0', asset.value as AssetSymbol)} Available
                           </span>
                       </button>
                     ))}
@@ -1018,7 +1053,7 @@ export function DepositModal() {
                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
                   {currentAssetBalance.formatted && Number(currentAssetBalance.formatted) > 0 && (
                     <span className="text-xs text-gray-400 mr-2">
-                      {truncateToTwoDecimals(currentAssetBalance.formatted)} {selectedAsset}
+                      {formatBalanceDisplay(currentAssetBalance.formatted, selectedAsset)} {selectedAsset}
                     </span>
                   )}
                   <button
