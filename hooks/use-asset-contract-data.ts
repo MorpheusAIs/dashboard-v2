@@ -18,7 +18,6 @@ import { formatPowerFactorPrecise } from '@/lib/utils/power-factor-utils';
 // Import ABIs
 import ERC20Abi from '@/app/abi/ERC20.json';
 import DepositPoolAbi from '@/app/abi/DepositPool.json';
-import ERC1967ProxyAbi from '@/app/abi/ERC1967Proxy.json';
 
 const V2_REWARD_POOL_INDEX = BigInt(0);
 
