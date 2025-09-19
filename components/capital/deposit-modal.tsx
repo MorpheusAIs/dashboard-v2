@@ -636,43 +636,49 @@ export function DepositModal() {
     }
   }, [referrerAddress, resolvedAddress, isResolvingEns, validateReferrerAddress]);
 
-  // Validate lock value based on unit (both minimum and maximum)
-  const validateLockValue = useCallback((value: string, unit: TimeUnit) => {
-    const numValue = parseInt(value, 10);
-    if (isNaN(numValue) || numValue <= 0) return true; // Let basic validation handle this
-    
-    const minAllowed = getMinAllowedValue(unit);
-    const maxAllowed = getMaxAllowedValue(unit);
-    return numValue >= minAllowed && numValue <= maxAllowed;
-  }, []);
 
-  // Handle lock value changes with validation
+  // Handle lock value changes - allow all valid numeric input
   const handleLockValueChange = useCallback((value: string) => {
     if (value === '' || /^\d+$/.test(value)) {
-      // Check if the value is within limits for the current unit
-      if (value === '' || validateLockValue(value, lockUnit)) {
-        setLockValue(value);
-      }
-      // If invalid, don't update the state (effectively prevents the input)
+      setLockValue(value);
     }
-  }, [lockUnit, validateLockValue]);
+  }, []);
 
-  // Handle lock unit changes with value validation
+  // Handle lock unit changes
   const handleLockUnitChange = useCallback((unit: TimeUnit) => {
     setLockUnit(unit);
-    
-    // Validate current value with new unit
-    if (lockValue && !validateLockValue(lockValue, unit)) {
-      // If current value is invalid for new unit, reset to minimum valid value
-      const minAllowed = getMinAllowedValue(unit);
-      setLockValue(minAllowed.toString());
-    }
-  }, [lockValue, validateLockValue]);
+  }, []);
 
   // Calculate unlock date using utility function
   const unlockDate = useMemo(() => {
     return powerFactor.currentResult.unlockDate || null;
   }, [powerFactor.currentResult.unlockDate]);
+
+  // Validation - minimum lock period requirement
+  const minLockPeriodError = useMemo(() => {
+    if (lockValue && parseInt(lockValue, 10) > 0) {
+      const numValue = parseInt(lockValue, 10);
+      const minAllowed = getMinAllowedValue(lockUnit);
+      
+      if (numValue < minAllowed) {
+        return `Minimum ${minAllowed} ${lockUnit} required for MOR rewards`;
+      }
+    }
+    return null;
+  }, [lockValue, lockUnit]);
+
+  // Validation - maximum lock period check
+  const maxLockPeriodError = useMemo(() => {
+    if (lockValue && parseInt(lockValue, 10) > 0) {
+      const numValue = parseInt(lockValue, 10);
+      const maxAllowed = getMaxAllowedValue(lockUnit);
+      
+      if (numValue > maxAllowed) {
+        return `Maximum ${maxAllowed} ${lockUnit} allowed`;
+      }
+    }
+    return null;
+  }, [lockValue, lockUnit]);
 
   // Validation - separate lock period validation from other validations
   const lockPeriodError = useMemo(() => {
@@ -696,8 +702,11 @@ export function DepositModal() {
   const validationError = useMemo(() => {
     if (amountBigInt <= BigInt(0)) return null;
     
-    // Return lock period error if exists
+    // Return existing position conflict error if exists (this is a hard error)
     if (lockPeriodError) return lockPeriodError;
+    
+    // Return max lock period error if exists (this is a hard error)
+    if (maxLockPeriodError) return maxLockPeriodError;
     
     // Debug validation logic
     console.log(`💰 Validation for ${selectedAsset}:`, {
@@ -725,7 +734,7 @@ export function DepositModal() {
     }
     
     return null;
-  }, [amountBigInt, currentAssetBalance, selectedAsset, lockPeriodError]);
+  }, [amountBigInt, currentAssetBalance, selectedAsset, lockPeriodError, maxLockPeriodError]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1122,7 +1131,7 @@ export function DepositModal() {
             <div className="space-y-2">
               <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
               <p className="text-xs text-gray-400">
-                Minimum 6 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x9.7 at 6 years, and remains capped at x9.7 for longer periods
+                Minimum 3 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x10.7 at 6 years, and remains capped at x10.7 for longer periods
               </p>
 
               <div className="flex gap-2">
@@ -1130,14 +1139,15 @@ export function DepositModal() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  placeholder="6"
+                  placeholder="0"
                   value={lockValue}
                   onChange={(e) => {
                     handleLockValueChange(e.target.value);
                     setFormError(null); // Clear form error on input change
                   }}
                   className={`bg-background flex-1 text-base ${
-                    lockPeriodError ? '!border-red-500 border-2' : 'border-gray-700 border'
+                    lockPeriodError || maxLockPeriodError ? '!border-red-500 border-2' : 
+                    minLockPeriodError ? 'border-yellow-500 border' : 'border-gray-700 border'
                   }`}
                   disabled={isProcessingDeposit}
                 />
@@ -1146,7 +1156,8 @@ export function DepositModal() {
                     type="button"
                     variant="outline"
                     className={`w-full justify-between bg-background hover:bg-gray-800 ${
-                      lockPeriodError ? '!border-red-500 border-2' : 'border-gray-700 border'
+                      lockPeriodError || maxLockPeriodError ? '!border-red-500 border-2' : 
+                      minLockPeriodError ? 'border-yellow-500 border' : 'border-gray-700 border'
                     }`}
                     onClick={(e) => {
                       e.preventDefault();
@@ -1181,7 +1192,17 @@ export function DepositModal() {
                 </div>
               </div>
               
-              {/* Lock period validation error message */}
+              {/* Lock period validation error messages */}
+              {minLockPeriodError && (
+                <div className="text-xs text-yellow-600 bg-yellow-500/10 border border-yellow-500/20 rounded p-2">
+                  ⚠️ {minLockPeriodError}
+                </div>
+              )}
+              {maxLockPeriodError && (
+                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
+                  {maxLockPeriodError}
+                </div>
+              )}
               {lockPeriodError && (
                 <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
                   {lockPeriodError}
@@ -1285,6 +1306,8 @@ export function DepositModal() {
                 isProcessingDeposit || 
                 !!validationError || 
                 !!referrerAddressError ||
+                !!minLockPeriodError ||
+                !!maxLockPeriodError ||
                 !!lockPeriodError ||
                 !!powerFactor.currentResult.error ||
                 !powerFactor.currentResult.isValid ||
@@ -1301,6 +1324,8 @@ export function DepositModal() {
                 isProcessingDeposit || 
                 !!validationError || 
                 !!referrerAddressError ||
+                !!minLockPeriodError ||
+                !!maxLockPeriodError ||
                 !!lockPeriodError ||
                 !!powerFactor.currentResult.error ||
                 !powerFactor.currentResult.isValid ||
