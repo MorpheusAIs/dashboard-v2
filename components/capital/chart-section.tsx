@@ -7,7 +7,26 @@ import { useCapitalChartData } from "@/app/hooks/useCapitalChartData";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 import { mainnet } from "wagmi/chains";
 
+// Mock data for indexing animation
+const mockChartData = [
+  { date: "2024-01-01T00:00:00Z", deposits: 1000000 },
+  { date: "2024-01-15T00:00:00Z", deposits: 1200000 },
+  { date: "2024-02-01T00:00:00Z", deposits: 1400000 },
+  { date: "2024-02-15T00:00:00Z", deposits: 1600000 },
+  { date: "2024-03-01T00:00:00Z", deposits: 1800000 },
+  { date: "2024-03-15T00:00:00Z", deposits: 2000000 },
+  { date: "2024-04-01T00:00:00Z", deposits: 2200000 },
+  { date: "2024-04-15T00:00:00Z", deposits: 2400000 },
+  { date: "2024-05-01T00:00:00Z", deposits: 2600000 },
+  { date: "2024-05-15T00:00:00Z", deposits: 2800000 },
+  { date: "2024-06-01T00:00:00Z", deposits: 3000000 },
+  { date: "2024-06-15T00:00:00Z", deposits: 3200000 },
+];
+
 export function ChartSection() {
+  // Temporary flag to show indexing animation
+  const showIndexingAnimation = true;
+
   // Get chart data for historical deposits chart
   const {
     chartData,
@@ -96,50 +115,111 @@ export function ChartSection() {
             />
             {/* Chart content container - positioned absolutely to not affect glow effect */}
             <div className="absolute inset-0 rounded-xl">
-              {/* Conditional Rendering for Chart */}
-              {(chartLoading || metricsLoading) && (
-                <div className="flex justify-center items-center h-full">
-                  <p>Loading Chart...</p>
-                </div>
+              {/* Show indexing animation */}
+              {showIndexingAnimation && (
+                <>
+                  {/* Chart with reduced opacity */}
+                  <div className="relative h-full overflow-hidden rounded-xl opacity-30">
+                    <DepositStethChart
+                      data={mockChartData}
+                      selectedAsset={selectedAsset}
+                      onAssetChange={setSelectedAsset}
+                      showAssetSwitcher={true}
+                      availableAssets={availableAssets}
+                    />
+                  </div>
+
+                  {/* Traveling line animation */}
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div className="absolute top-0 bottom-0 w-0.5 bg-gradient-to-b from-transparent via-blue-400 to-transparent animate-pulse"
+                         style={{
+                           left: '10%',
+                           animation: 'travel 4s linear infinite',
+                         }} />
+                    <div className="absolute top-0 bottom-0 w-0.5 bg-gradient-to-b from-transparent via-green-400 to-transparent animate-pulse"
+                         style={{
+                           left: '30%',
+                           animation: 'travel 4s linear infinite',
+                           animationDelay: '1s',
+                         }} />
+                    <div className="absolute top-0 bottom-0 w-0.5 bg-gradient-to-b from-transparent via-purple-400 to-transparent animate-pulse"
+                         style={{
+                           left: '70%',
+                           animation: 'travel 4s linear infinite',
+                           animationDelay: '2s',
+                         }} />
+                  </div>
+
+                  {/* Add CSS animation */}
+                  <style dangerouslySetInnerHTML={{
+                    __html: `
+                      @keyframes travel {
+                        0% { transform: translateX(-100%); opacity: 0; }
+                        10% { opacity: 1; }
+                        90% { opacity: 1; }
+                        100% { transform: translateX(100vw); opacity: 0; }
+                      }
+                    `
+                  }} />
+
+                  {/* Indexing overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
+                    <div className="flex items-center space-x-3 bg-black/50 px-6 py-4 rounded-lg border border-emerald-500/20">
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-400 border-t-transparent"></div>
+                      <span className="text-emerald-400 font-light text-lg">Currently indexing</span>
+                    </div>
+                  </div>
+                </>
               )}
-              {(chartError || metricsError) && (
-                <div className="flex justify-center items-center h-full text-red-500">
-                  <p>{chartError || metricsError}</p>
-                </div>
-              )}
-              {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length > 0 && (
-                <div className="relative h-full overflow-hidden rounded-xl">
-                  <DepositStethChart 
-                    data={chartData}
-                    selectedAsset={selectedAsset}
-                    onAssetChange={setSelectedAsset}
-                    showAssetSwitcher={true} // Always show asset switcher
-                    availableAssets={availableAssets} // Always pass live assets from API
-                  />
-                  {isLoadingHistorical && (
-                    <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded z-5">
-                      Loading historical data...
+
+              {/* Normal chart rendering when not showing indexing animation */}
+              {!showIndexingAnimation && (
+                <>
+                  {(chartLoading || metricsLoading) && (
+                    <div className="flex justify-center items-center h-full">
+                      <p>Loading Chart...</p>
                     </div>
                   )}
-                </div>
-              )}
-              {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length === 0 && (
-                <div className="flex flex-col justify-center items-center h-full text-center">
-                  <p className="text-gray-400 mb-4">
-                    {networkEnv === 'testnet' 
-                      ? "You are viewing testnet. No historical deposit data available." 
-                      : "No deposit data available."} 
-                  </p>
-                  {networkEnv === 'testnet' && (
-                    <button 
-                      className="copy-button-secondary px-4 py-2 rounded-lg"
-                      onClick={() => switchToChain(mainnet.id)}
-                      disabled={isNetworkSwitching}
-                    >
-                      {isNetworkSwitching ? "Switching..." : "Switch to Mainnet"}
-                    </button>
+                  {(chartError || metricsError) && (
+                    <div className="flex justify-center items-center h-full text-red-500">
+                      <p>{chartError || metricsError}</p>
+                    </div>
                   )}
-                </div>
+                  {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length > 0 && (
+                    <div className="relative h-full overflow-hidden rounded-xl">
+                      <DepositStethChart
+                        data={chartData}
+                        selectedAsset={selectedAsset}
+                        onAssetChange={setSelectedAsset}
+                        showAssetSwitcher={true} // Always show asset switcher
+                        availableAssets={availableAssets} // Always pass live assets from API
+                      />
+                      {isLoadingHistorical && (
+                        <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded z-5">
+                          Loading historical data...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length === 0 && (
+                    <div className="flex flex-col justify-center items-center h-full text-center">
+                      <p className="text-gray-400 mb-4">
+                        {networkEnv === 'testnet'
+                          ? "You are viewing testnet. No historical deposit data available."
+                          : "No deposit data available."}
+                      </p>
+                      {networkEnv === 'testnet' && (
+                        <button
+                          className="copy-button-secondary px-4 py-2 rounded-lg"
+                          onClick={() => switchToChain(mainnet.id)}
+                          disabled={isNetworkSwitching}
+                        >
+                          {isNetworkSwitching ? "Switching..." : "Switch to Mainnet"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
