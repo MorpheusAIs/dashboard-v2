@@ -1244,19 +1244,19 @@ export function DepositModal() {
                       {powerFactor.currentResult.error}
                     </div>
                   )}
-                  <div className="flex justify-between items-center">
+                  {/* <div className="flex justify-between items-center">
                     <span className="text-gray-300">Est. Rewards Earned</span>
                     <span className="text-white">
                       {estimatedRewards.estimatedRewards}
                     </span>
-                  </div>
+                  </div> */}
                   
                   {/* Show estimation note for valid calculations */}
-                  {estimatedRewards.isValid && estimatedRewards.estimatedRewards !== "---" && (
+                  {/* {estimatedRewards.isValid && estimatedRewards.estimatedRewards !== "---" && (
                     <div className="text-xs text-gray-400 mt-1">
                       * Estimated based on current pool rate and power factor
                     </div>
-                  )}
+                  )} */}
                   
                   {/* Show error if calculation failed */}
                   {estimatedRewards.error && !estimatedRewards.isLoading && (
