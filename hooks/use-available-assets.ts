@@ -60,27 +60,15 @@ export function useAvailableAssets() {
     // Check each supported asset for positive deposits
     for (const assetSymbol of supportedAssets) {
       const tokenType = ASSET_SYMBOL_TO_TOKEN_TYPE[assetSymbol];
-      let deposits = 0;
-      let isLoading = false;
-      let hasError = false;
+      const assetData = poolData.assets[assetSymbol];
 
-      // Get deposit amount based on asset type
-      switch (assetSymbol) {
-        case 'stETH':
-          deposits = parseDeposits(poolData.stETH.totalStaked);
-          isLoading = poolData.stETH.isLoading;
-          hasError = !!poolData.stETH.error;
-          break;
-        case 'LINK':
-          deposits = parseDeposits(poolData.LINK.totalStaked);
-          isLoading = poolData.LINK.isLoading;
-          hasError = !!poolData.LINK.error;
-          break;
-        // Add other assets when they become available
-        default:
-          deposits = 0;
-          break;
-      }
+      // Skip if asset data doesn't exist
+      if (!assetData) continue;
+
+      // Get deposit amount, loading state, and error state dynamically
+      const deposits = parseDeposits(assetData.totalStaked || '0');
+      const isLoading = assetData.isLoading || false;
+      const hasError = !!assetData.error;
 
       // Only include assets with positive deposits (and not still loading)
       if (deposits > 0 && !isLoading && !hasError) {
@@ -99,8 +87,23 @@ export function useAvailableAssets() {
 
   // Additional derived data
   const hasMultipleAssets = availableAssets.length > 1;
-  const isLoading = poolData.stETH.isLoading || poolData.LINK.isLoading;
-  const hasErrors = !!poolData.stETH.error || !!poolData.LINK.error;
+
+  // Check if any supported asset is loading
+  const isLoading = useMemo(() => {
+    return supportedAssets.some(assetSymbol => {
+      const assetData = poolData.assets[assetSymbol];
+      return assetData?.isLoading || false;
+    });
+  }, [supportedAssets, poolData.assets]);
+
+  // Check if any supported asset has errors
+  const hasErrors = useMemo(() => {
+    return supportedAssets.some(assetSymbol => {
+      const assetData = poolData.assets[assetSymbol];
+      return !!assetData?.error;
+    });
+  }, [supportedAssets, poolData.assets]);
+
   const primaryAsset = availableAssets[0]?.token || 'stETH'; // Default to stETH
 
   return {
