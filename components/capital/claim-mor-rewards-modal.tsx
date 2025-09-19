@@ -26,7 +26,7 @@ import { usePowerFactor } from "@/hooks/use-power-factor";
 import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 
 // Import config and utils
-import { getContractAddress, type NetworkEnvironment, type ContractAddresses } from "@/config/networks";
+import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
 import {
   getMaxAllowedValue,
   getMinAllowedValue,
@@ -83,29 +83,11 @@ export function ClaimMorRewardsModal() {
     return effectiveNetworkEnv === 'testnet' ? 'Ethereum Sepolia' : 'Ethereum Mainnet';
   }, [effectiveNetworkEnv]);
 
-  // Use correct contract for power factor calculations based on network and asset
+  // Use distributorV2 contract for reward calculations in v7 protocol
   const poolContractAddress = useMemo(() => {
     if (!l1ChainId) return undefined;
-
-    if (effectiveNetworkEnv === 'mainnet') {
-      // On mainnet, ALL assets use their specific deposit pool contracts for power factor
-      // (distributorV2 doesn't have getClaimLockPeriodMultiplier function)
-      const assetToPoolMapping: Partial<Record<AssetSymbol, keyof ContractAddresses>> = {
-        stETH: 'stETHDepositPool',
-        LINK: 'linkDepositPool',
-        USDC: 'usdcDepositPool',
-        USDT: 'usdtDepositPool',
-        wBTC: 'wbtcDepositPool',
-        wETH: 'wethDepositPool',
-      };
-
-      const poolContractKey = assetToPoolMapping[selectedAsset];
-      return poolContractKey ? getContractAddress(l1ChainId, poolContractKey, effectiveNetworkEnv) as `0x${string}` | undefined : undefined;
-    } else {
-      // Use distributorV2 for testnet
-      return getContractAddress(l1ChainId, 'distributorV2', effectiveNetworkEnv) as `0x${string}` | undefined;
-    }
-  }, [l1ChainId, effectiveNetworkEnv, selectedAsset]);
+    return getContractAddress(l1ChainId, 'distributorV2', effectiveNetworkEnv) as `0x${string}` | undefined;
+  }, [l1ChainId, effectiveNetworkEnv]);
 
   const isOpen = activeModal === 'claimMorRewards';
 
@@ -221,11 +203,30 @@ export function ClaimMorRewardsModal() {
     };
   }, [selectedAsset, assets, selectedAssetCanClaim]);
 
+  // Get the deposit pool address for the selected asset (V7 protocol requirement)
+  const selectedAssetDepositPoolAddress = useMemo(() => {
+    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
+      stETH: 'stETHDepositPool',
+      LINK: 'linkDepositPool', 
+      USDC: 'usdcDepositPool',
+      USDT: 'usdtDepositPool',
+      wBTC: 'wbtcDepositPool',
+      wETH: 'wethDepositPool',
+    };
+    
+    const contractKey = depositPoolMapping[selectedAsset];
+    if (!contractKey || !l1ChainId) return undefined;
+    
+    return getContractAddress(l1ChainId, contractKey, effectiveNetworkEnv) as `0x${string}` | undefined;
+  }, [selectedAsset, l1ChainId, effectiveNetworkEnv]);
+
   // Initialize estimated rewards hook (using claimable amount as deposit amount for estimation)
   const estimatedRewards = useEstimatedRewards({
-    contractAddress: poolContractAddress, // Use same contract for all assets
+    contractAddress: poolContractAddress, // Use distributorV2 contract for all assets
     chainId: l1ChainId,
     poolId: BigInt(0),
+    depositPoolAddress: selectedAssetDepositPoolAddress, // V7: Pass asset-specific deposit pool address
+    networkEnv: effectiveNetworkEnv, // V7: Required for RewardPoolV2 contract lookup
     depositAmount: selectedAssetData?.claimableAmountFormatted || "0", // Use claimable amount for estimation
     powerFactorString: powerFactor.currentResult.powerFactor,
     lockValue,

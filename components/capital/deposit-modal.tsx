@@ -72,7 +72,7 @@ export function DepositModal() {
   }, [l1ChainId]);
 
   const poolContractAddress = useMemo(() => {
-    return l1ChainId ? getContractAddress(l1ChainId, 'erc1967Proxy', networkEnv) as `0x${string}` | undefined : undefined;
+    return l1ChainId ? getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined : undefined;
   }, [l1ChainId, networkEnv]);
 
   // Get available assets for current network environment
@@ -276,11 +276,30 @@ export function DepositModal() {
     enabled: true,
   });
 
+  // Get the deposit pool address for the selected asset (V7 protocol requirement)
+  const selectedAssetDepositPoolAddress = useMemo(() => {
+    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
+      stETH: 'stETHDepositPool',
+      LINK: 'linkDepositPool', 
+      USDC: 'usdcDepositPool',
+      USDT: 'usdtDepositPool',
+      wBTC: 'wbtcDepositPool',
+      wETH: 'wethDepositPool',
+    };
+    
+    const contractKey = depositPoolMapping[selectedAsset];
+    if (!contractKey || !l1ChainId) return undefined;
+    
+    return getContractAddress(l1ChainId, contractKey, networkEnv) as `0x${string}` | undefined;
+  }, [selectedAsset, l1ChainId, networkEnv]);
+
   // Initialize estimated rewards hook (after state declarations)
   const estimatedRewards = useEstimatedRewards({
     contractAddress: poolContractAddress,
     chainId: l1ChainId,
     poolId: BigInt(0),
+    depositPoolAddress: selectedAssetDepositPoolAddress, // V7: Pass asset-specific deposit pool address
+    networkEnv, // V7: Required for RewardPoolV2 contract lookup
     depositAmount: amount,
     powerFactorString: powerFactor.currentResult.powerFactor,
     lockValue,
