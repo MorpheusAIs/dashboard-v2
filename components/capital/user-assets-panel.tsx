@@ -24,7 +24,6 @@ import { getAssetConfig } from "./constants/asset-config";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 import type { UserAsset } from "./types/user-asset";
 import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
-import { formatTimestamp } from "@/lib/utils/formatters";
 
 // Type for modal actions that can be triggered from dropdowns
 type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards";
@@ -44,7 +43,6 @@ export function UserAssetsPanel() {
     isProcessingClaim,
     isProcessingWithdraw,
     isProcessingChangeLock,
-    withdrawUnlockTimestamp,
     // Add loading states to detect when data is loaded
     isLoadingUserData,
     isLoadingBalances,
@@ -249,21 +247,14 @@ export function UserAssetsPanel() {
     return asset.claimUnlockTimestampFormatted || null;
   }, [assets]);
 
-  // Helper function to get withdraw unlock date for specific asset using withdraw logic
+  // Helper function to get withdraw unlock date for specific asset using per-asset withdraw logic
   const getAssetWithdrawUnlockDateCallback = useCallback((assetSymbol: AssetSymbol): string | null => {
     const asset = assets[assetSymbol];
     if (!asset || asset.userDeposited <= BigInt(0)) return null;
     
-    // TEMPORARY: Use global withdrawUnlockTimestamp since per-asset withdraw unlock is not implemented yet
-    // TODO: Implement proper per-asset withdraw unlock timestamp calculation in useAssetContractData hook
-    if (withdrawUnlockTimestamp) {
-      // Format the global timestamp using the same utility
-      return formatTimestamp(withdrawUnlockTimestamp);
-    }
-    
-    // Fallback to asset's withdraw timestamp if available (currently undefined)
+    // Use per-asset withdraw unlock timestamp from contract data
     return asset.withdrawUnlockTimestampFormatted || null;
-  }, [assets, withdrawUnlockTimestamp]);
+  }, [assets]);
 
   // Helper function to check if asset rewards can be claimed using complete unlock logic
   const canAssetClaim = useCallback((assetSymbol: AssetSymbol): boolean => {
@@ -279,13 +270,14 @@ export function UserAssetsPanel() {
     return asset.canClaim;
   }, [assets]);
 
-  // Helper function to check if staked asset can be withdrawn
-  const canAssetWithdraw = useCallback((): boolean => {
-    // Check if the current timestamp is past the withdraw unlock timestamp
-    if (!withdrawUnlockTimestamp) return false;
-    const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
-    return currentTimestamp >= withdrawUnlockTimestamp;
-  }, [withdrawUnlockTimestamp]);
+  // Helper function to check if specific asset can be withdrawn
+  const canAssetWithdraw = useCallback((assetSymbol: AssetSymbol): boolean => {
+    const asset = assets[assetSymbol];
+    if (!asset || asset.userDeposited <= BigInt(0)) return false;
+    
+    // Use per-asset withdraw unlock logic from contract data
+    return asset.canWithdraw;
+  }, [assets]);
 
   // Helper function to check if withdraw unlock date has passed (for Amount Staked column badge)
   const isWithdrawUnlockDateReachedCallback = useCallback((withdrawUnlockDate: string | null): boolean => {
@@ -401,7 +393,7 @@ export function UserAssetsPanel() {
           withdrawUnlockDate: displayWithdrawUnlockDate, // For "Amount Staked" badge/tooltip  
           availableToClaim: claimable,
           canClaim: canAssetClaim(assetSymbol),
-          canWithdraw: canAssetWithdraw(),
+          canWithdraw: canAssetWithdraw(assetSymbol),
         };
     })
     .filter(asset => asset !== null && (asset.amountStaked > 0 || asset.availableToClaim > 0)) as UserAsset[];

@@ -60,6 +60,7 @@ export interface AssetContractData {
     rewards: () => void;
     multiplier: () => void;
     totalDeposited: () => void;
+    protocol: () => void;
     all: () => void;
   };
 }
@@ -180,6 +181,16 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
     query: { enabled: !!userAddress && contractsEnabled }
   });
   
+  // Pool protocol details (for withdraw lock period)
+  const { data: poolProtocolData, isLoading: isLoadingProtocol, refetch: refetchProtocol } = useReadContract({
+    address: depositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'rewardPoolsProtocolDetails',
+    args: [V2_REWARD_POOL_INDEX],
+    chainId: l1ChainId,
+    query: { enabled: contractsEnabled }
+  });
+  
   // Parse contract data
   const parsedData = useMemo(() => {
     const userBalance = balanceData?.value || BigInt(0);
@@ -191,9 +202,11 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
     // Parse user pool data
     let userDeposited = BigInt(0);
     let claimUnlockTimestamp: bigint | undefined;
+    let lastStake: bigint | undefined;
     
     if (userPoolData && Array.isArray(userPoolData)) {
       try {
+        lastStake = BigInt(userPoolData[0] || 0); // lastStake is index 0
         userDeposited = BigInt(userPoolData[1] || 0); // deposited amount is index 1
         claimUnlockTimestamp = BigInt(userPoolData[5] || 0); // claimLockEnd is index 5
       } catch (e) {
@@ -201,11 +214,29 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
       }
     }
     
+    // Parse pool protocol details
+    let withdrawLockPeriodAfterStake: bigint | undefined;
+    
+    if (poolProtocolData && Array.isArray(poolProtocolData)) {
+      try {
+        withdrawLockPeriodAfterStake = BigInt(poolProtocolData[0] || 0); // withdrawLockPeriodAfterStake is index 0
+      } catch (e) {
+        console.error(`Error parsing pool protocol data for ${assetSymbol}:`, e);
+      }
+    }
+    
+    // Calculate withdraw unlock timestamp
+    let withdrawUnlockTimestamp: bigint | undefined;
+    if (lastStake && lastStake > BigInt(0) && withdrawLockPeriodAfterStake) {
+      withdrawUnlockTimestamp = lastStake + withdrawLockPeriodAfterStake;
+    }
+    
     // Calculate eligibility
     const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
     const canClaim = claimableAmount > BigInt(0) && 
                     (!claimUnlockTimestamp || currentTimestamp >= claimUnlockTimestamp);
-    const canWithdraw = userDeposited > BigInt(0); // Simplified for now - TODO: Add withdraw unlock logic
+    const canWithdraw = userDeposited > BigInt(0) && 
+                       (!withdrawUnlockTimestamp || currentTimestamp >= withdrawUnlockTimestamp);
     
     return {
       userBalance,
@@ -215,11 +246,11 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
       userMultiplier,
       totalDeposited,
       claimUnlockTimestamp: claimUnlockTimestamp && claimUnlockTimestamp > BigInt(0) ? claimUnlockTimestamp : undefined,
-      withdrawUnlockTimestamp: undefined, // TODO: Add withdraw unlock timestamp calculation
+      withdrawUnlockTimestamp: withdrawUnlockTimestamp,
       canClaim,
       canWithdraw,
     };
-  }, [balanceData, allowanceData, userPoolData, totalDepositedData, userRewardData, userMultiplierData, assetSymbol]);
+  }, [balanceData, allowanceData, userPoolData, totalDepositedData, userRewardData, userMultiplierData, poolProtocolData, assetSymbol]);
   
   // Format data for display
   const formattedData = useMemo(() => {
@@ -240,7 +271,7 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
   
   // Loading state
   const isLoading = isLoadingBalance || isLoadingAllowance || isLoadingUserData || 
-                   isLoadingTotal || isLoadingReward || isLoadingMultiplier;
+                   isLoadingTotal || isLoadingReward || isLoadingMultiplier || isLoadingProtocol;
   
   return {
     ...parsedData,
@@ -256,6 +287,7 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
       rewards: () => refetchRewards(),
       multiplier: () => refetchMultiplier(),
       totalDeposited: () => refetchTotalDeposited(),
+      protocol: () => refetchProtocol(),
       all: () => {
         refetchBalance();
         refetchAllowance();
@@ -263,6 +295,7 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
         refetchRewards();
         refetchMultiplier();
         refetchTotalDeposited();
+        refetchProtocol();
       },
     },
   };
