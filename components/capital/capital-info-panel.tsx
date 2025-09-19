@@ -109,9 +109,9 @@ export function CapitalInfoPanel() {
           {/* Assets Table */}
           <div className="flex-1 flex flex-col">
             {/* Fixed Header */}
-            <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10">
+            <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
               <div>Asset</div>
-              <div className="text-center">APR</div>
+              {/* <div className="text-center">APR</div> */}
               <div className="text-center">Total Deposited</div>
               <div className="text-center">Action</div>
             </div>
@@ -122,11 +122,11 @@ export function CapitalInfoPanel() {
                 {/* Asset Rows */}
                 {assets.map((asset) => {
                 const AssetRow = (
-                  <div key={asset.symbol} className={`grid grid-cols-4 gap-2 items-center px-2 py-3 rounded-lg transition-colors ${
-                    asset.disabled 
-                      ? 'opacity-50 cursor-not-allowed' 
+                  <div key={asset.symbol} className={`grid gap-2 items-center px-2 py-3 rounded-lg transition-colors ${
+                    asset.disabled
+                      ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-gray-800/30'
-                  }`}>
+                  }`} style={{ gridTemplateColumns: 'auto 1fr auto' }}>
                     {/* Asset Name & Symbol */}
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 flex items-center justify-center">
@@ -139,15 +139,15 @@ export function CapitalInfoPanel() {
                       </div>
                     </div>
 
-                    {/* APY */}
-                    <div className={`text-center text-sm font-semibold truncate ${
+                    {/* APY - Temporarily commented out */}
+                    {/* <div className={`text-center text-sm font-semibold truncate ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
                       {asset.apy}
-                    </div>
+                    </div> */}
 
                     {/* Total Staked */}
-                    <div className={`text-right text-sm font-semibold ${
+                    <div className={`text-right text-sm font-semibold flex justify-center ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
                       {(() => {
@@ -161,7 +161,7 @@ export function CapitalInfoPanel() {
                         if (asset.totalStaked === 'N/A') {
                           return 'N/A';
                         }
-                        return <NumberFlow value={parseStakedAmount(asset.totalStaked)} />;
+                        return <p className='text-right'><NumberFlow value={parseStakedAmount(asset.totalStaked)} /></p>;
                       })()}
                     </div>
 
@@ -170,8 +170,8 @@ export function CapitalInfoPanel() {
                       <button
                         onClick={asset.disabled ? undefined : () => handleStakeClick(asset.symbol as AssetSymbol)}
                         className={`text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                          asset.disabled 
-                            ? 'text-gray-600 cursor-not-allowed' 
+                          asset.disabled
+                            ? 'text-gray-600 cursor-not-allowed'
                             : 'text-emerald-400 hover:text-emerald-300'
                         }`}
                         disabled={!userAddress || asset.disabled}
