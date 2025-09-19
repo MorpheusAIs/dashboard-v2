@@ -7,6 +7,16 @@
     "inputs": [{
         "indexed": false,
         "internalType": "address",
+        "name": "aavePoolAddressesProvider",
+        "type": "address"
+    }],
+    "name": "AavePoolAddressesProviderSet",
+    "type": "event"
+}, {
+    "anonymous": false,
+    "inputs": [{
+        "indexed": false,
+        "internalType": "address",
         "name": "aavePoolDataProvider",
         "type": "address"
     }],
@@ -16,11 +26,41 @@
     "anonymous": false,
     "inputs": [{
         "indexed": false,
+        "internalType": "address[]",
+        "name": "assets",
+        "type": "address[]"
+    }, {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+    }, {
+        "indexed": false,
         "internalType": "address",
-        "name": "aavePool",
+        "name": "to",
+        "type": "address"
+    }, {
+        "indexed": false,
+        "internalType": "address",
+        "name": "reward",
+        "type": "address"
+    }, {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "claimedAmount",
+        "type": "uint256"
+    }],
+    "name": "AaveRewardsClaimed",
+    "type": "event"
+}, {
+    "anonymous": false,
+    "inputs": [{
+        "indexed": false,
+        "internalType": "address",
+        "name": "aaveRewardsController",
         "type": "address"
     }],
-    "name": "AavePoolSet",
+    "name": "AaveRewardsControllerSet",
     "type": "event"
 }, {
     "anonymous": false,
@@ -207,11 +247,11 @@
         "type": "address"
     }, {
         "internalType": "address",
-        "name": "aavePool_",
+        "name": "aavePoolDataProvider_",
         "type": "address"
     }, {
         "internalType": "address",
-        "name": "aavePoolDataProvider_",
+        "name": "aavePoolAddressesProvider_",
         "type": "address"
     }, {
         "internalType": "address",
@@ -228,7 +268,7 @@
     "type": "function"
 }, {
     "inputs": [],
-    "name": "aavePool",
+    "name": "aavePoolAddressesProvider",
     "outputs": [{
         "internalType": "address",
         "name": "",
@@ -239,6 +279,16 @@
 }, {
     "inputs": [],
     "name": "aavePoolDataProvider",
+    "outputs": [{
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+}, {
+    "inputs": [],
+    "name": "aaveRewardsController",
     "outputs": [{
         "internalType": "address",
         "name": "",
@@ -281,6 +331,32 @@
         "type": "address"
     }],
     "stateMutability": "view",
+    "type": "function"
+}, {
+    "inputs": [{
+        "internalType": "address[]",
+        "name": "assets",
+        "type": "address[]"
+    }, {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+    }, {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+    }, {
+        "internalType": "address",
+        "name": "reward",
+        "type": "address"
+    }],
+    "name": "claimAaveRewards",
+    "outputs": [{
+        "internalType": "uint256",
+        "name": "claimedAmount",
+        "type": "uint256"
+    }],
+    "stateMutability": "nonpayable",
     "type": "function"
 }, {
     "inputs": [{
@@ -389,6 +465,20 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+    }],
+    "stateMutability": "view",
+    "type": "function"
+}, {
+    "inputs": [{
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+    }],
+    "name": "isDepositTokenAdded",
+    "outputs": [{
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
     }],
     "stateMutability": "view",
     "type": "function"
@@ -504,7 +594,7 @@
         "name": "value_",
         "type": "address"
     }],
-    "name": "setAavePool",
+    "name": "setAavePoolAddressesProvider",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -515,6 +605,16 @@
         "type": "address"
     }],
     "name": "setAavePoolDataProvider",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+}, {
+    "inputs": [{
+        "internalType": "address",
+        "name": "value_",
+        "type": "address"
+    }],
+    "name": "setAaveRewardsController",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -578,12 +678,20 @@
         "name": "rewardPoolIndex_",
         "type": "uint256"
     }, {
+        "internalType": "address",
+        "name": "holder_",
+        "type": "address"
+    }, {
         "internalType": "uint256",
         "name": "amount_",
         "type": "uint256"
     }],
     "name": "supply",
-    "outputs": [],
+    "outputs": [{
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+    }],
     "stateMutability": "nonpayable",
     "type": "function"
 }, {
@@ -669,6 +777,10 @@
         "internalType": "uint256",
         "name": "rewardPoolIndex_",
         "type": "uint256"
+    }, {
+        "internalType": "address",
+        "name": "receiver_",
+        "type": "address"
     }, {
         "internalType": "uint256",
         "name": "amount_",
