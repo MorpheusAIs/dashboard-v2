@@ -91,7 +91,7 @@ interface ReferralContractData {
 }
 
 // --- Types & Helpers moved from ChangeLockModal ---
-type ActiveModal = "deposit" | "withdraw" | "claim" | "changeLock" | "stakeMorRewards" | "claimMorRewards" | null;
+type ActiveModal = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards" | null;
 type TimeUnit = "days" | "months" | "years";
 
 // V2 Asset Types (imported from asset-config.ts)
@@ -1463,14 +1463,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
       if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHash) {
-          // Don't show toast or close modal if we're in enhanced claim flow (activeModal === 'claim')
-          // The enhanced claim modal will handle its own toast notifications and balance monitoring
-          if (activeModal !== 'claim') {
-              toast.success("Claim confirmed!");
-              setActiveModal(null); // Close modal on success only for non-enhanced flows
-          } else {
-              console.log('🔄 Claim confirmed, letting enhanced claim modal handle balance monitoring');
-          }
+          toast.success("Claim confirmed!");
+          setActiveModal(null); // Close modal on success
 
           // Refetch legacy user data and rewards (these are general/MOR-related)
           refetchUserData();
@@ -1484,7 +1478,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           capitalPoolData.refetch.rewardPoolData();
           setLastHandledClaimHash(claimHash);
       }
-  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, capitalPoolData.refetch, setActiveModal, activeModal, assetContractData]);
+  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, capitalPoolData.refetch, setActiveModal, assetContractData]);
 
   useEffect(() => {
       if (isWithdrawSuccess && withdrawHash && withdrawHash !== lastHandledWithdrawHash) {

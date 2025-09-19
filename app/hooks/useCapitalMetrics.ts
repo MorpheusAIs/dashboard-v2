@@ -208,6 +208,7 @@ export function useCapitalMetrics(): CapitalMetrics {
           setActiveStakersError(null);
           setRetryAttempts(0);
           console.log(`✅ [FRONTEND] Active stakers count set and cached (${data.network}):`, data.active_stakers);
+          console.log(`✅ [FRONTEND] Full API response:`, JSON.stringify(data, null, 2));
         } else {
           console.log('❌ [FRONTEND] API returned failure:', data.error || 'Invalid response format');
           throw new Error(data.error || 'Invalid response format');

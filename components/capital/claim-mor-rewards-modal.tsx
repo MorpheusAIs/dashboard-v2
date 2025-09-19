@@ -118,7 +118,7 @@ export function ClaimMorRewardsModal() {
     contractAddress: poolContractAddress,
     chainId: l1ChainId,
     enabled: true,
-    isMainnetStETH: effectiveNetworkEnv === 'mainnet' // Use client-side calculation for mainnet
+    // Uses contract calls for all networks for authoritative results
   });
 
   // Validate lock value based on unit (both minimum and maximum)
