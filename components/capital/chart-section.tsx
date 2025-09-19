@@ -166,7 +166,7 @@ export function ChartSection() {
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
                     <div className="flex items-center space-x-3 bg-black/50 px-6 py-4 rounded-lg border border-emerald-500/20">
                       {/* <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-400 border-t-transparent"></div> */}
-                      <span className="text-emerald-400 font-light text-lg">Currently indexing</span>
+                      <span className="text-emerald-400 font-light text-lg">Currently indexing. To be available soon.</span>
                     </div>
                   </div>
                 </>
