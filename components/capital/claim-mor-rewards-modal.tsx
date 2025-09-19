@@ -117,7 +117,6 @@ export function ClaimMorRewardsModal() {
   const powerFactor = usePowerFactor({
     contractAddress: poolContractAddress,
     chainId: l1ChainId,
-    poolId: BigInt(0), // Main capital pool
     enabled: true,
     isMainnetStETH: effectiveNetworkEnv === 'mainnet' // Use client-side calculation for mainnet
   });
@@ -233,9 +232,8 @@ export function ClaimMorRewardsModal() {
     depositAmount: selectedAssetData?.claimableAmountFormatted || "0", // Use claimable amount for estimation
     powerFactorString: powerFactor.currentResult.powerFactor,
     lockValue,
-    lockUnit,
-    enabled: !!selectedAssetData && selectedAssetData.claimableAmount > 0 && (powerFactor?.currentResult?.isValid ?? false),
-    isMainnetStETH: effectiveNetworkEnv === 'mainnet' && selectedAsset === 'stETH'
+    lockUnit: lockUnit as "days" | "months" | "years",
+    enabled: !!selectedAssetData && selectedAssetData.claimableAmount > 0 && (powerFactor?.currentResult?.isValid ?? false)
   });
 
   // Calculate unlock date using utility function
