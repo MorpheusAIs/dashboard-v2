@@ -29,7 +29,6 @@ export interface AssetContractData {
   claimableAmount: bigint;
   userMultiplier: bigint;
   totalDeposited: bigint;
-  minimalStake: bigint;
   claimUnlockTimestamp?: bigint;
   withdrawUnlockTimestamp?: bigint;
   
@@ -39,7 +38,6 @@ export interface AssetContractData {
   claimableAmountFormatted: string;
   userMultiplierFormatted: string;
   totalDepositedFormatted: string;
-  minimalStakeFormatted: string;
   claimUnlockTimestampFormatted: string;
   withdrawUnlockTimestampFormatted: string;
   
@@ -75,15 +73,6 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
   const { address: userAddress } = useAccount();
   const chainId = useChainId();
   
-  // Debug: Log hook initialization for wBTC
-  if (assetSymbol === 'wBTC') {
-    console.error(`🚨 [wBTC] useAssetContractData HOOK CALLED:`, {
-      assetSymbol,
-      userAddress,
-      chainId
-    });
-  }
-  
   // Determine network environment
   const networkEnv = useMemo((): NetworkEnvironment => {
     return [1, 42161, 8453].includes(chainId) ? 'mainnet' : 'testnet';
@@ -95,16 +84,7 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
   
   // Get asset configuration
   const assetConfig = useMemo(() => {
-    const config = getAssetConfig(assetSymbol, networkEnv);
-    if (assetSymbol === 'wBTC') {
-      console.error(`🚨 [wBTC] Asset config:`, {
-        assetSymbol,
-        networkEnv,
-        config,
-        hasConfig: !!config
-      });
-    }
-    return config;
+    return getAssetConfig(assetSymbol, networkEnv);
   }, [assetSymbol, networkEnv]);
   
   // Get contract addresses dynamically
@@ -143,18 +123,6 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
   
   // Contract reads - only enabled if contracts are deployed (not zero address)
   const contractsEnabled = tokenAddress !== zeroAddress && depositPoolAddress !== zeroAddress;
-  
-  // Debug: Log contract setup for wBTC
-  if (assetSymbol === 'wBTC') {
-    console.error(`🚨 [wBTC] Contract setup:`, {
-      tokenAddress,
-      depositPoolAddress,
-      contractsEnabled,
-      networkEnv,
-      l1ChainId,
-      assetConfig
-    });
-  }
   
   // User balance
   const { data: balanceData, isLoading: isLoadingBalance, refetch: refetchBalance } = useBalance({
@@ -222,7 +190,6 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
     chainId: l1ChainId,
     query: { enabled: contractsEnabled }
   });
-
   
   // Parse contract data
   const parsedData = useMemo(() => {
@@ -247,47 +214,12 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
       }
     }
     
-    // Parse pool protocol details (includes minimum stake)
+    // Parse pool protocol details
     let withdrawLockPeriodAfterStake: bigint | undefined;
-    let minimalStake: bigint | undefined;
-    
-    // Debug logging for protocol details contract call
-    if (assetSymbol === 'wBTC') {
-      console.error(`🚨🚨🚨 [wBTC] Protocol details contract call DEBUG:`, {
-        depositPoolAddress,
-        contractsEnabled,
-        isLoading: isLoadingProtocol,
-        hasData: !!poolProtocolData,
-        isArray: Array.isArray(poolProtocolData),
-        dataLength: poolProtocolData ? (Array.isArray(poolProtocolData) ? poolProtocolData.length : 'not array') : 'no data',
-        rawData: poolProtocolData,
-        chainId: l1ChainId,
-        functionName: 'rewardPoolsProtocolDetails',
-        args: [V2_REWARD_POOL_INDEX]
-      });
-    } else {
-      console.log(`🔍 [${assetSymbol}] Protocol details contract call:`, {
-        depositPoolAddress,
-        contractsEnabled,
-        isLoading: isLoadingProtocol,
-        hasData: !!poolProtocolData,
-        isArray: Array.isArray(poolProtocolData),
-        dataLength: poolProtocolData ? (Array.isArray(poolProtocolData) ? poolProtocolData.length : 'not array') : 'no data',
-        rawData: poolProtocolData
-      });
-    }
     
     if (poolProtocolData && Array.isArray(poolProtocolData)) {
       try {
-        // From ABI: rewardPoolsProtocolDetails returns [withdrawLockPeriodAfterStake, claimLockPeriodAfterStake, claimLockPeriodAfterClaim, minimalStake, distributedRewards]
         withdrawLockPeriodAfterStake = BigInt(poolProtocolData[0] || 0); // withdrawLockPeriodAfterStake is index 0
-        minimalStake = BigInt(poolProtocolData[3] || 0); // minimalStake is index 3
-        
-        console.log(`💰 [${assetSymbol}] Minimum stake from contract:`, {
-          raw: minimalStake.toString(),
-          formatted: formatBigInt(minimalStake, assetConfig?.metadata.decimals || 18, 8),
-          decimals: assetConfig?.metadata.decimals || 18
-        });
       } catch (e) {
         console.error(`Error parsing pool protocol data for ${assetSymbol}:`, e);
       }
@@ -313,13 +245,12 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
       claimableAmount,
       userMultiplier,
       totalDeposited,
-      minimalStake: minimalStake || BigInt(0),
       claimUnlockTimestamp: claimUnlockTimestamp && claimUnlockTimestamp > BigInt(0) ? claimUnlockTimestamp : undefined,
       withdrawUnlockTimestamp: withdrawUnlockTimestamp,
       canClaim,
       canWithdraw,
     };
-  }, [balanceData, allowanceData, userPoolData, totalDepositedData, userRewardData, userMultiplierData, poolProtocolData, assetSymbol, assetConfig]);
+  }, [balanceData, allowanceData, userPoolData, totalDepositedData, userRewardData, userMultiplierData, poolProtocolData, assetSymbol]);
   
   // Format data for display
   const formattedData = useMemo(() => {
@@ -333,7 +264,6 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
         formatPowerFactorPrecise(parsedData.userMultiplier) : 
         (parsedData.userDeposited > BigInt(0) ? "x1.0" : "---"),
       totalDepositedFormatted: formatBigInt(parsedData.totalDeposited, decimals, 2),
-      minimalStakeFormatted: formatBigInt(parsedData.minimalStake, decimals, 8), // Show more precision for minimum
       claimUnlockTimestampFormatted: formatTimestamp(parsedData.claimUnlockTimestamp),
       withdrawUnlockTimestampFormatted: formatTimestamp(parsedData.withdrawUnlockTimestamp),
     };
