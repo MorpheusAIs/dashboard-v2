@@ -68,7 +68,7 @@ interface UserAssetsTableProps {
   sorting: { id: string; desc: boolean } | null;
   onSortingChangeAction: (columnId: string) => void;
   onDropdownOpenChangeAction: (assetId: string, open: boolean) => void;
-  onDropdownActionAction: (modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claim' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => void;
+  onDropdownActionAction: (modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => void;
   openDropdownId: string | null;
   isWithdrawUnlockDateReachedAction: (withdrawUnlockDate: string | null) => boolean;
   isAnyActionProcessing: boolean;

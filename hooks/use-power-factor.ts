@@ -6,7 +6,7 @@ import {
   validateLockDuration,
   willActivatePowerFactor,
   calculateUnlockDate,
-  calculatePowerFactorFromDuration,
+  // calculatePowerFactorFromDuration, // No longer needed - removed client-side calculation
   type TimeUnit
 } from "@/lib/utils/power-factor-utils";
 import { getContractAddress } from "@/config/networks";
@@ -29,10 +29,11 @@ export interface UsePowerFactorParams {
   contractAddress?: `0x${string}`;
   chainId?: number;
   enabled?: boolean;
-  isMainnetStETH?: boolean;
 }
 
-// Mainnet StETH specific hook
+// DEPRECATED: Mainnet StETH specific hook - COMMENTED OUT
+// We now use contract calls for all networks for consistency and accuracy
+/*
 function useMainnetStETHPowerFactor() {
   console.log('🧮 [Power Factor] Using client-side calculation for mainnet');
 
@@ -41,9 +42,7 @@ function useMainnetStETHPowerFactor() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
-  /**
-   * Calculate power factor using client-side MRC42 formula
-   */
+  // Calculate power factor using client-side MRC42 formula
   const calculatePowerFactor = useCallback((
     value: string,
     unit: TimeUnit
@@ -85,17 +84,13 @@ function useMainnetStETHPowerFactor() {
     };
   }, []);
 
-  /**
-   * Set lock parameters and trigger calculation
-   */
+  // Set lock parameters and trigger calculation
   const setLockPeriod = useCallback((value: string, unit: TimeUnit) => {
     setLockValue(value);
     setLockUnit(unit);
   }, []);
 
-  /**
-   * Get current power factor result
-   */
+  // Get current power factor result
   const currentResult = useMemo((): PowerFactorResult => {
     if (!lockValue) {
       return {
@@ -132,13 +127,14 @@ function useMainnetStETHPowerFactor() {
     contractArgs: undefined,
   };
 }
+*/
 
-// Contract-based hook for non-mainnet cases
+// Contract-based hook for all networks - authoritative power factor calculations
 function useContractPowerFactor({
   contractAddress,
   chainId,
   enabled = true,
-}: Omit<UsePowerFactorParams, 'isMainnetStETH'>) {
+}: UsePowerFactorParams) {
   const { environment } = useNetwork();
   const [lockValue, setLockValue] = useState<string>("");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("months");
@@ -413,18 +409,13 @@ function useContractPowerFactor({
 
 /**
  * Hook for calculating and managing power factor for lock periods
+ * Uses contract calls to LockMultiplierMath for authoritative power factor calculations
  * @param params Configuration parameters
  * @returns Power factor calculation functions and state
  */
 export function usePowerFactor(params: UsePowerFactorParams) {
-  const { isMainnetStETH = false, ...contractParams } = params;
-
-  // Always call both hooks, but return the appropriate one based on isMainnetStETH
-  const mainnetResult = useMainnetStETHPowerFactor();
-  const contractResult = useContractPowerFactor(contractParams);
-
-  // Return the appropriate result
-  return isMainnetStETH ? mainnetResult : contractResult;
+  // Always use contract-based calculations for consistency and accuracy
+  return useContractPowerFactor(params);
 }
 
 /**
@@ -435,7 +426,7 @@ export function usePowerFactor(params: UsePowerFactorParams) {
 export function usePowerFactorCalculation({
   contractAddress,
   chainId,
-}: Omit<UsePowerFactorParams, 'enabled'>) {
+}: Pick<UsePowerFactorParams, 'contractAddress' | 'chainId'>) {
   const { environment } = useNetwork();
   const [tempArgs, setTempArgs] = useState<[bigint, bigint] | undefined>();
 
