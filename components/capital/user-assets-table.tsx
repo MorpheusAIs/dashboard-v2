@@ -112,7 +112,7 @@ export function UserAssetsTable({
         cell: (asset) => (
           <div className="flex items-center gap-2">
             <span className="text-gray-200">
-              {formatStakedAmount(asset.amountStaked)}
+              {formatStakedAmount(asset.amountStaked, asset.assetSymbol)}
             </span>
             {asset.amountStaked > 0 && (
               <TooltipProvider delayDuration={200}>
@@ -157,7 +157,7 @@ export function UserAssetsTable({
         enableSorting: true,
         cell: (asset) => (
           <span className="text-gray-200">
-            {formatAssetAmount(asset.available)}
+            {formatAssetAmount(asset.available, asset.assetSymbol)}
           </span>
         ),
       },

@@ -23,9 +23,20 @@ export const parseDepositAmount = (depositValue: string | undefined): number => 
 };
 
 /**
- * Format asset amounts with 2 decimals for small numbers
+ * Format asset amounts with conditional decimals based on asset type
+ * USDC, USDT: always 2 decimals
+ * wETH, wBTC, stETH: 3 decimals if < 1, 2 decimals if >= 1
  */
-export const formatAssetAmount = (amount: number): string => {
+export const formatAssetAmount = (amount: number, assetSymbol?: AssetSymbol): string => {
+  if (assetSymbol === 'USDC' || assetSymbol === 'USDT') {
+    return amount.toFixed(2);
+  }
+
+  if (assetSymbol === 'wETH' || assetSymbol === 'wBTC' || assetSymbol === 'stETH') {
+    return amount < 1 ? amount.toFixed(3) : amount.toFixed(2);
+  }
+
+  // Default behavior for other assets: 2 decimals for small numbers
   if (amount < 1 && amount > 0) {
     return amount.toFixed(2);
   }
@@ -33,9 +44,20 @@ export const formatAssetAmount = (amount: number): string => {
 };
 
 /**
- * Format staked amounts with 1 decimal place
+ * Format staked amounts with conditional decimals based on asset type
+ * USDC, USDT: always 2 decimals
+ * wETH, wBTC, stETH: 3 decimals if < 1, 2 decimals if >= 1
  */
-export const formatStakedAmount = (amount: number): string => {
+export const formatStakedAmount = (amount: number, assetSymbol?: AssetSymbol): string => {
+  if (assetSymbol === 'USDC' || assetSymbol === 'USDT') {
+    return amount.toFixed(2);
+  }
+
+  if (assetSymbol === 'wETH' || assetSymbol === 'wBTC' || assetSymbol === 'stETH') {
+    return amount < 1 ? amount.toFixed(3) : amount.toFixed(2);
+  }
+
+  // Default to 1 decimal for other assets
   return amount.toFixed(1);
 };
 
