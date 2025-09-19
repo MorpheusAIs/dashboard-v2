@@ -92,14 +92,14 @@ export function UserAssetsPanel() {
   );
 
   // Create a mapping of asset symbols to their emission data for easy lookup
-  const assetEmissions = {
+  const assetEmissions = useMemo(() => ({
     stETH: stETHEmissions,
     LINK: linkEmissions,
     USDC: usdcEmissions,
     USDT: usdtEmissions,
     wBTC: wbtcEmissions,
     wETH: wethEmissions,
-  };
+  }), [stETHEmissions, linkEmissions, usdcEmissions, usdtEmissions, wbtcEmissions, wethEmissions]);
 
   // Fetch total MOR earned from Capital v2 subgraph (testnet only)
   const totalMorEarnedResult = useTotalMorEarned(userAddress || null, networkEnv);
@@ -217,7 +217,7 @@ export function UserAssetsPanel() {
     }
     
     lastUserActionRef.current = currentActionState;
-  }, [isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock]); // Removed shouldRefreshData to prevent re-triggering
+  }, [isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock, shouldRefreshData]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
