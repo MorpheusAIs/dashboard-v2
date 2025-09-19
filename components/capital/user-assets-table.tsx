@@ -36,11 +36,17 @@ function formatUnlockDateForTooltip(unlockDate: string | null): string {
     return "No unlock date available";
   }
 
+  // Handle special formatted timestamp strings from formatTimestamp utility
+  if (unlockDate === "--- --, ----" || unlockDate === "Never" || unlockDate === "Invalid Number" || unlockDate === "Invalid Date" || unlockDate === "Invalid Data") {
+    return "No unlock date set";
+  }
+
   // Try to parse the date string and format it
   try {
     const date = new Date(unlockDate);
     if (isNaN(date.getTime())) {
-      return "Invalid unlock date";
+      console.warn("Could not parse unlock date:", unlockDate);
+      return "Date format not recognized";
     }
 
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -64,7 +70,7 @@ interface UserAssetsTableProps {
   onDropdownOpenChangeAction: (assetId: string, open: boolean) => void;
   onDropdownActionAction: (modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claim' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => void;
   openDropdownId: string | null;
-  isUnlockDateReachedAction: (unlockDate: string | null) => boolean;
+  isWithdrawUnlockDateReachedAction: (withdrawUnlockDate: string | null) => boolean;
   isAnyActionProcessing: boolean;
   isModalTransitioning: boolean;
   isDropdownTransitioning: boolean;
@@ -78,7 +84,7 @@ export function UserAssetsTable({
   onDropdownOpenChangeAction,
   onDropdownActionAction,
   openDropdownId,
-  isUnlockDateReachedAction,
+  isWithdrawUnlockDateReachedAction,
   isAnyActionProcessing,
   isModalTransitioning,
   isDropdownTransitioning
@@ -114,11 +120,11 @@ export function UserAssetsTable({
                   <TooltipTrigger asChild>
                     <div className="inline-block">
                       <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums cursor-pointer ${
-                        isUnlockDateReachedAction(asset.unlockDate)
+                        isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate)
                           ? "bg-emerald-400 hover:bg-emerald-500 text-black border-emerald-400"
                           : "bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
                       }`}>
-                        {isUnlockDateReachedAction(asset.unlockDate) ? (
+                        {isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate) ? (
                           <LockOpen className="h-3 w-3" />
                         ) : (
                           <Lock className="h-3 w-3" />
@@ -134,7 +140,7 @@ export function UserAssetsTable({
                     <p className="text-sm font-medium">
                       {asset.canWithdraw
                         ? "Unlocked"
-                        : `Locked until ${formatUnlockDateForTooltip(asset.unlockDate)}`
+                        : `Locked until ${formatUnlockDateForTooltip(asset.withdrawUnlockDate)}`
                       }
                     </p>
                   </TooltipContent>
@@ -181,7 +187,7 @@ export function UserAssetsTable({
       },
       {
         id: "unlockDate",
-        header: "Unlock Date",
+        header: "Claim Unlock Date",
         cell: (asset) => (
           <span className="text-gray-300 whitespace-nowrap">
             {asset.unlockDate || "N/A"}
@@ -234,8 +240,8 @@ export function UserAssetsTable({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => onDropdownActionAction('withdraw', asset.assetSymbol)}
-                disabled={isAnyActionProcessing || isModalTransitioning || !isUnlockDateReachedAction(asset.unlockDate)}
-                className={!isUnlockDateReachedAction(asset.unlockDate) ? "text-gray-500 cursor-not-allowed" : ""}
+                disabled={isAnyActionProcessing || isModalTransitioning || !isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate)}
+                className={!isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate) ? "text-gray-500 cursor-not-allowed" : ""}
               >
                 <ArrowDownToLine className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Withdraw'}
@@ -261,7 +267,7 @@ export function UserAssetsTable({
         ),
       },
     ],
-    [isAnyActionProcessing, onDropdownActionAction, openDropdownId, onDropdownOpenChangeAction, isUnlockDateReachedAction, isModalTransitioning, isDropdownTransitioning]
+    [isAnyActionProcessing, onDropdownActionAction, openDropdownId, onDropdownOpenChangeAction, isWithdrawUnlockDateReachedAction, isModalTransitioning, isDropdownTransitioning]
   );
 
   return (
