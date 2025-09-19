@@ -26,6 +26,9 @@ import type { UserAsset } from "./types/user-asset";
 import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
 import { formatTimestamp } from "@/lib/utils/formatters";
 
+// Type for modal actions that can be triggered from dropdowns
+type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards";
+
 // Re-export cache functions for backward compatibility
 export { getCachedPrices, setCachedPrices, shouldRetryPriceFetch, MAX_PRICE_RETRIES, type TokenPriceCache } from "./hooks/use-token-prices";
 export { getCachedUserAssets, setCachedUserAssets, type UserAssetsCache } from "./hooks/use-user-assets-cache";
@@ -314,7 +317,7 @@ export function UserAssetsPanel() {
   }, [userAddress]);
 
   // Helper function to handle dropdown menu actions and manage focus properly
-  const handleDropdownAction = useCallback((modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => {
+  const handleDropdownAction = useCallback((modalType: ModalAction, assetSymbol?: AssetSymbol) => {
     // Prevent action if another action is processing (but allow withdraw even during claim processing)
     if (isAnyActionProcessing && modalType !== 'withdraw') {
       console.log('Blocking action due to processing state:', modalType);
