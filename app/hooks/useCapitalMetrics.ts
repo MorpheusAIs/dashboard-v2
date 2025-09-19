@@ -3,15 +3,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
+import { getSupportedAssetSymbols, type AssetSymbol } from "@/components/capital/constants/asset-config";
 
 // Cache for last known good TVL data
 interface TVLCache {
   totalValueLockedUSD: string;
   timestamp: number;
-  stethAmount: number;
-  linkAmount: number;
-  stethPrice: number;
-  linkPrice: number;
+  networkEnvironment: string;
+  assetAmounts: Partial<Record<AssetSymbol, number>>;
+  prices: Record<string, number>; // Keyed by asset symbol
 }
 
 // Cache for active stakers data
@@ -32,17 +32,47 @@ const getCachedTVL = (): TVLCache | null => {
   try {
     const cached = localStorage.getItem(TVL_CACHE_KEY);
     if (!cached) return null;
-    
-    const parsedCache: TVLCache = JSON.parse(cached);
+
+    const parsedCache = JSON.parse(cached);
     const now = Date.now();
-    
+
     // Check if cache is still valid (not expired)
     if (now - parsedCache.timestamp > CACHE_EXPIRY_MS) {
       localStorage.removeItem(TVL_CACHE_KEY);
       return null;
     }
-    
-    return parsedCache;
+
+    // Handle backward compatibility - convert old cache format to new format
+    if (parsedCache.stethAmount !== undefined || parsedCache.linkAmount !== undefined) {
+      // Convert old format to new format
+      const assetAmounts: Partial<Record<AssetSymbol, number>> = {};
+      const prices: Record<string, number> = {};
+
+      if (parsedCache.stethAmount !== undefined) {
+        assetAmounts.stETH = parsedCache.stethAmount;
+      }
+      if (parsedCache.linkAmount !== undefined) {
+        assetAmounts.LINK = parsedCache.linkAmount;
+      }
+      if (parsedCache.stethPrice !== undefined) {
+        prices.stETH = parsedCache.stethPrice;
+      }
+      if (parsedCache.linkPrice !== undefined) {
+        prices.LINK = parsedCache.linkPrice;
+      }
+
+      const convertedCache: TVLCache = {
+        totalValueLockedUSD: parsedCache.totalValueLockedUSD,
+        timestamp: parsedCache.timestamp,
+        networkEnvironment: parsedCache.networkEnvironment || 'mainnet',
+        assetAmounts,
+        prices
+      };
+
+      return convertedCache;
+    }
+
+    return parsedCache as TVLCache;
   } catch (error) {
     console.warn('Error reading TVL cache:', error);
     return null;
@@ -245,14 +275,19 @@ export function useCapitalMetrics(): CapitalMetrics {
     
     // Fallback if no network environment is set
     return "N/A";
-  }, [poolData.networkEnvironment, activeStakersCount, isLoadingActiveStakers, activeStakersError, retryAttempts]);
+  }, [activeStakersCount, isLoadingActiveStakers, activeStakersError, retryAttempts]);
+
+  // Get supported assets for the current network
+  const supportedAssets = useMemo(() => {
+    return getSupportedAssetSymbols(poolData.networkEnvironment || 'mainnet');
+  }, [poolData.networkEnvironment]);
 
   // Calculate core metrics from live pool data (excluding active stakers to avoid blocking)
   const coreMetrics = useMemo(() => {
     // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
-    const isLoading = poolData.stETH.isLoading || poolData.LINK.isLoading || isPriceUpdating;
+    const isLoading = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading) || isPriceUpdating;
     // Core metrics errors (DON'T include active stakers errors - they're non-critical)
-    const hasError = poolData.stETH.error || poolData.LINK.error;
+    const hasError = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.error);
 
     // If still loading, show loading state instead of zeros
     if (isLoading) {
@@ -267,19 +302,32 @@ export function useCapitalMetrics(): CapitalMetrics {
 
     // If there are errors but we still have partial data, try to calculate with available data
     if (hasError) {
+      const errorDetails = supportedAssets.reduce((acc, assetSymbol) => {
+        acc[assetSymbol] = poolData.assets[assetSymbol]?.error?.message;
+        return acc;
+      }, {} as Record<AssetSymbol, string | undefined>);
+
+      const availableData = supportedAssets.reduce((acc, assetSymbol) => {
+        acc[assetSymbol] = {
+          totalStaked: poolData.assets[assetSymbol]?.totalStaked,
+          apy: poolData.assets[assetSymbol]?.apy
+        };
+        return acc;
+      }, {} as Record<AssetSymbol, { totalStaked?: string; apy?: string }>);
+
       console.warn('⚠️ Partial error in capital metrics, attempting calculation with available data:', {
-        stETHError: poolData.stETH.error?.message,
-        linkError: poolData.LINK.error?.message,
-        availableData: {
-          stETHData: { totalStaked: poolData.stETH.totalStaked, apy: poolData.stETH.apy },
-          linkData: { totalStaked: poolData.LINK.totalStaked, apy: poolData.LINK.apy },
-          prices: { stethPrice, linkPrice }
-        }
+        errors: errorDetails,
+        availableData,
+        prices: { stethPrice, linkPrice }
       });
-      
+
       // Only return error state if we have NO usable data at all
-      if ((!poolData.stETH.totalStaked || poolData.stETH.totalStaked === '0') && 
-          (!poolData.LINK.totalStaked || poolData.LINK.totalStaked === '0')) {
+      const hasAnyData = supportedAssets.some(assetSymbol =>
+        poolData.assets[assetSymbol]?.totalStaked &&
+        poolData.assets[assetSymbol]?.totalStaked !== '0'
+      );
+
+      if (!hasAnyData) {
         // Try cached data as last resort
         const cachedTVL = getCachedTVL();
         if (cachedTVL) {
@@ -304,68 +352,104 @@ export function useCapitalMetrics(): CapitalMetrics {
       // Continue with calculation even with partial errors
     }
 
-    // Calculate Total Value Locked in USD
-    const stethAmount = parsePoolAmount(poolData.stETH.totalStaked);
-    const linkAmount = parsePoolAmount(poolData.LINK.totalStaked);
-    
-    // Handle missing price data more gracefully
-    const stethUSDValue = (stethPrice && stethAmount > 0) ? stethAmount * stethPrice : 0;
-    const linkUSDValue = (linkPrice && linkAmount > 0) ? linkAmount * linkPrice : 0;
-    const totalValueLockedUSD = Math.floor(stethUSDValue + linkUSDValue);
-    
+    // Calculate Total Value Locked in USD dynamically for all supported assets
+    let totalValueLockedUSD = 0;
+    const assetAmounts: Record<AssetSymbol, number> = {} as Record<AssetSymbol, number>;
+    const assetUSDValues: Record<AssetSymbol, number> = {} as Record<AssetSymbol, number>;
+
+    supportedAssets.forEach(assetSymbol => {
+      const assetData = poolData.assets[assetSymbol];
+      if (!assetData) return;
+
+      const amount = parsePoolAmount(assetData.totalStaked || '0');
+      assetAmounts[assetSymbol] = amount;
+
+      // Calculate USD value based on asset type
+      let usdValue = 0;
+      if (assetSymbol === 'stETH' && stethPrice && amount > 0) {
+        usdValue = amount * stethPrice;
+      } else if (assetSymbol === 'LINK' && linkPrice && amount > 0) {
+        usdValue = amount * linkPrice;
+      }
+      // For other assets, we would need their price data - for now, only include known assets
+
+      assetUSDValues[assetSymbol] = usdValue;
+      totalValueLockedUSD += usdValue;
+    });
+
+    totalValueLockedUSD = Math.floor(totalValueLockedUSD);
+
     // Log calculation details for debugging
     console.log('💰 TVL Calculation Debug:', {
-      stethAmount,
-      linkAmount,
-      stethPrice,
-      linkPrice,
-      stethUSDValue,
-      linkUSDValue,
+      supportedAssets,
+      assetAmounts,
+      assetUSDValues,
       totalValueLockedUSD,
       networkEnv: poolData.networkEnvironment
     });
 
-    // Calculate average APY (weighted by USD value)
+    // Calculate average APY (weighted by USD value) dynamically
     let avgApy = 0;
     if (totalValueLockedUSD > 0) {
-      const stethApyNum = parseFloat(poolData.stETH.apy.replace('%', ''));
-      const linkApyNum = parseFloat(poolData.LINK.apy.replace('%', ''));
-      
-      const stethWeight = stethUSDValue / totalValueLockedUSD;
-      const linkWeight = linkUSDValue / totalValueLockedUSD;
-      
-      avgApy = (stethApyNum * stethWeight) + (linkApyNum * linkWeight);
+      let weightedApySum = 0;
+
+      supportedAssets.forEach(assetSymbol => {
+        const assetData = poolData.assets[assetSymbol];
+        if (!assetData || !assetUSDValues[assetSymbol]) return;
+
+        // Skip assets with no APY data or 'N/A' values
+        if (!assetData.apy || assetData.apy === 'N/A' || assetData.apy === 'Coming Soon') {
+          return;
+        }
+
+        const apyNum = parseFloat((assetData.apy || '0%').replace('%', ''));
+        if (isNaN(apyNum) || apyNum <= 0) return;
+
+        const weight = assetUSDValues[assetSymbol] / totalValueLockedUSD;
+
+        weightedApySum += apyNum * weight;
+      });
+
+      avgApy = weightedApySum;
     }
 
-    // Calculate LIVE daily MOR emissions from actual contract data (both networks)
+    // Calculate LIVE daily MOR emissions from actual contract data (both networks) dynamically
     const currentDailyRewardMOR = (() => {
       // Calculate from live APR data and total deposited amounts for all networks
       try {
-        // Parse APR values to get the underlying rates
-        const stETHAPR = parseFloat(poolData.stETH.apy.replace('%', '').replace(/,/g, ''));
-        const linkAPR = parseFloat(poolData.LINK.apy.replace('%', '').replace(/,/g, ''));
-        
-        // Parse deposited amounts 
-        const stETHDeposited = parseFloat(poolData.stETH.totalStaked.replace(/,/g, ''));
-        const linkDeposited = parseFloat(poolData.LINK.totalStaked.replace(/,/g, ''));
+        let totalDailyEmissions = 0;
+        let hasValidData = false;
 
-        if (isNaN(stETHAPR) || isNaN(linkAPR) || isNaN(stETHDeposited) || isNaN(linkDeposited)) {
-          console.warn('Cannot calculate daily emissions: invalid data', {
-            stETHAPR, linkAPR, stETHDeposited, linkDeposited
-          });
+        supportedAssets.forEach(assetSymbol => {
+          const assetData = poolData.assets[assetSymbol];
+          if (!assetData) return;
+
+          // Skip assets with no APY data or 'N/A' values
+          if (!assetData.apy || assetData.apy === 'N/A' || assetData.apy === 'Coming Soon') {
+            return;
+          }
+
+          // Parse APR values to get the underlying rates
+          const apr = parseFloat((assetData.apy || '0%').replace('%', '').replace(/,/g, ''));
+          const deposited = parseFloat((assetData.totalStaked || '0').replace(/,/g, ''));
+
+          if (isNaN(apr) || isNaN(deposited) || apr <= 0) {
+            return;
+          }
+
+          // Calculate daily rewards for this asset
+          // Formula: (APR / 100 / 365) * totalDeposited = daily rewards
+          const dailyRewards = (apr / 100 / 365) * deposited;
+          totalDailyEmissions += dailyRewards;
+          hasValidData = true;
+        });
+
+        if (!hasValidData) {
           return "N/A";
         }
 
-        // Calculate daily rewards for each pool
-        // Formula: (APR / 100 / 365) * totalDeposited = daily rewards
-        const stETHDailyRewards = (stETHAPR / 100 / 365) * stETHDeposited;
-        const linkDailyRewards = (linkAPR / 100 / 365) * linkDeposited;
-        
-        // Total daily emissions across all pools and assets
-        const totalDailyEmissions = stETHDailyRewards + linkDailyRewards;
-
         // Format for display
-        return totalDailyEmissions < 1000 
+        return totalDailyEmissions < 1000
           ? totalDailyEmissions.toFixed(0)
           : Math.round(totalDailyEmissions).toLocaleString();
 
@@ -376,42 +460,84 @@ export function useCapitalMetrics(): CapitalMetrics {
     })();
 
     // Save successful calculation to cache
-    if (totalValueLockedUSD > 0 && stethPrice && linkPrice) {
-      const cacheData: TVLCache = {
-        totalValueLockedUSD: totalValueLockedUSD.toLocaleString(),
-        timestamp: Date.now(),
-        stethAmount,
-        linkAmount,
-        stethPrice,
-        linkPrice
-      };
-      setCachedTVL(cacheData);
+    if (totalValueLockedUSD > 0) {
+      // Cache data for all supported assets with available price data
+      const prices: Record<string, number> = {};
+      let hasAnyPriceData = false;
+
+      // Collect available price data
+      if (stethPrice) {
+        prices.stETH = stethPrice;
+        hasAnyPriceData = true;
+      }
+      if (linkPrice) {
+        prices.LINK = linkPrice;
+        hasAnyPriceData = true;
+      }
+
+      if (hasAnyPriceData) {
+        const cacheData: TVLCache = {
+          totalValueLockedUSD: totalValueLockedUSD.toLocaleString(),
+          timestamp: Date.now(),
+          networkEnvironment: poolData.networkEnvironment || 'mainnet',
+          assetAmounts: { ...assetAmounts }, // Copy all asset amounts
+          prices
+        };
+        setCachedTVL(cacheData);
+      }
     }
 
     // Provide better display values based on data availability
     const totalValueLockedUSDDisplay = (() => {
       if (totalValueLockedUSD > 0) {
         return totalValueLockedUSD.toLocaleString();
-      } else if ((stethAmount > 0 || linkAmount > 0) && (!stethPrice || !linkPrice)) {
+      }
+
+      // Check if we have any asset deposits but missing price data
+      const hasAnyDeposits = supportedAssets.some(assetSymbol => assetAmounts[assetSymbol] > 0);
+      const hasAllPrices = supportedAssets.every(assetSymbol => {
+        if (assetSymbol === 'stETH') return !!stethPrice;
+        if (assetSymbol === 'LINK') return !!linkPrice;
+        // For other assets, assume no price data available yet
+        return false;
+      });
+
+      if (hasAnyDeposits && !hasAllPrices) {
         // We have pool deposits but missing price data - try to use cached price
         const cachedTVL = getCachedTVL();
-        if (cachedTVL && (cachedTVL.stethAmount > 0 || cachedTVL.linkAmount > 0)) {
-          console.log('📦 Using cached TVL data due to missing price data:', cachedTVL);
-          return `${cachedTVL.totalValueLockedUSD} (cached)`;
+        if (cachedTVL && cachedTVL.networkEnvironment === (poolData.networkEnvironment || 'mainnet')) {
+          // Check if cached data has any deposits for supported assets
+          const hasCachedDeposits = supportedAssets.some(assetSymbol =>
+            (cachedTVL.assetAmounts[assetSymbol] || 0) > 0
+          );
+          if (hasCachedDeposits) {
+            console.log('📦 Using cached TVL data due to missing price data:', cachedTVL);
+            return `${cachedTVL.totalValueLockedUSD} (cached)`;
+          }
         }
         return "Price loading...";
-      } else if (stethAmount === 0 && linkAmount === 0) {
-        // No deposits in either pool
+      }
+
+      // Check if all supported assets have zero deposits
+      const allAssetsEmpty = supportedAssets.every(assetSymbol => assetAmounts[assetSymbol] === 0);
+      if (allAssetsEmpty) {
+        // No deposits in any supported pool
         return "0";
-      } else {
-        // Some other issue - try cache
-        const cachedTVL = getCachedTVL();
-        if (cachedTVL) {
+      }
+
+      // Some other issue - try cache
+      const cachedTVL = getCachedTVL();
+      if (cachedTVL && cachedTVL.networkEnvironment === (poolData.networkEnvironment || 'mainnet')) {
+        // Check if cached data has any deposits for supported assets
+        const hasCachedDeposits = supportedAssets.some(assetSymbol =>
+          (cachedTVL.assetAmounts[assetSymbol] || 0) > 0
+        );
+        if (hasCachedDeposits) {
           console.log('📦 Using cached TVL data due to calculation error:', cachedTVL);
           return `${cachedTVL.totalValueLockedUSD} (cached)`;
         }
-        return "Calculating...";
       }
+      return "Calculating...";
     })();
 
     return {
@@ -421,7 +547,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       isLoading,
       error: null
     };
-  }, [poolData, stethPrice, linkPrice, isPriceUpdating]);
+  }, [poolData, stethPrice, linkPrice, isPriceUpdating, supportedAssets]);
 
   // Combine core metrics with active stakers display
   const metrics = useMemo(() => ({
