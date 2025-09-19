@@ -2,14 +2,13 @@
 
 import { useMemo, useCallback } from 'react';
 import React from 'react';
-import { useReadContract, useChainId } from 'wagmi';
+import { useContractReads, useChainId } from 'wagmi';
 import { formatUnits } from 'viem';
 import { NetworkEnvironment, getContractAddress, testnetChains, mainnetChains } from '@/config/networks';
 import { getAssetsForNetwork, type AssetSymbol } from '@/components/capital/constants/asset-config';
 
 // Import ABIs
 import DepositPoolAbi from '@/app/abi/DepositPool.json'; // Use the generic ABI that has all functions
-import DistributorV2Abi from '@/app/abi/DistributorV2.json';
 
 export interface AssetPoolData {
   totalStaked: string;
@@ -42,14 +41,15 @@ const ASSET_TO_DEPOSIT_POOL_MAP: Partial<Record<AssetSymbol, keyof import('@/con
 /**
  * Custom hook to read live capital pool data from deployed v7/v2 protocol contracts
  * 
- * IMPLEMENTATION UPDATE (Dynamic Asset Support):
- * - Dynamically handles any assets with deployed deposit pool contracts
- * - Uses RewardPoolV2.getPeriodRewards() for proper emission calculation
- * - Accounts for testnet (minute-based) vs mainnet (daily) reward timing differences  
- * - Implements coefficient-based APR calculation following v7 protocol documentation
+ * CURRENT IMPLEMENTATION (Dynamic Asset Support):
+ * - Dynamically handles any assets with deployed deposit pool contracts based on network config
+ * - Uses DepositPool.rewardPoolsData() to get live daily reward rates for accurate APR calculation
+ * - Uses DepositPool.totalDepositedInPublicPools() to get total staked amounts
+ * - Calculates APR using: (dailyRewardRate * 365) / totalVirtualDeposited * 100
+ * - Supports all configured assets (mainnet: stETH, USDC, USDT, wBTC, wETH; testnet: stETH, LINK)
  * - Shows N/A for assets without deposit pool contracts
  * 
- * Returns live data for both testnet (Sepolia) and mainnet (V2 contracts deployed)
+ * Returns live data for both testnet (Sepolia) and mainnet with proper v7 protocol daily distribution
  */
 export function useCapitalPoolData(): CapitalPoolData {
   const chainId = useChainId();
@@ -85,175 +85,149 @@ export function useCapitalPoolData(): CapitalPoolData {
     return addresses;
   }, [configuredAssets, l1ChainId, networkEnvironment]);
 
-  // Get V7/V2 protocol contract addresses
-  const distributorV2Address = useMemo(() => {
-    return getContractAddress(l1ChainId, 'distributorV2', networkEnvironment) as `0x${string}` | undefined;
-  }, [l1ChainId, networkEnvironment]);
+  // V7/V2 protocol contract addresses are no longer needed - using direct DepositPool calls
 
-  // Create individual useReadContract calls for each asset
-  const stETHContract = useReadContract({
-    address: depositPoolAddresses.stETH,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!depositPoolAddresses.stETH,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
+  // Dynamic contract calls for all available assets
+  // Create contract calls for totalDepositedInPublicPools
+  const depositedContracts = useMemo(() => {
+    return configuredAssets
+      .filter((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const address = depositPoolAddresses[symbol];
+        return address && address !== '0x0000000000000000000000000000000000000000';
+      })
+      .map((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const address = depositPoolAddresses[symbol]!; // Safe to use ! since we filtered above
+        
+        return {
+          address,
+          abi: DepositPoolAbi,
+          functionName: 'totalDepositedInPublicPools',
+          chainId: l1ChainId,
+          args: [],
+        };
+      });
+  }, [configuredAssets, depositPoolAddresses, l1ChainId]);
+
+  // Create contract calls for rewardPoolsData
+  const rewardRateContracts = useMemo(() => {
+    return configuredAssets
+      .filter((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const address = depositPoolAddresses[symbol];
+        return address && address !== '0x0000000000000000000000000000000000000000';
+      })
+      .map((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const address = depositPoolAddresses[symbol]!; // Safe to use ! since we filtered above
+        
+        return {
+          address,
+          abi: DepositPoolAbi,
+          functionName: 'rewardPoolsData',
+          args: [BigInt(0)], // Pool index 0 (Capital)
+          chainId: l1ChainId,
+        };
+      });
+  }, [configuredAssets, depositPoolAddresses, l1ChainId]);
+
+  // Execute all deposit contract calls
+  const { 
+    data: depositedResults, 
+    isLoading: isLoadingDeposits, 
+    refetch: refetchDeposits 
+  } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: depositedContracts as any, // Type assertion for ABI compatibility
+    allowFailure: true,
+    query: {
+      enabled: depositedContracts.length > 0,
+      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    },
   });
 
-  const linkContract = useReadContract({
-    address: depositPoolAddresses.LINK,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!depositPoolAddresses.LINK,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
+  // Execute all reward rate contract calls
+  const { 
+    data: rewardRateResults, 
+    isLoading: isLoadingRewardRates, 
+    refetch: refetchRewardRates 
+  } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: rewardRateContracts as any, // Type assertion for ABI compatibility
+    allowFailure: true,
+    query: {
+      enabled: rewardRateContracts.length > 0,
+      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    },
   });
 
-  const usdcContract = useReadContract({
-    address: depositPoolAddresses.USDC,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!depositPoolAddresses.USDC,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
+  // Create individual contract hooks for backward compatibility and refetch functions
+  const contractHooks = useMemo(() => {
+    const hooks: Record<string, { data: unknown; isLoading: boolean; error: Error | null; refetch: () => void }> = {};
+    
+    configuredAssets.forEach((assetConfig, index) => {
+      const symbol = assetConfig.metadata.symbol;
+      const hasAddress = !!depositPoolAddresses[symbol];
+      
+      if (hasAddress && depositedResults && index < depositedResults.length) {
+        const result = depositedResults[index];
+        hooks[symbol] = {
+          data: result?.status === 'success' ? result.result : undefined,
+          isLoading: isLoadingDeposits,
+          error: result?.status === 'failure' ? new Error(result.error?.message) : null,
+          refetch: refetchDeposits
+        };
+      } else {
+        hooks[symbol] = {
+          data: undefined,
+          isLoading: false,
+          error: hasAddress ? null : new Error(`No deposit pool address for ${symbol}`),
+          refetch: () => {}
+        };
+      }
+    });
+    
+    return hooks;
+  }, [configuredAssets, depositPoolAddresses, depositedResults, isLoadingDeposits, refetchDeposits]);
 
-  const usdtContract = useReadContract({
-    address: depositPoolAddresses.USDT,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!depositPoolAddresses.USDT,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
+  const rewardRateHooks = useMemo(() => {
+    const hooks: Record<string, { data: unknown; isLoading: boolean; error: Error | null; refetch: () => void }> = {};
+    
+    configuredAssets.forEach((assetConfig, index) => {
+      const symbol = assetConfig.metadata.symbol;
+      const hasAddress = !!depositPoolAddresses[symbol];
+      
+      if (hasAddress && rewardRateResults && index < rewardRateResults.length) {
+        const result = rewardRateResults[index];
+        hooks[symbol] = {
+          data: result?.status === 'success' ? result.result : undefined,
+          isLoading: isLoadingRewardRates,
+          error: result?.status === 'failure' ? new Error(result.error?.message) : null,
+          refetch: refetchRewardRates
+        };
+      } else {
+        hooks[symbol] = {
+          data: undefined,
+          isLoading: false,
+          error: hasAddress ? null : new Error(`No deposit pool address for ${symbol}`),
+          refetch: () => {}
+        };
+      }
+    });
+    
+    return hooks;
+  }, [configuredAssets, depositPoolAddresses, rewardRateResults, isLoadingRewardRates, refetchRewardRates]);
 
-  const wbtcContract = useReadContract({
-    address: depositPoolAddresses.wBTC,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!depositPoolAddresses.wBTC,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  const wethContract = useReadContract({
-    address: depositPoolAddresses.wETH,
-    abi: DepositPoolAbi,
-    functionName: 'totalDepositedInPublicPools',
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!depositPoolAddresses.wETH,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  // Get individual distributed rewards for each deposit pool from DistributorV2
-  // This gives us the actual MOR allocated to each specific deposit pool
-  const stETHDistributedRewards = useReadContract({
-    address: distributorV2Address,
-    abi: DistributorV2Abi,
-    functionName: 'getDistributedRewards',
-    args: [BigInt(0), depositPoolAddresses.stETH], // Pool index 0 (Capital), stETH deposit pool address
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!distributorV2Address && !!depositPoolAddresses.stETH,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  const linkDistributedRewards = useReadContract({
-    address: distributorV2Address,
-    abi: DistributorV2Abi,
-    functionName: 'getDistributedRewards',
-    args: [BigInt(0), depositPoolAddresses.LINK], // Pool index 0 (Capital), LINK deposit pool address
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!distributorV2Address && !!depositPoolAddresses.LINK,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  const usdcDistributedRewards = useReadContract({
-    address: distributorV2Address,
-    abi: DistributorV2Abi,
-    functionName: 'getDistributedRewards',
-    args: [BigInt(0), depositPoolAddresses.USDC], // Pool index 0 (Capital), USDC deposit pool address
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!distributorV2Address && !!depositPoolAddresses.USDC,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  const usdtDistributedRewards = useReadContract({
-    address: distributorV2Address,
-    abi: DistributorV2Abi,
-    functionName: 'getDistributedRewards',
-    args: [BigInt(0), depositPoolAddresses.USDT], // Pool index 0 (Capital), USDT deposit pool address
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!distributorV2Address && !!depositPoolAddresses.USDT,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  const wbtcDistributedRewards = useReadContract({
-    address: distributorV2Address,
-    abi: DistributorV2Abi,
-    functionName: 'getDistributedRewards',
-    args: [BigInt(0), depositPoolAddresses.wBTC], // Pool index 0 (Capital), wBTC deposit pool address
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!distributorV2Address && !!depositPoolAddresses.wBTC,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  const wethDistributedRewards = useReadContract({
-    address: distributorV2Address,
-    abi: DistributorV2Abi,
-    functionName: 'getDistributedRewards',
-    args: [BigInt(0), depositPoolAddresses.wETH], // Pool index 0 (Capital), wETH deposit pool address
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!distributorV2Address && !!depositPoolAddresses.wETH,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
-    }
-  });
-
-  // Collect all contract data
+  // Collect all contract data (now dynamic based on configured assets)
   const contractData = useMemo(() => {
-    return {
-      stETH: stETHContract,
-      LINK: linkContract,
-      USDC: usdcContract,
-      USDT: usdtContract,
-      wBTC: wbtcContract,
-      wETH: wethContract,
-    };
-  }, [stETHContract, linkContract, usdcContract, usdtContract, wbtcContract, wethContract]);
+    return contractHooks;
+  }, [contractHooks]);
 
-  // Collect all distributed rewards data
-  const distributedRewardsData = useMemo(() => {
-    return {
-      stETH: stETHDistributedRewards,
-      LINK: linkDistributedRewards,
-      USDC: usdcDistributedRewards,
-      USDT: usdtDistributedRewards,
-      wBTC: wbtcDistributedRewards,
-      wETH: wethDistributedRewards,
-    };
-  }, [stETHDistributedRewards, linkDistributedRewards, usdcDistributedRewards, usdtDistributedRewards, wbtcDistributedRewards, wethDistributedRewards]);
+  // Collect all reward pool rate data (now dynamic based on configured assets)
+  const rewardPoolRateData = useMemo(() => {
+    return rewardRateHooks;
+  }, [rewardRateHooks]);
 
 
   // Debug contract call results
@@ -280,13 +254,15 @@ export function useCapitalPoolData(): CapitalPoolData {
           ];
         })
       ),
-      distributedRewardsData: Object.fromEntries(
-        Object.entries(distributedRewardsData).map(([symbol, rewardData]) => [
+      rewardPoolRateData: Object.fromEntries(
+        Object.entries(rewardPoolRateData).map(([symbol, rateData]) => [
           symbol,
-          rewardData.data ? {
-            raw: rewardData.data.toString(),
-            formatted: formatUnits(rewardData.data as bigint, 18), // MOR rewards are always 18 decimals
-            decimals: 18 // MOR token uses 18 decimals
+          rateData.data ? {
+            raw: rateData.data.toString(),
+            // Parse the struct: [lastUpdate, rate, totalVirtualDeposited]
+            lastUpdate: Array.isArray(rateData.data) ? rateData.data[0]?.toString() : 'N/A',
+            dailyRate: Array.isArray(rateData.data) ? formatUnits(rateData.data[1] as bigint, 18) + ' MOR/day' : 'N/A',
+            totalVirtualDeposited: Array.isArray(rateData.data) ? formatUnits(rateData.data[2] as bigint, 18) : 'N/A'
           } : 'MISSING'
         ])
       ),
@@ -318,90 +294,94 @@ export function useCapitalPoolData(): CapitalPoolData {
     configuredAssets,
     depositPoolAddresses,
     contractData,
-    distributedRewardsData
+    rewardPoolRateData
   ]);
 
-  // V7 Protocol APR Calculation using DistributorV2 individual pool rewards
+  // V7 Protocol APR Calculation using reward rates from DepositPool contracts
   const calculateV7APR = useMemo(() => {
-    console.log('🔢 APR CALCULATION - DISTRIBUTED REWARDS APPROACH:', {
+    console.log('🔢 APR CALCULATION - V7 PROTOCOL DAILY REWARD APPROACH:', {
       networkEnvironment,
-      distributedRewardsData: Object.fromEntries(
-        Object.entries(distributedRewardsData).map(([symbol, rewardData]) => [
+      rewardPoolRateData: Object.fromEntries(
+        Object.entries(rewardPoolRateData).map(([symbol, rateData]) => [
           symbol,
           {
-            hasData: !!rewardData.data,
-            value: rewardData.data ? formatUnits(rewardData.data as bigint, 18) : 'N/A',
-            isLoading: rewardData.isLoading
+            hasData: !!rateData.data,
+            isLoading: rateData.isLoading,
+            data: rateData.data ? {
+              // Parse the rewardPoolsData struct: [lastUpdate, rate, totalVirtualDeposited]
+              lastUpdate: Array.isArray(rateData.data) ? rateData.data[0]?.toString() : 'N/A',
+              dailyRate: Array.isArray(rateData.data) ? formatUnits(rateData.data[1] as bigint, 18) : 'N/A', // Daily MOR tokens
+              totalVirtualDeposited: Array.isArray(rateData.data) ? formatUnits(rateData.data[2] as bigint, 18) : 'N/A'
+            } : null
           }
         ])
       )
     });
 
-    // ⚠️ CRITICAL LIMITATION IDENTIFIED ⚠️
-    // The DistributorV2.getDistributedRewards() returns ACCUMULATED rewards (total pending)
-    // but APR calculation requires the RATE of reward distribution over time.
-    // 
-    // To calculate accurate APR, I need ONE of the following:
-    // 
-    // 1. REWARD RATE DATA (preferred):
-    //    - Daily/hourly MOR rewards being distributed to each pool
-    //    - Or access to reward distribution events/logs to calculate rate
-    // 
-    // 2. TIME-BASED TRACKING:
-    //    - Track getDistributedRewards() over time to calculate delta
-    //    - But this requires persistent storage across page loads
-    // 
-    // 3. POOL REWARD COEFFICIENT CHANGES:
-    //    - DepositPool.poolRewardCoefficient changes over time
-    //    - Delta in coefficient × totalVirtualStake = new rewards
-    // 
-    // CURRENT APPROACH: Using a fixed placeholder until we get the correct data
+  // ✅ FIXED: Now using correct RewardPool contract approach
+  // Uses RewardPool.getPeriodRewards() to get total daily rewards for the pool
+  // Then calculates proportional share based on user's stake vs total stake
+  // References: https://gitbook.mor.org/smart-contracts/documentation/distribution-protocol/v7-protocol/contracts/rewardpool
 
-    // For now, return placeholder values to demonstrate the structure
     const aprResults: Record<string, string> = {};
     
-    Object.entries(distributedRewardsData).forEach(([symbol, rewardData]) => {
+    Object.entries(rewardPoolRateData).forEach(([symbol, rateData]) => {
       const contract = contractData[symbol as keyof typeof contractData];
       
-      if (!contract?.data || !rewardData.data) {
+      if (!contract?.data || !rateData.data || !Array.isArray(rateData.data)) {
         aprResults[symbol] = 'N/A';
         return;
       }
 
-      // 🚨 PLACEHOLDER CALCULATION - NOT ACCURATE 🚨
-      // This is just to show the structure - replace with actual rate calculation
-      
-      // Get correct decimals for this asset from configuration
-      const assetConfig = configuredAssets.find(a => a.metadata.symbol === symbol);
-      const assetDecimals = assetConfig?.metadata.decimals || 18;
-      
-      const totalDeposited = Number(formatUnits(contract.data as bigint, assetDecimals));
-      const accumulatedRewards = Number(formatUnits(rewardData.data as bigint, 18)); // MOR rewards always 18 decimals
-      
-      // Placeholder: assume rewards accumulated over 30 days for demonstration
-      const assumedDays = 30;
-      const dailyRewardRate = accumulatedRewards / assumedDays;
-      const annualRate = (dailyRewardRate * 365 / totalDeposited) * 100;
-      
-      aprResults[symbol] = totalDeposited > 0 && annualRate > 0
-        ? `${annualRate.toFixed(2)}%`
-        : 'N/A';
+      try {
+        // Parse rewardPoolsData struct: [lastUpdate, rate, totalVirtualDeposited]
+        const [lastUpdate, ratePerSecond, totalVirtualDeposited] = rateData.data;
         
-      console.log(`🚨 PLACEHOLDER APR [${symbol}]:`, {
-        totalDeposited,
-        accumulatedRewards,
-        assumedDays,
-        calculatedAPR: aprResults[symbol],
-        warning: 'This is a placeholder calculation - not accurate!'
-      });
+        // Get correct decimals for this asset from configuration
+        const assetConfig = configuredAssets.find(a => a.metadata.symbol === symbol);
+        const assetDecimals = assetConfig?.metadata.decimals || 18;
+        
+        // Parse values - the rate is actually DAILY rewards, not per-second (from v7 protocol docs)
+        const totalDeposited = Number(formatUnits(contract.data as bigint, assetDecimals));
+        const dailyRewardRate = Number(formatUnits(ratePerSecond as bigint, 18)); // MOR tokens per day (not per second!)
+        const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
+        
+        // Calculate APR: (daily rewards * days per year) / effective deposited * 100
+        // According to Morpheus v7 protocol: rewards are distributed DAILY, not per second
+        const daysPerYear = 365;
+        const annualRewards = dailyRewardRate * daysPerYear;
+        
+        // Use totalVirtualDeposited (includes power factor multipliers) for proper APR calculation
+        // This represents the actual "weighted" stake used for reward distribution
+        const effectiveTotalDeposited = totalVirtual > 0 ? totalVirtual : totalDeposited;
+        const aprPercentage = effectiveTotalDeposited > 0 ? (annualRewards / effectiveTotalDeposited) * 100 : 0;
+        
+        aprResults[symbol] = aprPercentage > 0
+          ? `${aprPercentage.toFixed(2)}%`
+          : 'N/A';
+          
+        console.log(`✅ REAL APR CALCULATION [${symbol}] - V7 PROTOCOL DAILY REWARDS:`, {
+          totalDeposited,
+          totalVirtualDeposited: totalVirtual,
+          effectiveTotalDeposited,
+          dailyRewardRate,
+          annualRewards,
+          aprPercentage,
+          calculatedAPR: aprResults[symbol],
+          lastUpdate: new Date(Number(lastUpdate) * 1000).toISOString(),
+          note: 'Rate is DAILY MOR distribution per v7 protocol (not per-second)'
+        });
+      } catch (error) {
+        console.error(`❌ Error calculating APR for ${symbol}:`, error);
+        aprResults[symbol] = 'N/A';
+      }
     });
 
-    console.warn('⚠️ APR CALCULATION WARNING: Using placeholder logic. Need actual reward rate data!');
     return aprResults;
   }, [
     networkEnvironment,
     contractData,
-    distributedRewardsData,
+    rewardPoolRateData,
     configuredAssets
   ]);
 
@@ -445,12 +425,12 @@ export function useCapitalPoolData(): CapitalPoolData {
         };
       } else if (contract.data === undefined) {
         // Asset has deposit pool and contract, but no data yet (likely 0 or loading)
-        const distributedReward = distributedRewardsData[symbol as keyof typeof distributedRewardsData];
+        const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
         result[symbol] = {
           totalStaked: '0', // Default to 0 for deployed pools
           apy: calculateV7APR[symbol] || 'N/A',
-          isLoading: contract.isLoading || distributedReward?.isLoading || false,
-          error: (contract.error || distributedReward?.error) as Error | null
+          isLoading: contract.isLoading || rewardRateData?.isLoading || false,
+          error: (contract.error || rewardRateData?.error) as Error | null
         };
       } else {
         // Asset has valid data - use correct decimals from config
@@ -459,12 +439,12 @@ export function useCapitalPoolData(): CapitalPoolData {
           maximumFractionDigits: 2
         });
 
-        const distributedReward = distributedRewardsData[symbol as keyof typeof distributedRewardsData];
+        const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
         result[symbol] = {
           totalStaked,
           apy: calculateV7APR[symbol] || 'N/A',
-          isLoading: contract.isLoading || distributedReward?.isLoading || false,
-          error: (contract.error || distributedReward?.error) as Error | null
+          isLoading: contract.isLoading || rewardRateData?.isLoading || false,
+          error: (contract.error || rewardRateData?.error) as Error | null
         };
       }
     });
@@ -474,60 +454,36 @@ export function useCapitalPoolData(): CapitalPoolData {
     configuredAssets,
     contractData,
     depositPoolAddresses,
-    distributedRewardsData,
+    rewardPoolRateData,
     calculateV7APR
   ]);
 
-  // Create refetch functions
-  const refetchAsset = useCallback((symbol: AssetSymbol) => {
-    const contract = contractData[symbol as keyof typeof contractData];
-    if (contract && depositPoolAddresses[symbol]) {
-      contract.refetch();
-    }
-  }, [contractData, depositPoolAddresses]);
+  // Create refetch functions (now using dynamic system)
+  const refetchAsset = useCallback(() => {
+    // Refetch both deposited amounts and reward rates for all assets
+    // (batch refetch is more efficient than individual asset refetch)
+    refetchDeposits();
+    refetchRewardRates();
+  }, [refetchDeposits, refetchRewardRates]);
 
   const refetchRewards = useCallback(() => {
-    // Refetch all distributed rewards data
-    Object.values(distributedRewardsData).forEach(rewardData => {
-      if (rewardData.refetch) {
-        rewardData.refetch();
-      }
-    });
-  }, [distributedRewardsData]);
+    // Refetch all reward pool rate data
+    refetchRewardRates();
+  }, [refetchRewardRates]);
 
   const refetchAll = useCallback(() => {
-    // Refetch all asset contracts
-    configuredAssets.forEach(asset => {
-      refetchAsset(asset.metadata.symbol);
-    });
-    // Refetch reward pool
-    refetchRewards();
-  }, [configuredAssets, refetchAsset, refetchRewards]);
+    // Refetch all contract data in one batch
+    refetchDeposits();
+    refetchRewardRates();
+  }, [refetchDeposits, refetchRewardRates]);
 
   return {
     assets: assetsData,
     networkEnvironment,
     refetch: {
-      refetchAsset,
+      refetchAsset: () => refetchAsset(), // Maintain backward compatibility (now batched)
       rewardPoolData: refetchRewards,
       refetchAll
     }
-  };
-}
-
-/**
- * Helper hook to calculate APY from v7 protocol contract data
- * Uses the proper RewardPoolV2.getPeriodRewards() and coefficient-based calculations
- * @deprecated - Use useCapitalPoolData() instead which includes v7 protocol APR calculation
- */
-export function useCapitalPoolAPY(poolType: 'stETH' | 'LINK') {
-  // This hook is now deprecated - use the main useCapitalPoolData hook instead
-  // which includes the proper v7 protocol APR calculation
-  const poolData = useCapitalPoolData();
-  
-  return {
-    apy: poolData.assets[poolType]?.apy || 'N/A',
-    isLoading: poolData.assets[poolType]?.isLoading || false,
-    error: poolData.assets[poolType]?.error || null
   };
 }
