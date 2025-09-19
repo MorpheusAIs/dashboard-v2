@@ -23,7 +23,7 @@ import { sepolia, mainnet } from 'wagmi/chains';
 
 // Import hooks for power factor and estimated rewards
 import { usePowerFactor } from "@/hooks/use-power-factor";
-import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
+// import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 
 // Import config and utils
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
@@ -204,35 +204,35 @@ export function ClaimMorRewardsModal() {
   }, [selectedAsset, assets, selectedAssetCanClaim]);
 
   // Get the deposit pool address for the selected asset (V7 protocol requirement)
-  const selectedAssetDepositPoolAddress = useMemo(() => {
-    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
-      stETH: 'stETHDepositPool',
-      LINK: 'linkDepositPool', 
-      USDC: 'usdcDepositPool',
-      USDT: 'usdtDepositPool',
-      wBTC: 'wbtcDepositPool',
-      wETH: 'wethDepositPool',
-    };
+  // const selectedAssetDepositPoolAddress = useMemo(() => {
+  //   const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
+  //     stETH: 'stETHDepositPool',
+  //     LINK: 'linkDepositPool', 
+  //     USDC: 'usdcDepositPool',
+  //     USDT: 'usdtDepositPool',
+  //     wBTC: 'wbtcDepositPool',
+  //     wETH: 'wethDepositPool',
+  //   };
     
-    const contractKey = depositPoolMapping[selectedAsset];
-    if (!contractKey || !l1ChainId) return undefined;
+  //   const contractKey = depositPoolMapping[selectedAsset];
+  //   if (!contractKey || !l1ChainId) return undefined;
     
-    return getContractAddress(l1ChainId, contractKey, effectiveNetworkEnv) as `0x${string}` | undefined;
-  }, [selectedAsset, l1ChainId, effectiveNetworkEnv]);
+  //   return getContractAddress(l1ChainId, contractKey, effectiveNetworkEnv) as `0x${string}` | undefined;
+  // }, [selectedAsset, l1ChainId, effectiveNetworkEnv]);
 
   // Initialize estimated rewards hook (using claimable amount as deposit amount for estimation)
-  const estimatedRewards = useEstimatedRewards({
-    contractAddress: poolContractAddress, // Use distributorV2 contract for all assets
-    chainId: l1ChainId,
-    poolId: BigInt(0),
-    depositPoolAddress: selectedAssetDepositPoolAddress, // V7: Pass asset-specific deposit pool address
-    networkEnv: effectiveNetworkEnv, // V7: Required for RewardPoolV2 contract lookup
-    depositAmount: selectedAssetData?.claimableAmountFormatted || "0", // Use claimable amount for estimation
-    powerFactorString: powerFactor.currentResult.powerFactor,
-    lockValue,
-    lockUnit: lockUnit as "days" | "months" | "years",
-    enabled: !!selectedAssetData && selectedAssetData.claimableAmount > 0 && (powerFactor?.currentResult?.isValid ?? false)
-  });
+  // const estimatedRewards = useEstimatedRewards({
+  //   contractAddress: poolContractAddress, // Use distributorV2 contract for all assets
+  //   chainId: l1ChainId,
+  //   poolId: BigInt(0),
+  //   depositPoolAddress: selectedAssetDepositPoolAddress, // V7: Pass asset-specific deposit pool address
+  //   networkEnv: effectiveNetworkEnv, // V7: Required for RewardPoolV2 contract lookup
+  //   depositAmount: selectedAssetData?.claimableAmountFormatted || "0", // Use claimable amount for estimation
+  //   powerFactorString: powerFactor.currentResult.powerFactor,
+  //   lockValue,
+  //   lockUnit: lockUnit as "days" | "months" | "years",
+  //   enabled: !!selectedAssetData && selectedAssetData.claimableAmount > 0 && (powerFactor?.currentResult?.isValid ?? false)
+  // });
 
   // Calculate unlock date using utility function
   const unlockDate = useMemo(() => {
@@ -541,7 +541,7 @@ export function ClaimMorRewardsModal() {
                       )} */}
 
                       {/* Show error if calculation failed */}
-                      {estimatedRewards.error && !estimatedRewards.isLoading && (
+                      {/* {estimatedRewards.error && !estimatedRewards.isLoading && (
                         <div className="text-xs text-red-400 mt-1">
                           {estimatedRewards.error}
                           {estimatedRewards.error === "Failed to fetch pool data" && (
@@ -555,7 +555,7 @@ export function ClaimMorRewardsModal() {
                             </div>
                           )}
                         </div>
-                      )}
+                      )} */}
                     </div>
                   </div>
                 )}

@@ -20,7 +20,7 @@ import { ChevronDown } from "lucide-react";
 // Import Context and Hooks
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { usePowerFactor } from "@/hooks/use-power-factor";
-import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
+// import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
 
 // Import Config and Utils
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
@@ -277,36 +277,36 @@ export function DepositModal() {
   });
 
   // Get the deposit pool address for the selected asset (V7 protocol requirement)
-  const selectedAssetDepositPoolAddress = useMemo(() => {
-    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
-      stETH: 'stETHDepositPool',
-      LINK: 'linkDepositPool', 
-      USDC: 'usdcDepositPool',
-      USDT: 'usdtDepositPool',
-      wBTC: 'wbtcDepositPool',
-      wETH: 'wethDepositPool',
-    };
+  // const selectedAssetDepositPoolAddress = useMemo(() => {
+  //   const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
+  //     stETH: 'stETHDepositPool',
+  //     LINK: 'linkDepositPool', 
+  //     USDC: 'usdcDepositPool',
+  //     USDT: 'usdtDepositPool',
+  //     wBTC: 'wbtcDepositPool',
+  //     wETH: 'wethDepositPool',
+  //   };
     
-    const contractKey = depositPoolMapping[selectedAsset];
-    if (!contractKey || !l1ChainId) return undefined;
+  //   const contractKey = depositPoolMapping[selectedAsset];
+  //   if (!contractKey || !l1ChainId) return undefined;
     
-    return getContractAddress(l1ChainId, contractKey, networkEnv) as `0x${string}` | undefined;
-  }, [selectedAsset, l1ChainId, networkEnv]);
+  //   return getContractAddress(l1ChainId, contractKey, networkEnv) as `0x${string}` | undefined;
+  // }, [selectedAsset, l1ChainId, networkEnv]);
 
   // Initialize estimated rewards hook (after state declarations)
-  const estimatedRewards = useEstimatedRewards({
-    contractAddress: poolContractAddress,
-    chainId: l1ChainId,
-    poolId: BigInt(0),
-    depositPoolAddress: selectedAssetDepositPoolAddress, // V7: Pass asset-specific deposit pool address
-    networkEnv, // V7: Required for RewardPoolV2 contract lookup
-    depositAmount: amount,
-    powerFactorString: powerFactor.currentResult.powerFactor,
-    lockValue,
-    lockUnit: lockUnit as "days" | "months" | "years",
-    tokenDecimals: availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.decimals || 18, // 🚨 FIX: Use correct decimals for each token
-    enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid,
-  });
+  // const estimatedRewards = useEstimatedRewards({
+  //   contractAddress: poolContractAddress,
+  //   chainId: l1ChainId,
+  //   poolId: BigInt(0),
+  //   depositPoolAddress: selectedAssetDepositPoolAddress, // V7: Pass asset-specific deposit pool address
+  //   networkEnv, // V7: Required for RewardPoolV2 contract lookup
+  //   depositAmount: amount,
+  //   powerFactorString: powerFactor.currentResult.powerFactor,
+  //   lockValue,
+  //   lockUnit: lockUnit as "days" | "months" | "years",
+  //   tokenDecimals: availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.decimals || 18, // 🚨 FIX: Use correct decimals for each token
+  //   enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid,
+  // });
 
 
   // Debug hook initialization
@@ -1259,11 +1259,11 @@ export function DepositModal() {
                   )} */}
                   
                   {/* Show error if calculation failed */}
-                  {estimatedRewards.error && !estimatedRewards.isLoading && (
+                  {/* {estimatedRewards.error && !estimatedRewards.isLoading && (
                     <div className="text-xs text-red-400 mt-1">
                       {estimatedRewards.error}
                     </div>
-                  )}
+                  )} */}
                 </div>
               </div>
                         )}
