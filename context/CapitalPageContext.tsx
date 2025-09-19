@@ -34,6 +34,7 @@ import {
 export type { AssetSymbol } from "@/components/capital/constants/asset-config";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
+import { getTransactionUrl, isMainnetChain } from "@/lib/utils/transaction-utils";
 
 // Import hooks that provide refetch functions
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
@@ -1476,13 +1477,27 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             timestamp: new Date().toISOString()
           });
         }
-        
-        toast.success("Approval successful!");
-        
+
+        const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, approveHash) : null;
+
+        toast.success("Approval successful!", {
+          description: "Your approval transaction has been confirmed",
+          action: txUrl ? {
+            label: "View Transaction",
+            onClick: () => window.open(txUrl, "_blank")
+          } : undefined,
+          duration: 5000,
+          style: {
+            background: 'hsl(var(--emerald-500))',
+            color: 'hsl(var(--emerald-50))',
+            border: '1px solid hsl(var(--emerald-600))'
+          }
+        });
+
         // Refetch allowances for all assets dynamically
         Object.values(assetContractData).forEach(asset => asset.refetch.allowance());
         setLastHandledApprovalHash(approveHash);
-        
+
         // Add debugging for allowance refetch
         if (process.env.NODE_ENV !== 'production') {
           console.log('🔄 [Capital Context] Refetching allowances for all assets after approval success');
@@ -1493,84 +1508,146 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
       if (isStakeSuccess && stakeHash && stakeHash !== lastHandledStakeHash) {
-          toast.success(`Stake confirmed!`);
-          
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, stakeHash) : null;
+
+          toast.success(`Stake confirmed!`, {
+            description: "Your stake transaction has been confirmed",
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--emerald-500))',
+              color: 'hsl(var(--emerald-50))',
+              border: '1px solid hsl(var(--emerald-600))'
+            }
+          });
+
           // Refetch legacy user data and rewards (these are general/MOR-related)
           refetchUserData();
           refetchUserReward();
-          
+
           // Refetch all asset contract data dynamically (balances, deposits, rewards, etc.)
           Object.values(assetContractData).forEach(asset => asset.refetch.all());
-          
+
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
-          
+
           setLastHandledStakeHash(stakeHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData]);
+  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
 
   useEffect(() => {
       if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHash) {
-          toast.success("Claim confirmed!");
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, claimHash) : null;
+
+          toast.success("Claim confirmed!", {
+            description: "Your claim transaction has been confirmed",
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--emerald-500))',
+              color: 'hsl(var(--emerald-50))',
+              border: '1px solid hsl(var(--emerald-600))'
+            }
+          });
           setActiveModal(null); // Close modal on success
 
           // Refetch legacy user data and rewards (these are general/MOR-related)
           refetchUserData();
           refetchUserReward();
           refetchMorBalance();
-          
+
           // Refetch all asset reward data dynamically
           Object.values(assetContractData).forEach(asset => asset.refetch.rewards());
-          
+
           // Refetch reward pool data to update reward calculations
           capitalPoolData.refetch.rewardPoolData();
           setLastHandledClaimHash(claimHash);
       }
-  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, capitalPoolData.refetch, setActiveModal, assetContractData]);
+  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
 
   useEffect(() => {
       if (isWithdrawSuccess && withdrawHash && withdrawHash !== lastHandledWithdrawHash) {
-          toast.success("Withdrawal confirmed!");
-          
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, withdrawHash) : null;
+
+          toast.success("Withdrawal confirmed!", {
+            description: "Your withdrawal transaction has been confirmed",
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--emerald-500))',
+              color: 'hsl(var(--emerald-50))',
+              border: '1px solid hsl(var(--emerald-600))'
+            }
+          });
+
           // Refetch legacy user data and rewards (these are general/MOR-related)
           refetchUserData();
           refetchUserReward();
-          
+
           // Refetch all asset contract data dynamically (balances, deposits, etc.)
           Object.values(assetContractData).forEach(asset => asset.refetch.all());
-          
+
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
-          
+
           setLastHandledWithdrawHash(withdrawHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isWithdrawSuccess, withdrawHash, lastHandledWithdrawHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData]);
+  }, [isWithdrawSuccess, withdrawHash, lastHandledWithdrawHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
 
   useEffect(() => {
       if (isLockClaimSuccess && lockClaimHash && lockClaimHash !== lastHandledLockClaimHash) {
-          toast.success("Lock period update confirmed!");
-          
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, lockClaimHash) : null;
+
+          toast.success("Lock period update confirmed!", {
+            description: "Your lock period update transaction has been confirmed",
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
+            duration: 5000,
+            style: {
+              background: 'hsl(var(--emerald-500))',
+              color: 'hsl(var(--emerald-50))',
+              border: '1px solid hsl(var(--emerald-600))'
+            }
+          });
+
           // Refetch legacy user data and multiplier (these are general/MOR-related)
           refetchUserData();
           refetchUserMultiplier();
-          
+
           // Refetch all asset multiplier data dynamically
           Object.values(assetContractData).forEach(asset => asset.refetch.multiplier());
-          
+
           setLastHandledLockClaimHash(lockClaimHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isLockClaimSuccess, lockClaimHash, lastHandledLockClaimHash, refetchUserData, refetchUserMultiplier, setActiveModal, assetContractData]);
+  }, [isLockClaimSuccess, lockClaimHash, lastHandledLockClaimHash, refetchUserData, refetchUserMultiplier, setActiveModal, assetContractData, l1ChainId]);
 
   // --- Transaction Error Effects ---
   useEffect(() => {
-      if (isApprovalError && approvalError) {
+      if (isApprovalError && approvalError && approveHash) {
           console.error("Approval transaction failed:", approvalError);
           const errorMessage = (approvalError as BaseError)?.shortMessage || approvalError.message;
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, approveHash) : null;
+
           toast.error("Approval Failed", {
             description: errorMessage,
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -1579,14 +1656,20 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
       }
-  }, [isApprovalError, approvalError]);
+  }, [isApprovalError, approvalError, approveHash, l1ChainId]);
 
   useEffect(() => {
-      if (isStakeError && stakeError) {
+      if (isStakeError && stakeError && stakeHash) {
           console.error("Stake transaction failed:", stakeError);
           const errorMessage = (stakeError as BaseError)?.shortMessage || stakeError.message;
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, stakeHash) : null;
+
           toast.error("Staking Failed", {
             description: errorMessage,
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -1595,14 +1678,20 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
       }
-  }, [isStakeError, stakeError]);
+  }, [isStakeError, stakeError, stakeHash, l1ChainId]);
 
   useEffect(() => {
-      if (isClaimError && claimError) {
+      if (isClaimError && claimError && claimHash) {
           console.error("Claim transaction failed:", claimError);
           const errorMessage = (claimError as BaseError)?.shortMessage || claimError.message;
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, claimHash) : null;
+
           toast.error("Claim Failed", {
             description: errorMessage,
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -1611,14 +1700,20 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
       }
-  }, [isClaimError, claimError]);
+  }, [isClaimError, claimError, claimHash, l1ChainId]);
 
   useEffect(() => {
-      if (isWithdrawError && withdrawError) {
+      if (isWithdrawError && withdrawError && withdrawHash) {
           console.error("Withdraw transaction failed:", withdrawError);
           const errorMessage = (withdrawError as BaseError)?.shortMessage || withdrawError.message;
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, withdrawHash) : null;
+
           toast.error("Withdrawal Failed", {
             description: errorMessage,
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -1627,14 +1722,20 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
       }
-  }, [isWithdrawError, withdrawError]);
+  }, [isWithdrawError, withdrawError, withdrawHash, l1ChainId]);
 
   useEffect(() => {
-      if (isLockClaimError && lockClaimError) {
+      if (isLockClaimError && lockClaimError && lockClaimHash) {
           console.error("Lock claim transaction failed:", lockClaimError);
           const errorMessage = (lockClaimError as BaseError)?.shortMessage || lockClaimError.message;
+          const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, lockClaimHash) : null;
+
           toast.error("Lock Update Failed", {
             description: errorMessage,
+            action: txUrl ? {
+              label: "View Transaction",
+              onClick: () => window.open(txUrl, "_blank")
+            } : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -1643,7 +1744,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
       }
-  }, [isLockClaimError, lockClaimError]);
+  }, [isLockClaimError, lockClaimError, lockClaimHash, l1ChainId]);
 
   // --- New state for multiplier simulation ---
   const [multiplierSimArgs, setMultiplierSimArgs] = useState<{value: string, unit: TimeUnit} | null>(null);
