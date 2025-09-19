@@ -27,7 +27,7 @@ export function ChartSection() {
   const {
     totalValueLockedUSD,
     currentDailyRewardMOR,
-    avgApyRate,
+    // avgApyRate, // Temporarily commented out with APR metric card
     activeStakers,
     isLoading: metricsLoading,
     error: metricsError,
@@ -52,15 +52,16 @@ export function ChartSection() {
       disableGlow: true,
       isGreen: true,
     },
-    {
-      title: "Avg. APR Rate",
-      value: avgApyRate,
-      label: "%",
-      autoFormatNumbers: false,
-      className: "",
-      disableGlow: true,
-      isGreen: true,
-    },
+    // Temporarily commented out - Avg. APR Rate metric card
+    // {
+    //   title: "Avg. APR Rate",
+    //   value: avgApyRate,
+    //   label: "%",
+    //   autoFormatNumbers: false,
+    //   className: "",
+    //   disableGlow: true,
+    //   isGreen: true,
+    // },
     {
       title: "Active Depositors",
       value: activeStakers,
@@ -73,9 +74,9 @@ export function ChartSection() {
 
   return (
     <>
-        {/* Mobile: 2x2 metric grid + chart below, Desktop: 1x4 metric row + chart below */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 sm:gap-x-4 gap-y-2 h-full grid-rows-[90px_90px_1fr] sm:grid-rows-[100px_1fr]">
-          {/* 4 Metric Cards */}
+        {/* Mobile: 2x2 metric grid + chart below, Desktop: 1x3 metric row + chart below */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-2 sm:gap-x-4 gap-y-2 h-full grid-rows-[90px_90px_1fr] sm:grid-rows-[100px_1fr]">
+          {/* 3 Metric Cards */}
           {metricCards.map((card, index) => (
             <div key={index} className="col-span-1 h-full">
               <MetricCardMinimal {...card} />
