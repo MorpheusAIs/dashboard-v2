@@ -41,13 +41,7 @@ export function ReferralPanel() {
     if (!userAddress) return;
     
     try {
-      // Claim from both stETH and LINK pools if rewards are available
-      if (referralData.stETHReferralRewards > BigInt(0)) {
-        await claimReferralRewards('stETH');
-      }
-      if (referralData.linkReferralRewards > BigInt(0)) {
-        await claimReferralRewards('LINK');
-      }
+      await claimReferralRewards();
     } catch (error) {
       console.error('Error claiming referral rewards:', error);
       // Error handling is done in the context via toast notifications
@@ -55,7 +49,7 @@ export function ReferralPanel() {
   };
 
   // Check if user has any claimable referral rewards
-  const hasClaimableRewards = parseFloat(referralData.claimableRewards) > 0;
+  const hasClaimableRewards = referralData.assetsWithClaimableRewards.length > 0;
 
   return (
     <div className="page-section mt-8">
