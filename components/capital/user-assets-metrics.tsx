@@ -16,7 +16,7 @@ interface UserAssetsMetricsProps {
 
 export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 sm:gap-x-4 gap-y-2 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-x-2 sm:gap-x-4 gap-y-2 mb-6">
       <MetricCardMinimal
         title="Deposits Value"
         value={metricsData.stakedValue}
@@ -25,7 +25,7 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
         className="col-span-1"
         isLoading={isLoading}
       />
-      <MetricCardMinimal
+      {/* <MetricCardMinimal
         title="Current Daily Rewards"
         value={metricsData.dailyEmissionsEarned}
         label="MOR"
@@ -33,7 +33,7 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
         autoFormatNumbers={true}
         className="col-span-1"
         isLoading={isLoading}
-      />
+      /> */}
       <MetricCardMinimal
         title="Claimable Rewards"
         value={metricsData.totalAvailableToClaim}
