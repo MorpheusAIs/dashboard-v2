@@ -125,9 +125,8 @@ export function ClaimMorRewardsModal() {
   const validateLockValue = React.useCallback((value: string, unit: TimeUnit) => {
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue <= 0) return true; // Let basic validation handle this
-    
-    // For claim modal, use 3 months minimum instead of 6 months
-    const minAllowed = unit === 'months' ? 3 : getMinAllowedValue(unit);
+
+    const minAllowed = getMinAllowedValue(unit);
     const maxAllowed = getMaxAllowedValue(unit);
     return numValue >= minAllowed && numValue <= maxAllowed;
   }, []);
@@ -146,11 +145,11 @@ export function ClaimMorRewardsModal() {
   // Handle lock unit changes with value validation
   const handleLockUnitChange = React.useCallback((unit: TimeUnit) => {
     setLockUnit(unit);
-    
+
     // Validate current value with new unit
     if (lockValue && !validateLockValue(lockValue, unit)) {
       // If current value is invalid for new unit, reset to minimum valid value
-      const minAllowed = unit === 'months' ? 3 : getMinAllowedValue(unit);
+      const minAllowed = getMinAllowedValue(unit);
       setLockValue(minAllowed.toString());
     }
   }, [lockValue, validateLockValue]);
