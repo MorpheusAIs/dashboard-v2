@@ -155,11 +155,11 @@ export const mainnetChains: Record<string, ChainConfig> = {
 
       // V2 Contracts (Newly Deployed)
       stETHDepositPool: toContract('0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790'),
-      // Placeholders for future mainnet deposit pools (add addresses when deployed)
-      usdcDepositPool: toContract(''),
-      usdtDepositPool: toContract(''),
-      wbtcDepositPool: toContract(''),
-      wethDepositPool: toContract(''),
+      // V2 Mainnet Deposit Pools
+      usdcDepositPool: toContract('0x6cCE082851Add4c535352f596662521B4De4750E'),
+      usdtDepositPool: toContract('0x3B51989212BEdaB926794D6bf8e9E991218cf116'),
+      wbtcDepositPool: toContract('0xdE283F8309Fd1AA46c95d299f6B8310716277A42'),
+      wethDepositPool: toContract('0x9380d72aBbD6e0Cc45095A2Ef8c2CA87d77Cb384'),
       distributorV2: toContract('0xDf1AC1AC255d91F5f4B1E3B4Aef57c5350F64C7A'),
       rewardPoolV2: toContract('0xb7994dE339AEe515C9b2792831CD83f3C9D8df87'),
       l1SenderV2: toContract('0x2Efd4430489e1a05A89c2f51811aC661B7E5FF84'),
