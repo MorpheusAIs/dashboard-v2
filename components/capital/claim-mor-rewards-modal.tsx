@@ -103,38 +103,18 @@ export function ClaimMorRewardsModal() {
     // Uses contract calls for all networks for authoritative results
   });
 
-  // Validate lock value based on unit (both minimum and maximum)
-  const validateLockValue = React.useCallback((value: string, unit: TimeUnit) => {
-    const numValue = parseInt(value, 10);
-    if (isNaN(numValue) || numValue <= 0) return true; // Let basic validation handle this
 
-    const minAllowed = getMinAllowedValue(unit);
-    const maxAllowed = getMaxAllowedValue(unit);
-    return numValue >= minAllowed && numValue <= maxAllowed;
-  }, []);
-
-  // Handle lock value changes with validation
+  // Handle lock value changes - allow all valid numeric input
   const handleLockValueChange = React.useCallback((value: string) => {
     if (value === '' || /^\d+$/.test(value)) {
-      // Check if the value is within limits for the current unit
-      if (value === '' || validateLockValue(value, lockUnit)) {
-        setLockValue(value);
-      }
-      // If invalid, don't update the state (effectively prevents the input)
+      setLockValue(value);
     }
-  }, [lockUnit, validateLockValue]);
+  }, []);
 
-  // Handle lock unit changes with value validation
+  // Handle lock unit changes
   const handleLockUnitChange = React.useCallback((unit: TimeUnit) => {
     setLockUnit(unit);
-
-    // Validate current value with new unit
-    if (lockValue && !validateLockValue(lockValue, unit)) {
-      // If current value is invalid for new unit, reset to minimum valid value
-      const minAllowed = getMinAllowedValue(unit);
-      setLockValue(minAllowed.toString());
-    }
-  }, [lockValue, validateLockValue]);
+  }, []);
 
   // Helper to convert lock duration to seconds
   const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
@@ -154,6 +134,32 @@ export function ClaimMorRewardsModal() {
         return BigInt(0);
     }
   };
+
+  // Validation - minimum lock period requirement
+  const minLockPeriodError = React.useMemo(() => {
+    if (lockValue && parseInt(lockValue, 10) > 0) {
+      const numValue = parseInt(lockValue, 10);
+      const minAllowed = getMinAllowedValue(lockUnit);
+      
+      if (numValue < minAllowed) {
+        return `Minimum ${minAllowed} ${lockUnit} required for MOR rewards`;
+      }
+    }
+    return null;
+  }, [lockValue, lockUnit]);
+
+  // Validation - maximum lock period check
+  const maxLockPeriodError = React.useMemo(() => {
+    if (lockValue && parseInt(lockValue, 10) > 0) {
+      const numValue = parseInt(lockValue, 10);
+      const maxAllowed = getMaxAllowedValue(lockUnit);
+      
+      if (numValue > maxAllowed) {
+        return `Maximum ${maxAllowed} ${lockUnit} allowed`;
+      }
+    }
+    return null;
+  }, [lockValue, lockUnit]);
 
   const handleClose = () => {
     setActiveModal(null);
@@ -443,9 +449,11 @@ export function ClaimMorRewardsModal() {
                         pattern="[0-9]*"
                         value={lockValue}
                         onChange={(e) => handleLockValueChange(e.target.value)}
-                        className="flex-1 bg-background border-gray-700 text-white"
-                        placeholder="3"
-                        min="3"
+                        className={`flex-1 bg-background text-white ${
+                          maxLockPeriodError ? '!border-red-500 border-2' : 
+                          minLockPeriodError ? 'border-yellow-500 border' : 'border-gray-700 border'
+                        }`}
+                        placeholder="0"
                       />
                       <Select value={lockUnit} onValueChange={(value: TimeUnit) => handleLockUnitChange(value)}>
                         <SelectTrigger className="w-32 bg-background border-gray-700 text-white">
@@ -457,6 +465,18 @@ export function ClaimMorRewardsModal() {
                         </SelectContent>
                       </Select>
                     </div>
+                    
+                    {/* Lock period validation error messages */}
+                    {minLockPeriodError && (
+                      <div className="text-xs text-yellow-600 bg-yellow-500/10 border border-yellow-500/20 rounded p-2">
+                        ⚠️ {minLockPeriodError}
+                      </div>
+                    )}
+                    {maxLockPeriodError && (
+                      <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
+                        {maxLockPeriodError}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -579,7 +599,7 @@ export function ClaimMorRewardsModal() {
                 <button
                   className="w-full copy-button flex items-center justify-center relative"
                   onClick={handleLockRewards}
-                  disabled={selectedTotals.selectedAssets.length === 0 || isProcessingChangeLock || isProcessingClaim || needsNetworkSwitch}
+                  disabled={selectedTotals.selectedAssets.length === 0 || isProcessingChangeLock || isProcessingClaim || needsNetworkSwitch || !!minLockPeriodError || !!maxLockPeriodError}
                 >
                   {isProcessingChangeLock ? "Locking..." : "Lock MOR Rewards"}
                   <ChevronRight className="h-4 w-4 absolute right-4" />
