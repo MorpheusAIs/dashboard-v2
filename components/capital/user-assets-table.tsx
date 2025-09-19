@@ -231,11 +231,11 @@ export function UserAssetsTable({
             onOpenChange={(open) => onDropdownOpenChangeAction(asset.id, open)}
           >
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" disabled={isAnyActionProcessing || isModalTransitioning || isDropdownTransitioning}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg" disabled={isAnyActionProcessing || isModalTransitioning || isDropdownTransitioning}>
                 <Ellipsis className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="mt-2">
+            <DropdownMenuContent align="end" className="mt-2 rounded-xl">
               <DropdownMenuItem onClick={() => onDropdownActionAction('stakeMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing || isModalTransitioning}>
                 <TrendingUp className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Stake Rewards'}
