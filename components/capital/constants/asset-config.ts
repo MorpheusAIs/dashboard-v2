@@ -77,6 +77,7 @@ export const assetMetadata: Record<AssetSymbol, AssetMetadata> = {
     icon: 'btc',
     decimals: 8,
     coinGeckoId: 'wrapped-bitcoin',
+    disabled: true,
   },
   wETH: {
     symbol: 'wETH',
