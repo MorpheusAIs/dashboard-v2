@@ -12,6 +12,19 @@ import type { AssetSymbol } from "@/context/CapitalPageContext";
 import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
 import { getContractAddress } from "@/config/networks";
 
+// Helper function to format APR values to 2 decimal places
+const formatAPR = (aprValue: string): string => {
+  // If it's a percentage, extract the number and reformat to 2 decimal places
+  if (aprValue.includes('%')) {
+    const numericValue = parseFloat(aprValue.replace('%', ''));
+    if (!isNaN(numericValue)) {
+      return `${numericValue.toFixed(2)}%`;
+    }
+  }
+  // Return as-is for non-numeric values like 'N/A', 'Coming Soon'
+  return aprValue;
+};
+
 export function CapitalInfoPanel() {
   const {
     userAddress,
@@ -143,7 +156,7 @@ export function CapitalInfoPanel() {
                     <div className={`text-center text-sm font-semibold truncate ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
-                      {asset.apy}
+                      {formatAPR(asset.apy)}
                     </div>
 
                     {/* Total Staked */}
