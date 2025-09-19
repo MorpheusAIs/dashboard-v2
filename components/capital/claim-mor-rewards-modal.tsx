@@ -384,7 +384,7 @@ export function ClaimMorRewardsModal() {
                     <div className="flex items-center justify-between p-3 bg-emerald-400/10 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 rounded-lg">
-                          <TokenIcon symbol={selectedAssetData.icon} variant="background" size="24" />
+                          <TokenIcon symbol={selectedAssetData.icon} className='rounded-lg' variant="background" size="24" />
                         </div>
                         <span className="text-white font-sm">{selectedAssetData.symbol}</span>
                       </div>

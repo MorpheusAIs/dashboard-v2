@@ -129,8 +129,8 @@ export function CapitalInfoPanel() {
                   }`}>
                     {/* Asset Name & Symbol */}
                     <div className="flex items-center space-x-2">
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center">
-                        <TokenIcon symbol={asset.icon} variant="background" size="24" />
+                      <div className="w-6 h-6 flex items-center justify-center">
+                        <TokenIcon symbol={asset.icon} className='rounded-lg' variant="background" size="24" />
                       </div>
                       <div>
                         <div className={`text-sm font-medium ${
@@ -140,7 +140,7 @@ export function CapitalInfoPanel() {
                     </div>
 
                     {/* APY */}
-                    <div className={`text-center text-sm font-semibold ${
+                    <div className={`text-center text-sm font-semibold truncate ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
                       {asset.apy}

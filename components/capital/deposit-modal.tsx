@@ -860,7 +860,8 @@ export function DepositModal() {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 flex items-center justify-center">
                       <TokenIcon 
-                        symbol={availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.icon || 'eth'} 
+                        symbol={availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.icon || 'eth'}
+                        className="rounded-lg" 
                         variant="background" 
                         size="26" 
                       />
@@ -892,7 +893,7 @@ export function DepositModal() {
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-6 h-6 flex items-center justify-center">
-                            <TokenIcon symbol={asset.symbol} variant="background" size="24" />
+                            <TokenIcon symbol={asset.symbol} className="rounded-lg" variant="background" size="24" />
                           </div>
                           <span className="text-white">{asset.label}</span>
                         </div>

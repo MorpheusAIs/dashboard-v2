@@ -98,7 +98,7 @@ export function UserAssetsTable({
         cell: (asset) => (
           <div className="flex items-center space-x-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center">
-              <TokenIcon symbol={asset.icon} variant="background" size="24" />
+              <TokenIcon symbol={asset.icon} className='rounded-lg' variant="background" size="24" />
             </div>
             <span className="font-medium text-white">{asset.symbol}</span>
           </div>
