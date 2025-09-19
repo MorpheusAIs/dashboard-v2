@@ -284,11 +284,6 @@ export function UserAssetsPanel() {
     return currentTimestamp >= withdrawUnlockTimestamp;
   }, [withdrawUnlockTimestamp]);
 
-  // Helper function to check if unlock date has passed (for withdraw functionality)
-  const isUnlockDateReachedCallback = useCallback((unlockDate: string | null): boolean => {
-    return isUnlockDateReached(unlockDate, hasStakedAssets);
-  }, [hasStakedAssets]);
-
   // Helper function to check if withdraw unlock date has passed (for Amount Staked column badge)
   const isWithdrawUnlockDateReachedCallback = useCallback((withdrawUnlockDate: string | null): boolean => {
     return isUnlockDateReached(withdrawUnlockDate, hasStakedAssets);
@@ -528,7 +523,6 @@ export function UserAssetsPanel() {
                   onDropdownOpenChangeAction={handleDropdownOpenChange}
                   onDropdownActionAction={handleDropdownAction}
                   openDropdownId={openDropdownId}
-                  isUnlockDateReachedAction={isUnlockDateReachedCallback}
                   isWithdrawUnlockDateReachedAction={isWithdrawUnlockDateReachedCallback}
                   isAnyActionProcessing={isAnyActionProcessing}
                   isModalTransitioning={isModalTransitioning}
