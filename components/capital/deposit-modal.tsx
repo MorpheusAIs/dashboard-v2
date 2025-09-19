@@ -60,9 +60,7 @@ export function DepositModal() {
     setActiveModal,
     preReferrerAddress,
     setPreReferrerAddress,
-    // Get current lock end timestamps to validate against shorter periods (legacy - needed for validation)
-    stETHV2ClaimUnlockTimestamp,
-    linkV2ClaimUnlockTimestamp,
+    // Dynamic assets system provides all unlock timestamps
     // Get contract details for power factor hook
     l1ChainId,
   } = useCapitalContext();
@@ -638,17 +636,8 @@ export function DepositModal() {
       const lockDurationSeconds = durationToSeconds(lockValue, lockUnit);
       const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDurationSeconds;
       
-      // Get existing lock end timestamp for selected asset - Dynamic approach
-      // TODO: Add unlock timestamps to AssetData interface for proper dynamic validation
-      let existingLockEnd: bigint | undefined;
-      if (selectedAsset === 'stETH') {
-        existingLockEnd = stETHV2ClaimUnlockTimestamp;
-      } else if (selectedAsset === 'LINK') {
-        existingLockEnd = linkV2ClaimUnlockTimestamp;
-      } else {
-        // For other assets, no existing lock validation yet (until unlock timestamps are added to AssetData)
-        existingLockEnd = undefined;
-      }
+      // Get existing lock end timestamp for selected asset - Using dynamic assets system
+      const existingLockEnd = assets[selectedAsset]?.claimUnlockTimestamp;
       
       if (existingLockEnd && existingLockEnd > BigInt(0) && proposedClaimLockEnd < existingLockEnd) {
         const existingDate = new Date(Number(existingLockEnd) * 1000);
@@ -656,7 +645,7 @@ export function DepositModal() {
       }
     }
     return null;
-  }, [lockValue, lockUnit, selectedAsset, stETHV2ClaimUnlockTimestamp, linkV2ClaimUnlockTimestamp]);
+  }, [lockValue, lockUnit, selectedAsset, assets]);
 
   const validationError = useMemo(() => {
     if (amountBigInt <= BigInt(0)) return null;
@@ -730,16 +719,8 @@ export function DepositModal() {
         // Debug lock period validation
         const currentTimestamp = Math.floor(Date.now() / 1000);
         const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDuration;
-        // Get existing lock end for debugging - Dynamic approach
-        let existingLockEnd: bigint | undefined;
-        if (selectedAsset === 'stETH') {
-          existingLockEnd = stETHV2ClaimUnlockTimestamp;
-        } else if (selectedAsset === 'LINK') {
-          existingLockEnd = linkV2ClaimUnlockTimestamp;
-        } else {
-          // For other assets, no existing lock data yet
-          existingLockEnd = undefined;
-        }
+        // Get existing lock end for debugging - Using dynamic assets system
+        const existingLockEnd = assets[selectedAsset]?.claimUnlockTimestamp;
         
         console.log('🏦 Proceeding with deposit:', { 
           selectedAsset, 

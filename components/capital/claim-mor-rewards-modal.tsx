@@ -224,9 +224,7 @@ export function ClaimMorRewardsModal() {
 
   // Initialize estimated rewards hook (using claimable amount as deposit amount for estimation)
   const estimatedRewards = useEstimatedRewards({
-    contractAddress: effectiveNetworkEnv === 'mainnet' && selectedAsset === 'stETH'
-      ? poolContractAddress // On mainnet stETH, use same contract for consistency
-      : poolContractAddress, // For claims, use the same contract as power factor
+    contractAddress: poolContractAddress, // Use same contract for all assets
     chainId: l1ChainId,
     poolId: BigInt(0),
     depositAmount: selectedAssetData?.claimableAmountFormatted || "0", // Use claimable amount for estimation

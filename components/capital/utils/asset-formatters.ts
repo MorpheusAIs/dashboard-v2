@@ -129,34 +129,4 @@ export const hasStakedAssets = (assets: Record<AssetSymbol, MinimalAssetData>): 
   });
 };
 
-/**
- * Get unlock date for specific asset - Now dynamic for all assets!
- * @deprecated This function has hardcoded logic. Use dynamic asset data from context instead.
- * TODO: Remove this function once components are migrated to use assets[symbol] data directly
- */
-export const getAssetUnlockDate = (
-  assetSymbol: AssetSymbol, // Now accepts any asset
-  stETHV2ClaimUnlockTimestampFormatted?: string, // Made optional for backward compatibility
-  linkV2ClaimUnlockTimestampFormatted?: string   // Made optional for backward compatibility
-): string | null => {
-  // Legacy logic for backward compatibility with existing components
-  // TODO: This should be replaced with dynamic timestamp data from assets structure
-  
-  if (assetSymbol === 'stETH' && stETHV2ClaimUnlockTimestampFormatted) {
-    return stETHV2ClaimUnlockTimestampFormatted !== "--- --, ----" 
-      ? stETHV2ClaimUnlockTimestampFormatted 
-      : null;
-  }
-
-  if (assetSymbol === 'LINK' && linkV2ClaimUnlockTimestampFormatted) {
-    // For LINK, if no lock is set (shows as "--- --, ----"), treat as unlocked
-    return linkV2ClaimUnlockTimestampFormatted !== "--- --, ----" 
-      ? linkV2ClaimUnlockTimestampFormatted 
-      : null;
-  }
-
-  // For other assets (USDC, USDT, wBTC, wETH), return null for now
-  // TODO: Implement dynamic unlock date calculation when these assets have proper contract integration
-  console.log(`⚠️ getAssetUnlockDate: No unlock date logic implemented for ${assetSymbol} yet`);
-  return null;
-};
+// Deprecated getAssetUnlockDate function removed - components now use dynamic asset data from context
