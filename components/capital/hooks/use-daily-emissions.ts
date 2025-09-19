@@ -121,7 +121,7 @@ export function useDailyEmissions(
 
     // Early return if contract data not available
     const isLoading = isLoadingPoolRewards || isLoadingTotalStaked;
-    if (!dailyPoolRewards || !totalStaked || isLoading) {
+    if (!dailyPoolRewards || !totalStaked || isLoading || typeof dailyPoolRewards !== 'bigint' || typeof totalStaked !== 'bigint') {
       return 0;
     }
 
