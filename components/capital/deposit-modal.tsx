@@ -43,9 +43,6 @@ import {
   type AssetContractInfo
 } from "./constants/asset-config";
 
-
-
-
 export function DepositModal() {
   // Get state and actions from V2 context
   const {
@@ -757,11 +754,23 @@ export function DepositModal() {
       } : null
     });
     
-    // TODO: Add minimal stake validation once PoolLimitsData interface is updated
-    // const minimalStake = currentAsset?.protocolDetails?.minimalStake;
-    // if (minimalStake && amountBigInt < minimalStake) {
-    //   return `Minimum deposit is ${formatUnits(minimalStake, 18)} ${selectedAsset}`;
-    // }
+    // Check minimum stake validation using dynamic contract data
+    const currentAssetData = assets[selectedAsset];
+    console.log(`🔍 Full assets object:`, assets);
+    console.log(`🔍 Current asset data for ${selectedAsset}:`, currentAssetData);
+    console.log(`🔍 Minimum stake validation for ${selectedAsset}:`, {
+      hasAssetData: !!currentAssetData,
+      minimalStake: currentAssetData?.minimalStake?.toString(),
+      minimalStakeFormatted: currentAssetData?.minimalStakeFormatted,
+      userAmount: amountBigInt.toString(),
+      isBelowMinimum: currentAssetData?.minimalStake ? amountBigInt < currentAssetData.minimalStake : false,
+      allAssetKeys: Object.keys(assets),
+      currentAssetKeys: currentAssetData ? Object.keys(currentAssetData) : 'no asset data'
+    });
+    
+    if (currentAssetData?.minimalStake && amountBigInt < currentAssetData.minimalStake) {
+      return `Minimum deposit is ${currentAssetData.minimalStakeFormatted} ${selectedAsset}`;
+    }
     
     // Check if we have balance data (including 0 balance) and if amount exceeds it
     if (currentAssetBalance.balance !== undefined && amountBigInt > currentAssetBalance.balance) {
@@ -769,7 +778,7 @@ export function DepositModal() {
     }
     
     return null;
-  }, [amountBigInt, currentAssetBalance, selectedAsset, lockPeriodError, maxLockPeriodError]);
+  }, [amountBigInt, currentAssetBalance, selectedAsset, lockPeriodError, maxLockPeriodError, assets]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

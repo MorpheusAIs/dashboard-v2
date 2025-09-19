@@ -102,7 +102,7 @@ export function useCapitalMetrics(): CapitalMetrics {
   return {
     // ... other metrics ...
     activeStakers,
-    isLoading: poolData.stETH.isLoading || poolData.LINK.isLoading || isLoadingPrices,
+    isLoading: poolData.assets.stETH?.isLoading || poolData.assets.LINK?.isLoading || isLoadingPrices,
     // Note: Don't include activeStakersData.isLoading in main loading state
   };
 }

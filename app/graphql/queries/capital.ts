@@ -17,7 +17,51 @@ export const getEndOfDayTimestamps = (startDate: Date, endDate: Date): number[] 
   return timestamps;
 };
 
-// Constructs the multi-alias GraphQL query string
+// Schema exploration query to understand available fields
+export const SCHEMA_EXPLORATION_QUERY = gql`
+  query ExploreSchema {
+    # Try different entity names that might exist
+    poolInteractions(first: 1) {
+      id
+      __typename
+    }
+    # Try alternative entity names
+    interactions(first: 1) {
+      id
+      __typename
+    }
+    deposits(first: 1) {
+      id
+      __typename  
+    }
+    poolEvents(first: 1) {
+      id
+      __typename
+    }
+    _meta {
+      block {
+        number
+        timestamp
+      }
+    }
+  }
+`;
+
+// Minimal query without any filtering to test basic connectivity
+export const MINIMAL_QUERY = gql`
+  query MinimalTest {
+    poolInteractions(first: 5) {
+      id
+    }
+    _meta {
+      block {
+        number
+      }
+    }
+  }
+`;
+
+// RESTORED: Batched query system with CORRECT schema
 export const buildDepositsQuery = (timestamps: number[]): ReturnType<typeof gql> => { 
   // Handle empty timestamps array to avoid empty GraphQL query
   if (!timestamps || timestamps.length === 0) {
@@ -33,26 +77,38 @@ export const buildDepositsQuery = (timestamps: number[]): ReturnType<typeof gql>
     `;
   }
 
+  console.log('✅ Building BATCHED GraphQL query with CORRECT schema for', timestamps.length, 'days');
+  console.log('🔍 Using schema: depositPool, blockTimestamp_lte, totalStaked, rate');
+
+  // RESTORE original batched approach with CORRECT schema fields
   let queryBody = '';
   timestamps.forEach((ts, index) => {
     queryBody += `
       d${index}: poolInteractions(
         first: 1
         orderDirection: desc
-        where: { timestamp_lte: "${ts}", pool: "0x00" }
-        orderBy: timestamp
+        where: { 
+          depositPool: "0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790",
+          blockTimestamp_lte: "${ts}"
+        }
+        orderBy: blockTimestamp
       ) {
+        blockTimestamp
         totalStaked
-        timestamp 
+        rate
         __typename
       }
     `;
   });
-  return gql`
+  
+  const query = gql`
     query GetEndOfDayDeposits {
       ${queryBody}
     }
   `;
+  
+  console.log('📋 Generated BATCHED GraphQL query for', timestamps.length, 'days');
+  return query;
 };
 
 // ===== REFERRAL QUERIES =====
