@@ -275,7 +275,7 @@ export function useCapitalMetrics(): CapitalMetrics {
     
     // Fallback if no network environment is set
     return "N/A";
-  }, [poolData.networkEnvironment, activeStakersCount, isLoadingActiveStakers, activeStakersError, retryAttempts]);
+  }, [activeStakersCount, isLoadingActiveStakers, activeStakersError, retryAttempts]);
 
   // Get supported assets for the current network
   const supportedAssets = useMemo(() => {
