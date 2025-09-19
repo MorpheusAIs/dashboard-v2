@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { print } from "graphql";
 import { ethers } from "ethers";
 import { useCapitalContext } from "@/context/CapitalPageContext";
@@ -55,11 +55,19 @@ export function useCapitalChartData() {
     fetchPrice();
   }, []);
 
-  // Generate timestamps for recent data (last 15 months) and historical data
-  const { recentTimestamps, historicalTimestamps, hasHistoricalData } = useMemo(() => {
+  // RESTORED: Timestamp generation for batched monthly queries
+  const { recentTimestamps } = useMemo(() => {
+    console.log('=== TIMESTAMP GENERATION (RESTORED) ===');
+    console.log('🏊 Pool Info:', poolInfo);
+    console.log('🏊 Pool Info payout start:', poolInfo?.payoutStart);
+    
     if (!poolInfo?.payoutStart) {
-      return { recentTimestamps: [], historicalTimestamps: [], hasHistoricalData: false };
+      console.log('❌ No payout start found, returning empty timestamps');
+      return { recentTimestamps: [] };
     }
+    
+    console.log('✅ Pool Info has payoutStart:', poolInfo.payoutStart.toString());
+    console.log('📅 PayoutStart as date:', new Date(Number(poolInfo.payoutStart) * 1000).toISOString());
 
     const now = new Date();
     const fifteenMonthsAgo = new Date();
@@ -71,151 +79,41 @@ export function useCapitalChartData() {
     const recentStartDate = fifteenMonthsAgo > poolStartDate ? fifteenMonthsAgo : poolStartDate;
     const recentTimestamps = getEndOfDayTimestamps(recentStartDate, now);
     
-    // Historical data: from pool start to 15 months ago (if there's a gap)
-    const historicalTimestamps = fifteenMonthsAgo > poolStartDate 
-      ? getEndOfDayTimestamps(poolStartDate, fifteenMonthsAgo)
-      : [];
-    
-    return {
-      recentTimestamps,
-      historicalTimestamps,
-      hasHistoricalData: historicalTimestamps.length > 0
-    };
-  }, [poolInfo?.payoutStart]);
-
-  const RECENT_DEPOSITS_QUERY = useMemo(() => 
-    recentTimestamps.length > 0 ? buildDepositsQuery(recentTimestamps) : null, 
-    [recentTimestamps]
-  );
-  const HISTORICAL_DEPOSITS_QUERY = useMemo(() => 
-    historicalTimestamps.length > 0 ? buildDepositsQuery(historicalTimestamps) : null, 
-    [historicalTimestamps]
-  );
-
-  // Fetch recent chart data
-  const fetchRecentData = useCallback(async () => {
-    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0 || !RECENT_DEPOSITS_QUERY) {
-      return null;
-    }
-
-    try {
-      const response = await fetch('/api/capital', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: print(RECENT_DEPOSITS_QUERY),
-          variables: {},
-          networkEnv,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.errors) {
-        throw new Error(result.errors[0]?.message || 'GraphQL error');
-      }
-
-      // Check if this is a placeholder query response (no actual data)
-      if (result.data && result.data._meta && !Object.keys(result.data).some(key => key.startsWith('d'))) {
-        return null;
-      }
-
-      return { data: result.data, timestamps: recentTimestamps };
-    } catch (error) {
-      console.error('Error fetching recent chart data:', error);
-      throw error;
-    }
-  }, [networkEnv, recentTimestamps, RECENT_DEPOSITS_QUERY]);
-
-  // Fetch historical chart data
-  const fetchHistoricalData = useCallback(async () => {
-    if (!networkEnv || networkEnv === 'testnet' || !HISTORICAL_DEPOSITS_QUERY || historicalTimestamps.length === 0) {
-      return null;
-    }
-
-    try {
-      const response = await fetch('/api/capital', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: print(HISTORICAL_DEPOSITS_QUERY),
-          variables: {},
-          networkEnv,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.errors) {
-        throw new Error(result.errors[0]?.message || 'GraphQL error');
-      }
-
-      // Check if this is a placeholder query response (no actual data)
-      if (result.data && result.data._meta && !Object.keys(result.data).some(key => key.startsWith('d'))) {
-        return null;
-      }
-
-      return { data: result.data, timestamps: historicalTimestamps };
-    } catch (error) {
-      console.error('Error fetching historical chart data:', error);
-      throw error;
-    }
-  }, [networkEnv, historicalTimestamps, HISTORICAL_DEPOSITS_QUERY]);
-
-  // Process data into chart format
-  const processDataPoints = useCallback((data: Record<string, Array<{ totalStaked: string }>>, timestamps: number[]) => {
-    let lastTotalStakedWei = ethers.BigNumber.from(0);
-    
-    return timestamps.map((timestampSec: number, index: number) => {
-      const dayKey = `d${index}`;
-      const interactionData = data[dayKey]?.[0];
-      let currentTotalStakedWei = lastTotalStakedWei;
-
-      if (interactionData && interactionData.totalStaked != null && interactionData.totalStaked !== '') {
-        const rawValue = interactionData.totalStaked;
-        try {
-          currentTotalStakedWei = ethers.BigNumber.from(rawValue);
-        } catch (parseError: unknown) {
-          const errorMessage = (parseError instanceof Error) ? parseError.message : String(parseError);
-          console.warn(
-            `Error parsing totalStaked for day ${index} (timestamp ${timestampSec}): Value='${rawValue}'. Error: ${errorMessage}. Using previous value.`
-          );
-          if (index === 0) {
-            currentTotalStakedWei = ethers.BigNumber.from(0);
-          }
-        }
-      } else {
-        if (index === 0) {
-          currentTotalStakedWei = ethers.BigNumber.from(0);
-        }
-      }
-      
-      lastTotalStakedWei = currentTotalStakedWei;
-      const depositValue = parseFloat(ethers.utils.formatEther(currentTotalStakedWei));
-      
-      return {
-        date: new Date(timestampSec * 1000).toISOString(), 
-        deposits: depositValue,
-        timestamp: timestampSec,
-      };
+    console.log('⏰ Generated BATCHED timestamps:', {
+      recentCount: recentTimestamps.length,
     });
-  }, []);
+    console.log('=== END TIMESTAMP GENERATION ===\n');
+    
+    return { recentTimestamps };
+  }, [poolInfo]);
+
+  const RECENT_DEPOSITS_QUERY = useMemo(() => {
+    console.log('=== BATCHED QUERY CONSTRUCTION ===');
+    console.log('⏰ Recent timestamps for batched query:', recentTimestamps.length);
+    
+    const query = recentTimestamps.length > 0 ? buildDepositsQuery(recentTimestamps) : null;
+    if (query) {
+      console.log('✅ BATCHED query constructed for', recentTimestamps.length, 'days');
+    } else {
+      console.log('❌ No batched query created - no timestamps available');
+    }
+    console.log('=== END BATCHED QUERY CONSTRUCTION ===\n');
+    return query;
+  }, [recentTimestamps]);
+  
+  // Historical data loading removed - focusing on recent data only for now
+
+  // Removed fetchRecentData - now inlined to avoid dependency issues
+
+  // Removed fetchHistoricalData - now inlined to avoid dependency issues
+
+  // Removed processDataPoints - now inlined to avoid dependency issues
 
   // Effect to clear chart data when switching to testnet
   useEffect(() => {
-    // console.log('🔄 Network change detected:', { networkEnv, chartDataLength: chartData.length });
+    console.log('=== NETWORK CHANGE EFFECT TRIGGERED ===');
+    console.log('🔄 Network Environment:', networkEnv);
+    console.log('📊 Current Chart Data Length:', chartData.length);
     
     if (networkEnv === 'testnet') {
       console.log('🧹 Clearing chart data for testnet');
@@ -223,97 +121,176 @@ export function useCapitalChartData() {
       setChartLoading(false);
       setChartError(null);
       setIsLoadingHistorical(false);
+    } else {
+      console.log('✅ Not testnet, keeping chart data');
     }
+    console.log('=== END NETWORK CHANGE EFFECT ===\n');
   }, [networkEnv, chartData.length]);
 
   // Live data will be handled by the existing fetchRecentData and fetchHistoricalData functions
 
   // Asset switching for live data will be handled by the chart component
 
-  // Initial data loading effect - always use live data
+  // RESTORED: Batched data loading with original sophisticated approach
   useEffect(() => {
-    // Only fetch live data for mainnet with valid timestamps
-    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0) {
+    console.log('=== RESTORED BATCHED DATA LOADING EFFECT ===');
+    console.log('🌍 Network Environment:', networkEnv);
+    console.log('🎯 Selected Asset:', selectedAsset);
+    console.log('⏰ Recent Timestamps Available:', recentTimestamps.length);
+    console.log('🔍 RECENT_DEPOSITS_QUERY exists:', !!RECENT_DEPOSITS_QUERY);
+    
+    // Only fetch for mainnet with valid timestamps (original logic)
+    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0 || !RECENT_DEPOSITS_QUERY) {
+      console.log('❌ Skipping batched data load:', {
+        networkEnv,
+        isTestnet: networkEnv === 'testnet',
+        timestampsLength: recentTimestamps.length,
+        hasQuery: !!RECENT_DEPOSITS_QUERY
+      });
       setChartLoading(false);
       return;
     }
 
+    console.log('🚀 Starting BATCHED data load for staked', selectedAsset);
+    console.log('📞 Making batched GraphQL call with', recentTimestamps.length, 'day snapshots');
     setChartLoading(true);
     setChartError(null);
 
-    fetchRecentData()
+    // RESTORED: Batched fetch with original d0, d1, d2... structure
+    const fetchBatchedData = async () => {
+      console.log('🔧 Making BATCHED API call with', recentTimestamps.length, 'timestamps');
+      console.log('🚀 Using RESTORED batched query for staked', selectedAsset);
+
+      try {
+        console.log('📡 Sending POST request to /api/capital with BATCHED query...');
+        
+        const queryString = print(RECENT_DEPOSITS_QUERY);
+        console.log('🔍 Batched query length:', queryString.length);
+        console.log('🌍 Network environment:', networkEnv);
+        
+        const requestBody = {
+          query: queryString,
+          variables: {},
+          networkEnv,
+        };
+        
+        console.log('📦 Batched request body prepared (', Object.keys(requestBody).length, 'keys)');
+        
+        const response = await fetch('/api/capital', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+
+        console.log('📡 Batched fetch request sent successfully');
+        console.log('📊 Response status:', response.status);
+        console.log('📊 Response ok:', response.ok);
+
+        if (!response.ok) {
+          console.log('❌ HTTP error response:', response.status, response.statusText);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        console.log('✅ Parsing batched JSON response...');
+        const result = await response.json();
+        console.log('📊 Received BATCHED result from API with keys:', Object.keys(result.data || {}));
+        if (result.errors) {
+          throw new Error(result.errors[0]?.message || 'GraphQL error');
+        }
+
+        // RESTORED: Batched response format with d0, d1, d2... structure
+        if (!result.data || Object.keys(result.data).filter(key => key.startsWith('d')).length === 0) {
+          console.log('❌ No batched day data (d0, d1, d2...) in response');
+          return null;
+        }
+
+        const dayKeys = Object.keys(result.data).filter(key => key.startsWith('d'));
+        console.log('✅ Found', dayKeys.length, 'day snapshots:', dayKeys.slice(0, 5), '...');
+        return { data: result.data, timestamps: recentTimestamps };
+      } catch (error) {
+        console.error('Error fetching recent chart data:', error);
+        throw error;
+      }
+    };
+
+    console.log('🔧 About to call fetchBatchedData()...');
+    fetchBatchedData()
       .then((result) => {
+        console.log('✅ fetchBatchedData completed, result:', result ? 'data received' : 'no data');
         if (result?.data && result.timestamps.length > 0) {
           try {
-            const processedData = processDataPoints(result.data, result.timestamps);
-            // Remove timestamp property for chart display
-            const chartData = processedData.map((item) => ({ 
-              date: item.date, 
-              deposits: item.deposits,
-              timestamp: item.timestamp, // Keep timestamp for now, will remove later if not needed
-            }));
-            setChartData(chartData);
+            // RESTORED: Process batched data with d0, d1, d2... structure
+            console.log('📊 Processing BATCHED data format (d0, d1, d2...)');
+            
+            let lastTotalStakedWei = ethers.BigNumber.from(0);
+            const processedData = result.timestamps.map((timestampSec: number, index: number) => {
+              const dayKey = `d${index}`;
+              const interactionData = result.data[dayKey]?.[0];
+              let currentTotalStakedWei = lastTotalStakedWei;
+
+              console.log(`📅 Day ${index} (${dayKey}):`, {
+                expectedTimestamp: timestampSec,
+                hasData: !!interactionData,
+                actualTimestamp: interactionData?.blockTimestamp,
+                totalStaked: interactionData?.totalStaked,
+                rate: interactionData?.rate
+              });
+
+              if (interactionData?.totalStaked) {
+                try {
+                  currentTotalStakedWei = ethers.BigNumber.from(interactionData.totalStaked);
+                } catch (error) {
+                  console.warn(`⚠️ Error parsing totalStaked for day ${index}:`, error);
+                  if (index === 0) currentTotalStakedWei = ethers.BigNumber.from(0);
+                }
+              } else if (index === 0) {
+                currentTotalStakedWei = ethers.BigNumber.from(0);
+              }
+              
+              lastTotalStakedWei = currentTotalStakedWei;
+              const depositValue = parseFloat(ethers.utils.formatEther(currentTotalStakedWei));
+              
+              return {
+                date: new Date(timestampSec * 1000).toISOString(),
+                deposits: depositValue,
+                timestamp: timestampSec,
+              };
+            });
+            
+            console.log('✅ BATCHED data processing completed:', processedData.length, 'data points');
+            console.log('📊 First data point:', processedData[0]);
+            console.log('📊 Last data point:', processedData[processedData.length - 1]);
+
+            setChartData(processedData);
             setChartError(null);
           } catch (processingError: unknown) {
             const errorMessage = (processingError instanceof Error) ? processingError.message : String(processingError);
-            console.error("Error processing recent chart data:", processingError);
+            console.error("Error processing batched chart data:", processingError);
             setChartError(`Failed to process chart data: ${errorMessage}`);
             setChartData([]);
           }
         } else {
+          console.log('❌ No batched data received');
           setChartData([]);
         }
         setChartLoading(false);
       })
       .catch((error) => {
-        console.error('Error fetching recent chart data:', error);
+        console.error('❌ Error in fetchBatchedData:', error);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
         setChartError(`Failed to load chart data: ${error.message}`);
         setChartData([]);
         setChartLoading(false);
       });
-  }, [selectedAsset, networkEnv, recentTimestamps, fetchRecentData, processDataPoints]);
+  }, [selectedAsset, networkEnv, recentTimestamps, RECENT_DEPOSITS_QUERY]); // RESTORED dependencies
 
-  // Effect to load historical data in background after recent data loads
+  // DISABLED: Historical data loading - simple query gets all data at once
   useEffect(() => {
-    if (!hasHistoricalData || chartLoading || networkEnv === 'testnet') {
-      return;
-    }
-
-    setIsLoadingHistorical(true);
-
-    fetchHistoricalData()
-      .then((result) => {
-        if (result?.data && result.timestamps.length > 0) {
-          try {
-            const historicalDataPoints = processDataPoints(result.data, result.timestamps);
-            
-            // Merge with existing data
-            setChartData(currentData => {
-              const allDataPoints = [...historicalDataPoints, ...currentData];
-              
-              // Sort by timestamp and remove duplicates
-              allDataPoints.sort((a, b) => a.timestamp - b.timestamp);
-              const uniqueDataPoints = allDataPoints.filter((point, index, arr) => 
-                index === 0 || point.timestamp !== arr[index - 1].timestamp
-              );
-              
-              return uniqueDataPoints.map((item) => ({ 
-                date: item.date, 
-                deposits: item.deposits,
-                timestamp: item.timestamp,
-              }));
-            });
-          } catch (processingError: unknown) {
-            console.error("Error processing historical chart data:", processingError);
-          }
-        }
-        setIsLoadingHistorical(false);
-      })
-      .catch((error) => {
-        console.error('Error fetching historical chart data:', error);
-        setIsLoadingHistorical(false);
-      });
-  }, [hasHistoricalData, chartLoading, networkEnv, fetchHistoricalData, processDataPoints]);
+    console.log('=== HISTORICAL DATA EFFECT DISABLED ===');
+    console.log('ℹ️  Simple query returns all historical data in one request');
+    // No historical loading needed - the simple query gets everything
+  }, []);
 
   // Always use live data - no mock metrics
   const totalDepositsMOR = useMemo(() => {
