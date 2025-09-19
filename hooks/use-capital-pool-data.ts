@@ -655,42 +655,42 @@ export function useCapitalPoolData(): CapitalPoolData {
       // 🔄 STAKE-WEIGHTED FALLBACK DISTRIBUTION
       // Calculate total virtual stake across all pools for proportional distribution
       let totalVirtualStakeAcrossPools = 0;
-      const virtualStakeByAsset: Record<string, number> = {};
-      
+      const localVirtualStakeByAsset: Record<string, number> = {};
+
       configuredAssets.forEach((assetConfig) => {
         const symbol = assetConfig.metadata.symbol;
         const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
-        
+
         if (rateData?.data && Array.isArray(rateData.data)) {
           const [, , totalVirtualDeposited] = rateData.data;
           const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
-          virtualStakeByAsset[symbol] = totalVirtual;
+          localVirtualStakeByAsset[symbol] = totalVirtual;
           totalVirtualStakeAcrossPools += totalVirtual;
         } else {
-          virtualStakeByAsset[symbol] = 0;
+          localVirtualStakeByAsset[symbol] = 0;
         }
       });
-      
+
       console.log(`📊 STAKE-WEIGHTED DISTRIBUTION DATA:`, {
         totalVirtualStakeAcrossPools,
-        virtualStakeByAsset,
+        localVirtualStakeByAsset,
         totalDailyEmissions
       });
-      
+
       // Distribute rewards proportionally based on virtual stake
-      Object.entries(virtualStakeByAsset).forEach(([symbol, virtualStake]) => {
+      Object.entries(localVirtualStakeByAsset).forEach(([symbol, virtualStake]) => {
         try {
           if (virtualStake > 0 && totalVirtualStakeAcrossPools > 0 && totalDailyEmissions > 0) {
             const stakeShare = virtualStake / totalVirtualStakeAcrossPools;
             const assetDailyRewards = stakeShare * totalDailyEmissions;
             const annualRewards = assetDailyRewards * 365;
             const aprPercentage = (annualRewards / virtualStake) * 100;
-            
+
             // Apply reasonable caps for this fallback method
             const cappedAPR = Math.min(aprPercentage, 50); // Lower cap for fallback method
-            
+
             aprResults[symbol] = cappedAPR > 0.01 ? `${cappedAPR.toFixed(2)}%` : 'N/A';
-            
+
             console.log(`✅ STAKE-WEIGHTED APR [${symbol}]:`, {
               virtualStake,
               stakeShare: (stakeShare * 100).toFixed(2) + '%',
@@ -724,10 +724,28 @@ export function useCapitalPoolData(): CapitalPoolData {
     aTokenBalanceContracts
   ]);
 
+  // Calculate virtual stake data for fallback use (available to both APR calc and asset data)
+  const virtualStakeByAsset = useMemo(() => {
+    const stakeData: Record<string, number> = {};
+    configuredAssets.forEach((assetConfig) => {
+      const symbol = assetConfig.metadata.symbol;
+      const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
+
+      if (rateData?.data && Array.isArray(rateData.data)) {
+        const [, , totalVirtualDeposited] = rateData.data;
+        const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
+        stakeData[symbol] = totalVirtual;
+      } else {
+        stakeData[symbol] = 0;
+      }
+    });
+    return stakeData;
+  }, [configuredAssets, rewardPoolRateData]);
+
   // Generate asset pool data dynamically
   const assetsData = useMemo(() => {
     const result: Partial<Record<AssetSymbol, AssetPoolData>> = {};
-    
+
     configuredAssets.forEach(assetConfig => {
       const symbol = assetConfig.metadata.symbol;
       const decimals = assetConfig.metadata.decimals; // Get decimals from asset config
@@ -764,18 +782,27 @@ export function useCapitalPoolData(): CapitalPoolData {
         };
       } else if (contract.data === undefined) {
         // Asset has deposit pool and contract, but no data yet (likely 0 or loading)
+        // Try to use virtual stake data as fallback if available
+        const virtualStake = virtualStakeByAsset?.[symbol] || 0;
         const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
         result[symbol] = {
-          totalStaked: '0', // Default to 0 for deployed pools
+          totalStaked: virtualStake > 0 ? virtualStake.toString() : '0', // Use virtual stake if available
           apy: calculateV7APR[symbol] || 'N/A',
           isLoading: contract.isLoading || rewardRateData?.isLoading || false,
           error: (contract.error || rewardRateData?.error) as Error | null
         };
       } else {
         // Asset has valid data - use correct decimals from config
-        const totalStaked = parseFloat(formatUnits(contract.data as bigint, decimals)).toLocaleString('en-US', {
+        const rawValue = parseFloat(formatUnits(contract.data as bigint, decimals));
+
+        // Use virtual stake data if contract value is 0 or very small
+        const virtualStake = virtualStakeByAsset?.[symbol] || 0;
+        const useVirtualStake = rawValue === 0 && virtualStake > 0;
+        const displayValue = useVirtualStake ? virtualStake : rawValue;
+
+        const totalStaked = displayValue.toLocaleString('en-US', {
           minimumFractionDigits: 0,
-          maximumFractionDigits: 2
+          maximumFractionDigits: displayValue < 0.01 ? 6 : 2
         });
 
         const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
