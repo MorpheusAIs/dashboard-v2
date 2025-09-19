@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { getTokenPrice } from "@/app/services/token-price.service";
-import { 
-  getAssetConfig, 
-  type NetworkEnvironment, 
-  type AssetSymbol, 
-  getAssetsForNetwork 
+import {
+  type NetworkEnvironment,
+  type AssetSymbol,
+  getAssetsForNetwork
 } from "../constants/asset-config";
 
 export interface TokenPriceCache {
