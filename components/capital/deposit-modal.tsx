@@ -436,26 +436,26 @@ export function DepositModal() {
   }, []);
 
   // Helper function to truncate (not round) to 2 decimal places for display (legacy function for backward compatibility)
-  const truncateToTwoDecimals = useCallback((numStr: string): string => {
-    const num = Number(numStr);
-    if (num === 0) return '0.00';
+  // const truncateToTwoDecimals = useCallback((numStr: string): string => {
+  //   const num = Number(numStr);
+  //   if (num === 0) return '0.00';
 
-    // Convert to string and find decimal point
-    const str = num.toString();
-    const decimalIndex = str.indexOf('.');
+  //   // Convert to string and find decimal point
+  //   const str = num.toString();
+  //   const decimalIndex = str.indexOf('.');
 
-    if (decimalIndex === -1) {
-      // No decimal point, add .00
-      return str + '.00';
-    } else if (str.length - decimalIndex - 1 <= 2) {
-      // Already has 2 or fewer decimal places, pad if needed
-      const decimals = str.length - decimalIndex - 1;
-      return decimals === 1 ? str + '0' : str;
-    } else {
-      // Truncate to 2 decimal places (don't round)
-      return str.slice(0, decimalIndex + 3);
-    }
-  }, []);
+  //   if (decimalIndex === -1) {
+  //     // No decimal point, add .00
+  //     return str + '.00';
+  //   } else if (str.length - decimalIndex - 1 <= 2) {
+  //     // Already has 2 or fewer decimal places, pad if needed
+  //     const decimals = str.length - decimalIndex - 1;
+  //     return decimals === 1 ? str + '0' : str;
+  //   } else {
+  //     // Truncate to 2 decimal places (don't round)
+  //     return str.slice(0, decimalIndex + 3);
+  //   }
+  // }, []);
   
   const amountBigInt = useMemo(() => {
     try {
