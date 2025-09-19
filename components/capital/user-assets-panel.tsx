@@ -314,7 +314,7 @@ export function UserAssetsPanel() {
   }, [userAddress]);
 
   // Helper function to handle dropdown menu actions and manage focus properly
-  const handleDropdownAction = useCallback((modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claim' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => {
+  const handleDropdownAction = useCallback((modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => {
     // Prevent action if another action is processing (but allow withdraw even during claim processing)
     if (isAnyActionProcessing && modalType !== 'withdraw') {
       console.log('Blocking action due to processing state:', modalType);
