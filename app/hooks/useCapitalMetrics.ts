@@ -414,49 +414,26 @@ export function useCapitalMetrics(): CapitalMetrics {
     }
 
     // Calculate LIVE daily MOR emissions from actual contract data (both networks) dynamically
+    // ✅ REAL daily MOR emissions from RewardPool.getPeriodRewards() contract call
     const currentDailyRewardMOR = (() => {
-      // Calculate from live APR data and total deposited amounts for all networks
-      try {
-        let totalDailyEmissions = 0;
-        let hasValidData = false;
-
-        supportedAssets.forEach(assetSymbol => {
-          const assetData = poolData.assets[assetSymbol];
-          if (!assetData) return;
-
-          // Skip assets with no APY data or 'N/A' values
-          if (!assetData.apy || assetData.apy === 'N/A' || assetData.apy === 'Coming Soon') {
-            return;
-          }
-
-          // Parse APR values to get the underlying rates
-          const apr = parseFloat((assetData.apy || '0%').replace('%', '').replace(/,/g, ''));
-          const deposited = parseFloat((assetData.totalStaked || '0').replace(/,/g, ''));
-
-          if (isNaN(apr) || isNaN(deposited) || apr <= 0) {
-            return;
-          }
-
-          // Calculate daily rewards for this asset
-          // Formula: (APR / 100 / 365) * totalDeposited = daily rewards
-          const dailyRewards = (apr / 100 / 365) * deposited;
-          totalDailyEmissions += dailyRewards;
-          hasValidData = true;
-        });
-
-        if (!hasValidData) {
-          return "N/A";
-        }
-
-        // Format for display
-        return totalDailyEmissions < 1000
-          ? totalDailyEmissions.toFixed(0)
-          : Math.round(totalDailyEmissions).toLocaleString();
-
-      } catch (error) {
-        console.error('Error calculating daily emissions:', error);
-        return "N/A"; // Show unavailable instead of fake numbers
+      // Use REAL daily emissions from the pool data hook instead of backwards calculation
+      const realDailyEmissions = poolData.dailyMOREmissions;
+      
+      console.log('💰 DAILY EMISSIONS METRIC DATA:', {
+        realDailyEmissions,
+        hasData: realDailyEmissions !== null,
+        source: 'RewardPool.getPeriodRewards()',
+        networkEnvironment: poolData.networkEnvironment
+      });
+      
+      if (realDailyEmissions === null || realDailyEmissions <= 0) {
+        return "N/A";
       }
+      
+      // Format for display
+      return realDailyEmissions < 1000
+        ? realDailyEmissions.toFixed(0)
+        : Math.round(realDailyEmissions).toLocaleString();
     })();
 
     // Save successful calculation to cache
