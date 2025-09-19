@@ -161,6 +161,7 @@ export function UserAssetsTable({
           </span>
         ),
       },
+      /*
       {
         id: "dailyEmissions",
         header: "Daily Emissions",
@@ -174,6 +175,7 @@ export function UserAssetsTable({
           );
         },
       },
+      */
       {
         id: "powerFactor",
         header: "Power Factor",
