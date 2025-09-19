@@ -17,15 +17,15 @@ export function AssetSwitcher({
   // Use provided available assets or fallback to mock data function
   const availableAssets = propAvailableAssets || getAvailableAssets();
 
-  if (availableAssets.length === 0) {
-    return (
-      <div className="flex items-center space-x-1">
-        <div className="text-xs px-2 py-1 text-gray-500 rounded border border-gray-700">
-          No pools with deposits
-        </div>
-      </div>
-    );
-  }
+  // if (availableAssets.length === 0) {
+  //   return (
+  //     <div className="flex items-center space-x-1">
+  //       <div className="text-xs px-2 py-1 text-gray-500 rounded border border-gray-700">
+  //         No pools with deposits
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Define colors directly to avoid Tailwind CSS issues
   const getButtonStyle = (token: TokenType, isSelected: boolean) => {

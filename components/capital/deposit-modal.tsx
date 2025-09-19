@@ -260,7 +260,7 @@ export function DepositModal() {
   // Form state
   const [amount, setAmount] = useState("");
   const [referrerAddress, setReferrerAddress] = useState("");
-  const [lockValue, setLockValue] = useState("6");
+  const [lockValue, setLockValue] = useState("3");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("months");
   const [formError, setFormError] = useState<string | null>(null);
   const [referrerAddressError, setReferrerAddressError] = useState<string | null>(null);
@@ -274,7 +274,6 @@ export function DepositModal() {
   const powerFactor = usePowerFactor({
     contractAddress: poolContractAddress,
     chainId: l1ChainId,
-    poolId: BigInt(0), // Main capital pool
     enabled: true,
   });
 
@@ -286,7 +285,7 @@ export function DepositModal() {
     depositAmount: amount,
     powerFactorString: powerFactor.currentResult.powerFactor,
     lockValue,
-    lockUnit,
+    lockUnit: lockUnit as "days" | "months" | "years",
     enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid,
   });
 
@@ -525,7 +524,7 @@ export function DepositModal() {
       // Start the retry sequence
       checkWithRetry();
     }
-  }, [isApprovalSuccess, amount, processedApprovalSuccess, checkApprovalStatus, selectedAsset, checkAndUpdateApprovalNeeded, currentlyNeedsApproval]);
+  }, [isApprovalSuccess, amount, processedApprovalSuccess, checkApprovalStatus, selectedAsset, checkAndUpdateApprovalNeeded, currentlyNeedsApproval, l1ChainId]);
 
   // Referrer address validation function
   const validateReferrerAddress = useCallback((address: string) => {
@@ -829,7 +828,7 @@ export function DepositModal() {
     if (!isOpen) {
       setAmount("");
       setReferrerAddress("");
-      setLockValue("6");
+      setLockValue("3");
       setLockUnit("months");
       setFormError(null);
       setReferrerAddressError(null);

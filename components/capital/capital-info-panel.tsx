@@ -100,11 +100,6 @@ export function CapitalInfoPanel() {
                   )}
                 </div>
               )}
-              {poolData.networkEnvironment === 'mainnet' && (
-                <span className="px-2 py-1 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-400 text-xs font-medium">
-                  Preview
-                </span>
-              )}
             </div>
             <p className="text-gray-400 text-sm mt-1">
             Deposit one of the assets below to generate yield for the Morpheus protocol and earn daily MOR rewards in return
