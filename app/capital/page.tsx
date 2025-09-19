@@ -16,7 +16,7 @@ import { ChangeLockModal } from "@/components/capital/change-lock-modal";
 import { CapitalInfoPanel } from "@/components/capital/capital-info-panel";
 import { ChartSection } from "@/components/capital/chart-section";
 import { UserAssetsPanel } from "@/components/capital/user-assets-panel";
-import { ReferralPanel } from "@/components/capital/referral-panel";
+// import { ReferralPanel } from "@/components/capital/referral-panel";
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 
 // Import Context and Config
