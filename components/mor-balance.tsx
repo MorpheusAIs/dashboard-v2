@@ -63,7 +63,7 @@ function useMORBalances(address: `0x${string}` | undefined) {
 
   // Function to refresh all balances
   const refreshBalances = useCallback(async () => {
-    console.log('MORBalance - Refreshing all balances...')
+    // console.log('MORBalance - Refreshing all balances...')
     await Promise.all([
       refetchArbitrum(),
       refetchBase(),
@@ -85,7 +85,7 @@ function useMORBalances(address: `0x${string}` | undefined) {
     // Poll for balance updates every 30 seconds
     // This is more reliable than event watching with RPC providers that don't support filters
     intervalRef.current = setInterval(() => {
-      console.log('MORBalance - Polling for balance updates...')
+      // console.log('MORBalance - Polling for balance updates...')
       refreshBalances()
     }, 30000) // 30 seconds
 
@@ -110,15 +110,15 @@ export function MORBalance() {
   const { address } = useAccount()
   const chainId = useChainId()
   
-  console.log('MORBalance - Connected chainId:', chainId)
-  console.log('MORBalance - User address:', address)
-  console.log('MORBalance - MOR contract addresses:', morTokenContracts)
+  // console.log('MORBalance - Connected chainId:', chainId)
+  // console.log('MORBalance - User address:', address)
+  // console.log('MORBalance - MOR contract addresses:', morTokenContracts)
 
   const { arbitrumBalance, baseBalance, arbitrumSepoliaBalance, refreshBalances } = useMORBalances(address)
   
-  console.log('MORBalance - Arbitrum One raw balance:', arbitrumBalance)
-  console.log('MORBalance - Base raw balance:', baseBalance)
-  console.log('MORBalance - Arbitrum Sepolia raw balance:', arbitrumSepoliaBalance)
+  // console.log('MORBalance - Arbitrum One raw balance:', arbitrumBalance)
+  // console.log('MORBalance - Base raw balance:', baseBalance)
+  // console.log('MORBalance - Arbitrum Sepolia raw balance:', arbitrumSepoliaBalance)
 
   // Expose refresh function globally for other components to use
   useEffect(() => {
@@ -137,18 +137,18 @@ export function MORBalance() {
     return Number(fullNumber.toFixed(1));
   }
 
-  const arbitrumFormattedBalance = formatBalance(arbitrumBalance);
-  const baseFormattedBalance = formatBalance(baseBalance);
-  const sepoliaFormattedBalance = formatBalance(arbitrumSepoliaBalance);
+  // const arbitrumFormattedBalance = formatBalance(arbitrumBalance);
+  // const baseFormattedBalance = formatBalance(baseBalance);
+  // const sepoliaFormattedBalance = formatBalance(arbitrumSepoliaBalance);
   
-  console.log('MORBalance - Formatted balances:', {
-    arbitrum: arbitrumFormattedBalance,
-    base: baseFormattedBalance,
-    sepolia: sepoliaFormattedBalance
-  });
+  // console.log('MORBalance - Formatted balances:', {
+  //   arbitrum: arbitrumFormattedBalance,
+  //   base: baseFormattedBalance,
+  //   sepolia: sepoliaFormattedBalance
+  // });
 
-  const isTestnet = chainId === 421614; // Arbitrum Sepolia
-  console.log('MORBalance - Is testnet:', isTestnet);
+  const isTestnet = chainId === 421614 || chainId === 11155111; // Arbitrum Sepolia or Sepolia
+  // console.log('MORBalance - Is testnet:', isTestnet);
 
   if (isTestnet) {
     return (

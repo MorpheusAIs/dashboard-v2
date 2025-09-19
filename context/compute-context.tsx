@@ -101,7 +101,7 @@ const feeToPercentage = (fee: string): number => {
     // For our specific use case, we know the fee "9000000000000000000000000" should be 90%
     // Hard-code the return value based on the known pattern
     if (fee === "9000000000000000000000000") {
-      console.log("Recognized standard fee value - returning 90%");
+      // console.log("Recognized standard fee value - returning 90%");
       return 90;
     }
     
@@ -175,7 +175,7 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
     
     return rawSubnets.map(subnet => {
       // Debug check to see what data we're processing
-      console.log('Processing subnet:', subnet.name, 'fee:', subnet.fee);
+      // console.log('Processing subnet:', subnet.name, 'fee:', subnet.fee);
       
       return {
         id: subnet.id,
@@ -305,29 +305,29 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
       
       // First attempt
       data = await makeApiCall();
-      console.log(`API call attempt ${retryCount + 1}:`, data);
+      // console.log(`API call attempt ${retryCount + 1}:`, data);
       
       // Check if we need to retry
       const needsRetry = !data.data || !data.data.subnets || data.data.subnets.length === 0;
       
       if (needsRetry && retryCount < maxRetries) {
         retryCount++;
-        console.log(`Retrying API call (attempt ${retryCount + 1})...`);
+        // console.log(`Retrying API call (attempt ${retryCount + 1})...`);
         
         // Wait a little before retrying
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Second attempt
         data = await makeApiCall();
-        console.log(`API call attempt ${retryCount + 1}:`, data);
+        // console.log(`API call attempt ${retryCount + 1}:`, data);
       }
       
       // Set counters if available
       if (data.data && data.data.counters) {
-        console.log('Setting counters from API:', data.data.counters);
+        // console.log('Setting counters from API:', data.data.counters);
         setCounters(data.data.counters);
       } else {
-        console.log('Using fallback counter data');
+        // console.log('Using fallback counter data');
         // Fallback counter
         setCounters([{ id: "0x00000000", totalSubnets: "2", __typename: "Counter" }]);
       }
@@ -336,7 +336,7 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
       const shouldUseFallbackData = !data.data || !data.data.subnets || data.data.subnets.length === 0;
       
       if (shouldUseFallbackData) {
-        console.log('Using fallback subnet data since API returned empty results');
+        // console.log('Using fallback subnet data since API returned empty results');
         
         // Hard-coded fallback data
         const fallbackSubnets = [
@@ -362,10 +362,10 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
           }
         ];
         
-        console.log('Setting fallback subnets:', fallbackSubnets);
+        // console.log('Setting fallback subnets:', fallbackSubnets);
         setRawSubnets(fallbackSubnets);
       } else if (data.data && data.data.subnets) {
-        console.log('Setting subnets from API:', data.data.subnets);
+        // console.log('Setting subnets from API:', data.data.subnets);
         setRawSubnets(data.data.subnets);
       }
       

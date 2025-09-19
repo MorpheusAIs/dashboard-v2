@@ -47,10 +47,10 @@ export const fetchBuildersAPI = async (
   userAddress?: string | null, // Added userAddress as an optional parameter
   getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null // Function to get admin address for newly created subnets
 ): Promise<Builder[]> => {
-  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
-  console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-  console.log('fetchBuildersAPI called. isTestnet:', isTestnet, 'supabaseBuildersLoaded:', supabaseBuildersLoaded, 'supabaseBuilders count:', supabaseBuilders?.length);
+  // console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  // console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
+  // console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+  // console.log('fetchBuildersAPI called. isTestnet:', isTestnet, 'supabaseBuildersLoaded:', supabaseBuildersLoaded, 'supabaseBuilders count:', supabaseBuilders?.length);
   
   try {
     let combinedProjects: BuilderProject[] = [];
@@ -199,7 +199,7 @@ export const fetchBuildersAPI = async (
       // Remove duplicates
       builderNames = Array.from(new Set(expandedBuilderNames));
       
-      console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
+      // console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
       
       const commonVariables = {
         orderBy: "totalStaked",
@@ -445,7 +445,7 @@ export const fetchBuildersAPI = async (
         });
       }
       
-      console.log("[fetchBuildersAPI Mainnet] Finished creating builders list. Count:", mappedBuilders.length);
+      // console.log("[fetchBuildersAPI Mainnet] Finished creating builders list. Count:", mappedBuilders.length);
 
       // Populate builderUsers for mainnet if userAddress was provided
       if (userAddress && (baseResponse.data?.buildersUsers || arbitrumResponse.data?.buildersUsers)) {

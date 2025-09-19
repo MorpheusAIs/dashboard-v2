@@ -1,0 +1,110 @@
+---
+description: Enforce proper naming for function props in client components to avoid serialization errors
+globs: ["components/**/*.tsx", "app/**/*.tsx"]
+alwaysApply: false
+---
+
+# Client Component Function Prop Naming Rule
+
+## CRITICAL: Function Props Must Follow Server Action Naming Convention
+
+### Rule: Function Props in Client Components
+**All function props in "use client" components must either be named "action" or end with "Action" to indicate they are action handlers.**
+
+This prevents Next.js serialization errors when passing functions as props to client components.
+
+### ❌ NEVER DO (Causes Serialization Errors):
+```tsx
+// ❌ BAD: components/my-component.tsx
+"use client";
+
+interface MyComponentProps {
+  onSubmit: () => void;           // ❌ Will cause error
+  onDelete: () => void;           // ❌ Will cause error
+  handleClick: () => void;        // ❌ Will cause error
+  onDepositClick: () => void;     // ❌ Will cause error
+}
+
+export function MyComponent({ onSubmit, onDelete, handleClick, onDepositClick }: MyComponentProps) {
+  return (
+    <div>
+      <button onClick={onSubmit}>Submit</button>
+      <button onClick={onDelete}>Delete</button>
+      <button onClick={handleClick}>Click</button>
+      <button onClick={onDepositClick}>Deposit</button>
+    </div>
+  );
+}
+```
+
+### ✅ ALWAYS DO (Proper Naming Convention):
+```tsx
+// ✅ GOOD: components/my-component.tsx
+"use client";
+
+interface MyComponentProps {
+  onSubmitAction: () => void;      // ✅ Ends with "Action"
+  onDeleteAction: () => void;      // ✅ Ends with "Action"
+  handleClickAction: () => void;   // ✅ Ends with "Action"
+  onDepositAction: () => void;     // ✅ Ends with "Action"
+  action: () => void;              // ✅ Named "action"
+}
+
+export function MyComponent({
+  onSubmitAction,
+  onDeleteAction,
+  handleClickAction,
+  onDepositAction,
+  action
+}: MyComponentProps) {
+  return (
+    <div>
+      <button onClick={onSubmitAction}>Submit</button>
+      <button onClick={onDeleteAction}>Delete</button>
+      <button onClick={handleClickAction}>Click</button>
+      <button onClick={onDepositAction}>Deposit</button>
+      <button onClick={action}>Action</button>
+    </div>
+  );
+}
+```
+
+### Next.js Error Prevention:
+This rule prevents the following error:
+```
+Props must be serializable for components in the "use client" entry file.
+"onClick" is a function that's not a Server Action.
+Rename "onClick" either to "action" or have its name end with "Action"
+e.g. "onClickAction" to indicate it is a Server Action.
+```
+
+### Valid Naming Patterns:
+- ✅ `action: () => void`
+- ✅ `onSubmitAction: () => void`
+- ✅ `handleClickAction: () => void`
+- ✅ `onDepositAction: () => void`
+- ✅ `deleteItemAction: () => void`
+
+### Invalid Naming Patterns:
+- ❌ `onSubmit: () => void`
+- ❌ `handleClick: () => void`
+- ❌ `onClick: () => void`
+- ❌ `deleteItem: () => void`
+
+### Enforcement Checklist:
+**Before adding function props to client components, verify:**
+- [ ] Is this component marked with "use client"?
+- [ ] Is this a function prop?
+- [ ] Does the prop name end with "Action" OR is it exactly "action"?
+- [ ] If NO → RENAME THE PROP
+
+### When to Use:
+- ✅ Client components that receive function props from parent components
+- ✅ Function props that trigger state changes or side effects
+- ✅ Event handlers passed as props
+
+### When NOT to Use:
+- ❌ Server components (no restriction)
+- ❌ Regular function parameters (not props)
+- ❌ Functions defined within the same component file
+

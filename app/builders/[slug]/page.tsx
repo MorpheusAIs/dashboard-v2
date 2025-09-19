@@ -30,6 +30,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUrlParams } from '@/lib/utils/url-params';
+import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 
 // Type for user in formatStakingEntry
 type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
@@ -817,12 +818,10 @@ export default function BuilderPage() {
 
   return (
     <div className="page-container">
-      {/* Network Switch Notification */}
-      {showNetworkSwitchNotice && (
-        <div className="fixed top-4 right-4 bg-emerald-900/90 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-md transition-all duration-300 ease-in-out opacity-100 transform translate-y-0">
-          <p>Switching to {networksToDisplay[0]} network to view this builder...</p>
-        </div>
-      )}
+      <NetworkSwitchNotification
+        show={showNetworkSwitchNotice}
+        networkName={`${networksToDisplay[0]} network`}
+      />
       
       {/* Destructive alert dialog */}
       {alertMessage && (

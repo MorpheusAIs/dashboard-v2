@@ -51,7 +51,7 @@ export default function ComputeSubnetPage() {
   const refreshRef = useRef(false); // Add a ref to track if refresh has been called
   
   // Find the subnet based on the slug
-  const subnet = !isLoadingSubnets ? subnets.find(s => 
+  const subnet = !isLoadingSubnets && slug ? subnets.find(s => 
     s.name.toLowerCase().replace(/\s+/g, '-') === slug.toString().toLowerCase()
   ) : null;
   

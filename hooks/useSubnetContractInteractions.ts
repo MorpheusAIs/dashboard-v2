@@ -3,6 +3,7 @@ import { useAccount, useChainId } from 'wagmi';
 import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 'wagmi';
 import { parseEther, formatEther, Address, isAddress, Abi } from 'viem';
 import { toast } from "sonner";
+import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
 import { getUnixTime } from "date-fns";
 import { arbitrum, base, arbitrumSepolia } from 'wagmi/chains'; // Import chains
@@ -13,8 +14,8 @@ import ERC20Abi from '@/app/abi/ERC20.json';
 import BuildersAbi from '@/app/abi/Builders.json';
 
 // Import constants
-import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/constants';
-import { FormData } from '@/components/subnet-form/schemas';
+import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/utils/constants';
+import { FormData } from '@/components/subnet-form/types/schemas';
 import { BuildersService } from '@/app/services/builders.service'; // Import BuildersService
 import { BuilderDB } from '@/app/lib/supabase'; // Import BuilderDB type
 import { useNewlyCreatedSubnets } from '@/app/hooks/useNewlyCreatedSubnets'; // Import the new hook
@@ -60,6 +61,32 @@ export const useSubnetContractInteractions = ({
     const chain = SUPPORTED_CHAINS[chainId];
     return chain?.name ?? `Network ID ${chainId}`;
   }, []);
+
+  // Helper function to show enhanced toast with Safe wallet link if applicable
+  const showEnhancedLoadingToast = useCallback(async (message: string, toastId: string) => {
+    if (connectedAddress && selectedChainId) {
+      try {
+        const safeWalletUrl = await getSafeWalletUrlIfApplicable(connectedAddress, selectedChainId);
+        if (safeWalletUrl) {
+          toast.loading(message, {
+            id: toastId,
+            description: "If the transaction doesn't appear, check your Safe wallet.",
+            action: {
+              label: "Open Safe Wallet",
+              onClick: () => window.open(safeWalletUrl, "_blank")
+            }
+          });
+        } else {
+          toast.loading(message, { id: toastId });
+        }
+      } catch (error) {
+        console.warn("Failed to check if wallet is Safe:", error);
+        toast.loading(message, { id: toastId });
+      }
+    } else {
+      toast.loading(message, { id: toastId });
+    }
+  }, [connectedAddress, selectedChainId]);
 
   const calculateSecondsForLockPeriod = (period: number, unit: "hours" | "days"): bigint => {
     const secondsInHour = BigInt(3600);
@@ -276,7 +303,7 @@ export const useSubnetContractInteractions = ({
   // Handle Approval Transaction Notifications
   useEffect(() => {
     if (isApprovePending) {
-      toast.loading("Confirm approval in wallet...", { id: "approval-tx" });
+      showEnhancedLoadingToast("Confirm approval in wallet...", "approval-tx");
     }
     if (isApproveTxSuccess) {
       toast.success("Approval successful!", { id: "approval-tx" });
@@ -305,7 +332,7 @@ export const useSubnetContractInteractions = ({
     });
     
     if (isWritePending) {
-      toast.loading("Confirm creation in wallet...", { id: "subnet-tx" });
+      showEnhancedLoadingToast("Confirm creation in wallet...", "subnet-tx");
     }
     if (isWriteTxSuccess) {
       console.log("[useSubnetContractInteractions] Transaction successful! Processing...");

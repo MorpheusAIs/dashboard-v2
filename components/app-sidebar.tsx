@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import {
-  // CircleDollarSign,
+  CircleDollarSign,
   // Cpu,
   Users,
 } from "lucide-react"
@@ -17,14 +17,13 @@ import {
 } from "@/components/ui/sidebar"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { useEffect, useRef, useState } from "react"
 
 const navigation = [
-  // {
-  //   title: "Capital",
-  //   url: "/capital",
-  //   icon: CircleDollarSign,
-  // },
+  {
+    title: "Capital",
+    url: "/capital",
+    icon: CircleDollarSign,
+  },
   {
     title: "Builders",
     url: "/builders",
@@ -57,76 +56,51 @@ const navigation = [
 
 export function AppSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-  const sidebarRef = useRef<HTMLDivElement>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  
-  // Check for visual width of the sidebar to determine if it's collapsed
-  useEffect(() => {
-    if (!sidebarRef.current) return;
-    
-    const resizeObserver = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        // Assuming sidebar width less than 100px means it's collapsed
-        const isCollapsed = entry.contentRect.width < 100;
-        setCollapsed(isCollapsed);
-      }
-    });
-    
-    resizeObserver.observe(sidebarRef.current);
-    
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
   
   return (
     <Sidebar 
-      ref={sidebarRef}
       collapsible="icon" 
-      className={cn("sidebar-base", className)} 
+      className={cn("sidebar-base bg-background", className)} 
       {...props}
     >
-      <SidebarHeader className="sidebar-header">
+      <SidebarHeader className="sidebar-header group-data-[state=collapsed]:pl-0.5 group-data-[state=expanded]:pl-2">
         <span className="sr-only" role="heading" aria-level={1}>
           Navigation Menu
         </span>
-        <div className="sidebar-logo-container-base">
+        <div className="sidebar-logo-container-base flex items-center p-2 group-data-[state=collapsed]:p-0 group-data-[state=collapsed]:ml-0">
           <Image
             src="/logo-green.svg"
             alt="Logo"
-            width={collapsed ? 24 : 40}
-            height={collapsed ? 24 : 40}
-            className={cn(
-              "sidebar-logo-base",
-              collapsed && "scale-90 -translate-x-3"
-            )}
+            width={40}
+            height={40}
+            className="sidebar-logo-base transition-all duration-200 group-data-[state=collapsed]:w-6 group-data-[state=collapsed]:h-6"
           />
         </div>
       </SidebarHeader>
-      <SidebarContent className="flex flex-col h-full">
+      <SidebarContent className="flex flex-col h-full bg-background opacity-100">
         <nav className="sidebar-nav">
           {navigation.map((item) => {
             const isActive = pathname === item.url
             return (
-              <div
+              <Link
                 key={item.title}
+                href={item.url}
                 className={cn(
                   "sidebar-nav-link-base",
                   "sidebar-nav-link-hover",
                   isActive && "sidebar-nav-link-active"
                 )}
               >
-                <Link href={item.url} className="flex items-center w-full">
+                <div className="flex items-center w-full pointer-events-none">
                   <item.icon className="sidebar-nav-icon" />
                   <span className={cn(
-                    "sidebar-nav-text-base",
-                    isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive",
-                    collapsed && "hidden"
+                    "sidebar-nav-text-base ml-3",
+                    isActive ? "sidebar-nav-text-active" : "sidebar-nav-text-inactive"
                   )}>
                     {item.title}
                   </span>
-                </Link>
-              </div>
+                </div>
+              </Link>
             )
           })}
         </nav>

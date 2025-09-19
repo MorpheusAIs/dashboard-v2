@@ -14,6 +14,18 @@ export interface ContractAddresses {
   l2Factory: ChainContract;
   subnetFactory: ChainContract;
   builders: ChainContract;
+  // V2 Contracts
+  stETHDepositPool?: ChainContract;
+  linkDepositPool?: ChainContract;
+  usdcDepositPool?: ChainContract;
+  usdtDepositPool?: ChainContract;
+  wbtcDepositPool?: ChainContract;
+  wethDepositPool?: ChainContract;
+  distributorV2?: ChainContract;
+  rewardPoolV2?: ChainContract;
+  l1SenderV2?: ChainContract;
+  linkToken?: ChainContract;
+  lockMultiplierMath?: ChainContract;
 }
 
 // RPC configuration for better reliability
@@ -83,10 +95,20 @@ export const testnetChains: Record<string, ChainConfig> = {
       }
     },
     contracts: {
+      // Existing V1 contracts
       erc1967Proxy: toContract('0x7c46d6bebf3dcd902eb431054e59908a02aba524'),
-      stETH: toContract('0xa878Ad6fF38d6fAE81FBb048384cE91979d448DA'),
+      stETH: toContract('0xa878ad6ff38d6fae81fbb048384ce91979d448da'), // Lowercase to avoid checksum validation issues
       layerZeroEndpoint: toContract('0xae92d5aD7583AD66E49A0c67BAd18F6ba52dDDc1'),
-      l1Factory: toContract('0xB791b1B02A8f7A32f370200c05EeeE12B9Bba10A')
+      l1Factory: toContract('0xB791b1B02A8f7A32f370200c05EeeE12B9Bba10A'),
+
+      // V2 Contracts (Proxies)
+      stETHDepositPool: toContract('0xFea33A23F97d785236F22693eDca564782ae98d0'),
+      linkDepositPool: toContract('0x7f4f17be21219D7DA4C8E0d0B9be6a778354E5A5'),
+      distributorV2: toContract('0x65b8676392432B1cBac1BE4792a5867A8CA2f375'),
+      rewardPoolV2: toContract('0xbFDbe9c7E6c8bBda228c6314E24E9043faeEfB32'),
+      l1SenderV2: toContract('0x85e398705d7D77F1703b61DD422869A67B3B409d'),
+      linkToken: toContract('0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5'),
+      lockMultiplierMath: toContract('0x345b8b23c38f70f1d77560c60493bb583f012cb0'),
     },
     isL1: true,
     layerZeroEndpointId: 10161,
@@ -125,10 +147,23 @@ export const mainnetChains: Record<string, ChainConfig> = {
       }
     },
     contracts: {
+      // Legacy V1 contracts
       erc1967Proxy: toContract('0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790'),
       stETH: toContract('0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84'),
       layerZeroEndpoint: toContract('0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675'),
-      l1Factory: toContract('0x969C0F87623dc33010b4069Fea48316Ba2e45382')
+      l1Factory: toContract('0x969C0F87623dc33010b4069Fea48316Ba2e45382'),
+
+      // V2 Contracts (Newly Deployed)
+      stETHDepositPool: toContract('0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790'),
+      // V2 Mainnet Deposit Pools
+      usdcDepositPool: toContract('0x6cCE082851Add4c535352f596662521B4De4750E'),
+      usdtDepositPool: toContract('0x3B51989212BEdaB926794D6bf8e9E991218cf116'),
+      wbtcDepositPool: toContract('0xdE283F8309Fd1AA46c95d299f6B8310716277A42'),
+      wethDepositPool: toContract('0x9380d72aBbD6e0Cc45095A2Ef8c2CA87d77Cb384'),
+      distributorV2: toContract('0xDf1AC1AC255d91F5f4B1E3B4Aef57c5350F64C7A'),
+      rewardPoolV2: toContract('0xb7994dE339AEe515C9b2792831CD83f3C9D8df87'),
+      l1SenderV2: toContract('0x2Efd4430489e1a05A89c2f51811aC661B7E5FF84'),
+      lockMultiplierMath: toContract('0x345b8b23c38f70f1d77560c60493bb583f012cb0'),
     },
     isL1: true,
     layerZeroEndpointId: 101,
@@ -169,10 +204,40 @@ export const mainnetChains: Record<string, ChainConfig> = {
   }
 };
 
+// =====================================================
+// GraphQL Endpoint Fallback Configuration
+// =====================================================
+// The new mainnet subgraph is currently indexing. If it fails or returns errors,
+// you can quickly switch to the legacy endpoint by changing the flag below.
+//
+// USAGE:
+//   - Set to `false` (default): Uses new morpheus-mainnet-v-2 subgraph
+//   - Set to `true`: Uses legacy morpheus-dashboard subgraph  
+//
+// This affects ONLY the capital page (/capital) historical chart data.
+// Builder pages continue using their separate Apollo Client endpoints.
+//
+// To switch back to legacy endpoint in case of issues:
+//   1. Change USE_FALLBACK_MAINNET_GRAPHQL to `true`
+//   2. Restart the development server
+//   3. Capital page charts will use the old stable endpoint
+// =====================================================
+const USE_FALLBACK_MAINNET_GRAPHQL = false;
+
+// GraphQL endpoint URLs
+const MAINNET_GRAPHQL_ENDPOINTS = {
+  // New subgraph (currently indexing)
+  primary: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest',
+  // Legacy fallback subgraph
+  fallback: 'https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest'
+};
+
 // API URLs by environment
 export const apiUrls = {
   mainnet: {
-    graphql: 'https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest'
+    graphql: USE_FALLBACK_MAINNET_GRAPHQL 
+      ? MAINNET_GRAPHQL_ENDPOINTS.fallback 
+      : MAINNET_GRAPHQL_ENDPOINTS.primary
   },
   testnet: {
     graphql: 'https://api.studio.thegraph.com/query/73688/kkk/version/latest'
@@ -221,4 +286,25 @@ export const getL2Chains = (environment: NetworkEnvironment) => {
 // Get GraphQL API URL for the environment
 export const getGraphQLApiUrl = (environment: NetworkEnvironment) => {
   return apiUrls[environment].graphql;
+};
+
+// Export GraphQL endpoint configuration for monitoring/debugging
+export const getGraphQLEndpointInfo = (environment: NetworkEnvironment) => {
+  if (environment === 'mainnet') {
+    return {
+      current: apiUrls.mainnet.graphql,
+      primary: MAINNET_GRAPHQL_ENDPOINTS.primary,
+      fallback: MAINNET_GRAPHQL_ENDPOINTS.fallback,
+      isFallback: USE_FALLBACK_MAINNET_GRAPHQL,
+      canToggle: true
+    };
+  }
+  
+  return {
+    current: apiUrls.testnet.graphql,
+    primary: apiUrls.testnet.graphql,
+    fallback: null,
+    isFallback: false,
+    canToggle: false
+  };
 }; 

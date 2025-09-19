@@ -5,6 +5,7 @@ export const GRAPHQL_ENDPOINTS = {
   'Base': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
   'Arbitrum': 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest',
   'Arbitrum_Sepolia': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
+  "Ethereum": "https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest",
 };
 
 // Define the request cache entry type

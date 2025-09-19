@@ -1,6 +1,6 @@
 import React from 'react';
 import { RiCheckboxCircleFill, RiProgress4Fill } from "@remixicon/react";
-import { FORM_STEPS } from './schemas';
+import { FORM_STEPS } from './types/schemas';
 
 interface ProgressStepperProps {
   currentStep: number;
