@@ -532,21 +532,64 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const poolAbi = DepositPoolAbi;
 
   // --- Read Hooks (V2 Contract Calls) --- 
-  const { data: poolInfoResult } = useReadContract({
+  const { data: poolInfoResult, error: poolInfoError, isLoading: poolInfoLoading } = useReadContract({
     address: stETHDepositPoolAddress,
     abi: poolAbi,
-    functionName: 'rewardPoolsProtocolDetails',
+    functionName: 'unusedStorage1',
     args: [PUBLIC_POOL_ID],
     chainId: l1ChainId,
     query: { enabled: !!stETHDepositPoolAddress }
   });
+  
+  console.log('=== POOL INFO CONTRACT CALL DEBUG ===');
+  console.log('🏊 stETH Deposit Pool Address:', stETHDepositPoolAddress);
+  console.log('⛓️ L1 Chain ID:', l1ChainId);
+  console.log('🎯 Network Environment:', networkEnv);
+  console.log('🔧 Function Called: unusedStorage1 (FIXED - now gets payoutStart!)');
+  console.log('🔍 Pool Info Result:', poolInfoResult);
+  console.log('📏 Pool Info Result Length:', Array.isArray(poolInfoResult) ? poolInfoResult.length : 'Not an array');
+  console.log('❌ Pool Info Error:', poolInfoError?.message || poolInfoError);
+  console.log('⏳ Pool Info Loading:', poolInfoLoading);
+  console.log('📋 unusedStorage1 Function Available:', poolAbi.some((item: { name?: string }) => item.name === 'unusedStorage1'));
+  console.log('🔧 Contract Call Enabled:', !!stETHDepositPoolAddress);
+  console.log('📞 Contract Call Args:', [PUBLIC_POOL_ID]);
+  console.log('📋 PUBLIC_POOL_ID value:', PUBLIC_POOL_ID);
+  
+  // Check if this is the expected mainnet address
+  if (networkEnv === 'mainnet') {
+    console.log('✅ Expected mainnet stETH pool:', '0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790');
+    console.log('🔍 Address matches expected:', stETHDepositPoolAddress === '0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790');
+  }
+  
+  console.log('=== END POOL INFO DEBUG ===\n');
+  
   const poolInfo = useMemo((): PoolInfoData | undefined => {
-    if (!poolInfoResult) return undefined;
+    console.log('=== PROCESSING POOL INFO DATA ===');
+    console.log('🏊 Processing poolInfo data, raw result:', poolInfoResult);
+    console.log('📊 Expected: 9 values from unusedStorage1 function');
+    console.log('📊 Expected fields: [payoutStart, decreaseInterval, withdrawLockPeriod, claimLockPeriod, withdrawLockPeriodAfterStake, initialReward, rewardDecrease, minimalStake, isPublic]');
+    
+    if (!poolInfoResult) {
+      console.log('❌ No poolInfoResult available for timestamp generation');
+      return undefined;
+    }
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dataArray = poolInfoResult as any[]; // Cast needed because wagmi returns struct as unknown[]/any[]
-    if (!Array.isArray(dataArray) || dataArray.length < 9) return undefined; 
+    console.log('📏 Actual array length:', dataArray.length);
+    console.log('📊 Actual values:', dataArray);
+    
+    if (!Array.isArray(dataArray) || dataArray.length < 9) {
+      console.log('❌ Invalid data structure - expected 9 values, got:', dataArray.length);
+      return undefined;
+    }
+    
+    console.log('✅ Processing 9-value response from unusedStorage1');
+    console.log('🚀 payoutStart value (index 0):', dataArray[0]);
+    console.log('📅 payoutStart as timestamp:', Number(dataArray[0]));
+    console.log('📅 payoutStart as date:', new Date(Number(dataArray[0]) * 1000).toISOString()); 
     try {
-      return {
+      const result = {
         payoutStart: BigInt(dataArray[0]),
         decreaseInterval: BigInt(dataArray[1]),
         withdrawLockPeriod: BigInt(dataArray[2]),
@@ -557,8 +600,14 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         minimalStake: BigInt(dataArray[7]),
         isPublic: Boolean(dataArray[8]),
       };
+      
+      console.log('🎉 SUCCESS: poolInfo created with payoutStart:', result.payoutStart.toString());
+      console.log('📊 Full poolInfo object:', result);
+      console.log('=== END PROCESSING POOL INFO DATA ===\n');
+      return result;
     } catch (e) {
-        console.error("Error parsing poolInfoData:", e);
+        console.error("❌ Error parsing poolInfoData:", e);
+        console.log('=== END PROCESSING POOL INFO DATA (ERROR) ===\n');
         return undefined;
     }
   }, [poolInfoResult]);
