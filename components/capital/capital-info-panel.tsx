@@ -161,7 +161,23 @@ export function CapitalInfoPanel() {
                         if (asset.totalStaked === 'N/A') {
                           return 'N/A';
                         }
-                        return <p className='text-right'><NumberFlow value={parseStakedAmount(asset.totalStaked)} /></p>;
+                        const parsedValue = parseStakedAmount(asset.totalStaked);
+
+                        // Format value with appropriate decimal places for wETH and wBTC
+                        let displayValue = parsedValue;
+                        if (asset.symbol === 'wETH' || asset.symbol === 'wBTC') {
+                          if (parsedValue < 1) {
+                            displayValue = Number(parsedValue.toFixed(4));
+                          } else if (parsedValue < 10) {
+                            displayValue = Number(parsedValue.toFixed(2));
+                          }
+                        }
+
+                        return (
+                          <p className='text-right'>
+                            <NumberFlow value={displayValue} />
+                          </p>
+                        );
                       })()}
                     </div>
 
