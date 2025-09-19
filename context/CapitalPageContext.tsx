@@ -912,9 +912,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // Removed unused currentDailyReward calculation
 
   const withdrawUnlockTimestamp = useMemo(() => {
-    if (!poolInfo?.payoutStart || !poolInfo.withdrawLockPeriod || !userData?.lastStake || !poolInfo.withdrawLockPeriodAfterStake) return undefined;
-    return maxBigInt(poolInfo.payoutStart + poolInfo.withdrawLockPeriod, userData.lastStake + poolInfo.withdrawLockPeriodAfterStake);
-  }, [poolInfo, userData]);
+    if (!userData?.lastStake || !poolInfo?.withdrawLockPeriodAfterStake) return undefined;
+    return userData.lastStake + poolInfo.withdrawLockPeriodAfterStake;
+  }, [userData?.lastStake, poolInfo?.withdrawLockPeriodAfterStake]);
 
   const claimUnlockTimestamp = useMemo(() => {
     // Debug logging for claim unlock calculation
