@@ -9,9 +9,11 @@ export interface UserAsset {
   available: number;
   dailyEmissions: number;
   powerFactor: string;
-  unlockDate: string | null;
+  unlockDate: string | null; // For "Claim Unlock Date" column
+  withdrawUnlockDate: string | null; // For "Amount Staked" badge/tooltip
   availableToClaim: number;
   canClaim: boolean;
+  canWithdraw: boolean;
 }
 
 // Interface for tracking reward accumulation over time
