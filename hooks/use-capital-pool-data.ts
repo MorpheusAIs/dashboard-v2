@@ -629,7 +629,9 @@ export function useCapitalPoolData(): CapitalPoolData {
 
         try {
           const [, , totalVirtualDeposited] = rateData.data;
-          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
+          const assetConfig = configuredAssets.find(config => config.metadata.symbol === symbol);
+          const decimals = assetConfig?.metadata.decimals || 18;
+          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, decimals));
           
           if (totalVirtual > 0 && totalDailyEmissions > 0) {
             const assetRewardShare = (assetYieldUSD / totalYieldUSD) * totalDailyEmissions;
@@ -659,11 +661,12 @@ export function useCapitalPoolData(): CapitalPoolData {
 
       configuredAssets.forEach((assetConfig) => {
         const symbol = assetConfig.metadata.symbol;
+        const decimals = assetConfig.metadata.decimals;
         const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
 
         if (rateData?.data && Array.isArray(rateData.data)) {
           const [, , totalVirtualDeposited] = rateData.data;
-          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
+          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, decimals));
           localVirtualStakeByAsset[symbol] = totalVirtual;
           totalVirtualStakeAcrossPools += totalVirtual;
         } else {
@@ -729,14 +732,33 @@ export function useCapitalPoolData(): CapitalPoolData {
     const stakeData: Record<string, number> = {};
     configuredAssets.forEach((assetConfig) => {
       const symbol = assetConfig.metadata.symbol;
+      const decimals = assetConfig.metadata.decimals;
       const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
 
       if (rateData?.data && Array.isArray(rateData.data)) {
         const [, , totalVirtualDeposited] = rateData.data;
-        const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
+        const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, decimals));
         stakeData[symbol] = totalVirtual;
+
+        // Special WBTC virtual stake logging
+        if (symbol === 'wBTC') {
+          console.log(`🐋 WBTC VIRTUAL STAKE:`, {
+            rawTotalVirtualDeposited: totalVirtualDeposited?.toString(),
+            formattedTotalVirtual: totalVirtual,
+            decimals
+          });
+        }
       } else {
         stakeData[symbol] = 0;
+
+        // Special WBTC logging when no data
+        if (symbol === 'wBTC') {
+          console.log(`🐋 WBTC NO VIRTUAL STAKE DATA:`, {
+            rateDataExists: !!rateData,
+            rateDataIsArray: Array.isArray(rateData?.data),
+            rateData
+          });
+        }
       }
     });
     return stakeData;
@@ -763,6 +785,18 @@ export function useCapitalPoolData(): CapitalPoolData {
         contractError: contract?.error?.message,
         decimals // Log the correct decimals
       });
+
+      // Special logging for WBTC
+      if (symbol === 'wBTC') {
+        console.debug(`🐋 WBTC DEBUG:`, {
+          symbol,
+          rawContractData: contract?.data,
+          virtualStake: virtualStakeByAsset?.[symbol] || 0,
+          hasDepositPool: hasDepositPoolAddress,
+          contractError: contract?.error?.message,
+          isLoading: contract?.isLoading
+        });
+      }
       
       if (!hasDepositPoolAddress) {
         // Asset doesn't have a deposit pool contract
@@ -806,6 +840,19 @@ export function useCapitalPoolData(): CapitalPoolData {
         });
 
         const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
+
+        // Special WBTC final value logging
+        if (symbol === 'wBTC') {
+          console.log(`🐋 WBTC FINAL VALUE:`, {
+            rawValue,
+            virtualStake,
+            useVirtualStake,
+            displayValue,
+            totalStaked,
+            decimals
+          });
+        }
+
         result[symbol] = {
           totalStaked,
           apy: calculateV7APR[symbol] || 'N/A',
