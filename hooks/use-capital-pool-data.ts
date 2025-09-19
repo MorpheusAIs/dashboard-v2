@@ -9,6 +9,9 @@ import { getAssetsForNetwork, type AssetSymbol } from '@/components/capital/cons
 
 // Import ABIs
 import DepositPoolAbi from '@/app/abi/DepositPool.json'; // Use the generic ABI that has all functions
+import RewardPoolV2Abi from '@/app/abi/RewardPoolV2.json'; // For proper emission rate calculation
+import DistributorV2Abi from '@/app/abi/DistributorV2.json'; // For yield tracking
+import ERC20Abi from '@/app/abi/ERC20.json'; // For aToken balance calls
 
 export interface AssetPoolData {
   totalStaked: string;
@@ -20,6 +23,8 @@ export interface AssetPoolData {
 export interface CapitalPoolData {
   assets: Partial<Record<AssetSymbol, AssetPoolData>>;
   networkEnvironment: NetworkEnvironment;
+  // Real daily MOR emissions from RewardPool.getPeriodRewards()
+  dailyMOREmissions: number | null;
   // Refetch functions to trigger data refresh after user actions
   refetch: {
     refetchAsset: (symbol: AssetSymbol) => void;
@@ -66,6 +71,15 @@ export function useCapitalPoolData(): CapitalPoolData {
 
   // Get all configured assets for this network
   const configuredAssets = useMemo(() => getAssetsForNetwork(networkEnvironment), [networkEnvironment]);
+
+  // Get RewardPoolV2 and DistributorV2 contract addresses
+  const rewardPoolV2Address = useMemo(() => {
+    return getContractAddress(l1ChainId, 'rewardPoolV2', networkEnvironment) as `0x${string}` | undefined;
+  }, [l1ChainId, networkEnvironment]);
+
+  const distributorV2Address = useMemo(() => {
+    return getContractAddress(l1ChainId, 'distributorV2', networkEnvironment) as `0x${string}` | undefined;
+  }, [l1ChainId, networkEnvironment]);
 
   // Create contract address mappings for assets with deposit pools
   const depositPoolAddresses = useMemo(() => {
@@ -158,6 +172,107 @@ export function useCapitalPoolData(): CapitalPoolData {
     allowFailure: true,
     query: {
       enabled: rewardRateContracts.length > 0,
+      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    },
+  });
+
+  // ✅ REAL YIELD TRACKING: Get Distributor.depositPools() data for yield calculation
+  const distributorPoolContracts = useMemo(() => {
+    if (!distributorV2Address) return [];
+    
+    return configuredAssets
+      .filter((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const address = depositPoolAddresses[symbol];
+        return address && address !== '0x0000000000000000000000000000000000000000';
+      })
+      .map((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const depositPoolAddress = depositPoolAddresses[symbol]!;
+        
+        return {
+          address: distributorV2Address,
+          abi: DistributorV2Abi,
+          functionName: 'depositPools',
+          args: [BigInt(0), depositPoolAddress], // Pool index 0 (Capital), deposit pool address
+          chainId: l1ChainId,
+        };
+      });
+  }, [configuredAssets, depositPoolAddresses, distributorV2Address, l1ChainId]);
+
+  const { 
+    data: distributorPoolResults, 
+    refetch: refetchDistributorPools 
+  } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: distributorPoolContracts as any,
+    allowFailure: true,
+    query: {
+      enabled: distributorPoolContracts.length > 0,
+      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    },
+  });
+
+  // ✅ ATOKEN BALANCE CALLS: For AAVE assets, get current aToken balance to calculate yield
+  const aTokenBalanceContracts = useMemo(() => {
+    if (!distributorV2Address || !distributorPoolResults) return [];
+    
+    return configuredAssets
+      .map((assetConfig, index) => {
+        const distributorPoolResult = distributorPoolResults[index];
+        
+        // Check if this is an AAVE strategy with valid aToken address
+        if (distributorPoolResult?.status === 'success' && Array.isArray(distributorPoolResult.result)) {
+          const [, , , , , strategy, aToken] = distributorPoolResult.result;
+          
+          // Strategy: 0 = NONE, 1 = NO_YIELD, 2 = AAVE
+          if (strategy === 2 && aToken && aToken !== '0x0000000000000000000000000000000000000000') {
+            return {
+              address: aToken as `0x${string}`,
+              abi: ERC20Abi,
+              functionName: 'balanceOf',
+              args: [distributorV2Address], // Get aToken balance held by Distributor
+              chainId: l1ChainId,
+            };
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, [configuredAssets, distributorPoolResults, distributorV2Address, l1ChainId]);
+
+  const { 
+    data: aTokenBalanceResults, 
+    refetch: refetchATokenBalances 
+  } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: aTokenBalanceContracts as any,
+    allowFailure: true,
+    query: {
+      enabled: aTokenBalanceContracts.length > 0,
+      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+    },
+  });
+
+  // Get daily MOR emissions from RewardPoolV2 for proper APR calculation
+  const now = Math.floor(Date.now() / 1000); // Current timestamp in seconds
+  const oneDayAgo = now - (24 * 60 * 60); // 24 hours ago
+  
+  const { 
+    data: dailyEmissionsResult, 
+    refetch: refetchDailyEmissions 
+  } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: rewardPoolV2Address ? [{
+      address: rewardPoolV2Address,
+      abi: RewardPoolV2Abi,
+      functionName: 'getPeriodRewards',
+      args: [BigInt(0), BigInt(oneDayAgo), BigInt(now)], // Pool index 0 (Capital), last 24 hours
+      chainId: l1ChainId,
+    }] : [] as const,
+    allowFailure: true,
+    query: {
+      enabled: !!rewardPoolV2Address,
       refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
     },
   });
@@ -297,92 +412,316 @@ export function useCapitalPoolData(): CapitalPoolData {
     rewardPoolRateData
   ]);
 
-  // V7 Protocol APR Calculation using reward rates from DepositPool contracts
+  // ✅ REAL V7 Protocol APR Calculation using actual yield data from Distributor contract
   const calculateV7APR = useMemo(() => {
-    console.log('🔢 APR CALCULATION - V7 PROTOCOL DAILY REWARD APPROACH:', {
+    
+    // Get daily MOR emissions (total for Capital pool)
+    const totalDailyEmissions = dailyEmissionsResult?.[0]?.status === 'success' 
+      ? Number(formatUnits(dailyEmissionsResult[0].result as bigint, 18))
+      : 0;
+
+    console.log('🔢 COMPREHENSIVE DEBUG - V7 APR CALCULATION:', {
       networkEnvironment,
-      rewardPoolRateData: Object.fromEntries(
-        Object.entries(rewardPoolRateData).map(([symbol, rateData]) => [
-          symbol,
-          {
-            hasData: !!rateData.data,
-            isLoading: rateData.isLoading,
-            data: rateData.data ? {
-              // Parse the rewardPoolsData struct: [lastUpdate, rate, totalVirtualDeposited]
-              lastUpdate: Array.isArray(rateData.data) ? rateData.data[0]?.toString() : 'N/A',
-              dailyRate: Array.isArray(rateData.data) ? formatUnits(rateData.data[1] as bigint, 18) : 'N/A', // Daily MOR tokens
-              totalVirtualDeposited: Array.isArray(rateData.data) ? formatUnits(rateData.data[2] as bigint, 18) : 'N/A'
-            } : null
-          }
-        ])
-      )
+      totalDailyEmissions,
+      distributorV2Address,
+      rewardPoolV2Address,
+      contractAddresses: {
+        distributorV2: distributorV2Address,
+        rewardPoolV2: rewardPoolV2Address,
+        depositPools: Object.fromEntries(
+          configuredAssets.map(asset => [
+            asset.metadata.symbol,
+            depositPoolAddresses[asset.metadata.symbol]
+          ])
+        )
+      },
+      contractCallResults: {
+        distributorPools: distributorPoolResults?.map((r, i) => ({
+          asset: configuredAssets[i]?.metadata.symbol,
+          status: r?.status,
+          hasResult: !!r?.result,
+          resultLength: Array.isArray(r?.result) ? r.result.length : 'not array',
+          error: r?.status === 'failure' ? r.error?.message : null
+        })),
+        aTokenBalances: aTokenBalanceResults?.map((r, i) => ({
+          index: i,
+          status: r?.status,
+          hasResult: !!r?.result,
+          error: r?.status === 'failure' ? r.error?.message : null
+        })),
+        dailyEmissions: {
+          status: dailyEmissionsResult?.[0]?.status,
+          hasResult: !!dailyEmissionsResult?.[0]?.result,
+          rawValue: dailyEmissionsResult?.[0]?.result?.toString(),
+          parsedValue: totalDailyEmissions,
+          error: dailyEmissionsResult?.[0]?.status === 'failure' ? dailyEmissionsResult[0].error?.message : null
+        }
+      },
+      contractCounts: {
+        configured: configuredAssets.length,
+        distributorContracts: distributorPoolContracts.length,
+        aTokenContracts: aTokenBalanceContracts.length,
+        distributorResults: distributorPoolResults?.length || 0,
+        aTokenResults: aTokenBalanceResults?.length || 0
+      }
     });
 
-  // ✅ FIXED: Now using correct RewardPool contract approach
-  // Uses RewardPool.getPeriodRewards() to get total daily rewards for the pool
-  // Then calculates proportional share based on user's stake vs total stake
-  // References: https://gitbook.mor.org/smart-contracts/documentation/distribution-protocol/v7-protocol/contracts/rewardpool
-
     const aprResults: Record<string, string> = {};
+    const assetYields: Record<string, number> = {}; // USD-denominated yields
+    let totalYieldUSD = 0;
     
-    Object.entries(rewardPoolRateData).forEach(([symbol, rateData]) => {
+    // Step 1: Calculate USD yield for each asset using REAL Distributor data
+    configuredAssets.forEach((assetConfig, index) => {
+      const symbol = assetConfig.metadata.symbol;
       const contract = contractData[symbol as keyof typeof contractData];
+      const distributorPoolResult = distributorPoolResults?.[index];
       
-      if (!contract?.data || !rateData.data || !Array.isArray(rateData.data)) {
-        aprResults[symbol] = 'N/A';
+      console.log(`🔍 ASSET YIELD DEBUG [${symbol}] - STEP 1:`, {
+        hasContractData: !!contract?.data,
+        contractDataRaw: contract?.data?.toString(),
+        hasDistributorResult: !!distributorPoolResult,
+        distributorStatus: distributorPoolResult?.status,
+        distributorError: distributorPoolResult?.status === 'failure' ? distributorPoolResult.error?.message : null,
+        assetConfig: {
+          symbol,
+          decimals: assetConfig.metadata.decimals,
+          disabled: assetConfig.metadata.disabled
+        }
+      });
+
+      if (!contract?.data || distributorPoolResult?.status !== 'success') {
+        console.log(`❌ SKIPPING ASSET [${symbol}]:`, {
+          reason: !contract?.data ? 'No contract data' : 'Distributor call failed',
+          contractData: !!contract?.data,
+          distributorStatus: distributorPoolResult?.status
+        });
+        assetYields[symbol] = 0;
         return;
       }
 
       try {
-        // Parse rewardPoolsData struct: [lastUpdate, rate, totalVirtualDeposited]
-        const [lastUpdate, ratePerSecond, totalVirtualDeposited] = rateData.data;
+        // Parse Distributor.depositPools() result - the REAL v7 protocol data!
+        const distributorResult = distributorPoolResult.result as readonly [string, string, bigint, bigint, bigint, number, string, boolean];
+        const [token, chainLinkPath, tokenPrice, deposited, lastUnderlyingBalance, strategy, aToken, isExist] = distributorResult;
         
-        // Get correct decimals for this asset from configuration
-        const assetConfig = configuredAssets.find(a => a.metadata.symbol === symbol);
-        const assetDecimals = assetConfig?.metadata.decimals || 18;
-        
-        // Parse values - the rate is actually DAILY rewards, not per-second (from v7 protocol docs)
-        const totalDeposited = Number(formatUnits(contract.data as bigint, assetDecimals));
-        const dailyRewardRate = Number(formatUnits(ratePerSecond as bigint, 18)); // MOR tokens per day (not per second!)
-        const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
-        
-        // Calculate APR: (daily rewards * days per year) / effective deposited * 100
-        // According to Morpheus v7 protocol: rewards are distributed DAILY, not per second
-        const daysPerYear = 365;
-        const annualRewards = dailyRewardRate * daysPerYear;
-        
-        // Use totalVirtualDeposited (includes power factor multipliers) for proper APR calculation
-        // This represents the actual "weighted" stake used for reward distribution
-        const effectiveTotalDeposited = totalVirtual > 0 ? totalVirtual : totalDeposited;
-        const aprPercentage = effectiveTotalDeposited > 0 ? (annualRewards / effectiveTotalDeposited) * 100 : 0;
-        
-        aprResults[symbol] = aprPercentage > 0
-          ? `${aprPercentage.toFixed(2)}%`
-          : 'N/A';
-          
-        console.log(`✅ REAL APR CALCULATION [${symbol}] - V7 PROTOCOL DAILY REWARDS:`, {
-          totalDeposited,
-          totalVirtualDeposited: totalVirtual,
-          effectiveTotalDeposited,
-          dailyRewardRate,
-          annualRewards,
-          aprPercentage,
-          calculatedAPR: aprResults[symbol],
-          lastUpdate: new Date(Number(lastUpdate) * 1000).toISOString(),
-          note: 'Rate is DAILY MOR distribution per v7 protocol (not per-second)'
+        console.log(`🔍 ASSET YIELD DEBUG [${symbol}] - STEP 2 PARSED DATA:`, {
+          token,
+          chainLinkPath,
+          tokenPriceRaw: tokenPrice.toString(),
+          depositedRaw: deposited.toString(),
+          lastUnderlyingBalanceRaw: lastUnderlyingBalance.toString(),
+          strategy,
+          strategyName: strategy === 0 ? 'NONE' : strategy === 1 ? 'NO_YIELD' : strategy === 2 ? 'AAVE' : 'UNKNOWN',
+          aToken,
+          isExist
         });
+        
+        const assetDecimals = assetConfig.metadata.decimals;
+        const priceUSD = Number(formatUnits(tokenPrice as bigint, 18)); // Price from Distributor is normalized to 18 decimals
+        
+        let currentBalance = 0;
+        const lastBalance = Number(formatUnits(lastUnderlyingBalance as bigint, assetDecimals));
+        
+        console.log(`🔍 ASSET YIELD DEBUG [${symbol}] - STEP 3 PARSED VALUES:`, {
+          assetDecimals,
+          priceUSD,
+          lastBalance,
+          lastUnderlyingBalanceWei: lastUnderlyingBalance.toString()
+        });
+        
+        if (strategy === 2 && aToken && aToken !== '0x0000000000000000000000000000000000000000') {
+          // AAVE strategy: get current aToken balance
+          const aTokenIndex = aTokenBalanceContracts.findIndex(contract => 
+            contract && 'address' in contract && contract.address.toLowerCase() === aToken.toLowerCase()
+          );
+          
+          console.log(`🔍 AAVE STRATEGY DEBUG [${symbol}]:`, {
+            aToken,
+            aTokenIndex,
+            aTokenContractsLength: aTokenBalanceContracts.length,
+            aTokenBalanceResultsLength: aTokenBalanceResults?.length || 0,
+            aTokenResult: aTokenIndex >= 0 ? {
+              status: aTokenBalanceResults?.[aTokenIndex]?.status,
+              hasResult: !!aTokenBalanceResults?.[aTokenIndex]?.result,
+              rawResult: aTokenBalanceResults?.[aTokenIndex]?.result?.toString(),
+              error: aTokenBalanceResults?.[aTokenIndex]?.status === 'failure' ? aTokenBalanceResults[aTokenIndex].error?.message : null
+            } : 'aToken not found in contracts'
+          });
+          
+          if (aTokenIndex >= 0 && aTokenBalanceResults?.[aTokenIndex]?.status === 'success') {
+            currentBalance = Number(formatUnits(aTokenBalanceResults[aTokenIndex].result as bigint, assetDecimals));
+            console.log(`✅ AAVE BALANCE FOUND [${symbol}]:`, {
+              rawBalance: aTokenBalanceResults[aTokenIndex].result?.toString(),
+              formattedBalance: currentBalance
+            });
+          } else {
+            console.log(`❌ AAVE BALANCE NOT FOUND [${symbol}]:`, {
+              aTokenIndex,
+              indexFound: aTokenIndex >= 0,
+              hasResults: !!aTokenBalanceResults,
+              resultStatus: aTokenIndex >= 0 ? aTokenBalanceResults?.[aTokenIndex]?.status : 'N/A'
+            });
+          }
+        } else {
+          // NO_YIELD strategy (stETH): use current deposited balance
+          currentBalance = Number(formatUnits(contract.data as bigint, assetDecimals));
+          console.log(`📊 NO_YIELD STRATEGY [${symbol}]:`, {
+            rawContractData: contract.data.toString(),
+            formattedBalance: currentBalance,
+            strategy: strategy === 1 ? 'NO_YIELD' : strategy === 0 ? 'NONE' : 'UNKNOWN'
+          });
+        }
+        
+        // Calculate yield: current balance - last recorded balance (this is the key insight!)
+        const yieldTokens = Math.max(0, currentBalance - lastBalance);
+        const yieldUSD = yieldTokens * priceUSD;
+        
+        console.log(`🧮 YIELD CALCULATION [${symbol}]:`, {
+          currentBalance,
+          lastBalance,
+          yieldTokens,
+          yieldIsPositive: yieldTokens > 0,
+          priceUSD,
+          yieldUSD,
+          calculationFormula: `max(0, ${currentBalance} - ${lastBalance}) * ${priceUSD}`,
+          strategy: strategy === 2 ? 'AAVE' : strategy === 1 ? 'NO_YIELD' : strategy === 0 ? 'NONE' : 'UNKNOWN',
+          aToken: strategy === 2 ? aToken : 'N/A'
+        });
+        
+        assetYields[symbol] = yieldUSD;
+        totalYieldUSD += yieldUSD;
+        
       } catch (error) {
-        console.error(`❌ Error calculating APR for ${symbol}:`, error);
-        aprResults[symbol] = 'N/A';
+        console.error(`❌ Error calculating yield for ${symbol}:`, error);
+        assetYields[symbol] = 0;
       }
     });
+
+    // Summary after yield calculation
+    console.log(`📊 YIELD CALCULATION SUMMARY:`, {
+      totalYieldUSD,
+      assetYields,
+      hasAnyYield: totalYieldUSD > 0,
+      assetsWithYield: Object.entries(assetYields).filter(([, yieldValue]) => yieldValue > 0).map(([symbol]) => symbol),
+      yieldDataReliable: totalYieldUSD > 100, // Reliable if total yield > $100
+      fallbackReason: totalYieldUSD <= 100 ? 'Yield too small for reliable calculation' : 'Yield-based calculation'
+    });
+
+    // Step 2: Choose distribution method based on yield data reliability
+    const useYieldBasedDistribution = totalYieldUSD > 100; // Only use yield-based if total yield > $100
+    
+    console.log(`🔄 DISTRIBUTION METHOD SELECTED:`, {
+      method: useYieldBasedDistribution ? 'Yield-based' : 'Stake-weighted fallback',
+      totalYieldUSD,
+      threshold: 100,
+      reason: useYieldBasedDistribution ? 'Sufficient yield data' : 'Yield data too small/unreliable'
+    });
+
+    if (useYieldBasedDistribution) {
+      // ✅ YIELD-BASED DISTRIBUTION (V7 Protocol Standard)
+      Object.entries(assetYields).forEach(([symbol, assetYieldUSD]) => {
+        const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
+        
+        if (!rateData?.data || !Array.isArray(rateData.data) || assetYieldUSD <= 0) {
+          aprResults[symbol] = 'N/A';
+          return;
+        }
+
+        try {
+          const [, , totalVirtualDeposited] = rateData.data;
+          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
+          
+          if (totalVirtual > 0 && totalDailyEmissions > 0) {
+            const assetRewardShare = (assetYieldUSD / totalYieldUSD) * totalDailyEmissions;
+            const annualRewards = assetRewardShare * 365;
+            const aprPercentage = Math.min((annualRewards / totalVirtual) * 100, 1000);
+            
+            aprResults[symbol] = aprPercentage > 0.01 ? `${aprPercentage.toFixed(2)}%` : 'N/A';
+            
+            console.log(`✅ YIELD-BASED APR [${symbol}]:`, {
+              yieldShare: (assetYieldUSD / totalYieldUSD * 100).toFixed(2) + '%',
+              dailyRewards: assetRewardShare.toFixed(2),
+              finalAPR: aprResults[symbol]
+            });
+          } else {
+            aprResults[symbol] = 'N/A';
+          }
+        } catch (error) {
+          console.error(`❌ Error in yield-based calculation for ${symbol}:`, error);
+          aprResults[symbol] = 'N/A';
+        }
+      });
+    } else {
+      // 🔄 STAKE-WEIGHTED FALLBACK DISTRIBUTION
+      // Calculate total virtual stake across all pools for proportional distribution
+      let totalVirtualStakeAcrossPools = 0;
+      const virtualStakeByAsset: Record<string, number> = {};
+      
+      configuredAssets.forEach((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
+        
+        if (rateData?.data && Array.isArray(rateData.data)) {
+          const [, , totalVirtualDeposited] = rateData.data;
+          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, 18));
+          virtualStakeByAsset[symbol] = totalVirtual;
+          totalVirtualStakeAcrossPools += totalVirtual;
+        } else {
+          virtualStakeByAsset[symbol] = 0;
+        }
+      });
+      
+      console.log(`📊 STAKE-WEIGHTED DISTRIBUTION DATA:`, {
+        totalVirtualStakeAcrossPools,
+        virtualStakeByAsset,
+        totalDailyEmissions
+      });
+      
+      // Distribute rewards proportionally based on virtual stake
+      Object.entries(virtualStakeByAsset).forEach(([symbol, virtualStake]) => {
+        try {
+          if (virtualStake > 0 && totalVirtualStakeAcrossPools > 0 && totalDailyEmissions > 0) {
+            const stakeShare = virtualStake / totalVirtualStakeAcrossPools;
+            const assetDailyRewards = stakeShare * totalDailyEmissions;
+            const annualRewards = assetDailyRewards * 365;
+            const aprPercentage = (annualRewards / virtualStake) * 100;
+            
+            // Apply reasonable caps for this fallback method
+            const cappedAPR = Math.min(aprPercentage, 50); // Lower cap for fallback method
+            
+            aprResults[symbol] = cappedAPR > 0.01 ? `${cappedAPR.toFixed(2)}%` : 'N/A';
+            
+            console.log(`✅ STAKE-WEIGHTED APR [${symbol}]:`, {
+              virtualStake,
+              stakeShare: (stakeShare * 100).toFixed(2) + '%',
+              dailyRewards: assetDailyRewards.toFixed(2),
+              rawAPR: aprPercentage.toFixed(2) + '%',
+              cappedAPR: aprResults[symbol],
+              method: 'Stake-weighted fallback'
+            });
+          } else {
+            aprResults[symbol] = 'N/A';
+            console.log(`❌ NO STAKE DATA [${symbol}]:`, { virtualStake, totalVirtualStakeAcrossPools });
+          }
+        } catch (error) {
+          console.error(`❌ Error in stake-weighted calculation for ${symbol}:`, error);
+          aprResults[symbol] = 'N/A';
+        }
+      });
+    }
 
     return aprResults;
   }, [
     networkEnvironment,
     contractData,
     rewardPoolRateData,
-    configuredAssets
+    configuredAssets,
+    dailyEmissionsResult,
+    rewardPoolV2Address,
+    distributorV2Address,
+    distributorPoolResults,
+    aTokenBalanceResults,
+    aTokenBalanceContracts
   ]);
 
   // Generate asset pool data dynamically
@@ -458,28 +797,44 @@ export function useCapitalPoolData(): CapitalPoolData {
     calculateV7APR
   ]);
 
-  // Create refetch functions (now using dynamic system)
+  // Create refetch functions (now using dynamic system with yield tracking)
   const refetchAsset = useCallback(() => {
-    // Refetch both deposited amounts and reward rates for all assets
-    // (batch refetch is more efficient than individual asset refetch)
+    // Refetch all contract data needed for proper APR calculation
     refetchDeposits();
     refetchRewardRates();
-  }, [refetchDeposits, refetchRewardRates]);
+    refetchDailyEmissions();
+    refetchDistributorPools();
+    refetchATokenBalances();
+  }, [refetchDeposits, refetchRewardRates, refetchDailyEmissions, refetchDistributorPools, refetchATokenBalances]);
 
   const refetchRewards = useCallback(() => {
-    // Refetch all reward pool rate data
+    // Refetch all reward-related data including yield tracking
     refetchRewardRates();
-  }, [refetchRewardRates]);
+    refetchDailyEmissions();
+    refetchDistributorPools();
+    refetchATokenBalances();
+  }, [refetchRewardRates, refetchDailyEmissions, refetchDistributorPools, refetchATokenBalances]);
 
   const refetchAll = useCallback(() => {
     // Refetch all contract data in one batch
     refetchDeposits();
     refetchRewardRates();
-  }, [refetchDeposits, refetchRewardRates]);
+    refetchDailyEmissions();
+    refetchDistributorPools();
+    refetchATokenBalances();
+  }, [refetchDeposits, refetchRewardRates, refetchDailyEmissions, refetchDistributorPools, refetchATokenBalances]);
+
+  // Extract daily MOR emissions for external use
+  const dailyMOREmissions = useMemo(() => {
+    return dailyEmissionsResult?.[0]?.status === 'success' 
+      ? Number(formatUnits(dailyEmissionsResult[0].result as bigint, 18))
+      : null;
+  }, [dailyEmissionsResult]);
 
   return {
     assets: assetsData,
     networkEnvironment,
+    dailyMOREmissions, // Expose real daily emissions
     refetch: {
       refetchAsset: () => refetchAsset(), // Maintain backward compatibility (now batched)
       rewardPoolData: refetchRewards,
