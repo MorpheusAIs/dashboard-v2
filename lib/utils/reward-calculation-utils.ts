@@ -40,18 +40,21 @@ export interface UserRateData {
 export function calculateBaseRewards(
   depositAmount: string,
   currentPoolRate: bigint,
-  userRate: bigint = BigInt(0) // 0 for new deposits
+  userRate: bigint = BigInt(0), // 0 for new deposits
+  tokenDecimals: number = 18 // Add decimals parameter, default to 18 for backward compatibility
 ): bigint {
   try {
     if (process.env.NODE_ENV !== 'production') {
       console.group('💰 [Rewards Debug] Base Rewards Calculation');
       console.log('Deposit Amount (string):', depositAmount);
+      console.log('Token Decimals:', tokenDecimals);
       console.log('Current Pool Rate:', currentPoolRate.toString());
       console.log('User Rate:', userRate.toString());
     }
 
-    // Parse deposit amount to wei (18 decimals)
-    const depositAmountWei = parseUnits(depositAmount, 18);
+
+    // Parse deposit amount with correct decimals for the token
+    const depositAmountWei = parseUnits(depositAmount, tokenDecimals);
     
     // Calculate rate difference (currentPoolRate - userRate)
     const rateDiff = currentPoolRate - userRate;
@@ -135,7 +138,8 @@ export function calculateEstimatedRewards(
   depositAmount: string,
   currentPoolRate: bigint,
   powerFactorString: string,
-  lockDurationYears: number = 1
+  lockDurationYears: number = 1,
+  tokenDecimals: number = 18 // Add decimals parameter
 ): {
   baseRewards: bigint;
   finalRewards: bigint;
@@ -177,7 +181,7 @@ export function calculateEstimatedRewards(
     }
 
     // Step 1: Calculate base rewards (for new deposits, userRate = 0)
-    const baseRewards = calculateBaseRewards(depositAmount, currentPoolRate, BigInt(0));
+    const baseRewards = calculateBaseRewards(depositAmount, currentPoolRate, BigInt(0), tokenDecimals);
     
     // Step 2: Apply power factor
     const finalRewards = applyPowerFactor(baseRewards, powerFactorString);

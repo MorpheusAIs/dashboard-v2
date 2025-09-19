@@ -43,9 +43,6 @@ import {
   type AssetContractInfo
 } from "./constants/asset-config";
 
-// Import terminal debug utility
-import { terminalLog } from "@/lib/utils/terminal-debug";
-import { useWBTCMinimumCheck } from "@/lib/utils/contract-debug";
 
 
 
@@ -292,11 +289,6 @@ export function DepositModal() {
     enabled: !!amount && parseFloat(amount) > 0 && powerFactor.currentResult.isValid,
   });
 
-  // 🚨 DEBUG: Check wBTC minimum deposit requirement
-  useWBTCMinimumCheck(
-    selectedAsset === 'wBTC' ? poolContractAddress : undefined, 
-    selectedAsset === 'wBTC' ? l1ChainId : undefined
-  );
 
   // Debug hook initialization
   // useEffect(() => {
@@ -419,64 +411,26 @@ export function DepositModal() {
       const assetInfo = availableAssets.find(asset => asset.metadata.symbol === selectedAsset);
       const decimals = assetInfo?.metadata.decimals || 18;
       
-      // 🚨 DEBUG: Amount processing for all assets
-      if (selectedAsset === 'wBTC') {
-        // wBTC: Log to terminal (easier to see)
-        terminalLog.group('WBTC Amount Processing', {
-          selectedAsset,
-          rawAmount: amount,
-          amountType: typeof amount,
-          amountLength: amount.length,
-          decimals,
-          isValidNumber: !isNaN(Number(amount)),
-          numberValue: Number(amount),
-          numberPrecision: Number.isSafeInteger(Number(amount)),
-          maxSafeInteger: Number.MAX_SAFE_INTEGER,
-          isPotentialOverflow: Number(amount) >= Number.MAX_SAFE_INTEGER / 1000
-        });
-        
-        const result = parseUnits(amount, decimals);
-        
-        terminalLog.warn('parseUnits Result', {
-          selectedAsset,
-          input: amount,
-          decimals,
-          result: result.toString(),
-          resultHex: '0x' + result.toString(16),
-          isMaxSafeInteger: result.toString() === Number.MAX_SAFE_INTEGER.toString(),
-          PROBLEM_DETECTED: result.toString() === '9007199254740992',
-          expectedFor0001: '10000'
-        });
-        
-        if (result.toString() === '9007199254740992') {
-          terminalLog.error('🚨🚨🚨 PRECISION OVERFLOW DETECTED! 🚨🚨🚨');
-        }
-        
-        terminalLog.groupEnd();
-        
-        return result;
-      } else {
-        // Other assets: Log to console.debug for comparison
-        console.debug(`🔍 [${selectedAsset}] Amount Processing:`, {
-          selectedAsset,
-          rawAmount: amount,
-          decimals,
-          numberValue: Number(amount),
-          expectedGasFee: 'NORMAL ($2-5)'
-        });
-        
-        const result = parseUnits(amount, decimals);
-        
-        console.debug(`🔍 [${selectedAsset}] parseUnits Result:`, {
-          selectedAsset,
-          input: amount,
-          decimals,
-          result: result.toString(),
-          resultHex: '0x' + result.toString(16)
-        });
-        
-        return result;
-      }
+      // Log amount processing for debugging
+      console.debug(`🔍 [${selectedAsset}] Amount Processing:`, {
+        selectedAsset,
+        rawAmount: amount,
+        decimals,
+        numberValue: Number(amount),
+        expectedGasFee: 'NORMAL ($2-5)'
+      });
+
+      const result = parseUnits(amount, decimals);
+
+      console.debug(`🔍 [${selectedAsset}] parseUnits Result:`, {
+        selectedAsset,
+        input: amount,
+        decimals,
+        result: result.toString(),
+        resultHex: '0x' + result.toString(16)
+      });
+
+      return result;
     } catch (error) { 
       console.error('🐛 [DEPOSIT DEBUG] parseUnits error:', {
         selectedAsset,
@@ -673,13 +627,16 @@ export function DepositModal() {
     return numValue >= minAllowed && numValue <= maxAllowed;
   }, []);
 
-  // Handle lock value changes - allow typing, validate on submission
+  // Handle lock value changes with validation
   const handleLockValueChange = useCallback((value: string) => {
     if (value === '' || /^\d+$/.test(value)) {
-      // Allow any valid numeric input, validate on form submission instead
-      setLockValue(value);
+      // Check if the value is within limits for the current unit
+      if (value === '' || validateLockValue(value, lockUnit)) {
+        setLockValue(value);
+      }
+      // If invalid, don't update the state (effectively prevents the input)
     }
-  }, []);
+  }, [lockUnit, validateLockValue]);
 
   // Handle lock unit changes with value validation
   const handleLockUnitChange = useCallback((unit: TimeUnit) => {
@@ -700,23 +657,15 @@ export function DepositModal() {
 
   // Validation - separate lock period validation from other validations
   const lockPeriodError = useMemo(() => {
-    // Check if lock period meets minimum requirements
+    // Check if new lock period would be shorter than existing position
     if (lockValue && parseInt(lockValue, 10) > 0) {
-      const numValue = parseInt(lockValue, 10);
-      const minAllowed = getMinAllowedValue(lockUnit);
-
-      // Check minimum lock period for new deposits
-      if (numValue < minAllowed) {
-        return `Minimum lock period is ${minAllowed} ${lockUnit}. Please enter a value of ${minAllowed} or greater.`;
-      }
-
       const currentTimestamp = Math.floor(Date.now() / 1000);
       const lockDurationSeconds = durationToSeconds(lockValue, lockUnit);
       const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDurationSeconds;
-
+      
       // Get existing lock end timestamp for selected asset - Using dynamic assets system
       const existingLockEnd = assets[selectedAsset]?.claimUnlockTimestamp;
-
+      
       if (existingLockEnd && existingLockEnd > BigInt(0) && proposedClaimLockEnd < existingLockEnd) {
         const existingDate = new Date(Number(existingLockEnd) * 1000);
         return `Lock period too short. Your existing ${selectedAsset} position is locked until ${existingDate.toLocaleDateString()}. New deposits must have a lock period that ends on or after this date.`;
@@ -811,44 +760,16 @@ export function DepositModal() {
           existingDate: existingLockEnd ? new Date(Number(existingLockEnd) * 1000).toISOString() : 'none'
         });
         
-        // 🚨 DEBUG: Log exact values before deposit call for comparison
-        if (selectedAsset === 'wBTC') {
-          // wBTC: Terminal logs with detailed debugging
-          const assetData = assets[selectedAsset];
-          const minimalStake = assetData?.poolData?.minimalStake;
-          
-          terminalLog.group('WBTC Pre-Deposit Values', {
-            selectedAsset,
-            amount,
-            amountString: String(amount),
-            amountType: typeof amount,
-            amountLength: amount?.length,
-            amountParsed: amountBigInt.toString(),
-            amountHex: '0x' + amountBigInt.toString(16),
-            lockDuration: lockDuration.toString(),
-            lockDurationHex: '0x' + lockDuration.toString(16),
-            jsNumberValue: Number(amount),
-            isSafeInteger: Number.isSafeInteger(Number(amount)),
-            contractMinimum: minimalStake ? {
-              minimalStake: minimalStake.toString(),
-              minimalStakeHex: '0x' + minimalStake.toString(16),
-              amountMeetsMinimum: amountBigInt >= minimalStake,
-              difference: minimalStake ? (minimalStake - amountBigInt).toString() : 'N/A'
-            } : 'No minimal stake data available'
-          });
-          terminalLog.groupEnd();
-        } else {
-          // Other assets: Console debug for comparison
-          console.debug(`🔍 [${selectedAsset}] Pre-Deposit Values:`, {
-            selectedAsset,
-            amount,
-            amountParsed: amountBigInt.toString(),
-            amountHex: '0x' + amountBigInt.toString(16),
-            lockDuration: lockDuration.toString(),
-            expectedGasFee: 'NORMAL ($2-5)',
-            assetDecimals: availableAssets.find(a => a.metadata.symbol === selectedAsset)?.metadata.decimals
-          });
-        }
+        // Log pre-deposit values for debugging
+        console.debug(`🔍 [${selectedAsset}] Pre-Deposit Values:`, {
+          selectedAsset,
+          amount,
+          amountParsed: amountBigInt.toString(),
+          amountHex: '0x' + amountBigInt.toString(16),
+          lockDuration: lockDuration.toString(),
+          expectedGasFee: 'NORMAL ($2-5)',
+          assetDecimals: availableAssets.find(a => a.metadata.symbol === selectedAsset)?.metadata.decimals
+        });
         
         await deposit(selectedAsset, amount, lockDuration);
       }
@@ -883,47 +804,8 @@ export function DepositModal() {
       const assetInfo = availableAssets.find(asset => asset.metadata.symbol === selectedAsset);
       const decimals = assetInfo?.metadata.decimals || 18;
       
-      // 🚨 DEBUG: Log max amount calculation for comparison
-      if (selectedAsset === 'wBTC') {
-        // wBTC: Terminal logs
-        terminalLog.group('WBTC Max Amount Clicked', {
-          selectedAsset,
-          balanceBigInt: currentAssetBalance.balance.toString(),
-          balanceHex: '0x' + currentAssetBalance.balance.toString(16),
-          decimals
-        });
-      } else {
-        // Other assets: Console debug
-        console.debug(`🔍 [${selectedAsset}] Max Amount Clicked:`, {
-          selectedAsset,
-          balanceBigInt: currentAssetBalance.balance.toString(),
-          decimals,
-          expectedGasFee: 'NORMAL ($2-5)'
-        });
-      }
-      
       // Use the raw amount with full precision - don't round or truncate
       const maxAmount = formatUnits(currentAssetBalance.balance, decimals);
-      
-      if (selectedAsset === 'wBTC') {
-        terminalLog.warn('formatUnits Result', {
-          selectedAsset,
-          maxAmount,
-          maxAmountType: typeof maxAmount,
-          maxAmountLength: maxAmount.length,
-          numberValue: Number(maxAmount),
-          isPotentialProblem: Number(maxAmount) >= Number.MAX_SAFE_INTEGER / 1000,
-          OVERFLOW_CHECK: maxAmount.includes('e+') ? 'SCIENTIFIC_NOTATION_DETECTED!' : 'OK'
-        });
-        terminalLog.groupEnd();
-      } else {
-        console.debug(`🔍 [${selectedAsset}] formatUnits Result:`, {
-          selectedAsset,
-          maxAmount,
-          numberValue: Number(maxAmount),
-          expectedGasFee: 'NORMAL ($2-5)'
-        });
-      }
       
       setAmount(maxAmount);
       setFormError(null); // Clear form error when max amount is selected
@@ -1077,28 +959,14 @@ export function DepositModal() {
                   onChange={(e) => {
                     const value = e.target.value;
                     
-                    // 🚨 DEBUG: Log input changes for comparison
+                    // Log input changes for debugging
                     if (value) {
-                      if (selectedAsset === 'wBTC') {
-                        // wBTC: Terminal logs
-                        terminalLog.info('WBTC Input Change', {
-                          selectedAsset,
-                          rawValue: value,
-                          valueType: typeof value,
-                          valueLength: value.length,
-                          numberValue: Number(value),
-                          isSafeInteger: Number.isSafeInteger(Number(value)),
-                          isPotentialProblem: Number(value) >= Number.MAX_SAFE_INTEGER / 1000
-                        });
-                      } else {
-                        // Other assets: Console debug
-                        console.debug(`🔍 [${selectedAsset}] Input Change:`, {
-                          selectedAsset,
-                          rawValue: value,
-                          numberValue: Number(value),
-                          expectedGasFee: 'NORMAL ($2-5)'
-                        });
-                      }
+                      console.debug(`🔍 [${selectedAsset}] Input Change:`, {
+                        selectedAsset,
+                        rawValue: value,
+                        numberValue: Number(value),
+                        expectedGasFee: 'NORMAL ($2-5)'
+                      });
                     }
                     
                     if (value === '' || /^\d*\.?\d*$/.test(value)) {

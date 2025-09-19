@@ -41,6 +41,7 @@ import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { useReferralData } from "@/hooks/use-referral-data";
 import { useAssetContractData } from "@/hooks/use-asset-contract-data";
 
+
 // Static ABI imports as fallbacks - keep these for reliability
 import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
 import DepositPoolAbi from "@/app/abi/DepositPool.json"; // V2 ABI - Now using!
@@ -2112,7 +2113,25 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Parse amount with correct decimals for the asset
+    // Log deposit processing for debugging
+    console.debug(`🔍 [${asset}] Context Deposit Called:`, {
+      asset,
+      amountString,
+      decimals: assetInfo.metadata.decimals,
+      numberValue: Number(amountString),
+      expectedGasFee: 'NORMAL ($2-5)'
+    });
+
     const amountBigInt = parseUnits(amountString, assetInfo.metadata.decimals);
+
+    console.debug(`🔍 [${asset}] Context parseUnits:`, {
+      asset,
+      input: amountString,
+      decimals: assetInfo.metadata.decimals,
+      result: amountBigInt.toString(),
+      resultHex: '0x' + amountBigInt.toString(16)
+    });
+    
     if (amountBigInt <= BigInt(0)) throw new Error("Invalid deposit amount");
     
     // Check if deposit pool is available (not zero address)
@@ -2162,6 +2181,21 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         claimLockEnd: claimLockEnd.toString(),
         claimLockEndDate: new Date(Number(claimLockEnd) * 1000).toISOString(),
         asset
+      });
+      
+      // Log transaction arguments for debugging
+      console.debug(`🔍 [${asset}] Final Transaction:`, {
+        asset,
+        contractAddress: assetData.config.depositPoolAddress,
+        functionName: 'stake',
+        rewardPoolIndex: V2_REWARD_POOL_INDEX.toString(),
+        amount: amountBigInt.toString(),
+        amountHex: '0x' + amountBigInt.toString(16),
+        claimLockEnd: claimLockEnd.toString(),
+        originalAmountString: amountString,
+        assetDecimals: assetInfo.metadata.decimals,
+        expectedGasFee: 'NORMAL ($2-5)',
+        contractAddress_full: assetData.config.depositPoolAddress
       });
       
       return stakeAsync({
