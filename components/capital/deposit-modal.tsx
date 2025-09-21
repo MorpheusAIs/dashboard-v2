@@ -264,8 +264,8 @@ export function DepositModal() {
   // Form state
   const [amount, setAmount] = useState("");
   const [referrerAddress, setReferrerAddress] = useState("");
-  const [lockValue, setLockValue] = useState("3");
-  const [lockUnit, setLockUnit] = useState<TimeUnit>("months");
+  const [lockValue, setLockValue] = useState("90");
+  const [lockUnit, setLockUnit] = useState<TimeUnit>("days");
   const [formError, setFormError] = useState<string | null>(null);
   const [referrerAddressError, setReferrerAddressError] = useState<string | null>(null);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
@@ -916,8 +916,8 @@ export function DepositModal() {
     if (!isOpen) {
       setAmount("");
       setReferrerAddress("");
-      setLockValue("3");
-      setLockUnit("months");
+      setLockValue("90");
+      setLockUnit("days");
       setFormError(null);
       setReferrerAddressError(null);
       setCurrentlyNeedsApproval(false);
@@ -945,7 +945,7 @@ export function DepositModal() {
           <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">Deposit Capital</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Deposit an asset to start earning MOR rewards. Power factor activates after 6 months and reaches maximum x9.7 at 6 years.
+              Deposit an asset to start earning MOR rewards. Power factor activates after ~7-8 months and reaches maximum x10.7 at ~7 years from now.
             </DialogDescription>
           </DialogHeader>
 
@@ -1171,7 +1171,7 @@ export function DepositModal() {
             <div className="space-y-2">
               <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
               <p className="text-xs text-gray-400">
-                Minimum 3 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x10.7 at 6 years, and remains capped at x10.7 for longer periods
+                Minimum 90 days required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after ~7-8 months, scales up to x10.7 at 10 years, and remains capped at x10.7 for longer periods
               </p>
 
               <div className="flex gap-2">

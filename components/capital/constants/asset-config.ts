@@ -180,6 +180,7 @@ export const assetOptions = [
 ];
 
 export const timeLockOptions = [
+  { value: "days", label: "Days" },
   { value: "months", label: "Months" },
   { value: "years", label: "Years" },
 ];

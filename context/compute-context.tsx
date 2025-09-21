@@ -101,13 +101,11 @@ const feeToPercentage = (fee: string): number => {
     // For our specific use case, we know the fee "9000000000000000000000000" should be 90%
     // Hard-code the return value based on the known pattern
     if (fee === "9000000000000000000000000") {
-      // console.log("Recognized standard fee value - returning 90%");
       return 90;
     }
     
     // For any other fee value, use this calculation 
     // (though all our current data uses the standard 90% fee)
-    console.log('Converting custom fee to percentage:', fee);
     const feeBigInt = BigInt(fee);
     const divisor = BigInt('1000000000000000000000000000'); // 10^27
     const percentage = Number((feeBigInt * BigInt(100)) / divisor);
@@ -402,7 +400,6 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
         }
       ];
       
-      console.log('Setting fallback subnets due to error:', fallbackSubnets);
       setRawSubnets(fallbackSubnets);
       
       // Set fallback counters as well

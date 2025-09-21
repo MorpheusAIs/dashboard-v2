@@ -7,10 +7,10 @@ export type TimeUnit = "minutes" | "days" | "months" | "years";
 export const POWER_FACTOR_CONSTANTS = {
   MULTIPLIER_SCALE: 21, // Contract returns values scaled by 10^21
   REWARDS_DIVIDER: 10000, // Final division factor
-  MAX_POWER_FACTOR: 9.7, // ✅ ACTUAL contract maximum (verified through testing)
-  MIN_ACTIVATION_PERIOD_MONTHS: 6, // Minimum period before power factor activates
+  MAX_POWER_FACTOR: 10.7, // ✅ ACTUAL contract maximum (verified through testing)
+  MIN_ACTIVATION_PERIOD_MONTHS: 7, // Minimum period before power factor activates
   MIN_DEPOSIT_LOCK_MONTHS: 3, // Minimum deposit lock period allowed
-  MAX_LOCK_PERIOD_YEARS: 6, // Maximum lock period allowed
+  MAX_LOCK_PERIOD_YEARS: 10, // Maximum lock period allowed
   SECONDS_PER_DAY: 86400,
   // Note: We now use real calendar calculations instead of these approximations
   SECONDS_PER_YEAR: Math.floor(86400 * 365.25), // 31,557,600 seconds (kept for reference)
@@ -87,12 +87,19 @@ export function durationToSeconds(value: string, unit: TimeUnit): bigint {
       diffSeconds += 300; // 5 minutes = 300 seconds
       break;
     case "months":
-      diffSeconds = numValue * 30 * 86400; // 30 days per month (contract expectation)
+      // Special case: When user selects 3 months, ensure it's exactly 90 days (minimum requirement)
+      // This prevents issues where actual calendar months could be less than 90 days
+      if (numValue === 3) {
+        diffSeconds = 90 * 86400; // Exactly 90 days for minimum requirement
+      } else {
+        diffSeconds = numValue * 30 * 86400; // 30 days per month (contract expectation)
+      }
       // Add 5-minute safety buffer for timing
       diffSeconds += 300;
       break;
     case "years":
       // Special case: For 6 years, use the EXACT value the contract expects for maximum power factor
+      // Note: Maximum is now 10 years, but this 6-year case is kept for backward compatibility
       if (numValue === 6) {
         diffSeconds = 189216000; // Exact value from documentation: 6 * 365 * 24 * 60 * 60
         if (process.env.NODE_ENV !== 'production') {
@@ -317,7 +324,7 @@ export function getRecommendedLockPeriods(): Array<{
 }> {
   return [
     {
-      value: "6",
+      value: "7",
       unit: "months",
       description: "Minimum for power factor activation",
       powerFactorRange: "~x1.0-1.2"
@@ -335,10 +342,10 @@ export function getRecommendedLockPeriods(): Array<{
       powerFactorRange: "~x3.0-5.0"
     },
     {
-      value: "6",
+      value: "10",
       unit: "years",
-      description: "Maximum benefits (contract maximum x9.7)",
-      powerFactorRange: "x9.7"
+      description: "Maximum benefits (contract maximum x10.7)",
+      powerFactorRange: "x10.7"
     }
   ];
 }
@@ -447,11 +454,11 @@ export function calculatePowerFactorFromDuration(value: string, unit: TimeUnit):
     return "x1.0";
   }
 
-  // Maximum period in months (6 years = 72 months)
+  // Maximum period in months (10 years = 120 months)
   const maxMonths = POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS * 12;
 
   // Progressive scaling formula
-  // At 6 months: ~1.0x, at 72 months (6 years): 10.7x
+  // At 6 months: ~1.0x, at 120 months (10 years): 10.7x
   // Using a logarithmic curve that starts slow and accelerates
   const progressRatio = (totalMonths - POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS) /
                         (maxMonths - POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS);

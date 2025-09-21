@@ -439,7 +439,7 @@ export function ClaimMorRewardsModal() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
                     <p className="text-xs text-gray-400">
-                      Minimum 3 months required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x10.7 at 6 years, and remains capped at x10.7 for longer periods
+                      Minimum 90 days required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x10.7 at 10 years, and remains capped at x10.7 for longer periods
                     </p>
 
                     <div className="flex gap-2">
