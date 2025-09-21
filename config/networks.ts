@@ -61,11 +61,7 @@ export interface ChainConfig extends Omit<Chain, 'rpcUrls'> {
 
 // Mainnet RPC configurations for better reliability
 const mainnetRpcUrls = [
-  'https://rpc.mevblocker.io',
-  'https://eth-pokt.nodies.app',
-  'https://eth.drpc.org',
-  'https://rpc.payload.de',
-  'https://eth.merkle.io'
+  'https://eth-mainnet.g.alchemy.com/v2/ZuAAStm6GwtaIo5vTSy9a'
 ];
 
 // Helper to ensure string arrays for RPC URLs
