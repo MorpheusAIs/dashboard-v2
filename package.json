@@ -48,6 +48,7 @@
     "@types/mime-types": "^2.1.4",
     "@types/react-datepicker": "^6.2.0",
     "@uniswap/widgets": "^2.59.0",
+    "@vercel/analytics": "^1.5.0",
     "@wagmi/core": "^2.16.3",
     "@walletconnect/core": "^2.17.5",
     "@walletconnect/utils": "^2.17.5",
