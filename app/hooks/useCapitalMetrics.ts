@@ -151,6 +151,11 @@ export function useCapitalMetrics(): CapitalMetrics {
   const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
   const [retryAttempts, setRetryAttempts] = useState<number>(0);
 
+  // State for daily emissions from server-side API
+  const [dailyEmissions, setDailyEmissions] = useState<number | null>(null);
+  const [isLoadingDailyEmissions, setIsLoadingDailyEmissions] = useState<boolean>(false);
+  const [dailyEmissionsError, setDailyEmissionsError] = useState<string | null>(null);
+
 
   // Fetch active stakers count from Dune API with caching and retry logic
   useEffect(() => {
@@ -246,6 +251,60 @@ export function useCapitalMetrics(): CapitalMetrics {
     return () => clearTimeout(timeoutId);
   }, [poolData.networkEnvironment]);
 
+  // Fetch daily emissions from server-side API
+  useEffect(() => {
+    // Skip if running on server (SSR)
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    // Skip if no network environment is set
+    if (!poolData.networkEnvironment) {
+      return;
+    }
+
+    async function fetchDailyEmissions(): Promise<void> {
+      setIsLoadingDailyEmissions(true);
+      setDailyEmissionsError(null);
+
+      try {
+        console.log(`💰 [FRONTEND] Fetching daily emissions for ${poolData.networkEnvironment} from server API`);
+
+        const response = await fetch(`/api/daily-emissions?networkEnv=${poolData.networkEnvironment}`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success && typeof data.dailyEmissions === 'number') {
+          setDailyEmissions(data.dailyEmissions);
+          setDailyEmissionsError(null);
+          console.log(`✅ [FRONTEND] Daily emissions fetched and set:`, data.dailyEmissions);
+        } else {
+          console.log('❌ [FRONTEND] API returned failure:', data.error || 'Invalid response format');
+          throw new Error(data.error || 'Invalid response format');
+        }
+      } catch (error) {
+        console.error(`💥 [FRONTEND] Error fetching daily emissions:`);
+        console.error('  - Error type:', typeof error);
+        console.error('  - Error message:', error instanceof Error ? error.message : String(error));
+        console.error('  - Network environment:', poolData.networkEnvironment);
+
+        setDailyEmissionsError('Failed to fetch daily emissions data');
+        setDailyEmissions(null);
+      } finally {
+        setIsLoadingDailyEmissions(false);
+      }
+    }
+
+    // Add a small delay to ensure everything is properly initialized
+    const timeoutId = setTimeout(() => fetchDailyEmissions(), 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [poolData.networkEnvironment]);
+
   // Helper function to safely parse pool amounts
   const parsePoolAmount = (amountStr: string): number => {
     try {
@@ -285,9 +344,9 @@ export function useCapitalMetrics(): CapitalMetrics {
   // Calculate core metrics from live pool data (excluding active stakers to avoid blocking)
   const coreMetrics = useMemo(() => {
     // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
-    const isLoading = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading) || isPriceUpdating;
+    const isLoading = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading) || isPriceUpdating || isLoadingDailyEmissions;
     // Core metrics errors (DON'T include active stakers errors - they're non-critical)
-    const hasError = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.error);
+    const hasError = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.error) || !!dailyEmissionsError;
 
     // If still loading, show loading state instead of zeros
     if (isLoading) {
@@ -413,23 +472,31 @@ export function useCapitalMetrics(): CapitalMetrics {
       avgApy = weightedApySum;
     }
 
-    // Calculate LIVE daily MOR emissions from actual contract data (both networks) dynamically
-    // ✅ REAL daily MOR emissions from RewardPool.getPeriodRewards() contract call
+    // Calculate LIVE daily MOR emissions from server-side API (both networks) dynamically
+    // ✅ REAL daily MOR emissions from RewardPool.getPeriodRewards() contract call via API
     const currentDailyRewardMOR = (() => {
-      // Use REAL daily emissions from the pool data hook instead of backwards calculation
-      const realDailyEmissions = poolData.dailyMOREmissions;
-      
+      // Use REAL daily emissions from server-side API instead of direct contract call
+      const realDailyEmissions = dailyEmissions;
+
       console.log('💰 DAILY EMISSIONS METRIC DATA:', {
         realDailyEmissions,
         hasData: realDailyEmissions !== null,
-        source: 'RewardPool.getPeriodRewards()',
-        networkEnvironment: poolData.networkEnvironment
+        source: 'Server-side API (RewardPool.getPeriodRewards())',
+        networkEnvironment: poolData.networkEnvironment,
+        isLoading: isLoadingDailyEmissions,
+        error: dailyEmissionsError
       });
-      
+
       if (realDailyEmissions === null || realDailyEmissions <= 0) {
-        return "N/A";
+        if (isLoadingDailyEmissions) {
+          return "..."; // Show loading state
+        } else if (dailyEmissionsError) {
+          return "Error"; // Show error state
+        } else {
+          return "N/A"; // No data available
+        }
       }
-      
+
       // Format for display
       return realDailyEmissions < 1000
         ? realDailyEmissions.toFixed(0)
