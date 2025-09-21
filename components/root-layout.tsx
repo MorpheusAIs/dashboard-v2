@@ -53,7 +53,7 @@ export function RootLayoutContent({
 }) {
   // const pathname = usePathname()
   const chainId = useChainId()
-  const isTestnet = chainId === 421614 || chainId === 8453 || chainId === 11155111 // Arbitrum Sepolia or Base Sepolia or Sepolia
+  const isTestnet = chainId === 421614 || chainId === 11155111 // Arbitrum Sepolia or Sepolia
   // const pageInfo = getPageInfo(pathname)
 
   return (
