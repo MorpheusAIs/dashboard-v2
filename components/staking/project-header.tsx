@@ -197,14 +197,14 @@ export function ProjectHeader({
           <div className="flex items-start justify-between">
             <h1 className="text-2xl font-bold text-gray-100 mb-2">{name}</h1>
             
-            {showEditButton && builder && (
+            {/* {showEditButton && builder && (
               <button 
                 onClick={() => setIsEditModalOpen(true)}
                 className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2"
               >
                 Edit subnet
               </button>
-            )}
+            )} */}
           </div>
           
           <div className="flex items-center gap-4 mb-4">
