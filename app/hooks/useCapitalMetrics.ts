@@ -21,8 +21,16 @@ interface ActiveStakersCache {
   networkEnv: string;
 }
 
+// Cache for local active depositor adjustments
+interface LocalDepositorAdjustment {
+  networkEnv: string;
+  localIncrement: number; // How many we've locally added
+  timestamp: number;
+}
+
 const TVL_CACHE_KEY = 'morpheus_tvl_cache';
 const ACTIVE_STAKERS_CACHE_KEY = 'morpheus_active_stakers_cache';
+const LOCAL_DEPOSITOR_ADJUSTMENT_KEY = 'morpheus_local_depositor_adjustment';
 const CACHE_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_RETRY_ATTEMPTS = 3;
 
@@ -120,6 +128,49 @@ const setCachedActiveStakers = (cache: ActiveStakersCache): void => {
   }
 };
 
+// Local depositor adjustment cache management functions
+const getLocalDepositorAdjustment = (networkEnv: string): LocalDepositorAdjustment | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(LOCAL_DEPOSITOR_ADJUSTMENT_KEY);
+    if (!cached) return null;
+
+    const parsedCache: LocalDepositorAdjustment = JSON.parse(cached);
+    const now = Date.now();
+
+    // Check if cache is still valid (not expired) and for correct network
+    if (now - parsedCache.timestamp > CACHE_EXPIRY_MS || parsedCache.networkEnv !== networkEnv) {
+      localStorage.removeItem(LOCAL_DEPOSITOR_ADJUSTMENT_KEY);
+      return null;
+    }
+
+    return parsedCache;
+  } catch (error) {
+    console.warn('Error reading local depositor adjustment cache:', error);
+    return null;
+  }
+};
+
+const setLocalDepositorAdjustment = (cache: LocalDepositorAdjustment): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_DEPOSITOR_ADJUSTMENT_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Error saving local depositor adjustment cache:', error);
+  }
+};
+
+const incrementLocalDepositorCount = (networkEnv: string): void => {
+  const currentAdjustment = getLocalDepositorAdjustment(networkEnv);
+  const newAdjustment: LocalDepositorAdjustment = {
+    networkEnv,
+    localIncrement: (currentAdjustment?.localIncrement || 0) + 1,
+    timestamp: Date.now()
+  };
+  setLocalDepositorAdjustment(newAdjustment);
+  console.log(`🔄 [FRONTEND] Locally incremented active depositors count for ${networkEnv}: +1 (total local increment: ${newAdjustment.localIncrement})`);
+};
+
 export interface CapitalMetrics {
   totalValueLockedUSD: string;
   currentDailyRewardMOR: string;
@@ -134,6 +185,9 @@ export interface CapitalMetrics {
  * Uses live V2 contract data for both mainnet and testnet networks
  * Accounts for different reward timing (mainnet: daily, testnet: per-minute)
  */
+// Export the function for external use when user makes first deposit
+export { incrementLocalDepositorCount };
+
 export function useCapitalMetrics(): CapitalMetrics {
   const poolData = useCapitalPoolData();
 
@@ -324,17 +378,25 @@ export function useCapitalMetrics(): CapitalMetrics {
   const activeStakersDisplay = useMemo(() => {
     // For both testnet and mainnet, use Dune API data
     if (activeStakersCount !== null && activeStakersCount >= 0) {
-      return activeStakersCount.toString();
+      // Apply local adjustment for new depositors
+      const localAdjustment = getLocalDepositorAdjustment(poolData.networkEnvironment || 'mainnet');
+      const adjustedCount = activeStakersCount + (localAdjustment?.localIncrement || 0);
+
+      if (localAdjustment && localAdjustment.localIncrement > 0) {
+        console.log(`🔄 [FRONTEND] Applied local adjustment to active stakers: ${activeStakersCount} + ${localAdjustment.localIncrement} = ${adjustedCount}`);
+      }
+
+      return adjustedCount.toString();
     } else if (isLoadingActiveStakers) {
       // Show retry attempt info during loading if retries are happening
       return retryAttempts > 1 ? `... (${retryAttempts}/${MAX_RETRY_ATTEMPTS})` : "...";
     } else if (activeStakersError) {
       return "Error"; // Error state - only shown after all retries fail
     }
-    
+
     // Fallback if no network environment is set
     return "N/A";
-  }, [activeStakersCount, isLoadingActiveStakers, activeStakersError, retryAttempts]);
+  }, [activeStakersCount, isLoadingActiveStakers, activeStakersError, retryAttempts, poolData.networkEnvironment]);
 
   // Get supported assets for the current network
   const supportedAssets = useMemo(() => {
