@@ -851,6 +851,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const [lastHandledClaimHash, setLastHandledClaimHash] = useState<`0x${string}` | null>(null);
   const [lastHandledWithdrawHash, setLastHandledWithdrawHash] = useState<`0x${string}` | null>(null);
   const [lastHandledLockClaimHash, setLastHandledLockClaimHash] = useState<`0x${string}` | null>(null);
+  
+  // Track first-time depositor status for active depositor count increments
+  const [pendingFirstDeposit, setPendingFirstDeposit] = useState<boolean>(false);
 
   // Reset tracking when new transactions start
   useEffect(() => {
@@ -1007,7 +1010,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Action Functions (Update to close modal on success) --- 
   const handleTransaction = useCallback(async (
     txFunction: () => Promise<`0x${string}`>,
-    options: { loading: string; success: string; error: string; onSuccess?: () => void; skipClose?: boolean } // Add skipClose option
+    options: { loading: string; success: string; error: string; skipClose?: boolean }
   ) => {
     const toastId = options.loading; // Use loading message as ID
     
@@ -1526,6 +1529,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
 
+          // If this was a first deposit, increment the local active depositors count
+          if (pendingFirstDeposit) {
+            incrementLocalDepositorCount(networkEnv);
+            setPendingFirstDeposit(false); // Reset flag
+          }
+
           // Refetch legacy user data and rewards (these are general/MOR-related)
           refetchUserData();
           refetchUserReward();
@@ -1539,7 +1548,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           setLastHandledStakeHash(stakeHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
+  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId, pendingFirstDeposit, networkEnv]);
 
   useEffect(() => {
       if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHash) {
@@ -1663,6 +1672,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
       if (isStakeError && stakeError && stakeHash) {
           console.error("Stake transaction failed:", stakeError);
+          
+          // Reset first deposit flag on error
+          if (pendingFirstDeposit) {
+            setPendingFirstDeposit(false);
+          }
+          
           const errorMessage = (stakeError as BaseError)?.shortMessage || stakeError.message;
           const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, stakeHash) : null;
 
@@ -1680,7 +1695,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
       }
-  }, [isStakeError, stakeError, stakeHash, l1ChainId]);
+  }, [isStakeError, stakeError, stakeHash, l1ChainId, pendingFirstDeposit]);
 
   useEffect(() => {
       if (isClaimError && claimError && claimHash) {
@@ -2175,6 +2190,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
     // Check if user was previously a non-depositor (had 0 deposits across all assets)
     const wasNonDepositor = Object.values(assets).every(assetData => assetData.userDeposited <= BigInt(0));
+    
+    // Set flag for first deposit tracking
+    if (wasNonDepositor) {
+      setPendingFirstDeposit(true);
+    }
 
     await handleTransaction(() => {
       // Calculate timestamp right before transaction for maximum safety
@@ -2212,15 +2232,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }, {
       loading: `Requesting ${asset} deposit...`,
       success: `Successfully deposited ${amountString} ${asset}!`,
-      error: `${asset} deposit failed`,
-      onSuccess: () => {
-        // If user was previously a non-depositor, increment the local active depositors count
-        if (wasNonDepositor) {
-          incrementLocalDepositorCount(networkEnv);
-        }
-      }
+      error: `${asset} deposit failed`
     });
-  }, [stakeAsync, l1ChainId, networkEnv, assets, handleTransaction]);
+  }, [stakeAsync, l1ChainId, networkEnv, assets, handleTransaction, setPendingFirstDeposit]);
 
   // --- Generic Eligibility Checks (using assets structure) ---
   canWithdraw = useMemo(() => {
