@@ -23,8 +23,6 @@ export interface AssetPoolData {
 export interface CapitalPoolData {
   assets: Partial<Record<AssetSymbol, AssetPoolData>>;
   networkEnvironment: NetworkEnvironment;
-  // Real daily MOR emissions from RewardPool.getPeriodRewards()
-  dailyMOREmissions: number | null;
   // Refetch functions to trigger data refresh after user actions
   refetch: {
     refetchAsset: (symbol: AssetSymbol) => void;
@@ -254,28 +252,6 @@ export function useCapitalPoolData(): CapitalPoolData {
     },
   });
 
-  // Get daily MOR emissions from RewardPoolV2 for proper APR calculation
-  const now = Math.floor(Date.now() / 1000); // Current timestamp in seconds
-  const oneDayAgo = now - (24 * 60 * 60); // 24 hours ago
-  
-  const { 
-    data: dailyEmissionsResult, 
-    refetch: refetchDailyEmissions 
-  } = useContractReads({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    contracts: rewardPoolV2Address ? [{
-      address: rewardPoolV2Address,
-      abi: RewardPoolV2Abi,
-      functionName: 'getPeriodRewards',
-      args: [BigInt(0), BigInt(oneDayAgo), BigInt(now)], // Pool index 0 (Capital), last 24 hours
-      chainId: l1ChainId,
-    }] : [] as const,
-    allowFailure: true,
-    query: {
-      enabled: !!rewardPoolV2Address,
-      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
-    },
-  });
 
   // Create individual contract hooks for backward compatibility and refetch functions
   const contractHooks = useMemo(() => {
@@ -414,11 +390,10 @@ export function useCapitalPoolData(): CapitalPoolData {
 
   // ✅ REAL V7 Protocol APR Calculation using actual yield data from Distributor contract
   const calculateV7APR = useMemo(() => {
-    
-    // Get daily MOR emissions (total for Capital pool)
-    const totalDailyEmissions = dailyEmissionsResult?.[0]?.status === 'success' 
-      ? Number(formatUnits(dailyEmissionsResult[0].result as bigint, 18))
-      : 0;
+
+    // Note: Daily emissions are now fetched server-side via API endpoint
+    // This calculation now focuses only on APR calculation, not total emissions
+    const totalDailyEmissions = 0; // Placeholder - emissions fetched via API
 
     console.log('🔢 COMPREHENSIVE DEBUG - V7 APR CALCULATION:', {
       networkEnvironment,
@@ -450,11 +425,8 @@ export function useCapitalPoolData(): CapitalPoolData {
           error: r?.status === 'failure' ? r.error?.message : null
         })),
         dailyEmissions: {
-          status: dailyEmissionsResult?.[0]?.status,
-          hasResult: !!dailyEmissionsResult?.[0]?.result,
-          rawValue: dailyEmissionsResult?.[0]?.result?.toString(),
-          parsedValue: totalDailyEmissions,
-          error: dailyEmissionsResult?.[0]?.status === 'failure' ? dailyEmissionsResult[0].error?.message : null
+          note: 'Daily emissions now fetched via server-side API endpoint',
+          parsedValue: totalDailyEmissions
         }
       },
       contractCounts: {
@@ -719,7 +691,6 @@ export function useCapitalPoolData(): CapitalPoolData {
     contractData,
     rewardPoolRateData,
     configuredAssets,
-    dailyEmissionsResult,
     rewardPoolV2Address,
     distributorV2Address,
     distributorPoolResults,
@@ -876,39 +847,28 @@ export function useCapitalPoolData(): CapitalPoolData {
     // Refetch all contract data needed for proper APR calculation
     refetchDeposits();
     refetchRewardRates();
-    refetchDailyEmissions();
     refetchDistributorPools();
     refetchATokenBalances();
-  }, [refetchDeposits, refetchRewardRates, refetchDailyEmissions, refetchDistributorPools, refetchATokenBalances]);
+  }, [refetchDeposits, refetchRewardRates, refetchDistributorPools, refetchATokenBalances]);
 
   const refetchRewards = useCallback(() => {
     // Refetch all reward-related data including yield tracking
     refetchRewardRates();
-    refetchDailyEmissions();
     refetchDistributorPools();
     refetchATokenBalances();
-  }, [refetchRewardRates, refetchDailyEmissions, refetchDistributorPools, refetchATokenBalances]);
+  }, [refetchRewardRates, refetchDistributorPools, refetchATokenBalances]);
 
   const refetchAll = useCallback(() => {
     // Refetch all contract data in one batch
     refetchDeposits();
     refetchRewardRates();
-    refetchDailyEmissions();
     refetchDistributorPools();
     refetchATokenBalances();
-  }, [refetchDeposits, refetchRewardRates, refetchDailyEmissions, refetchDistributorPools, refetchATokenBalances]);
-
-  // Extract daily MOR emissions for external use
-  const dailyMOREmissions = useMemo(() => {
-    return dailyEmissionsResult?.[0]?.status === 'success' 
-      ? Number(formatUnits(dailyEmissionsResult[0].result as bigint, 18))
-      : null;
-  }, [dailyEmissionsResult]);
+  }, [refetchDeposits, refetchRewardRates, refetchDistributorPools, refetchATokenBalances]);
 
   return {
     assets: assetsData,
     networkEnvironment,
-    dailyMOREmissions, // Expose real daily emissions
     refetch: {
       refetchAsset: () => refetchAsset(), // Maintain backward compatibility (now batched)
       rewardPoolData: refetchRewards,
