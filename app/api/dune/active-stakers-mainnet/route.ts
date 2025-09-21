@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// ISR configuration - revalidate every 3 hours (10800 seconds)
+export const revalidate = 10800; // 3 hours * 60 minutes * 60 seconds
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_request: NextRequest) {
   console.log('🎯 [DUNE API MAINNET] Starting active stakers fetch...');

@@ -40,6 +40,7 @@ import { getTransactionUrl, isMainnetChain } from "@/lib/utils/transaction-utils
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { useReferralData } from "@/hooks/use-referral-data";
 import { useAssetContractData } from "@/hooks/use-asset-contract-data";
+import { incrementLocalDepositorCount } from "@/app/hooks/useCapitalMetrics";
 
 
 // Static ABI imports as fallbacks - keep these for reliability
@@ -2172,6 +2173,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       decimals: assetInfo.metadata.decimals
     });
 
+    // Check if user was previously a non-depositor (had 0 deposits across all assets)
+    const wasNonDepositor = Object.values(assets).every(assetData => assetData.userDeposited <= BigInt(0));
+
     await handleTransaction(() => {
       // Calculate timestamp right before transaction for maximum safety
       const claimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDuration;
@@ -2207,8 +2211,14 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       });
     }, {
       loading: `Requesting ${asset} deposit...`,
-      success: `Successfully deposited ${amountString} ${asset}!`, 
-      error: `${asset} deposit failed`
+      success: `Successfully deposited ${amountString} ${asset}!`,
+      error: `${asset} deposit failed`,
+      onSuccess: () => {
+        // If user was previously a non-depositor, increment the local active depositors count
+        if (wasNonDepositor) {
+          incrementLocalDepositorCount(networkEnv);
+        }
+      }
     });
   }, [stakeAsync, l1ChainId, networkEnv, assets, handleTransaction]);
 
