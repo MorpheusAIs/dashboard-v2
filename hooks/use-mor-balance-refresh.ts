@@ -25,7 +25,6 @@ const MOR_ABI = [{
 export function useMORBalanceRefresh() {
   const refreshBalances = useCallback(async () => {
     if (typeof window !== 'undefined' && window.refreshMORBalances) {
-      console.log('Triggering MOR balance refresh from external component')
       await window.refreshMORBalances()
     } else {
       console.warn('MOR balance refresh function not available')
@@ -82,12 +81,6 @@ export function useMORBalanceMonitor(
       setCurrentBalance(currentBalanceNum)
       startTimeRef.current = Date.now()
 
-      console.log('🎯 Starting MOR balance monitoring:', {
-        initialBalance: currentBalanceNum,
-        chainId: targetChainId,
-        contract: morContractAddress
-      })
-
       // Clear any existing monitoring
       if (monitoringRef.current) {
         clearInterval(monitoringRef.current)
@@ -107,7 +100,6 @@ export function useMORBalanceMonitor(
 
       // Set timeout after 5 minutes (300,000ms)
       timeoutRef.current = setTimeout(() => {
-        console.log('⏰ MOR balance monitoring timed out after 5 minutes')
         stopMonitoring()
         onTimeout?.()
       }, 300000)
@@ -123,13 +115,6 @@ export function useMORBalanceMonitor(
       const increase = newBalanceNum - initialBalance
 
       if (increase > 0.0001) { // Small threshold to avoid floating point precision issues
-        console.log('💰 MOR balance increase detected:', {
-          initial: initialBalance,
-          current: newBalanceNum,
-          increase: increase,
-          timeElapsed: startTimeRef.current ? Date.now() - startTimeRef.current : 0
-        })
-
         setCurrentBalance(newBalanceNum)
         onBalanceIncrease?.(newBalanceNum, increase)
         stopMonitoring()
@@ -170,7 +155,6 @@ export function useMORBalanceMonitor(
  */
 export const triggerMORBalanceRefresh = async () => {
   if (typeof window !== 'undefined' && window.refreshMORBalances) {
-    console.log('Triggering MOR balance refresh from utility function')
     await window.refreshMORBalances()
   } else {
     console.warn('MOR balance refresh function not available')
