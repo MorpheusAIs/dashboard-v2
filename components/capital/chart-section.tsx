@@ -7,6 +7,52 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalChartData } from "@/app/hooks/useCapitalChartData";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 
+// Morlord APR cache management
+const MORLORD_APR_CACHE_KEY = 'morpheus_morlord_apr_cache';
+const MORLORD_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+interface MorlordAPRCache {
+  apr: number;
+  timestamp: number;
+}
+
+const getCachedMorlordAPR = (): number | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(MORLORD_APR_CACHE_KEY);
+    if (!cached) return null;
+
+    const parsedCache: MorlordAPRCache = JSON.parse(cached);
+    const now = Date.now();
+
+    // Check if cache is still valid (not expired)
+    if (now - parsedCache.timestamp > MORLORD_CACHE_EXPIRY_MS) {
+      localStorage.removeItem(MORLORD_APR_CACHE_KEY);
+      return null;
+    }
+
+    console.log(`📦 Using cached Morlord APR: ${parsedCache.apr}% (${Math.round((now - parsedCache.timestamp) / 1000 / 60 / 60)} hours old)`);
+    return parsedCache.apr;
+  } catch (error) {
+    console.warn('Error reading Morlord APR cache:', error);
+    return null;
+  }
+};
+
+const setCachedMorlordAPR = (apr: number): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    const cache: MorlordAPRCache = {
+      apr,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(MORLORD_APR_CACHE_KEY, JSON.stringify(cache));
+    console.log(`💾 Cached Morlord APR: ${apr}%`);
+  } catch (error) {
+    console.warn('Error saving Morlord APR cache:', error);
+  }
+};
+
 // Mock data for indexing animation
 const mockChartData = [
   { date: "2024-01-01T00:00:00Z", deposits: 1000000 },
@@ -31,14 +77,23 @@ export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
   // Temporary flag to show indexing animation
   const showIndexingAnimation = false; // Temporarily disabled to see actual chart
 
-  // Morlord data state
-  const [morlordApr, setMorlordApr] = useState<number | null>(null);
+  // Morlord data state - initialize with cached data if available
+  const [morlordApr, setMorlordApr] = useState<number | null>(() =>
+    isMorlordData ? getCachedMorlordAPR() : null
+  );
   const [morlordLoading, setMorlordLoading] = useState(false);
   const [morlordError, setMorlordError] = useState<string | null>(null);
 
   // Fetch Morlord data when flag is enabled
   useEffect(() => {
     if (!isMorlordData) return;
+
+    // Check if we already have valid cached data
+    const cachedAPR = getCachedMorlordAPR();
+    if (cachedAPR !== null) {
+      setMorlordApr(cachedAPR);
+      return;
+    }
 
     const fetchMorlordData = async () => {
       setMorlordLoading(true);
@@ -51,6 +106,7 @@ export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
         const data = await response.json();
         if (data.success && typeof data.apr === 'number') {
           setMorlordApr(data.apr);
+          setCachedMorlordAPR(data.apr); // Cache the result
         } else {
           throw new Error(data.error || 'Invalid APR data format');
         }
