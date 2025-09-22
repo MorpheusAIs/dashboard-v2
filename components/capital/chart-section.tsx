@@ -25,7 +25,7 @@ const mockChartData = [
 
 export function ChartSection() {
   // Temporary flag to show indexing animation
-  const showIndexingAnimation = true;
+  const showIndexingAnimation = false; // Temporarily disabled to see actual chart
 
   // Get chart data for historical deposits chart
   const {

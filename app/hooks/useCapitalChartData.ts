@@ -5,7 +5,7 @@ import { print } from "graphql";
 import { ethers } from "ethers";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
-import { getEndOfDayTimestamps, buildDepositsQuery } from "@/app/graphql/queries/capital";
+import { getEndOfDayTimestamps, buildRangeDepositsQuery } from "@/app/graphql/queries/capital";
 import { getTokenPrice } from "@/app/services/token-price.service";
 import { type TokenType } from "@/mock-data";
 import { useAvailableAssets } from "@/hooks/use-available-assets";
@@ -87,18 +87,44 @@ export function useCapitalChartData() {
     return { recentTimestamps };
   }, [poolInfo]);
 
-  const RECENT_DEPOSITS_QUERY = useMemo(() => {
-    console.log('=== BATCHED QUERY CONSTRUCTION ===');
-    console.log('⏰ Recent timestamps for batched query:', recentTimestamps.length);
+  // Progressive loading: Create range queries for different time periods
+  const RANGE_QUERIES = useMemo(() => {
+    console.log('=== PROGRESSIVE RANGE QUERY CONSTRUCTION ===');
+    console.log('⏰ Total timestamps for range batching:', recentTimestamps.length);
     
-    const query = recentTimestamps.length > 0 ? buildDepositsQuery(recentTimestamps) : null;
-    if (query) {
-      console.log('✅ BATCHED query constructed for', recentTimestamps.length, 'days');
-    } else {
-      console.log('❌ No batched query created - no timestamps available');
+    if (recentTimestamps.length === 0) {
+      return [];
     }
-    console.log('=== END BATCHED QUERY CONSTRUCTION ===\n');
-    return query;
+    
+    // Split into 90-day chunks using range queries for better coverage
+    const chunkSizeDays = 90;
+    const chunkSizeSeconds = chunkSizeDays * 24 * 60 * 60;
+    const queries = [];
+    
+    const startTimestamp = recentTimestamps[0];
+    const endTimestamp = recentTimestamps[recentTimestamps.length - 1];
+    
+    for (let currentStart = startTimestamp; currentStart < endTimestamp; currentStart += chunkSizeSeconds) {
+      const currentEnd = Math.min(currentStart + chunkSizeSeconds, endTimestamp);
+      const query = buildRangeDepositsQuery(currentStart, currentEnd);
+      
+      queries.push({
+        query,
+        startTimestamp: currentStart,
+        endTimestamp: currentEnd,
+        startDate: new Date(currentStart * 1000).toISOString().split('T')[0],
+        endDate: new Date(currentEnd * 1000).toISOString().split('T')[0],
+        batchIndex: queries.length
+      });
+    }
+    
+    console.log(`✅ Created ${queries.length} range queries covering ${Math.round((endTimestamp - startTimestamp) / (24 * 60 * 60))} days total`);
+    queries.forEach((q, idx) => {
+      console.log(`   Range ${idx + 1}: ${q.startDate} to ${q.endDate}`);
+    });
+    console.log('=== END PROGRESSIVE RANGE QUERY CONSTRUCTION ===\n');
+    
+    return queries;
   }, [recentTimestamps]);
   
   // Historical data loading removed - focusing on recent data only for now
@@ -131,137 +157,153 @@ export function useCapitalChartData() {
 
   // Asset switching for live data will be handled by the chart component
 
-  // RESTORED: Batched data loading with original sophisticated approach
+  // PROGRESSIVE: Multi-batch data loading to get complete historical data
   useEffect(() => {
-    console.log('=== RESTORED BATCHED DATA LOADING EFFECT ===');
+    console.log('=== PROGRESSIVE BATCHED DATA LOADING EFFECT ===');
     console.log('🌍 Network Environment:', networkEnv);
     console.log('🎯 Selected Asset:', selectedAsset);
-    console.log('⏰ Recent Timestamps Available:', recentTimestamps.length);
-    console.log('🔍 RECENT_DEPOSITS_QUERY exists:', !!RECENT_DEPOSITS_QUERY);
+    console.log('⏰ Total Timestamps Available:', recentTimestamps.length);
+    console.log('🔍 Range Queries Available:', RANGE_QUERIES.length);
     
-    // Only fetch for mainnet with valid timestamps (original logic)
-    if (!networkEnv || networkEnv === 'testnet' || recentTimestamps.length === 0 || !RECENT_DEPOSITS_QUERY) {
-      console.log('❌ Skipping batched data load:', {
+    // Only fetch for mainnet with valid queries
+    if (!networkEnv || networkEnv === 'testnet' || RANGE_QUERIES.length === 0) {
+      console.log('❌ Skipping progressive data load:', {
         networkEnv,
         isTestnet: networkEnv === 'testnet',
-        timestampsLength: recentTimestamps.length,
-        hasQuery: !!RECENT_DEPOSITS_QUERY
+        rangeQueriesLength: RANGE_QUERIES.length
       });
       setChartLoading(false);
       return;
     }
 
-    console.log('🚀 Starting BATCHED data load for staked', selectedAsset);
-    console.log('📞 Making batched GraphQL call with', recentTimestamps.length, 'day snapshots');
+    console.log('🚀 Starting PROGRESSIVE RANGE data load for', selectedAsset);
+    console.log(`📞 Making ${RANGE_QUERIES.length} sequential range API calls to get complete data`);
     setChartLoading(true);
     setChartError(null);
+    setIsLoadingHistorical(true);
 
-    // RESTORED: Batched fetch with original d0, d1, d2... structure
-    const fetchBatchedData = async () => {
-      console.log('🔧 Making BATCHED API call with', recentTimestamps.length, 'timestamps');
-      console.log('🚀 Using RESTORED batched query for staked', selectedAsset);
-
+    // PROGRESSIVE: Fetch data in multiple batches to avoid API limits
+    const fetchProgressiveRangeData = async () => {
+      console.log('🔧 Starting PROGRESSIVE RANGE data fetch with', RANGE_QUERIES.length, 'ranges');
+      
+      const allInteractions: Array<{blockTimestamp: number, totalStaked: string}> = [];
+      let rangeCount = 0;
+      
       try {
-        console.log('📡 Sending POST request to /api/capital with BATCHED query...');
-        
-        const queryString = print(RECENT_DEPOSITS_QUERY);
-        console.log('🔍 Batched query length:', queryString.length);
-        console.log('🌍 Network environment:', networkEnv);
-        
-        const requestBody = {
-          query: queryString,
-          variables: {},
-          networkEnv,
-        };
-        
-        console.log('📦 Batched request body prepared (', Object.keys(requestBody).length, 'keys)');
-        
-        const response = await fetch('/api/capital', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        });
+        // Process ranges sequentially with delay to avoid overwhelming API
+        for (const rangeQuery of RANGE_QUERIES) {
+          rangeCount++;
+          console.log(`📡 Processing range ${rangeCount}/${RANGE_QUERIES.length} (${rangeQuery.startDate} to ${rangeQuery.endDate})`);
+          
+          const queryString = print(rangeQuery.query);
+          const requestBody = {
+            query: queryString,
+            variables: {},
+            networkEnv,
+          };
+          
+          const response = await fetch('/api/capital', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
 
-        console.log('📡 Batched fetch request sent successfully');
-        console.log('📊 Response status:', response.status);
-        console.log('📊 Response ok:', response.ok);
+          if (!response.ok) {
+            console.log(`❌ HTTP error in range ${rangeCount}:`, response.status, response.statusText);
+            throw new Error(`HTTP error in range ${rangeCount}! status: ${response.status}`);
+          }
 
-        if (!response.ok) {
-          console.log('❌ HTTP error response:', response.status, response.statusText);
-          throw new Error(`HTTP error! status: ${response.status}`);
+          const result = await response.json();
+          if (result.errors) {
+            throw new Error(result.errors[0]?.message || `GraphQL error in range ${rangeCount}`);
+          }
+
+          // Process this range's interactions
+          if (result.data?.poolInteractions) {
+            const interactions = result.data.poolInteractions;
+            console.log(`✅ Range ${rangeCount} received ${interactions.length} interactions`);
+            
+            // Add all interactions from this range
+            interactions.forEach((interaction: {blockTimestamp?: string, totalStaked?: string}) => {
+              if (interaction.blockTimestamp && interaction.totalStaked) {
+                allInteractions.push({
+                  blockTimestamp: parseInt(interaction.blockTimestamp),
+                  totalStaked: interaction.totalStaked
+                });
+              }
+            });
+          }
+          
+          // Add small delay between ranges to be respectful to API
+          if (rangeCount < RANGE_QUERIES.length) {
+            await new Promise(resolve => setTimeout(resolve, 150));
+          }
         }
-
-        console.log('✅ Parsing batched JSON response...');
-        const result = await response.json();
-        console.log('📊 Received BATCHED result from API with keys:', Object.keys(result.data || {}));
-        if (result.errors) {
-          throw new Error(result.errors[0]?.message || 'GraphQL error');
+        
+        console.log(`✅ PROGRESSIVE RANGE fetch completed: ${allInteractions.length} total interactions from ${rangeCount} ranges`);
+        
+        // Now interpolate data points from interactions
+        if (allInteractions.length === 0) {
+          return [];
         }
-
-        // RESTORED: Batched response format with d0, d1, d2... structure
-        if (!result.data || Object.keys(result.data).filter(key => key.startsWith('d')).length === 0) {
-          console.log('❌ No batched day data (d0, d1, d2...) in response');
-          return null;
+        
+        // Sort interactions by timestamp
+        allInteractions.sort((a, b) => a.blockTimestamp - b.blockTimestamp);
+        
+        // Create daily data points by interpolating between interactions
+        const dataPoints: DataPoint[] = [];
+        
+        let interactionIndex = 0;
+        let currentTotalStaked = "0";
+        
+        for (const timestamp of recentTimestamps) {
+          // Find the most recent interaction before or at this timestamp
+          while (interactionIndex < allInteractions.length && 
+                 allInteractions[interactionIndex].blockTimestamp <= timestamp) {
+            currentTotalStaked = allInteractions[interactionIndex].totalStaked;
+            interactionIndex++;
+          }
+          
+          try {
+            const totalStakedWei = ethers.BigNumber.from(currentTotalStaked);
+            const depositValue = parseFloat(ethers.utils.formatEther(totalStakedWei));
+            
+            dataPoints.push({
+              date: new Date(timestamp * 1000).toISOString(),
+              deposits: depositValue,
+              timestamp: timestamp,
+            });
+          } catch (error) {
+            console.warn(`⚠️ Error processing timestamp ${timestamp}:`, error);
+          }
         }
-
-        const dayKeys = Object.keys(result.data).filter(key => key.startsWith('d'));
-        console.log('✅ Found', dayKeys.length, 'day snapshots:', dayKeys.slice(0, 5), '...');
-        return { data: result.data, timestamps: recentTimestamps };
+        
+        console.log(`✅ Interpolated ${dataPoints.length} data points from ${allInteractions.length} interactions`);
+        return dataPoints;
       } catch (error) {
-        console.error('Error fetching recent chart data:', error);
+        console.error(`❌ Error in progressive range fetch at range ${rangeCount}:`, error);
         throw error;
       }
     };
 
-    console.log('🔧 About to call fetchBatchedData()...');
-    fetchBatchedData()
-      .then((result) => {
-        console.log('✅ fetchBatchedData completed, result:', result ? 'data received' : 'no data');
-        if (result?.data && result.timestamps.length > 0) {
+    console.log('🔧 About to call fetchProgressiveRangeData()...');
+    fetchProgressiveRangeData()
+      .then((allDataPoints) => {
+        console.log('✅ fetchProgressiveRangeData completed, result:', allDataPoints ? `${allDataPoints.length} data points` : 'no data');
+        if (allDataPoints && allDataPoints.length > 0) {
           try {
-            // RESTORED: Process batched data with d0, d1, d2... structure
-            console.log('📊 Processing BATCHED data format (d0, d1, d2...)');
+            // Sort data points by timestamp to ensure proper chronological order
+            const sortedData = allDataPoints.sort((a, b) => a.timestamp - b.timestamp);
             
-            let lastTotalStakedWei = ethers.BigNumber.from(0);
-            const processedData = result.timestamps.map((timestampSec: number, index: number) => {
-              const dayKey = `d${index}`;
-              const interactionData = result.data[dayKey]?.[0];
-              let currentTotalStakedWei = lastTotalStakedWei;
-
-              console.log(`📅 Day ${index} (${dayKey}):`, {
-                expectedTimestamp: timestampSec,
-                hasData: !!interactionData,
-                actualTimestamp: interactionData?.blockTimestamp,
-                totalStaked: interactionData?.totalStaked,
-                rate: interactionData?.rate
-              });
-
-              if (interactionData?.totalStaked) {
-                try {
-                  currentTotalStakedWei = ethers.BigNumber.from(interactionData.totalStaked);
-                } catch (error) {
-                  console.warn(`⚠️ Error parsing totalStaked for day ${index}:`, error);
-                  if (index === 0) currentTotalStakedWei = ethers.BigNumber.from(0);
-                }
-              } else if (index === 0) {
-                currentTotalStakedWei = ethers.BigNumber.from(0);
-              }
-              
-              lastTotalStakedWei = currentTotalStakedWei;
-              const depositValue = parseFloat(ethers.utils.formatEther(currentTotalStakedWei));
-              
-              return {
-                date: new Date(timestampSec * 1000).toISOString(),
-                deposits: depositValue,
-                timestamp: timestampSec,
-              };
+            console.log('✅ PROGRESSIVE data processing completed:', sortedData.length, 'data points');
+            console.log('📊 First data point:', sortedData[0]);
+            console.log('📊 Last data point:', sortedData[sortedData.length - 1]);
+            console.log('📊 Date range:', {
+              from: sortedData[0]?.date?.split('T')[0],
+              to: sortedData[sortedData.length - 1]?.date?.split('T')[0]
             });
-            
-            console.log('✅ BATCHED data processing completed:', processedData.length, 'data points');
-            console.log('📊 First data point:', processedData[0]);
-            console.log('📊 Last data point:', processedData[processedData.length - 1]);
 
-            setChartData(processedData);
+            setChartData(sortedData);
             setChartError(null);
           } catch (processingError: unknown) {
             const errorMessage = (processingError instanceof Error) ? processingError.message : String(processingError);
@@ -270,20 +312,22 @@ export function useCapitalChartData() {
             setChartData([]);
           }
         } else {
-          console.log('❌ No batched data received');
+          console.log('❌ No progressive data received');
           setChartData([]);
         }
         setChartLoading(false);
+        setIsLoadingHistorical(false);
       })
       .catch((error) => {
-        console.error('❌ Error in fetchBatchedData:', error);
+        console.error('❌ Error in fetchProgressiveRangeData:', error);
         console.error('❌ Error message:', error.message);
         console.error('❌ Error stack:', error.stack);
         setChartError(`Failed to load chart data: ${error.message}`);
         setChartData([]);
         setChartLoading(false);
+        setIsLoadingHistorical(false);
       });
-  }, [selectedAsset, networkEnv, recentTimestamps, RECENT_DEPOSITS_QUERY]); // RESTORED dependencies
+  }, [selectedAsset, networkEnv, RANGE_QUERIES]); // Updated dependencies for range loading
 
   // DISABLED: Historical data loading - simple query gets all data at once
   useEffect(() => {
