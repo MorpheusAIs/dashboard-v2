@@ -5,7 +5,6 @@ import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalChartData } from "@/app/hooks/useCapitalChartData";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
-import { mainnet } from "wagmi/chains";
 
 // Mock data for indexing animation
 const mockChartData = [
@@ -25,7 +24,7 @@ const mockChartData = [
 
 export function ChartSection() {
   // Temporary flag to show indexing animation
-  const showIndexingAnimation = true;
+  const showIndexingAnimation = false; // Temporarily disabled to see actual chart
 
   // Get chart data for historical deposits chart
   const {
@@ -33,9 +32,6 @@ export function ChartSection() {
     chartLoading,
     chartError,
     isLoadingHistorical,
-    networkEnv,
-    switchToChain,
-    isNetworkSwitching,
     selectedAsset,
     setSelectedAsset,
     // Dynamic asset switching support
@@ -185,7 +181,7 @@ export function ChartSection() {
                       <p>{chartError || metricsError}</p>
                     </div>
                   )}
-                  {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length > 0 && (
+                  {!chartLoading && !metricsLoading && !chartError && !metricsError && (
                     <div className="relative h-full overflow-hidden rounded-xl">
                       <DepositStethChart
                         data={chartData}
@@ -193,29 +189,12 @@ export function ChartSection() {
                         onAssetChange={setSelectedAsset}
                         showAssetSwitcher={true} // Always show asset switcher
                         availableAssets={availableAssets} // Always pass live assets from API
+                        isLoading={chartLoading}
                       />
                       {isLoadingHistorical && (
                         <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded z-5">
                           Loading historical data...
                         </div>
-                      )}
-                    </div>
-                  )}
-                  {!chartLoading && !metricsLoading && !chartError && !metricsError && chartData.length === 0 && (
-                    <div className="flex flex-col justify-center items-center h-full text-center">
-                      <p className="text-gray-400 mb-4">
-                        {networkEnv === 'testnet'
-                          ? "You are viewing testnet. No historical deposit data available."
-                          : "No deposit data available."}
-                      </p>
-                      {networkEnv === 'testnet' && (
-                        <button
-                          className="copy-button-secondary px-4 py-2 rounded-lg"
-                          onClick={() => switchToChain(mainnet.id)}
-                          disabled={isNetworkSwitching}
-                        >
-                          {isNetworkSwitching ? "Switching..." : "Switch to Mainnet"}
-                        </button>
                       )}
                     </div>
                   )}

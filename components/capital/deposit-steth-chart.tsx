@@ -20,6 +20,7 @@ type DepositStethChartProps = {
     onAssetChange?: (asset: TokenType) => void;
     showAssetSwitcher?: boolean;
     availableAssets?: Array<{ token: TokenType; deposits: number; }>;
+    isLoading?: boolean;
 };
 
 export function DepositStethChart({ 
@@ -27,7 +28,8 @@ export function DepositStethChart({
     selectedAsset = 'stETH',
     onAssetChange,
     showAssetSwitcher = false,
-    availableAssets
+    availableAssets,
+    isLoading = false
 }: DepositStethChartProps) {
     const chartRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -151,6 +153,18 @@ export function DepositStethChart({
                             </div>
                          </div>
                          <div ref={containerRef} className="flex-grow min-h-0 pt-10"> 
+                            {!isLoading && (!initialData || initialData.length === 0) ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center">
+                                        <p className="text-emerald-500 text-lg font-medium">
+                                            Not enough data yet
+                                        </p>
+                                        <p className="text-gray-400 text-sm mt-2">
+                                            Data will appear once there are deposits in this pool
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
                             <ResponsiveContainer width="100%" height={chartHeight}>
                                 <ComposedChart
                                     data={zoomedData}
@@ -183,7 +197,7 @@ export function DepositStethChart({
                                         axisLine={false}
                                         tickFormatter={formatYAxis}
                                         allowDecimals={false} 
-                                        domain={[0, (dataMax: number) => (dataMax || 0) * 1.05]} 
+                                        domain={[0, (dataMax: number) => Math.max((dataMax || 0) * 1.05, 100)]} 
                                         tickCount={5}
                                         style={{ fontSize: '11px', userSelect: 'none' }}
                                         width={50} 
@@ -222,6 +236,7 @@ export function DepositStethChart({
                                     )}
                                 </ComposedChart>
                             </ResponsiveContainer>
+                            )}
                         </div>
                     </div>
                 </ChartContainer>
