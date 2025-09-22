@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-// import { useNetwork } from "@/context/network-context";
-import { useChainId } from "wagmi";
+import { useNetwork } from "@/context/network-context";
+import { useChainId, useSwitchChain, useAccount, useConnectorClient } from "wagmi";
 import { mainnet } from "wagmi/chains";
 
 // Import Modals (updated to kebab-case)
@@ -35,35 +35,57 @@ function CapitalPageContent() {
     setPreReferrerAddress,
   } = useCapitalContext();
 
-  // const { switchToChain, isNetworkSwitching } = useNetwork();
+  const { switchToChain: contextSwitchToChain, isNetworkSwitching } = useNetwork();
   const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const { isConnected, isConnecting, isReconnecting } = useAccount();
+  const { data: connectorClient } = useConnectorClient();
   const searchParams = useSearchParams();
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
-  // const networkSwitchAttempted = useRef(false);
+  const networkSwitchAttempted = useRef(false);
   const userManuallyLeftMainnet = useRef(false);
   const referrerProcessed = useRef(false);
 
-  // useEffect(() => {
-  //   // We want to be on mainnet for the capital page.
-  //   const shouldSwitch = chainId !== mainnet.id;
+  useEffect(() => {
+    console.log('Auto-switch useEffect running:', {
+      chainId,
+      mainnetId: mainnet.id,
+      isConnected,
+      isConnecting,
+      isReconnecting,
+      connectorClient: !!connectorClient,
+      isNetworkSwitching,
+      networkSwitchAttempted: networkSwitchAttempted.current,
+      userManuallyLeftMainnet: userManuallyLeftMainnet.current
+    });
 
-  //   if (shouldSwitch && !isLoadingUserData && !networkSwitchAttempted.current && !isNetworkSwitching && !userManuallyLeftMainnet.current) {
-  //     console.log(`Auto-switching network to Ethereum Mainnet (chainId: ${mainnet.id}) for Capital page.`);
-      
-  //     networkSwitchAttempted.current = true;
-  //     setShowNetworkSwitchNotice(true);
-      
-  //     const timer = setTimeout(() => {
-  //       switchToChain(mainnet.id);
-  //       setTimeout(() => {
-  //         setShowNetworkSwitchNotice(false);
-  //         networkSwitchAttempted.current = false; // Reset so it can work again on refresh
-  //       }, 3000);
-  //     }, 1500);
-      
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [chainId, switchToChain, isNetworkSwitching, isLoadingUserData]);
+    // Only attempt network switch when wallet is fully connected and ready
+    // Wait for wallet connection to stabilize (not connecting/reconnecting)
+    const isWalletReady = isConnected && !isConnecting && !isReconnecting && connectorClient;
+    
+    // We want to be on mainnet for the capital page.
+    const shouldSwitch = chainId !== mainnet.id && chainId !== undefined && isWalletReady;
+
+    console.log('Should switch:', shouldSwitch);
+
+    if (shouldSwitch && !networkSwitchAttempted.current && !isNetworkSwitching && !userManuallyLeftMainnet.current) {
+      console.log(`Auto-switching network to Ethereum Mainnet (chainId: ${mainnet.id}) for Capital page.`);
+
+      networkSwitchAttempted.current = true;
+      setShowNetworkSwitchNotice(true);
+
+      const timer = setTimeout(() => {
+        console.log('Attempting to switch to mainnet...');
+        switchChain({ chainId: mainnet.id });
+        setTimeout(() => {
+          setShowNetworkSwitchNotice(false);
+          networkSwitchAttempted.current = false; // Reset so it can work again on refresh
+        }, 3000);
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [chainId, contextSwitchToChain, isNetworkSwitching, isConnected, isConnecting, isReconnecting, connectorClient]);
 
   // Separate effect to handle manual network changes and hide notification
   useEffect(() => {
