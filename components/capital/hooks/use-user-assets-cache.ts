@@ -59,12 +59,14 @@ interface UseUserAssetsCacheOptions {
   userAddress?: string;
   networkEnv: string;
   onCacheLoaded?: (cache: UserAssetsCache) => void;
+  isWalletInitialized?: boolean; // Add wallet initialization check
 }
 
 export function useUserAssetsCache({
   userAddress,
   networkEnv,
-  onCacheLoaded
+  onCacheLoaded,
+  isWalletInitialized = true, // Default to true for backward compatibility
 }: UseUserAssetsCacheOptions) {
   // Load cached data on mount and when user/network changes
   useEffect(() => {
@@ -73,9 +75,14 @@ export function useUserAssetsCache({
     const cachedData = getCachedUserAssets(userAddress, networkEnv);
     if (cachedData) {
       console.log('📦 Loading cached user assets data:', cachedData);
-      onCacheLoaded?.(cachedData);
+      // Only call onCacheLoaded if wallet is initialized to prevent inconsistent UI
+      if (isWalletInitialized) {
+        onCacheLoaded?.(cachedData);
+      } else {
+        console.log('🔒 Cached data found but wallet not initialized - waiting...');
+      }
     }
-  }, [userAddress, networkEnv, onCacheLoaded]);
+  }, [userAddress, networkEnv, onCacheLoaded, isWalletInitialized]);
 
   return {
     getCachedUserAssets: (userAddress: string, networkEnv: string) =>

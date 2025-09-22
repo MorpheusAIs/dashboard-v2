@@ -24,6 +24,7 @@ import { getAssetConfig } from "./constants/asset-config";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 import type { UserAsset } from "./types/user-asset";
 import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
+import { useAuth } from "@/context/auth-context";
 
 // Type for modal actions that can be triggered from dropdowns
 type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards";
@@ -48,6 +49,9 @@ export function UserAssetsPanel() {
     isLoadingBalances,
     isLoadingRewards,
   } = useCapitalContext();
+
+  // Get wallet initialization status from auth context
+  const { isWalletInitialized, isLoading: isAuthLoading } = useAuth();
 
   // Calculate daily emissions for each asset dynamically using real contract data
   const stETHEmissions = useDailyEmissions(
@@ -130,6 +134,7 @@ export function UserAssetsPanel() {
   const { setCachedUserAssets } = useUserAssetsCache({
     userAddress,
     networkEnv,
+    isWalletInitialized,
     onCacheLoaded: (cache) => {
       console.log('📦 Loading cached user assets data:', cache);
       setHasValidData(true);
@@ -153,6 +158,16 @@ export function UserAssetsPanel() {
       setIsInitialLoad(true);
     }
   }, [userAddress, hasValidData]);
+
+  // Coordinate cached data display with wallet initialization
+  useEffect(() => {
+    if (isWalletInitialized && !hasValidData) {
+      console.log('✅ Wallet initialized - allowing cached data display');
+      // If wallet is initialized but we don't have valid data,
+      // allow initial load to proceed normally
+      setIsInitialLoad(true);
+    }
+  }, [isWalletInitialized, hasValidData]);
 
   // Detect when initial data loading is complete for new wallets with no assets
   useEffect(() => {
@@ -505,14 +520,14 @@ export function UserAssetsPanel() {
               {/* Metric Cards */}
               <UserAssetsMetrics
                 metricsData={metricsData}
-                isLoading={isInitialLoad && !hasValidData}
+                isLoading={!isWalletInitialized || isAuthLoading || (isInitialLoad && !hasValidData)}
               />
 
               {/* Assets table or empty state */}
-              {hasStakedAssets || (isInitialLoad && !hasValidData) ? (
+              {hasStakedAssets || (!isWalletInitialized || isAuthLoading || (isInitialLoad && !hasValidData)) ? (
                 <UserAssetsTable
                   userAssets={userAssets}
-                  isLoading={isInitialLoad && !hasValidData}
+                  isLoading={!isWalletInitialized || isAuthLoading || (isInitialLoad && !hasValidData)}
                   sorting={sorting}
                   onSortingChangeAction={handleSortingChange}
                   onDropdownOpenChangeAction={handleDropdownOpenChange}

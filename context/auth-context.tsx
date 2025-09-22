@@ -15,6 +15,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   userAddress: string | null;
+  isWalletInitialized: boolean; // New: Track wallet initialization state
   login: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   isAdmin: false,
   userAddress: null,
+  isWalletInitialized: false,
   login: async () => {},
   logout: async () => {},
   checkAuth: async () => {},
@@ -38,7 +40,10 @@ const ADMIN_WALLETS = [
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const { address } = useAccount();
+  const [isWalletInitialized, setIsWalletInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { address, isConnected, isConnecting, isReconnecting } = useAccount();
   
   // Check if the connected account is an admin
   const isAdmin = walletAddress ? ADMIN_WALLETS.includes(walletAddress.toLowerCase()) : false;
@@ -48,6 +53,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setWalletAddress(address || null);
   }, [address]);
 
+  // Track wallet initialization state
+  useEffect(() => {
+    // Consider wallet initialized when it's not in connecting/reconnecting state
+    // This includes both connected and disconnected states (but not pending states)
+    const initialized = !isConnecting && !isReconnecting;
+    
+    if (initialized !== isWalletInitialized) {
+      console.log('🔐 Wallet initialization state changed:', {
+        isConnected,
+        isConnecting,
+        isReconnecting,
+        initialized,
+        address: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null
+      });
+      setIsWalletInitialized(initialized);
+    }
+  }, [isConnected, isConnecting, isReconnecting, isWalletInitialized, address]);
+
+  // Update loading state based on wallet initialization
+  useEffect(() => {
+    // Loading is done when wallet is initialized (whether connected or not)
+    const loading = !isWalletInitialized;
+    
+    if (loading !== isLoading) {
+      console.log('🔄 Auth loading state changed:', { loading, isWalletInitialized });
+      setIsLoading(loading);
+    }
+  }, [isWalletInitialized, isLoading]);
+
   // Create user object when wallet address changes
   const user = walletAddress ? { address: walletAddress } : null;
 
@@ -56,9 +90,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isAuthenticated: !!walletAddress,
-        isLoading: false,
+        isLoading,
         isAdmin,
         userAddress: walletAddress,
+        isWalletInitialized,
         login: async () => {},
         logout: async () => {},
         checkAuth: async () => {},
