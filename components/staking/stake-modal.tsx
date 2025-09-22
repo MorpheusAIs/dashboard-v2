@@ -44,12 +44,12 @@ export function StakeModal({
   
   // Determine target network and chainId based on selectedBuilder
   const targetNetworkInfo = useMemo(() => {
-    if (!selectedBuilder) return { chainId: chainId, networkName: 'Unknown' };
-    
+    if (!selectedBuilder) return { chainId: base.id, networkName: 'Base' }; // Default to Base when no builder selected
+
     if (isTestnet) {
       return { chainId: arbitrumSepolia.id, networkName: 'Arbitrum Sepolia' };
     }
-    
+
     // For mainnet, check the builder's primary network
     const primaryNetwork = selectedBuilder.networks?.[0] || selectedBuilder.network;
     if (primaryNetwork === 'Arbitrum') {
@@ -57,10 +57,11 @@ export function StakeModal({
     } else if (primaryNetwork === 'Base') {
       return { chainId: base.id, networkName: 'Base' };
     }
-    
-    // Default to current chain if we can't determine
-    return { chainId: chainId, networkName: 'Unknown' };
-  }, [selectedBuilder, isTestnet, chainId]);
+
+    // Default to Base network for mainnet if we can't determine the network
+    // This prevents falling back to unsupported chains like Ethereum mainnet
+    return { chainId: base.id, networkName: 'Base' };
+  }, [selectedBuilder, isTestnet]);
   
   // Calculate the correct subnet ID based on network type
   const subnetId = useMemo(() => {
