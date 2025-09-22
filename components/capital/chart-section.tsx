@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { DepositStethChart } from "@/components/capital/deposit-steth-chart";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
@@ -22,9 +23,47 @@ const mockChartData = [
   { date: "2024-06-15T00:00:00Z", deposits: 3200000 },
 ];
 
-export function ChartSection() {
+interface ChartSectionProps {
+  isMorlordData?: boolean;
+}
+
+export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
   // Temporary flag to show indexing animation
   const showIndexingAnimation = false; // Temporarily disabled to see actual chart
+
+  // Morlord data state
+  const [morlordApr, setMorlordApr] = useState<number | null>(null);
+  const [morlordLoading, setMorlordLoading] = useState(false);
+  const [morlordError, setMorlordError] = useState<string | null>(null);
+
+  // Fetch Morlord data when flag is enabled
+  useEffect(() => {
+    if (!isMorlordData) return;
+
+    const fetchMorlordData = async () => {
+      setMorlordLoading(true);
+      setMorlordError(null);
+      try {
+        const response = await fetch('/api/morlord');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.success && typeof data.apr === 'number') {
+          setMorlordApr(data.apr);
+        } else {
+          throw new Error(data.error || 'Invalid APR data format');
+        }
+      } catch (error) {
+        console.error('Failed to fetch Morlord data:', error);
+        setMorlordError(error instanceof Error ? error.message : 'Failed to fetch data');
+      } finally {
+        setMorlordLoading(false);
+      }
+    };
+
+    fetchMorlordData();
+  }, [isMorlordData]);
 
   // Get chart data for historical deposits chart
   const {
@@ -42,11 +81,16 @@ export function ChartSection() {
   const {
     totalValueLockedUSD,
     currentDailyRewardMOR,
-    // avgApyRate, // Temporarily commented out with APR metric card
+    avgApyRate, // Temporarily commented out with APR metric card
     activeStakers,
     isLoading: metricsLoading,
     error: metricsError,
   } = useCapitalMetrics();
+
+  // Use Morlord data for APR when flag is enabled, otherwise use current approach
+  const displayApyRate = isMorlordData
+    ? (morlordApr !== null ? `${morlordApr.toFixed(2)}%` : undefined)
+    : avgApyRate;
 
   const metricCards = [
     {
@@ -68,15 +112,15 @@ export function ChartSection() {
       isGreen: true,
     },
     // Temporarily commented out - Avg. APR Rate metric card
-    // {
-    //   title: "Avg. APR Rate",
-    //   value: avgApyRate,
-    //   label: "%",
-    //   autoFormatNumbers: false,
-    //   className: "",
-    //   disableGlow: true,
-    //   isGreen: true,
-    // },
+    {
+      title: "Avg. APR Rate",
+      value: displayApyRate,
+      label: "%",
+      autoFormatNumbers: false,
+      className: "",
+      disableGlow: true,
+      isGreen: true,
+    },
     {
       title: "Active Depositors",
       value: activeStakers,
@@ -171,17 +215,17 @@ export function ChartSection() {
               {/* Normal chart rendering when not showing indexing animation */}
               {!showIndexingAnimation && (
                 <>
-                  {(chartLoading || metricsLoading) && (
+                  {(chartLoading || metricsLoading || (isMorlordData && morlordLoading)) && (
                     <div className="flex justify-center items-center h-full">
                       <p>Loading Chart...</p>
                     </div>
                   )}
-                  {(chartError || metricsError) && (
+                  {(chartError || metricsError || morlordError) && (
                     <div className="flex justify-center items-center h-full text-red-500">
-                      <p>{chartError || metricsError}</p>
+                      <p>{chartError || metricsError || morlordError}</p>
                     </div>
                   )}
-                  {!chartLoading && !metricsLoading && !chartError && !metricsError && (
+                  {!chartLoading && !metricsLoading && !(isMorlordData && morlordLoading) && !chartError && !metricsError && !morlordError && (
                     <div className="relative h-full overflow-hidden rounded-xl">
                       <DepositStethChart
                         data={chartData}
