@@ -99,8 +99,52 @@ export const TEST_STETH_POOL_QUERY = gql`
   }
 `;
 
-// FIXED: Batched query system with CORRECT schema including rewardPoolId
-export const buildDepositsQuery = (timestamps: number[], rewardPoolId: string = "0"): ReturnType<typeof gql> => { 
+import { type AssetSymbol } from "@/components/capital/constants/asset-config";
+
+// Asset to deposit pool address mapping
+export const ASSET_DEPOSIT_POOL_ADDRESSES: Record<'mainnet' | 'testnet', Partial<Record<AssetSymbol, string>>> = {
+  mainnet: {
+    stETH: '0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790',
+    USDC: '0x6cCE082851Add4c535352f596662521B4De4750E',
+    USDT: '0x3B51989212BEdaB926794D6bf8e9E991218cf116',
+    wBTC: '0xdE283F8309Fd1AA46c95d299f6B8310716277A42',
+    wETH: '0x9380d72aBbD6e0Cc45095A2Ef8c2CA87d77Cb384',
+  },
+  testnet: {
+    stETH: '0xFea33A23F97d785236F22693eDca564782ae98d0',
+    LINK: '0x7f4f17be21219D7DA4C8E0d0B9be6a778354E5A5',
+  }
+} as const;
+
+// Asset-specific start dates
+export const ASSET_START_DATES: Record<AssetSymbol, string> = {
+  stETH: '2024-02-10T00:00:00Z', // Historical data from Feb 10, 2024
+  USDC: '2025-09-18T00:00:00Z', // New pools start from Sep 18, 2025
+  USDT: '2025-09-18T00:00:00Z',
+  wBTC: '2025-09-18T00:00:00Z', 
+  wETH: '2025-09-18T00:00:00Z',
+  LINK: '2025-09-18T00:00:00Z',
+} as const;
+
+// Helper function to get deposit pool address for an asset
+export function getDepositPoolAddress(
+  asset: string, 
+  networkEnv: 'mainnet' | 'testnet'
+): string | undefined {
+  return ASSET_DEPOSIT_POOL_ADDRESSES[networkEnv]?.[asset as AssetSymbol];
+}
+
+// Helper function to get asset start date
+export function getAssetStartDate(asset: string): string {
+  return ASSET_START_DATES[asset as AssetSymbol] || ASSET_START_DATES.stETH;
+}
+
+// DYNAMIC: Batched query system with asset-specific deposit pool addresses
+export const buildDepositsQuery = (
+  timestamps: number[], 
+  depositPoolAddress: string,
+  rewardPoolId: string = "0"
+): ReturnType<typeof gql> => { 
   // Handle empty timestamps array to avoid empty GraphQL query
   if (!timestamps || timestamps.length === 0) {
     return gql`
@@ -115,10 +159,11 @@ export const buildDepositsQuery = (timestamps: number[], rewardPoolId: string = 
     `;
   }
 
-  console.log('✅ Building BATCHED GraphQL query with CORRECT schema for', timestamps.length, 'days');
+  console.log('✅ Building DYNAMIC GraphQL query for', timestamps.length, 'days');
+  console.log('🔍 Using deposit pool:', depositPoolAddress);
   console.log('🔍 Using schema: depositPool + rewardPoolId, blockTimestamp_lte, totalStaked, rate');
 
-  // Fixed batched approach with BOTH depositPool AND rewardPoolId filters
+  // Dynamic batched approach with asset-specific depositPool address
   let queryBody = '';
   timestamps.forEach((ts, index) => {
     queryBody += `
@@ -126,7 +171,7 @@ export const buildDepositsQuery = (timestamps: number[], rewardPoolId: string = 
         first: 1
         orderDirection: desc
         where: { 
-          depositPool: "0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790",
+          depositPool: "${depositPoolAddress}",
           user_: { rewardPoolId: "${rewardPoolId}" },
           blockTimestamp_lte: ${ts}
         }
@@ -150,7 +195,7 @@ export const buildDepositsQuery = (timestamps: number[], rewardPoolId: string = 
     }
   `;
   
-  console.log('📋 Generated BATCHED GraphQL query for', timestamps.length, 'days with rewardPoolId:', rewardPoolId);
+  console.log('📋 Generated DYNAMIC GraphQL query for', timestamps.length, 'days for pool:', depositPoolAddress);
   return query;
 };
 

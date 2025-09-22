@@ -5,10 +5,73 @@ import { print } from "graphql";
 import { ethers } from "ethers";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
-import { getEndOfDayTimestamps, buildDepositsQuery } from "@/app/graphql/queries/capital";
+import { 
+  getEndOfDayTimestamps, 
+  buildDepositsQuery, 
+  getDepositPoolAddress,
+  getAssetStartDate
+} from "@/app/graphql/queries/capital";
 import { getTokenPrice } from "@/app/services/token-price.service";
 import { type TokenType } from "@/mock-data";
 import { useAvailableAssets } from "@/hooks/use-available-assets";
+
+// Local storage utilities for chart data caching
+const CHART_DATA_CACHE_KEY = 'morpheus-chart-data-cache';
+const CACHE_EXPIRY_HOURS = 1; // Cache expires after 1 hour
+
+interface CachedChartData {
+  [asset: string]: {
+    data: DataPoint[];
+    timestamp: number;
+    networkEnv: string;
+  };
+}
+
+const getChartDataFromCache = (asset: TokenType, networkEnv: string): DataPoint[] | null => {
+  try {
+    const cached = localStorage.getItem(CHART_DATA_CACHE_KEY);
+    if (!cached) return null;
+    
+    const parsedCache: CachedChartData = JSON.parse(cached);
+    const assetCache = parsedCache[asset];
+    
+    if (!assetCache || assetCache.networkEnv !== networkEnv) return null;
+    
+    // Check if cache is expired
+    const now = Date.now();
+    const cacheAge = now - assetCache.timestamp;
+    const maxAge = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+    
+    if (cacheAge > maxAge) {
+      console.log(`📦 Cache expired for ${asset} (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
+      return null;
+    }
+    
+    console.log(`📦 Using cached data for ${asset} (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
+    return assetCache.data;
+  } catch (error) {
+    console.warn('Error reading chart data from cache:', error);
+    return null;
+  }
+};
+
+const saveChartDataToCache = (asset: TokenType, data: DataPoint[], networkEnv: string): void => {
+  try {
+    const cached = localStorage.getItem(CHART_DATA_CACHE_KEY);
+    const parsedCache: CachedChartData = cached ? JSON.parse(cached) : {};
+    
+    parsedCache[asset] = {
+      data,
+      timestamp: Date.now(),
+      networkEnv
+    };
+    
+    localStorage.setItem(CHART_DATA_CACHE_KEY, JSON.stringify(parsedCache));
+    console.log(`📦 Cached ${data.length} data points for ${asset}`);
+  } catch (error) {
+    console.warn('Error saving chart data to cache:', error);
+  }
+};
 
 export interface DataPoint {
   date: string;
@@ -38,14 +101,38 @@ export function useCapitalChartData() {
   // State for selected asset
   const [selectedAsset, setSelectedAsset] = useState<TokenType>(primaryAsset);
   
+  // Cache management
+  const [isCacheLoaded, setIsCacheLoaded] = useState<boolean>(false);
+  
   // Always use live data from actual API endpoints
   
-  // Update selected asset if primary asset changes (for live data)
+  // Initialize selected asset only once when primary asset is first available
   useEffect(() => {
-    if (primaryAsset !== selectedAsset && primaryAsset) {
-      setSelectedAsset(primaryAsset);
+    if (primaryAsset && selectedAsset === primaryAsset) {
+      // Only initialize if we're starting with the same asset
+      console.log('🎯 Initializing selectedAsset with primaryAsset:', primaryAsset);
     }
-  }, [primaryAsset, selectedAsset]);
+  }, [primaryAsset]); // Don't reset selectedAsset when user manually changes it
+
+  // Load cached data immediately when asset changes (instant switching)
+  useEffect(() => {
+    if (!networkEnv || !selectedAsset) return;
+    
+    console.log(`📦 Checking cache for ${selectedAsset} on ${networkEnv}`);
+    const cachedData = getChartDataFromCache(selectedAsset, networkEnv);
+    
+    if (cachedData && cachedData.length > 0) {
+      console.log(`📦 Loading cached data for ${selectedAsset}: ${cachedData.length} points`);
+      setChartData(cachedData);
+      setChartError(null);
+      setChartLoading(false);
+      setIsCacheLoaded(true);
+    } else {
+      console.log(`📦 No valid cache found for ${selectedAsset}, will fetch fresh data`);
+      setIsCacheLoaded(false);
+      // Don't set loading here - let the main effect handle it
+    }
+  }, [selectedAsset, networkEnv]);
 
   useEffect(() => {
     async function fetchPrice() {
@@ -70,34 +157,49 @@ export function useCapitalChartData() {
     console.log('📅 PayoutStart as date:', new Date(Number(poolInfo.payoutStart) * 1000).toISOString());
 
     const now = new Date();
-    // Fixed start date: February 10th, 2024 as requested
-    const targetStartDate = new Date('2024-02-10T00:00:00Z');
+    // Asset-specific start dates: stETH from Feb 10, 2024, others from Sep 18, 2025
+    const assetStartDate = getAssetStartDate(selectedAsset);
+    const targetStartDate = new Date(assetStartDate);
     
     const poolStartDate = new Date(Number(poolInfo.payoutStart) * 1000);
     
-    // Use the later of: target start date (Feb 10, 2024) or actual pool start
+    // Use the later of: asset-specific start date or actual pool start
     const recentStartDate = targetStartDate > poolStartDate ? targetStartDate : poolStartDate;
     const recentTimestamps = getEndOfDayTimestamps(recentStartDate, now);
     
-    console.log('⏰ Generated BATCHED timestamps:', {
+    console.log('⏰ Generated ASSET-SPECIFIC timestamps for', selectedAsset, ':', {
       recentCount: recentTimestamps.length,
       startDate: recentStartDate.toISOString().split('T')[0],
       endDate: now.toISOString().split('T')[0],
-      totalDays: Math.round((now.getTime() - recentStartDate.getTime()) / (24 * 60 * 60 * 1000))
+      totalDays: Math.round((now.getTime() - recentStartDate.getTime()) / (24 * 60 * 60 * 1000)),
+      assetStartDate: assetStartDate
     });
     console.log('=== END TIMESTAMP GENERATION ===\n');
     
     return { recentTimestamps };
-  }, [poolInfo]);
+  }, [poolInfo, selectedAsset]);
 
   // Split large timestamp arrays into safe 60-day batches to avoid 500 errors
   const BATCH_QUERIES = useMemo(() => {
-    console.log('=== SAFE BATCHED QUERY CONSTRUCTION ===');
-    console.log('⏰ Total timestamps for safe batching:', recentTimestamps.length);
+  console.log('=== ASSET-SPECIFIC BATCHED QUERY CONSTRUCTION ===');
+  console.log('🎯 Selected Asset:', selectedAsset);
+  console.log('🎯 Asset from context:', primaryAsset);
+  console.log('⏰ Total timestamps for safe batching:', recentTimestamps.length);
+  console.log('🌍 Network Environment:', networkEnv);
     
     if (recentTimestamps.length === 0) {
       return [];
     }
+    
+    // Get asset-specific deposit pool address
+    const depositPoolAddress = networkEnv ? getDepositPoolAddress(selectedAsset, networkEnv) : undefined;
+    
+    if (!depositPoolAddress) {
+      console.log('❌ No deposit pool address found for asset:', selectedAsset, 'on network:', networkEnv);
+      return [];
+    }
+    
+    console.log('🔍 Using deposit pool address:', depositPoolAddress);
     
     // Split into 60-day chunks to avoid API limits while getting complete data
     const batchSize = 60;
@@ -105,24 +207,26 @@ export function useCapitalChartData() {
     
     for (let i = 0; i < recentTimestamps.length; i += batchSize) {
       const chunk = recentTimestamps.slice(i, i + batchSize);
-      const query = buildDepositsQuery(chunk);
+      const query = buildDepositsQuery(chunk, depositPoolAddress);
       batches.push({
         query,
         timestamps: chunk,
         startDate: new Date(chunk[0] * 1000).toISOString().split('T')[0],
         endDate: new Date(chunk[chunk.length - 1] * 1000).toISOString().split('T')[0],
-        batchIndex: Math.floor(i / batchSize)
+        batchIndex: Math.floor(i / batchSize),
+        asset: selectedAsset,
+        depositPoolAddress
       });
     }
     
-    console.log(`✅ Created ${batches.length} safe batches covering ${recentTimestamps.length} days total (Feb 10, 2024 to present)`);
+    console.log(`✅ Created ${batches.length} asset-specific batches for ${selectedAsset} covering ${recentTimestamps.length} days total`);
     batches.forEach((batch, idx) => {
       console.log(`   Batch ${idx + 1}: ${batch.timestamps.length} days (${batch.startDate} to ${batch.endDate})`);
     });
-    console.log('=== END SAFE BATCHED QUERY CONSTRUCTION ===\n');
+    console.log('=== END ASSET-SPECIFIC BATCHED QUERY CONSTRUCTION ===\n');
     
     return batches;
-  }, [recentTimestamps]);
+  }, [recentTimestamps, selectedAsset, networkEnv]);
   
   // Historical data loading removed - focusing on recent data only for now
 
@@ -154,27 +258,37 @@ export function useCapitalChartData() {
 
   // Asset switching for live data will be handled by the chart component
 
-  // RESTORED: Batched data loading with original sophisticated approach
+  // CACHED: Batched data loading with caching support
   useEffect(() => {
-    console.log('=== RESTORED BATCHED DATA LOADING EFFECT ===');
+    console.log('=== 🚀 DATA LOADING EFFECT TRIGGERED ===');
     console.log('🌍 Network Environment:', networkEnv);
     console.log('🎯 Selected Asset:', selectedAsset);
     console.log('⏰ Total Timestamps Available:', recentTimestamps.length);
     console.log('🔍 Safe Batch Queries Available:', BATCH_QUERIES.length);
+    console.log('📊 Current Chart Data Length:', chartData.length);
+    console.log('📦 Cache Loaded:', isCacheLoaded);
+    
+    // Skip if we already have valid cached data
+    if (isCacheLoaded) {
+      console.log('📦 Using cached data, skipping API fetch');
+      return;
+    }
     
     // Only fetch for mainnet with valid batch queries
     if (!networkEnv || networkEnv === 'testnet' || BATCH_QUERIES.length === 0) {
       console.log('❌ Skipping safe batched data load:', {
         networkEnv,
         isTestnet: networkEnv === 'testnet',
-        batchQueriesLength: BATCH_QUERIES.length
+        batchQueriesLength: BATCH_QUERIES.length,
+        hasNetworkEnv: !!networkEnv,
+        networkEnvType: typeof networkEnv
       });
       setChartLoading(false);
       return;
     }
 
-    console.log('🚀 Starting SAFE BATCHED data load for staked', selectedAsset);
-    console.log(`📞 Making ${BATCH_QUERIES.length} sequential API calls to get complete data from Feb 10, 2024`);
+    console.log('🚀 Starting ASSET-SPECIFIC BATCHED data load for', selectedAsset);
+    console.log(`📞 Making ${BATCH_QUERIES.length} sequential API calls for ${selectedAsset} pool`);
     setChartLoading(true);
     setChartError(null);
 
@@ -189,9 +303,11 @@ export function useCapitalChartData() {
         // Process batches sequentially with delay to avoid overwhelming API
         for (const batchQuery of BATCH_QUERIES) {
           batchCount++;
-          console.log(`📡 Processing batch ${batchCount}/${BATCH_QUERIES.length} (${batchQuery.startDate} to ${batchQuery.endDate})`);
+          console.log(`📡 Processing ${batchQuery.asset} batch ${batchCount}/${BATCH_QUERIES.length} (${batchQuery.startDate} to ${batchQuery.endDate})`);
+          console.log(`🔍 Using deposit pool address: ${batchQuery.depositPoolAddress}`);
           
           const queryString = print(batchQuery.query);
+          console.log(`📝 GraphQL Query (first 500 chars): ${queryString.substring(0, 500)}...`);
           const requestBody = {
             query: queryString,
             variables: {},
@@ -210,37 +326,60 @@ export function useCapitalChartData() {
           }
 
           const result = await response.json();
+          console.log(`📊 Raw API response for ${batchQuery.asset} batch ${batchCount}:`, {
+            hasData: !!result.data,
+            hasErrors: !!result.errors,
+            dataKeys: result.data ? Object.keys(result.data) : [],
+            errors: result.errors
+          });
+          
           if (result.errors) {
+            console.error(`❌ GraphQL errors in batch ${batchCount}:`, result.errors);
             throw new Error(result.errors[0]?.message || `GraphQL error in batch ${batchCount}`);
           }
 
           // Process this batch's data using the d0, d1, d2... structure
           if (result.data) {
             const dayKeys = Object.keys(result.data).filter(key => key.startsWith('d'));
-            console.log(`✅ Batch ${batchCount} received ${dayKeys.length} day snapshots`);
+            console.log(`✅ ${batchQuery.asset} batch ${batchCount} received ${dayKeys.length} day snapshots`);
             
             let lastTotalStakedWei = allDataPoints.length > 0 
               ? ethers.utils.parseEther(allDataPoints[allDataPoints.length - 1].deposits.toString())
               : ethers.BigNumber.from(0);
+            
+            let hasAnyData = false;
             
             batchQuery.timestamps.forEach((timestampSec: number, index: number) => {
               const dayKey = `d${index}`;
               const interactionData = result.data[dayKey]?.[0];
               let currentTotalStakedWei = lastTotalStakedWei;
 
+              console.log(`🔍 ${batchQuery.asset} day ${index} (${dayKey}):`, {
+                hasInteractionData: !!interactionData,
+                totalStaked: interactionData?.totalStaked,
+                blockTimestamp: interactionData?.blockTimestamp
+              });
+
               if (interactionData?.totalStaked) {
                 try {
                   currentTotalStakedWei = ethers.BigNumber.from(interactionData.totalStaked);
+                  hasAnyData = true;
+                  console.log(`✅ ${batchQuery.asset} day ${index}: Found data, totalStaked = ${ethers.utils.formatEther(currentTotalStakedWei)} ETH`);
                 } catch (error) {
                   console.warn(`⚠️ Error parsing totalStaked in batch ${batchCount}, day ${index}:`, error);
                   if (allDataPoints.length === 0) currentTotalStakedWei = ethers.BigNumber.from(0);
                 }
-              } else if (allDataPoints.length === 0) {
-                currentTotalStakedWei = ethers.BigNumber.from(0);
+              } else {
+                console.log(`ℹ️ ${batchQuery.asset} day ${index}: No data, using last value = ${ethers.utils.formatEther(currentTotalStakedWei)} ETH`);
+                if (allDataPoints.length === 0) {
+                  currentTotalStakedWei = ethers.BigNumber.from(0);
+                }
               }
               
               lastTotalStakedWei = currentTotalStakedWei;
               const depositValue = parseFloat(ethers.utils.formatEther(currentTotalStakedWei));
+              
+              console.log(`📊 ${batchQuery.asset} day ${index}: Final depositValue = ${depositValue}`);
               
               allDataPoints.push({
                 date: new Date(timestampSec * 1000).toISOString(),
@@ -248,6 +387,12 @@ export function useCapitalChartData() {
                 timestamp: timestampSec,
               });
             });
+            
+            if (!hasAnyData && batchCount === 1) {
+              console.log(`ℹ️ No historical data found for ${batchQuery.asset} - this is expected for new assets`);
+            }
+            
+            console.log(`📊 Batch ${batchCount} summary: hasAnyData=${hasAnyData}, added ${batchQuery.timestamps.length} data points`);
           }
           
           // Add small delay between batches to be respectful to API
@@ -256,7 +401,7 @@ export function useCapitalChartData() {
           }
         }
         
-        console.log(`✅ SAFE BATCHED fetch completed: ${allDataPoints.length} total data points from ${batchCount} batches`);
+        console.log(`✅ ${selectedAsset} BATCHED fetch completed: ${allDataPoints.length} total data points from ${batchCount} batches`);
         return allDataPoints;
       } catch (error) {
         console.error(`❌ Error in safe batched fetch at batch ${batchCount}:`, error);
@@ -273,16 +418,21 @@ export function useCapitalChartData() {
             // Sort data points by timestamp to ensure proper chronological order
             const sortedData = allDataPoints.sort((a, b) => a.timestamp - b.timestamp);
             
-            console.log('✅ SAFE BATCHED data processing completed:', sortedData.length, 'data points');
+            console.log(`✅ ${selectedAsset} BATCHED data processing completed:`, sortedData.length, 'data points');
             console.log('📊 First data point:', sortedData[0]);
             console.log('📊 Last data point:', sortedData[sortedData.length - 1]);
             console.log('📊 Date range:', {
               from: sortedData[0]?.date?.split('T')[0],
               to: sortedData[sortedData.length - 1]?.date?.split('T')[0]
             });
+            console.log('📊 Sample of all data points:', sortedData.map(p => ({ date: p.date.split('T')[0], deposits: p.deposits })));
 
             setChartData(sortedData);
             setChartError(null);
+            
+            // Save to cache for future use
+            saveChartDataToCache(selectedAsset, sortedData, networkEnv);
+            setIsCacheLoaded(true);
           } catch (processingError: unknown) {
             const errorMessage = (processingError instanceof Error) ? processingError.message : String(processingError);
             console.error("Error processing batched chart data:", processingError);
@@ -290,7 +440,7 @@ export function useCapitalChartData() {
             setChartData([]);
           }
         } else {
-          console.log('❌ No safe batched data received');
+          console.log('❌ No safe batched data received for', selectedAsset);
           setChartData([]);
         }
         setChartLoading(false);
@@ -303,7 +453,7 @@ export function useCapitalChartData() {
         setChartData([]);
         setChartLoading(false);
       });
-  }, [selectedAsset, networkEnv, BATCH_QUERIES]); // Updated dependencies for safe batching
+  }, [selectedAsset, networkEnv, BATCH_QUERIES, isCacheLoaded]); // Updated dependencies for cached batching
 
   // DISABLED: Historical data loading - simple query gets all data at once
   useEffect(() => {
@@ -350,7 +500,19 @@ export function useCapitalChartData() {
     switchToChain,
     isNetworkSwitching,
     selectedAsset,
-    setSelectedAsset,
+    setSelectedAsset: (asset: TokenType) => {
+      console.log('🎯 setSelectedAsset called with:', asset, 'current:', selectedAsset);
+      setSelectedAsset(asset);
+    },
+    // Cache utilities
+    clearCache: () => {
+      try {
+        localStorage.removeItem(CHART_DATA_CACHE_KEY);
+        console.log('📦 Chart data cache cleared');
+      } catch (error) {
+        console.warn('Error clearing cache:', error);
+      }
+    },
     // Dynamic asset detection for live data
     availableAssets,
     hasMultipleAssets,
