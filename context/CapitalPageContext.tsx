@@ -1340,6 +1340,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Asset ${asset} not supported on ${networkEnv}`);
     }
 
+    // 🔥 CRITICAL FIX: Force fresh contract data before withdrawal validation
+    console.log('🔄 Refreshing contract data before withdrawal...');
+    await assetContractData[asset]?.refetch.userData();
+    
+    // Small delay to ensure fresh data is available
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     const assetData = assets[asset];
     if (!assetData) {
       throw new Error(`Asset ${asset} data not available`);
