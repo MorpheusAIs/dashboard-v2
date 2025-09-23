@@ -53,58 +53,58 @@ export function UserAssetsPanel() {
   // Get wallet initialization status from auth context
   const { isWalletInitialized, isLoading: isAuthLoading } = useAuth();
 
+  // All assets use the same reward pool (index 0) - confirmed via DistributorV2.depositPools() calls
+  // All mainnet capital assets (stETH, USDC, USDT, wBTC, wETH) are in reward pool index 0
+
   // Calculate daily emissions for each asset dynamically using real contract data
   const stETHEmissions = useDailyEmissions(
     assets.stETH?.claimableAmount,
     assets.stETH?.userDeposited,
     'stETH',
-    networkEnv
-  );
-
-  const linkEmissions = useDailyEmissions(
-    assets.LINK?.claimableAmount,
-    assets.LINK?.userDeposited,
-    'LINK',
-    networkEnv
+    networkEnv,
+    0 // All assets use reward pool index 0
   );
 
   const usdcEmissions = useDailyEmissions(
     assets.USDC?.claimableAmount,
     assets.USDC?.userDeposited,
     'USDC',
-    networkEnv
+    networkEnv,
+    0 // All assets use reward pool index 0
   );
 
   const usdtEmissions = useDailyEmissions(
     assets.USDT?.claimableAmount,
     assets.USDT?.userDeposited,
     'USDT',
-    networkEnv
+    networkEnv,
+    0 // All assets use reward pool index 0
   );
 
   const wbtcEmissions = useDailyEmissions(
     assets.wBTC?.claimableAmount,
     assets.wBTC?.userDeposited,
     'wBTC',
-    networkEnv
+    networkEnv,
+    0 // All assets use reward pool index 0
   );
 
   const wethEmissions = useDailyEmissions(
     assets.wETH?.claimableAmount,
     assets.wETH?.userDeposited,
     'wETH',
-    networkEnv
+    networkEnv,
+    0 // All assets use reward pool index 0
   );
 
   // Create a mapping of asset symbols to their emission data for easy lookup
   const assetEmissions = useMemo(() => ({
     stETH: stETHEmissions,
-    LINK: linkEmissions,
     USDC: usdcEmissions,
     USDT: usdtEmissions,
     wBTC: wbtcEmissions,
     wETH: wethEmissions,
-  }), [stETHEmissions, linkEmissions, usdcEmissions, usdtEmissions, wbtcEmissions, wethEmissions]);
+  }), [stETHEmissions, usdcEmissions, usdtEmissions, wbtcEmissions, wethEmissions]);
 
   // Fetch total MOR earned from Capital v2 subgraph (testnet only)
   const totalMorEarnedResult = useTotalMorEarned(userAddress || null, networkEnv);
@@ -179,14 +179,10 @@ export function UserAssetsPanel() {
     if (isDataLoadingComplete) {
       // Check if user truly has no assets (both no deposits and no claimable rewards)
       const stethDeposited = assets.stETH?.userDeposited || BigInt(0);
-      const linkDeposited = assets.LINK?.userDeposited || BigInt(0);
       const stethClaimable = assets.stETH?.claimableAmount || BigInt(0);
-      const linkClaimable = assets.LINK?.claimableAmount || BigInt(0);
-      
-      const hasNoAssets = stethDeposited === BigInt(0) && 
-                         linkDeposited === BigInt(0) && 
-                         stethClaimable === BigInt(0) && 
-                         linkClaimable === BigInt(0);
+
+      const hasNoAssets = stethDeposited === BigInt(0) &&
+                         stethClaimable === BigInt(0);
       
       if (hasNoAssets) {
         console.log('✅ Data loading complete - user has no assets, showing empty state');
@@ -198,7 +194,7 @@ export function UserAssetsPanel() {
         setIsInitialLoad(false);
       }
     }
-  }, [userAddress, hasValidData, isInitialLoad, isLoadingUserData, isLoadingBalances, isLoadingRewards, assets.stETH?.userDeposited, assets.stETH?.claimableAmount, assets.LINK?.userDeposited, assets.LINK?.claimableAmount]);
+  }, [userAddress, hasValidData, isInitialLoad, isLoadingUserData, isLoadingBalances, isLoadingRewards, assets.stETH?.userDeposited, assets.stETH?.claimableAmount]);
 
   // Smart refresh triggers: only refresh on page load or after user actions
   useEffect(() => {
@@ -244,7 +240,7 @@ export function UserAssetsPanel() {
     };
   }, []);
 
-  // Check if user has any assets staked (stETH or LINK)
+  // Check if user has any assets staked
   const hasStakedAssets = useMemo(() => {
     return checkHasStakedAssets(assets);
   }, [assets]);
@@ -364,7 +360,7 @@ export function UserAssetsPanel() {
     });
   }, [startDropdownTransition]);
 
-  // User assets data with real staking amounts for stETH and LINK
+  // User assets data with real staking amounts
   const unsortedUserAssets: UserAsset[] = useMemo(() => {
     if (!hasStakedAssets) {
       return [];
@@ -387,7 +383,8 @@ export function UserAssetsPanel() {
       const claimable = parseFloat(assetData.claimableAmountFormatted) || 0;
       
       // Use dynamic emissions data based on asset symbol
-      const emissions = assetEmissions[assetSymbol]?.emissions || 0;
+      // LINK is not available on mainnet, so this will be 0
+      const emissions = assetEmissions[assetSymbol as keyof typeof assetEmissions]?.emissions || 0;
       
         const multiplier = assetData.userMultiplierFormatted;
         const rawClaimUnlockDate = getAssetUnlockDateCallback(assetSymbol);
@@ -419,16 +416,6 @@ export function UserAssetsPanel() {
 
   // Calculate metrics from real asset data
   const metricsData = useMemo(() => {
-    if (!hasStakedAssets) {
-      return {
-        stakedValue: "0",
-        totalMorStaked: "0",
-        dailyEmissionsEarned: "0",
-        lifetimeEmissionsEarned: "N/A",
-        totalAvailableToClaim: "0",
-        referralRewards: "0",
-      };
-    }
 
     // Calculate total staked value dynamically across all assets with dynamic pricing
     const totalStakedValue = Object.values(assets).reduce((total, asset) => {
@@ -438,29 +425,44 @@ export function UserAssetsPanel() {
       return total + (stakedAmount * assetPrice);
     }, 0);
 
-    // Calculate total daily emissions dynamically across all available assets
-    const totalDailyEmissions = Object.values(assets).reduce((total, asset) => {
-      // Get emissions for this asset dynamically from our assetEmissions mapping
-      const emissions = assetEmissions[asset.symbol as keyof typeof assetEmissions]?.emissions || 0;
-      return total + emissions;
+    // Calculate total daily emissions as the sum of values shown in the table
+    const totalDailyEmissions = unsortedUserAssets.reduce((total, asset) => {
+      return total + asset.dailyEmissions;
     }, 0);
+
+    console.log(`📊 Total daily emissions from table: ${totalDailyEmissions}`, {
+      unsortedUserAssetsLength: unsortedUserAssets.length,
+      tableValues: unsortedUserAssets.map(asset => `${asset.symbol}: ${asset.dailyEmissions}`),
+      hasStakedAssets,
+      isInitialLoad,
+      hasValidData
+    });
 
     // Calculate total available to claim from table rows
     const totalTableAvailableToClaim = unsortedUserAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
 
-    // Calculate lifetime earnings using subgraph data (testnet)
-    const lifetimeEarnings = networkEnv === 'testnet'
-      ? (isTotalMorEarnedLoading ? "..." : (totalMorEarned > 0 ? formatNumber(totalMorEarned) : "0"))
-      : "N/A";
+    // Calculate lifetime earnings using subgraph data (both mainnet and testnet)
+    const lifetimeEarnings = isTotalMorEarnedLoading
+      ? "..."
+      : (totalMorEarned > 0 ? formatNumber(totalMorEarned) : "0");
+
+    // Custom formatting for daily emissions
+    const formatDailyEmissions = (value: number): string => {
+      const formatted = value < 0.01 ? value.toFixed(4) : value.toFixed(2);
+      console.log(`📊 Formatting daily emissions: ${value} → "${formatted}"`);
+      return formatted;
+    };
 
     const freshMetrics = {
       stakedValue: Math.floor(totalStakedValue).toLocaleString(),
       totalMorStaked: "0",
-      dailyEmissionsEarned: formatNumber(totalDailyEmissions),
+      dailyEmissionsEarned: formatDailyEmissions(totalDailyEmissions),
       lifetimeEmissionsEarned: lifetimeEarnings,
       totalAvailableToClaim: formatNumber(totalTableAvailableToClaim),
       referralRewards: "0",
     };
+
+    console.log(`📊 Final metrics:`, freshMetrics);
 
     // Save successful data to cache
     if (userAddress && hasStakedAssets) {
