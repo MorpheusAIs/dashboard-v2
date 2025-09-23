@@ -1390,7 +1390,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       decimals: assetInfo.metadata.decimals
     });
 
-    // 🔍 SIMULATION: Get exact contract error before execution
+    // 🔍 SIMULATION: Get exact contract error before execution - Trigged deployment
     try {
       console.log('🧪 Simulating withdrawal transaction...');
       const simulationResult = await publicClient?.simulateContract({
