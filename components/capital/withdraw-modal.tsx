@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { useCapitalContext } from "@/context/CapitalPageContext";
+import { getAssetConfig } from "@/components/capital/constants/asset-config";
+import { useNetwork } from "@/context/network-context";
 
 interface WithdrawModalProps {
   depositedAmount?: string; // Make optional since we'll get it from context
@@ -27,6 +29,8 @@ export function WithdrawModal({
     selectedAsset,
     assets
   } = useCapitalContext();
+  
+  const { environment } = useNetwork();
 
   const isOpen = activeModal === 'withdraw';
 
@@ -36,16 +40,23 @@ export function WithdrawModal({
   const assetDisplayName = currentAsset?.config.symbol || selectedAsset;
   const assetUnit = currentAsset?.config.symbol || selectedAsset;
 
+  // Get asset configuration for correct decimals
+  const assetConfig = useMemo(() => {
+    return getAssetConfig(selectedAsset, environment);
+  }, [selectedAsset, environment]);
+
+  const assetDecimals = assetConfig?.metadata.decimals || 18;
+
   const [amount, setAmount] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   const amountBigInt = useMemo(() => {
     try {
-      return amount ? parseUnits(amount, 18) : BigInt(0);
+      return amount ? parseUnits(amount, assetDecimals) : BigInt(0);
     } catch { 
       return BigInt(0); 
     }
-  }, [amount]);
+  }, [amount, assetDecimals]);
 
   const numericDeposited = useMemo(() => {
     try {
@@ -57,11 +68,11 @@ export function WithdrawModal({
 
   const depositedAmountBigInt = useMemo(() => {
     try {
-      return parseUnits(actualDepositedAmount, 18);
+      return parseUnits(actualDepositedAmount, assetDecimals);
     } catch {
       return BigInt(0);
     }
-  }, [actualDepositedAmount]);
+  }, [actualDepositedAmount, assetDecimals]);
 
   // Validation logic similar to deposit modal
   const validationError = useMemo(() => {

@@ -1340,6 +1340,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Asset ${asset} not supported on ${networkEnv}`);
     }
 
+    // 🔥 CRITICAL FIX: Force fresh contract data before withdrawal validation
+    console.log('🔄 Refreshing contract data before withdrawal...');
+    await assetContractData[asset]?.refetch.userData();
+    
+    // Small delay to ensure fresh data is available
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     const assetData = assets[asset];
     if (!assetData) {
       throw new Error(`Asset ${asset} data not available`);
@@ -1382,6 +1389,28 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       canWithdraw: assetData.canWithdraw,
       decimals: assetInfo.metadata.decimals
     });
+
+    // 🔍 SIMULATION: Get exact contract error before execution
+    try {
+      console.log('🧪 Simulating withdrawal transaction...');
+      const simulationResult = await publicClient?.simulateContract({
+        address: assetData.config.depositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'withdraw',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt],
+        account: userAddress,
+      });
+      console.log('✅ Simulation SUCCESS:', simulationResult);
+    } catch (simulationError: unknown) {
+      console.error('❌ SIMULATION FAILED:', simulationError);
+      
+      const error = simulationError as { cause?: { reason?: string }; message?: string; shortMessage?: string };
+      console.error('💡 Contract revert reason:', error?.cause?.reason || error?.message);
+      
+      // If simulation fails, throw the actual contract error
+      const contractError = error?.cause?.reason || error?.shortMessage || error?.message;
+      throw new Error(`Contract simulation failed: ${contractError}`);
+    }
 
     await handleTransaction(() => withdrawAsync({
       address: assetData.config.depositPoolAddress,
