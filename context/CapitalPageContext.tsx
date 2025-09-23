@@ -1474,10 +1474,32 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
       // 5. Check contract state at current block
       const currentBlock = await publicClient?.getBlockNumber();
+      const currentBlockData = await publicClient?.getBlock({ blockNumber: currentBlock });
+      
       console.log('🏗️ Block Context:', {
         currentBlock: currentBlock?.toString(),
+        blockTimestamp: currentBlockData?.timestamp ? Number(currentBlockData.timestamp) : 'unknown',
+        blockTimestampDate: currentBlockData?.timestamp ? new Date(Number(currentBlockData.timestamp) * 1000).toISOString() : 'unknown',
         chainId: l1ChainId,
-        timestamp: new Date().toISOString()
+        systemTimestamp: new Date().toISOString(),
+        timeDrift: currentBlockData?.timestamp ? (Date.now() / 1000) - Number(currentBlockData.timestamp) : 'unknown'
+      });
+
+      // 6. Check user's deposit state at current block to detect timing issues
+      const currentUserState = await publicClient?.readContract({
+        address: assetData.config.depositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'usersData',
+        args: [userAddress, V2_REWARD_POOL_INDEX],
+        blockNumber: currentBlock,
+      });
+
+      console.log('⏰ Timing Analysis:', {
+        blockNumber: currentBlock?.toString(),
+        userDepositedInContract: currentUserState ? (currentUserState as unknown[])[1]?.toString() : 'unknown',
+        userDepositedInUI: assetData.userDeposited.toString(),
+        stateMatch: currentUserState ? (currentUserState as unknown[])[1] === assetData.userDeposited : 'unknown',
+        potentialTimingIssue: currentUserState ? (currentUserState as unknown[])[1] !== assetData.userDeposited : 'unknown'
       });
       
     } catch (contextError) {
