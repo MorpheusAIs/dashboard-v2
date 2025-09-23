@@ -106,7 +106,7 @@ export function UserAssetsTable({
       },
       {
         id: "amountStaked",
-        header: "Amount Staked",
+        header: "Amount Deposited",
         accessorKey: "amountStaked",
         enableSorting: true,
         cell: (asset) => (
@@ -152,7 +152,7 @@ export function UserAssetsTable({
       },
       {
         id: "available",
-        header: "Available to Stake",
+        header: "Available to Deposit",
         accessorKey: "available",
         enableSorting: true,
         cell: (asset) => (
