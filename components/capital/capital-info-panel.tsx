@@ -1,7 +1,13 @@
 "use client";
 
-import NumberFlow from '@number-flow/react';
+import dynamic from 'next/dynamic'
 import { GlowingEffect } from "@/components/ui/glowing-effect";
+
+// Dynamically import NumberFlow with SSR disabled to prevent hydration errors
+const NumberFlow = dynamic(() => import('@number-flow/react'), {
+  ssr: false,
+  loading: () => <span>—</span>
+})
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { TokenIcon } from '@web3icons/react';
