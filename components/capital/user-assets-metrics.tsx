@@ -115,7 +115,7 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
         value={metricsData.lifetimeEmissionsEarned}
         label="MOR"
         disableGlow={true}
-        autoFormatNumbers={true}
+        autoFormatNumbers={false}
         className="col-span-1"
         isLoading={isLoading}
       />

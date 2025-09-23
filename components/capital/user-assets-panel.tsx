@@ -441,17 +441,18 @@ export function UserAssetsPanel() {
     // Calculate total available to claim from table rows
     const totalTableAvailableToClaim = unsortedUserAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
 
-    // Calculate lifetime earnings using subgraph data (both mainnet and testnet)
-    const lifetimeEarnings = isTotalMorEarnedLoading
-      ? "..."
-      : (totalMorEarned > 0 ? formatNumber(totalMorEarned) : "0");
-
-    // Custom formatting for daily emissions
+    // Custom formatting for daily emissions and lifetime earnings (same logic)
     const formatDailyEmissions = (value: number): string => {
       const formatted = value < 0.01 ? value.toFixed(4) : value.toFixed(2);
       console.log(`📊 Formatting daily emissions: ${value} → "${formatted}"`);
       return formatted;
     };
+
+    // Calculate lifetime earnings using subgraph data (both mainnet and testnet)
+    // Use same formatting logic as daily emissions for consistency
+    const lifetimeEarnings = isTotalMorEarnedLoading
+      ? "..."
+      : (totalMorEarned > 0 ? formatDailyEmissions(totalMorEarned) : "0");
 
     const freshMetrics = {
       stakedValue: Math.floor(totalStakedValue).toLocaleString(),
