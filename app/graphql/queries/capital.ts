@@ -118,7 +118,7 @@ export const ASSET_DEPOSIT_POOL_ADDRESSES: Record<'mainnet' | 'testnet', Partial
 
 // Asset-specific start dates
 export const ASSET_START_DATES: Record<AssetSymbol, string> = {
-  stETH: '2024-02-10T00:00:00Z', // Historical data from Feb 10, 2024
+  stETH: '2024-02-07T00:00:00Z', // Historical data from Feb 7, 2024
   USDC: '2025-09-18T00:00:00Z', // New pools start from Sep 18, 2025
   USDT: '2025-09-18T00:00:00Z',
   wBTC: '2025-09-18T00:00:00Z', 

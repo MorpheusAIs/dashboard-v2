@@ -3,8 +3,14 @@
 import { formatUnits } from 'viem'
 import { useAccount, useReadContract, useChainId } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
-import NumberFlow from '@number-flow/react'
+import dynamic from 'next/dynamic'
 import { morTokenContracts } from '@/lib/contracts'
+
+// Dynamically import NumberFlow with SSR disabled to prevent hydration errors
+const NumberFlow = dynamic(() => import('@number-flow/react'), {
+  ssr: false,
+  loading: () => <span>—</span>
+})
 import { useEffect, useCallback, useRef } from 'react'
 
 declare global {

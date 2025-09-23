@@ -1,13 +1,19 @@
 // import { Info } from "lucide-react"
-import NumberFlow from '@number-flow/react'
+import dynamic from 'next/dynamic'
 import { GlowingEffect } from "./ui/glowing-effect"
+
+// Dynamically import NumberFlow with SSR disabled to prevent hydration errors
+const NumberFlow = dynamic(() => import('@number-flow/react'), {
+  ssr: false,
+  loading: () => <span>—</span>
+})
 import { formatNumber } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export interface MetricCardMinimalProps {
-  title: string
+  title: string | React.ReactNode
   value?: string | number // Made optional to support loading state
   label?: string // Optional label like "MOR", "ETH", etc
   isUSD?: boolean // If true, shows $ before the value

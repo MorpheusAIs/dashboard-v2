@@ -161,21 +161,23 @@ export function UserAssetsTable({
           </span>
         ),
       },
-      /*
       {
         id: "dailyEmissions",
         header: "Daily Emissions",
         accessorKey: "dailyEmissions",
         enableSorting: true,
         cell: (asset) => {
+          const formattedValue = asset.dailyEmissions < 1 && asset.dailyEmissions >= 0
+            ? asset.dailyEmissions.toLocaleString(undefined, { maximumFractionDigits: 4, minimumFractionDigits: 3 })
+            : formatNumber(asset.dailyEmissions);
+
           return (
             <span className="text-gray-200">
-              {formatNumber(asset.dailyEmissions)} MOR
+              {formattedValue} MOR
             </span>
           );
         },
       },
-      */
       {
         id: "powerFactor",
         header: "Power Factor",
