@@ -47,7 +47,7 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
                   className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl max-w-xs"
                 >
                   <p className="text-sm">
-                    Projection of what you&apos;ll earn per day going forward based on your current stake
+                    Projection of what you&apos;ll earn per day going forward based on your current deposit
                   </p>
                 </TooltipContent>
               </Tooltip>
