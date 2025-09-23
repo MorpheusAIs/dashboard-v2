@@ -90,13 +90,13 @@ export const isUnlockDateReached = (unlockDate: string | null, hasStakedAssets: 
     const unlockDateTime = new Date(unlockDate);
     const currentDate = new Date();
 
-    console.log('📅 Date parsing details:', {
-      unlockDateString: unlockDate,
-      unlockDateTime: unlockDateTime,
-      unlockDateTimeParsed: unlockDateTime.toISOString(),
-      currentDate: currentDate.toISOString(),
-      unlockDateTimeValid: !isNaN(unlockDateTime.getTime())
-    });
+    // console.log('📅 Date parsing details:', {
+    //   unlockDateString: unlockDate,
+    //   unlockDateTime: unlockDateTime,
+    //   unlockDateTimeParsed: unlockDateTime.toISOString(),
+    //   currentDate: currentDate.toISOString(),
+    //   unlockDateTimeValid: !isNaN(unlockDateTime.getTime())
+    // });
 
     // Validate that the date was parsed correctly
     if (isNaN(unlockDateTime.getTime())) {
@@ -107,15 +107,15 @@ export const isUnlockDateReached = (unlockDate: string | null, hasStakedAssets: 
     // Compare dates including time
     const unlockReached = currentDate >= unlockDateTime;
 
-    console.log('✅ Unlock date comparison result:', {
-      unlockDate: unlockDate,
-      unlockDateTime: unlockDateTime.toISOString(),
-      currentDate: currentDate.toISOString(),
-      timeDifferenceMs: currentDate.getTime() - unlockDateTime.getTime(),
-      timeDifferenceHours: (currentDate.getTime() - unlockDateTime.getTime()) / (1000 * 60 * 60),
-      unlockReached,
-      shouldAllowWithdraw: unlockReached
-    });
+    // console.log('✅ Unlock date comparison result:', {
+    //   unlockDate: unlockDate,
+    //   unlockDateTime: unlockDateTime.toISOString(),
+    //   currentDate: currentDate.toISOString(),
+    //   timeDifferenceMs: currentDate.getTime() - unlockDateTime.getTime(),
+    //   timeDifferenceHours: (currentDate.getTime() - unlockDateTime.getTime()) / (1000 * 60 * 60),
+    //   unlockReached,
+    //   shouldAllowWithdraw: unlockReached
+    // });
 
     return unlockReached;
   } catch (error) {
