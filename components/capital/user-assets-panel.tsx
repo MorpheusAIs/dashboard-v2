@@ -245,6 +245,13 @@ export function UserAssetsPanel() {
     return checkHasStakedAssets(assets);
   }, [assets]);
 
+  // Check if user has any claimable MOR rewards (even without active stakes)
+  const hasClaimableRewards = useMemo(() => {
+    return Object.values(assets).some(asset => 
+      asset && asset.claimableAmount && asset.claimableAmount > BigInt(0)
+    );
+  }, [assets]);
+
   // Helper function to get claim unlock date for specific asset using real contract data
   const getAssetUnlockDateCallback = useCallback((assetSymbol: AssetSymbol): string | null => {
     const asset = assets[assetSymbol];
@@ -438,8 +445,16 @@ export function UserAssetsPanel() {
       hasValidData
     });
 
-    // Calculate total available to claim from table rows
-    const totalTableAvailableToClaim = unsortedUserAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0);
+    // Calculate total available to claim from table rows, or directly from assets if no staked assets
+    const totalTableAvailableToClaim = hasStakedAssets 
+      ? unsortedUserAssets.reduce((sum, asset) => sum + asset.availableToClaim, 0)
+      : Object.values(assets).reduce((sum, asset) => {
+          if (asset && asset.claimableAmountFormatted) {
+            const claimable = parseFloat(asset.claimableAmountFormatted.replace(/,/g, '')) || 0;
+            return sum + claimable;
+          }
+          return sum;
+        }, 0);
 
     // Custom formatting for daily emissions and lifetime earnings (same logic)
     const formatDailyEmissions = (value: number): string => {
@@ -508,7 +523,7 @@ export function UserAssetsPanel() {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-white">My Position</h2>
                 <div className="flex flex-row items-center space-x-2">
-                  {hasStakedAssets &&
+                  {hasStakedAssets ? (
                     <button
                         className={!userAddress || isAnyActionProcessing || isModalTransitioning ? "copy-button-secondary px-4 py-2 disabled:cursor-not-allowed" : "copy-button-base"}
                         onClick={() => setActiveModal('deposit')}
@@ -516,7 +531,25 @@ export function UserAssetsPanel() {
                     >
                       {isModalTransitioning ? 'Opening...' : 'Deposit'}
                     </button>
-                  }
+                  ) : hasClaimableRewards ? (
+                    <button
+                        className={!userAddress || isAnyActionProcessing || isModalTransitioning ? "copy-button-secondary px-4 py-2 disabled:cursor-not-allowed" : "copy-button-base"}
+                        onClick={() => {
+                          // Find the first asset with claimable rewards and set it as selected
+                          const assetWithRewards = (Object.keys(assets) as AssetSymbol[]).find(assetSymbol => {
+                            const asset = assets[assetSymbol];
+                            return asset && asset.claimableAmount && asset.claimableAmount > BigInt(0);
+                          });
+                          if (assetWithRewards) {
+                            setSelectedAsset(assetWithRewards);
+                          }
+                          setActiveModal('claimMorRewards');
+                        }}
+                        disabled={!userAddress || isAnyActionProcessing || isModalTransitioning}
+                    >
+                      {isModalTransitioning ? 'Opening...' : 'Claim rewards'}
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
