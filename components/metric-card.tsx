@@ -1,6 +1,12 @@
 import { Info } from "lucide-react"
-import NumberFlow from '@number-flow/react'
+import dynamic from 'next/dynamic'
 import { GlowingEffect } from "./ui/glowing-effect"
+
+// Dynamically import NumberFlow with SSR disabled to prevent hydration errors
+const NumberFlow = dynamic(() => import('@number-flow/react'), {
+  ssr: false,
+  loading: () => <span>—</span>
+})
 import { formatNumber } from "@/lib/utils"
 
 interface MetricValue {
