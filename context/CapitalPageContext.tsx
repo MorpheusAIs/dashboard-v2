@@ -1390,6 +1390,28 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       decimals: assetInfo.metadata.decimals
     });
 
+    // 🔍 SIMULATION: Get exact contract error before execution
+    try {
+      console.log('🧪 Simulating withdrawal transaction...');
+      const simulationResult = await publicClient?.simulateContract({
+        address: assetData.config.depositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'withdraw',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt],
+        account: userAddress,
+      });
+      console.log('✅ Simulation SUCCESS:', simulationResult);
+    } catch (simulationError: unknown) {
+      console.error('❌ SIMULATION FAILED:', simulationError);
+      
+      const error = simulationError as { cause?: { reason?: string }; message?: string; shortMessage?: string };
+      console.error('💡 Contract revert reason:', error?.cause?.reason || error?.message);
+      
+      // If simulation fails, throw the actual contract error
+      const contractError = error?.cause?.reason || error?.shortMessage || error?.message;
+      throw new Error(`Contract simulation failed: ${contractError}`);
+    }
+
     await handleTransaction(() => withdrawAsync({
       address: assetData.config.depositPoolAddress,
       abi: DepositPoolAbi,
