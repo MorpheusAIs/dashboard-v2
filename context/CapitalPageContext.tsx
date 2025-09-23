@@ -1046,8 +1046,45 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       return hash;
     } catch (error) {
       console.error(options.error, error);
+      
+      // 🔍 ENHANCED ERROR DEBUGGING
+      console.group('❌ TRANSACTION FAILURE ANALYSIS');
+      console.error('Full error object:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error constructor:', error?.constructor?.name);
+      
+      const detailedError = error as { 
+        cause?: { reason?: string; data?: unknown }; 
+        message?: string; 
+        shortMessage?: string;
+        details?: string;
+        metaMessages?: string[];
+      };
+      
+      console.log('🔍 Error Analysis:', {
+        shortMessage: detailedError?.shortMessage,
+        message: detailedError?.message,
+        causeReason: detailedError?.cause?.reason,
+        causeData: detailedError?.cause?.data,
+        details: detailedError?.details,
+        metaMessages: detailedError?.metaMessages,
+        timestamp: new Date().toISOString(),
+        chainId: l1ChainId,
+        userAddress: userAddress
+      });
+      
+      // Look for specific patterns
+      if (detailedError?.message?.includes("user isn't staked")) {
+        console.error('🚨 USER NOT STAKED ERROR DETECTED - Analysis:');
+        console.error('- This error comes from the contract');
+        console.error('- Contract thinks user has no deposits');
+        console.error('- Check account mismatch or state sync issues');
+      }
+      
+      console.groupEnd();
+      
       toast.dismiss(toastId);
-      const errorMessage = (error as BaseError)?.shortMessage || (error as Error)?.message;
+      const errorMessage = detailedError?.shortMessage || detailedError?.message || 'Unknown error';
       toast.error(options.error, {
         description: errorMessage,
         duration: 5000,
@@ -1390,6 +1427,63 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       decimals: assetInfo.metadata.decimals
     });
 
+    // 🔍 TRANSACTION CONTEXT DEBUGGING
+    try {
+      console.log('🧪 Transaction Context Analysis:');
+      
+      // 1. Check pending transactions
+      const pendingNonce = userAddress ? await publicClient?.getTransactionCount({ 
+        address: userAddress, 
+        blockTag: 'pending' 
+      }) : undefined;
+      const confirmedNonce = userAddress ? await publicClient?.getTransactionCount({ 
+        address: userAddress, 
+        blockTag: 'latest' 
+      }) : undefined;
+      
+      console.log('📊 Nonce Analysis:', {
+        userAddress,
+        pendingNonce,
+        confirmedNonce,
+        hasPendingTxs: pendingNonce !== confirmedNonce,
+        pendingCount: pendingNonce && confirmedNonce ? pendingNonce - confirmedNonce : 'unknown'
+      });
+
+      // 2. Gas estimation for withdrawal
+      const gasEstimate = userAddress ? await publicClient?.estimateContractGas({
+        address: assetData.config.depositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'withdraw',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt],
+        account: userAddress,
+      }) : undefined;
+
+      // 3. Get current gas price
+      const gasPrice = await publicClient?.getGasPrice();
+      
+      // 4. Get account balance for gas fee check
+      const ethBalance = userAddress ? await publicClient?.getBalance({ address: userAddress }) : undefined;
+      
+      console.log('⛽ Gas & Balance Analysis:', {
+        estimatedGas: gasEstimate?.toString(),
+        currentGasPrice: gasPrice?.toString(),
+        ethBalance: ethBalance?.toString(),
+        estimatedGasCost: gasEstimate && gasPrice ? (gasEstimate * gasPrice).toString() : 'unknown',
+        canAffordGas: ethBalance && gasEstimate && gasPrice ? ethBalance > (gasEstimate * gasPrice) : 'unknown'
+      });
+
+      // 5. Check contract state at current block
+      const currentBlock = await publicClient?.getBlockNumber();
+      console.log('🏗️ Block Context:', {
+        currentBlock: currentBlock?.toString(),
+        chainId: l1ChainId,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (contextError) {
+      console.warn('⚠️ Transaction context analysis failed:', contextError);
+    }
+
     // 🔍 SIMULATION: Get exact contract error before execution - Trigged deployment
     try {
       console.log('🧪 Simulating withdrawal transaction...');
@@ -1412,19 +1506,62 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Contract simulation failed: ${contractError}`);
     }
 
-    await handleTransaction(() => withdrawAsync({
-      address: assetData.config.depositPoolAddress,
-      abi: DepositPoolAbi,
-      functionName: 'withdraw',
-      args: [V2_REWARD_POOL_INDEX, amountBigInt],
+    // 🔥 CRITICAL CHECK: Verify user is connected
+    if (!userAddress) {
+      throw new Error('No wallet connected. Please connect your wallet to withdraw.');
+    }
+
+    // Log the account being used for debugging account mismatch issues
+    console.log(`🔍 Withdrawal account verification:`, {
+      userAddress,
+      asset,
       chainId: l1ChainId,
-      gas: BigInt(1200000),
-    }), {
+      contractAddress: assetData.config.depositPoolAddress
+    });
+
+    await handleTransaction(async () => {
+      // 🔍 LOG EXACT TRANSACTION PARAMETERS BEING SENT
+      const txParams = {
+        address: assetData.config.depositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'withdraw',
+        args: [V2_REWARD_POOL_INDEX, amountBigInt],
+        chainId: l1ChainId,
+        gas: BigInt(1200000),
+      };
+
+      console.log('🚀 FINAL TRANSACTION PARAMETERS:', {
+        contractAddress: txParams.address,
+        functionName: txParams.functionName,
+        args: {
+          rewardPoolIndex: txParams.args[0].toString(),
+          amount: txParams.args[1].toString(),
+          amountHex: '0x' + txParams.args[1].toString(16),
+          amountEther: formatUnits(txParams.args[1], assetInfo.metadata.decimals)
+        },
+        chainId: txParams.chainId,
+        gasLimit: txParams.gas.toString(),
+        userAddress,
+        expectedGasFeePaidBy: userAddress,
+        transactionWillExecuteAs: userAddress + ' (wallet connected account)',
+        timestamp: Date.now()
+      });
+
+      // Compare with successful Etherscan transaction format
+      console.log('📋 ETHERSCAN COMPARISON:', {
+        successfulEtherscanPattern: 'withdraw(uint256,uint256)',
+        ourFunctionCall: `withdraw(${txParams.args[0].toString()}, ${txParams.args[1].toString()})`,
+        expectedMethodID: '0x441a3e70',
+        parametersMatch: 'Should match successful Etherscan calls'
+      });
+
+      return withdrawAsync(txParams);
+    }, {
       loading: `Requesting ${asset} withdrawal...`,
       success: `Successfully withdrew ${amountString} ${asset}!`, 
       error: `${asset} withdrawal failed`
     });
-  }, [withdrawAsync, l1ChainId, networkEnv, assets, handleTransaction]);
+  }, [withdrawAsync, l1ChainId, networkEnv, assets, handleTransaction, userAddress, assetContractData, publicClient]);
 
   // Removed unused legacy functions: approveStEth, legacyDeposit
 
