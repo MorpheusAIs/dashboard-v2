@@ -588,7 +588,7 @@ export function UserAssetsPanel() {
 
         {/* Stake MOR Rewards Modal */}
         <StakeMorRewardsModal />
-
+{/* test comment for deployment */}
         {/* Claim MOR Rewards Modal */}
         <ClaimMorRewardsModal />
       </div>
