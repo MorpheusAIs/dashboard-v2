@@ -19,6 +19,8 @@ interface BuildersContextType {
   setRewardTypeFilter: (filter: string) => void;
   networkFilter: string;
   setNetworkFilter: (filter: string) => void;
+  hasDescriptionFilter: boolean;
+  setHasDescriptionFilter: (filter: boolean) => void;
   filteredBuilders: Builder[];
   rewardTypes: string[];
   totalMetrics: {
@@ -47,16 +49,19 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   const [nameFilter, setNameFilter] = useState('');
   const [rewardTypeFilter, setRewardTypeFilter] = useState('all');
   const [networkFilter, setNetworkFilter] = useState('all');
+  const [hasDescriptionFilter, setHasDescriptionFilter] = useState(false);
 
   useInitStateFromUrl('name', (value) => { if (value !== '') setNameFilter(value); }, ParamConverters.string.deserialize);
   useInitStateFromUrl('rewardType', (value) => { if (value !== '') setRewardTypeFilter(value); }, ParamConverters.string.deserialize);
   useInitStateFromUrl('network', (value) => { if (value !== '') setNetworkFilter(value); }, ParamConverters.string.deserialize);
+  useInitStateFromUrl('hasDescription', (value) => { if (value !== '') setHasDescriptionFilter(value === 'true'); }, ParamConverters.string.deserialize);
   useInitStateFromUrl('sort', (sorting) => { if (sorting.column) setSortColumn(sorting.column); if (sorting.direction) setSortDirection(sorting.direction); }, ParamConverters.sorting.deserialize);
 
   const { setParam } = useUrlParams();
   useEffect(() => { setParam('name', nameFilter || null); }, [nameFilter, setParam]);
   useEffect(() => { setParam('rewardType', (rewardTypeFilter && rewardTypeFilter !== 'all') ? rewardTypeFilter : null); }, [rewardTypeFilter, setParam]);
   useEffect(() => { setParam('network', (networkFilter && networkFilter !== 'all') ? networkFilter : null); }, [networkFilter, setParam]);
+  useEffect(() => { setParam('hasDescription', hasDescriptionFilter ? 'true' : null); }, [hasDescriptionFilter, setParam]);
   useEffect(() => { setParam('sort', sortColumn ? ParamConverters.sorting.serialize({ column: sortColumn, direction: sortDirection }) : null); }, [sortColumn, sortDirection, setParam]);
 
   const setSorting = (column: string) => {
@@ -80,6 +85,9 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     if (networkFilter && networkFilter !== 'all') {
       result = result.filter(builder => builder.networks && builder.networks.includes(networkFilter));
     }
+    if (hasDescriptionFilter) {
+      result = result.filter(builder => builder.description && builder.description.trim() !== '');
+    }
     if (sortColumn) {
       result.sort((a, b) => {
         const aValue = a[sortColumn as keyof Builder];
@@ -96,7 +104,7 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
       });
     }
     return result;
-  }, [builders, nameFilter, rewardTypeFilter, networkFilter, sortColumn, sortDirection]);
+  }, [builders, nameFilter, rewardTypeFilter, networkFilter, hasDescriptionFilter, sortColumn, sortDirection]);
 
   const rewardTypes = useMemo(() => {
     const types = new Set<string>();
@@ -154,6 +162,8 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
         setRewardTypeFilter,
         networkFilter,
         setNetworkFilter,
+        hasDescriptionFilter,
+        setHasDescriptionFilter,
         filteredBuilders,
         rewardTypes,
         totalMetrics,

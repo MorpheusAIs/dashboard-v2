@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons"
 import { useNetworkInfo } from "@/app/hooks/useNetworkInfo"
 import { cn } from "@/lib/utils"
@@ -19,12 +20,12 @@ export interface DataFiltersProps {
   nameFilterLabel?: string
   nameFilterPlaceholder?: string
   showNameFilter?: boolean
-  
+
   // Network filter
   networkFilter?: string
   onNetworkFilterChange?: (value: string) => void
   showNetworkFilter?: boolean
-  
+
   // Select filter (for type, status, etc.)
   selectFilter?: string
   onSelectFilterChange?: (value: string) => void
@@ -32,7 +33,17 @@ export interface DataFiltersProps {
   selectFilterPlaceholder?: string
   selectFilterOptions?: SelectFilterOption[]
   showSelectFilter?: boolean
-  
+
+  // Checkbox filter
+  checkboxFilter?: boolean
+  onCheckboxFilterChange?: (value: boolean) => void
+  checkboxFilterLabel?: string
+  showCheckboxFilter?: boolean
+
+  // Results count
+  resultsCount?: number
+  showResultsCount?: boolean
+
   // Styling
   className?: string
 }
@@ -44,12 +55,12 @@ export function DataFilters({
   nameFilterLabel = "Name",
   nameFilterPlaceholder = "Search by name",
   showNameFilter = true,
-  
+
   // Network filter
   networkFilter = "all",
   onNetworkFilterChange,
   showNetworkFilter = true,
-  
+
   // Select filter
   selectFilter = "all",
   onSelectFilterChange,
@@ -57,7 +68,17 @@ export function DataFilters({
   selectFilterPlaceholder = "Select type",
   selectFilterOptions = [],
   showSelectFilter = false,
-  
+
+  // Checkbox filter
+  checkboxFilter = false,
+  onCheckboxFilterChange,
+  checkboxFilterLabel = "Has description",
+  showCheckboxFilter = false,
+
+  // Results count
+  resultsCount = 0,
+  showResultsCount = false,
+
   // Styling
   className = "",
 }: DataFiltersProps) {
@@ -108,8 +129,8 @@ export function DataFilters({
       {showNetworkFilter && (
         <div className="w-48 space-y-2">
           <Label>Network</Label>
-          <ToggleGroup 
-            type="single" 
+          <ToggleGroup
+            type="single"
             value={networkFilter}
             onValueChange={(value) => {
               // Only update if there's a new value and either we're not in testnet or the value is "all"
@@ -122,8 +143,8 @@ export function DataFilters({
             <ToggleGroupItem value="all" className="flex items-center gap-2 px-4">
               All
             </ToggleGroupItem>
-            <ToggleGroupItem 
-              value="Arbitrum" 
+            <ToggleGroupItem
+              value="Arbitrum"
               className={cn(
                 "flex items-center gap-2 px-4",
                 isTestnet && "opacity-50 cursor-not-allowed"
@@ -134,8 +155,8 @@ export function DataFilters({
                 <ArbitrumIcon size={19} className="text-current" fill="currentColor" />
               </div>
             </ToggleGroupItem>
-            <ToggleGroupItem 
-              value="Base" 
+            <ToggleGroupItem
+              value="Base"
               className={cn(
                 "flex items-center gap-2 px-4",
                 isTestnet && "opacity-50 cursor-not-allowed"
@@ -147,6 +168,28 @@ export function DataFilters({
               </div>
             </ToggleGroupItem>
           </ToggleGroup>
+        </div>
+      )}
+
+      {showCheckboxFilter && (
+        <div className="flex items-center space-x-2 mt-8 -ml-4">
+          <Checkbox
+            id="checkbox-filter"
+            checked={checkboxFilter}
+            onCheckedChange={(checked) => onCheckboxFilterChange?.(checked as boolean)}
+            className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+          />
+          <Label htmlFor="checkbox-filter" className="text-sm font-medium cursor-pointer">
+            {checkboxFilterLabel}
+          </Label>
+        </div>
+      )}
+
+      {showResultsCount && (
+        <div className="flex items-center space-x-2 mt-8 ml-auto">
+          <span className="text-md font-medium text-emerald-500">
+            Results: {resultsCount}
+          </span>
         </div>
       )}
     </div>

@@ -312,19 +312,21 @@ export default function BuildersPage() {
     setRewardTypeFilter,
     networkFilter,
     setNetworkFilter,
-    
+    hasDescriptionFilter,
+    setHasDescriptionFilter,
+
     // Sorting for 'Builders' tab
     sortColumn,
     sortDirection,
     setSorting,
-    
+
     // Data for 'Builders' tab
     filteredBuilders,
     builders,
     rewardTypes,
     isLoading,
     refreshData,
-    
+
     // Total metrics (independent of filters)
     totalMetrics,
 
@@ -1262,14 +1264,14 @@ export default function BuildersPage() {
                   }}
                   nameFilterLabel="Name"
                   nameFilterPlaceholder="Search subnet name"
-                  
+
                   networkFilter={networkFilter}
                   onNetworkFilterChange={(value) => {
                     setNetworkFilter(value);
                     setParam('network', value === 'all' ? null : value);
                   }}
                   showNetworkFilter={true}
-                  
+
                   selectFilter={rewardTypeFilter}
                   onSelectFilterChange={(value) => {
                     setRewardTypeFilter(value);
@@ -1279,6 +1281,16 @@ export default function BuildersPage() {
                   selectFilterPlaceholder="Select type"
                   selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))}
                   showSelectFilter={true}
+
+                  checkboxFilter={hasDescriptionFilter}
+                  onCheckboxFilterChange={(value) => {
+                    setHasDescriptionFilter(value);
+                  }}
+                  checkboxFilterLabel="Has description"
+                  showCheckboxFilter={true}
+
+                  resultsCount={filteredBuilders.length}
+                  showResultsCount={true}
                 />
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
