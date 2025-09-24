@@ -4,7 +4,7 @@
 GraphQL is used to fetch data from multiple subgraphs across different networks.
 
 ## Endpoints
-- Arbitrum: https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest
+- Arbitrum: https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest
 - Base: https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api
 - Arbitrum Sepolia: https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api
 

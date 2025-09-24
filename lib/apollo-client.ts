@@ -5,7 +5,7 @@ import { onError } from '@apollo/client/link/error';
 
 // Define the network endpoints for different chains
 const NETWORK_ENDPOINTS = {
-  Arbitrum: 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest',
+  Arbitrum: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
   ArbitrumSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
   Base: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
   // Capital v2 subgraph endpoints

@@ -286,7 +286,7 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
       const maxRetries = 1; // Only retry once
       
       const makeApiCall = async () => {
-        const response = await fetch('https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest', {
+        const response = await fetch('https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

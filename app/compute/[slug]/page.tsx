@@ -89,7 +89,7 @@ export default function ComputeSubnetPage() {
     refresh
   } = useStakingData({
     projectId: subnet?.id,
-    queryEndpoint: 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest',
+    queryEndpoint: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
     queryDocument: GET_SUBNET_USERS,
     formatEntryFunc: formatStakingEntry,
     initialSort: { column: 'amount', direction: 'desc' },
