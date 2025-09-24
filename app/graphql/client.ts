@@ -3,9 +3,9 @@
 // GraphQL API endpoints
 export const GRAPHQL_ENDPOINTS = {
   'Base': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
-  'Arbitrum': 'https://api.studio.thegraph.com/query/73688/lumerin-node/version/latest',
+  'Arbitrum': 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
   'Arbitrum_Sepolia': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
-  "Ethereum": "https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest",
+  "Ethereum": "https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest",
 };
 
 // Define the request cache entry type

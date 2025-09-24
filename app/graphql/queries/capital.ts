@@ -383,7 +383,7 @@ export const buildMultiBatchDepositsQuery = (timestamps: number[], batchSize: nu
 // ===== REFERRAL QUERIES =====
 
 export const GET_REFERRALS_BY_REFERRER = `
-  query getReferralsByReferrer($referrerAddress: String!) {
+  query getReferralsByReferrer($referrerAddress: Bytes!) {
     referrers(where: { referrerAddress_contains: $referrerAddress }) {
       referrerAddress
       referrals {
@@ -395,7 +395,7 @@ export const GET_REFERRALS_BY_REFERRER = `
 `;
 
 export const GET_REFERRER_STATS = `
-  query getReferrerStats($referrerAddress: String!) {
+  query getReferrerStats($referrerAddress: Bytes!) {
     referrers(where: { referrerAddress: $referrerAddress }) {
       referrerAddress
       referrals {
