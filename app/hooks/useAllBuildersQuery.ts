@@ -7,6 +7,7 @@ import { useAuth } from '@/context/auth-context'; // Added to get userAddress
 import { useMorlordBuilders } from './useMorlordBuilders'; // Import the new hook
 import { BuilderDB } from '@/app/lib/supabase';
 import { useNewlyCreatedSubnets } from './useNewlyCreatedSubnets';
+import { BUILDER_BLACKLIST } from '@/config/builders';
 
 export const useAllBuildersQuery = () => {
   // console.log('[useAllBuildersQuery] Hook initialized');
@@ -65,14 +66,17 @@ export const useAllBuildersQuery = () => {
       //   console.warn('[useAllBuildersQuery] Supabase error detected on mainnet:', supabaseError);
       // }
 
-      // Start with supabase builders
-      let combinedBuilders = supabaseBuilders ? [...supabaseBuilders] : [];
+      // Start with supabase builders, filtering out blacklisted ones
+      let combinedBuilders = supabaseBuilders
+        ? supabaseBuilders.filter(builder => !BUILDER_BLACKLIST.includes(builder.name))
+        : [];
       
       if (!isTestnet && Array.isArray(morlordBuilderNames) && morlordBuilderNames.length > 0) {
         const newlyCreatedNames = getNewlyCreatedSubnetNames();
         
-        // Combine morlord names with newly created names
-        const allOfficialNames = [...morlordBuilderNames, ...newlyCreatedNames];
+        // Combine morlord names with newly created names, filtering out blacklisted ones
+        const allOfficialNames = [...morlordBuilderNames, ...newlyCreatedNames]
+          .filter(name => !BUILDER_BLACKLIST.includes(name));
         
         // console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names and ${newlyCreatedNames.length} newly created names`);
         
