@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { parseUnits } from "viem";
+import { parseUnits, formatUnits } from "viem";
 
 import { Dialog, DialogPortal, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,7 @@ import { useCapitalContext } from "@/context/CapitalPageContext";
 import { getAssetConfig } from "@/components/capital/constants/asset-config";
 import { useNetwork } from "@/context/network-context";
 
-interface WithdrawModalProps {
-  depositedAmount?: string; // Make optional since we'll get it from context
-}
-
-export function WithdrawModal({ 
-  depositedAmount 
-}: WithdrawModalProps) {
+export function WithdrawModal() {
   const {
     userAddress,
     withdraw,
@@ -36,7 +30,7 @@ export function WithdrawModal({
 
   // Get asset-specific data from context
   const currentAsset = assets[selectedAsset];
-  const actualDepositedAmount = depositedAmount || currentAsset?.userDepositedFormatted || "0";
+  const rawDepositedAmount = currentAsset?.userDeposited || BigInt(0);
   const assetDisplayName = currentAsset?.config.symbol || selectedAsset;
   const assetUnit = currentAsset?.config.symbol || selectedAsset;
 
@@ -46,6 +40,12 @@ export function WithdrawModal({
   }, [selectedAsset, environment]);
 
   const assetDecimals = assetConfig?.metadata.decimals || 18;
+
+  // Format deposited amount with higher precision for display and max withdrawal
+  const actualDepositedAmount = useMemo(() => {
+    if (rawDepositedAmount <= BigInt(0)) return "0";
+    return formatUnits(rawDepositedAmount, assetDecimals);
+  }, [rawDepositedAmount, assetDecimals]);
 
   const [amount, setAmount] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -66,13 +66,7 @@ export function WithdrawModal({
     }
   }, [actualDepositedAmount]);
 
-  const depositedAmountBigInt = useMemo(() => {
-    try {
-      return parseUnits(actualDepositedAmount, assetDecimals);
-    } catch {
-      return BigInt(0);
-    }
-  }, [actualDepositedAmount, assetDecimals]);
+  const depositedAmountBigInt = rawDepositedAmount;
 
   // Validation logic similar to deposit modal
   const validationError = useMemo(() => {
@@ -86,7 +80,10 @@ export function WithdrawModal({
     }
     
     if (amountBigInt > depositedAmountBigInt) {
-      return `Insufficient ${assetDisplayName} deposited. Available: ${parseFloat(actualDepositedAmount).toFixed(2)} ${assetUnit}`;
+      return `Insufficient ${assetDisplayName} deposited. Available: ${parseFloat(actualDepositedAmount).toLocaleString(undefined, { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 6 
+      })} ${assetUnit}`;
     }
     
     return null;
@@ -187,7 +184,10 @@ export function WithdrawModal({
                 />
                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
                   <span className="text-xs text-gray-400 mr-2">
-                    {parseFloat(actualDepositedAmount).toFixed(2)} {assetUnit}
+                    {parseFloat(actualDepositedAmount).toLocaleString(undefined, { 
+                      minimumFractionDigits: 2, 
+                      maximumFractionDigits: 6 
+                    })} {assetUnit}
                   </span>
                   <button
                     type="button"
