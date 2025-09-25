@@ -25,6 +25,7 @@ import type { AssetSymbol } from "@/context/CapitalPageContext";
 import type { UserAsset } from "./types/user-asset";
 import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAuth } from "@/context/auth-context";
+import { useWalletCacheManager } from "@/hooks/use-wallet-cache-manager";
 
 // Type for modal actions that can be triggered from dropdowns
 type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards";
@@ -52,6 +53,9 @@ export function UserAssetsPanel() {
 
   // Get wallet initialization status from auth context
   const { isWalletInitialized, isLoading: isAuthLoading } = useAuth();
+
+  // Cache manager to handle wallet changes and cache invalidation
+  const { debugCacheState } = useWalletCacheManager(userAddress, networkEnv);
 
   // All assets use the same reward pool (index 0) - confirmed via DistributorV2.depositPools() calls
   // All mainnet capital assets (stETH, USDC, USDT, wBTC, wETH) are in reward pool index 0
@@ -427,9 +431,37 @@ export function UserAssetsPanel() {
     // Calculate total staked value dynamically across all assets with dynamic pricing
     const totalStakedValue = Object.values(assets).reduce((total, asset) => {
       const stakedAmount = parseDepositAmount(asset.userDepositedFormatted);
-      const assetPrice = getAssetPrice(asset.symbol) || 1; // Dynamic price lookup with fallback
+      const assetPrice = getAssetPrice(asset.symbol);
       
-      return total + (stakedAmount * assetPrice);
+      // Enhanced debugging for price issues
+      if (stakedAmount > 0) {
+        if (assetPrice === null) {
+          console.error(`❌ No price available for ${asset.symbol}:`, {
+            symbol: asset.symbol,
+            stakedAmount,
+            userAddress,
+            action: 'Skipping from staked value calculation - both CoinGecko and Coinbase failed'
+          });
+          // Debug cache state when price is missing for significant amounts
+          if (stakedAmount > 100) {
+            debugCacheState();
+          }
+          
+          // Don't add anything to total if price is unavailable - this is safer than using a wrong price
+          return total;
+        } else if (assetPrice > 0) {
+          console.log(`💰 Price found for ${asset.symbol}:`, {
+            symbol: asset.symbol,
+            stakedAmount,
+            assetPrice,
+            value: stakedAmount * assetPrice
+          });
+          
+          return total + (stakedAmount * assetPrice);
+        }
+      }
+      
+      return total;
     }, 0);
 
     // Calculate total daily emissions as the sum of values shown in the table
@@ -500,7 +532,7 @@ export function UserAssetsPanel() {
     }
 
     return freshMetrics;
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, assetEmissions, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress, setCachedUserAssets, getAssetPrice]);
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, assetEmissions, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress, setCachedUserAssets, getAssetPrice, debugCacheState]);
 
 
   return (

@@ -26,14 +26,33 @@ const PRICE_CACHE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const PRICE_RETRY_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes before allowing retry
 export const MAX_PRICE_RETRIES = 3;
 
-// Cache management functions
-export const getCachedPrices = (): TokenPriceCache | null => {
+// Helper to get user-specific cache key for better isolation
+const getUserPriceCacheKey = (userAddress?: string): string => {
+  // Use global key if no user address (for anonymous access)
+  // Otherwise use user-specific key to prevent cross-user contamination
+  return userAddress ? `${TOKEN_PRICE_CACHE_KEY}_${userAddress}` : TOKEN_PRICE_CACHE_KEY;
+};
+
+// Cache management functions with user-specific support
+export const getCachedPrices = (userAddress?: string): TokenPriceCache | null => {
   if (typeof window === 'undefined') return null;
   try {
-    const cached = localStorage.getItem(TOKEN_PRICE_CACHE_KEY);
-    if (!cached) return null;
+    const cacheKey = getUserPriceCacheKey(userAddress);
+    const cached = localStorage.getItem(cacheKey);
+    
+    // If user-specific cache doesn't exist, try global cache for fallback
+    const fallbackCache = userAddress && !cached ? localStorage.getItem(TOKEN_PRICE_CACHE_KEY) : null;
+    const cacheToUse = cached || fallbackCache;
+    
+    if (!cacheToUse) return null;
 
-    const parsedCache: TokenPriceCache = JSON.parse(cached);
+    const parsedCache: TokenPriceCache = JSON.parse(cacheToUse);
+    
+    // If we used fallback cache, log it
+    if (fallbackCache && !cached && userAddress) {
+      console.log('💰 Using global price cache as fallback for user:', userAddress.slice(0, 6));
+    }
+    
     return parsedCache;
   } catch (error) {
     console.warn('Error reading token prices cache:', error);
@@ -41,10 +60,17 @@ export const getCachedPrices = (): TokenPriceCache | null => {
   }
 };
 
-export const setCachedPrices = (cache: TokenPriceCache): void => {
+export const setCachedPrices = (cache: TokenPriceCache, userAddress?: string): void => {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(TOKEN_PRICE_CACHE_KEY, JSON.stringify(cache));
+    const cacheKey = getUserPriceCacheKey(userAddress);
+    localStorage.setItem(cacheKey, JSON.stringify(cache));
+    
+    // Also update global cache for fallback purposes (with rate limiting to avoid spam)
+    const globalCache = localStorage.getItem(TOKEN_PRICE_CACHE_KEY);
+    if (!globalCache || (cache.lastSuccessfulFetch > 0 && Math.random() < 0.1)) {
+      localStorage.setItem(TOKEN_PRICE_CACHE_KEY, JSON.stringify(cache));
+    }
   } catch (error) {
     console.warn('Error saving token prices cache:', error);
   }
@@ -94,9 +120,12 @@ export function useTokenPrices({
 
   // Load cached prices on mount
   useEffect(() => {
-    const cachedPrices = getCachedPrices();
+    const cachedPrices = getCachedPrices(userAddress);
     if (cachedPrices) {
-      console.log('💰 Loading cached token prices:', cachedPrices);
+      console.log('💰 Loading cached token prices:', {
+        ...cachedPrices,
+        userAddress: userAddress?.slice(0, 6) || 'anonymous'
+      });
       
       // Load dynamic prices if available
       if (cachedPrices.prices) {
@@ -111,7 +140,7 @@ export function useTokenPrices({
       }
       setMorPrice(cachedPrices.morPrice);
     }
-  }, []);
+  }, [userAddress]);
 
   // Fetch token prices with robust retry and fallback logic
   useEffect(() => {
@@ -120,14 +149,15 @@ export function useTokenPrices({
     if (!userAddress) return;
 
     async function fetchTokenPricesWithRetry() {
-      const cachedPrices = getCachedPrices();
+      const cachedPrices = getCachedPrices(userAddress);
 
       // Check if we should attempt a fresh fetch or use cache
       if (cachedPrices && !shouldRetryPriceFetch(cachedPrices)) {
         console.log('💰 Using cached prices due to retry limit or cooldown:', {
           retryCount: cachedPrices.retryCount,
           maxRetries: MAX_PRICE_RETRIES,
-          timeSinceLastTry: Date.now() - cachedPrices.timestamp
+          timeSinceLastTry: Date.now() - cachedPrices.timestamp,
+          userAddress: userAddress?.slice(0, 6) || 'anonymous'
         });
 
         // Use cached prices and reset loading flags
@@ -153,9 +183,11 @@ export function useTokenPrices({
         const availableAssets = getAssetsForNetwork(networkEnvironment);
         
         // Create price fetch promises for all available assets
+        // Use parallel fetching for better performance during initial load
+        const useParallelFetching = isInitialLoad;
         const assetPricePromises = availableAssets.map(async (assetInfo) => {
           try {
-            const price = await getTokenPrice(assetInfo.metadata.coinGeckoId, 'usd');
+            const price = await getTokenPrice(assetInfo.metadata.coinGeckoId, 'usd', useParallelFetching);
             return { symbol: assetInfo.metadata.symbol, price };
           } catch (error) {
             console.warn(`Failed to fetch price for ${assetInfo.metadata.symbol}:`, error);
@@ -197,7 +229,7 @@ export function useTokenPrices({
           retryCount: 0, // Reset retry count on success
           lastSuccessfulFetch: now
         };
-        setCachedPrices(newCache);
+        setCachedPrices(newCache, userAddress);
 
         // Use transition to prevent UI blocking during price updates
         startPriceTransition(() => {
@@ -223,7 +255,7 @@ export function useTokenPrices({
             timestamp: now,
             retryCount: newRetryCount
           };
-          setCachedPrices(updatedCache);
+          setCachedPrices(updatedCache, userAddress);
 
           // Use cached prices as fallback
           const fallbackPrices = cachedPrices.prices || {
@@ -263,7 +295,7 @@ export function useTokenPrices({
             retryCount: newRetryCount,
             lastSuccessfulFetch: 0
           };
-          setCachedPrices(errorCache);
+          setCachedPrices(errorCache, userAddress);
         }
       }
     }
