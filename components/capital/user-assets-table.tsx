@@ -64,7 +64,6 @@ interface UserAssetsTableProps {
   onDropdownOpenChangeAction: (assetId: string, open: boolean) => void;
   onDropdownActionAction: (modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => void;
   openDropdownId: string | null;
-  isWithdrawUnlockDateReachedAction: (withdrawUnlockDate: string | null) => boolean;
   isAnyActionProcessing: boolean;
   isModalTransitioning: boolean;
   isDropdownTransitioning: boolean;
@@ -78,7 +77,6 @@ export function UserAssetsTable({
   onDropdownOpenChangeAction,
   onDropdownActionAction,
   openDropdownId,
-  isWithdrawUnlockDateReachedAction,
   isAnyActionProcessing,
   isModalTransitioning,
   isDropdownTransitioning
@@ -111,11 +109,11 @@ export function UserAssetsTable({
             </span>
             {asset.amountStaked > 0 && (
               <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums ${
-                isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate)
+                asset.canWithdraw
                   ? "bg-emerald-400 hover:bg-emerald-500 text-black border-emerald-400"
                   : "bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
               }`}>
-                {isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate) ? (
+                {asset.canWithdraw ? (
                   <LockOpen className="h-3 w-3" />
                 ) : (
                   <Lock className="h-3 w-3" />
@@ -242,8 +240,8 @@ export function UserAssetsTable({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => onDropdownActionAction('withdraw', asset.assetSymbol)}
-                disabled={isAnyActionProcessing || isModalTransitioning || !isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate)}
-                className={!isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate) ? "text-gray-500 cursor-not-allowed" : ""}
+                disabled={isAnyActionProcessing || isModalTransitioning || !asset.canWithdraw}
+                className={!asset.canWithdraw ? "text-gray-500 cursor-not-allowed" : ""}
               >
                 <ArrowDownToLine className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Withdraw'}
@@ -269,7 +267,7 @@ export function UserAssetsTable({
         ),
       },
     ],
-    [isAnyActionProcessing, onDropdownActionAction, openDropdownId, onDropdownOpenChangeAction, isWithdrawUnlockDateReachedAction, isModalTransitioning, isDropdownTransitioning, hoveredRowId]
+    [isAnyActionProcessing, onDropdownActionAction, openDropdownId, onDropdownOpenChangeAction, isModalTransitioning, isDropdownTransitioning, hoveredRowId]
   );
 
   return (

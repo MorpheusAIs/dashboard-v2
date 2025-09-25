@@ -17,7 +17,6 @@ import { useTotalMorEarned } from "@/hooks/use-total-mor-earned";
 import {
   parseDepositAmount,
   hasStakedAssets as checkHasStakedAssets,
-  isUnlockDateReached,
   formatUnlockDate
 } from "./utils/asset-formatters";
 import { getAssetConfig } from "./constants/asset-config";
@@ -300,12 +299,6 @@ export function UserAssetsPanel() {
     // Use per-asset withdraw unlock logic from contract data
     return asset.canWithdraw;
   }, [assets]);
-
-  // Helper function to check if withdraw unlock date has passed (for Amount Staked column badge)
-  const isWithdrawUnlockDateReachedCallback = useCallback((withdrawUnlockDate: string | null): boolean => {
-    return isUnlockDateReached(withdrawUnlockDate, hasStakedAssets);
-  }, [hasStakedAssets]);
-
 
 
   // Check if any action is currently processing
@@ -601,7 +594,6 @@ export function UserAssetsPanel() {
                   onDropdownOpenChangeAction={handleDropdownOpenChange}
                   onDropdownActionAction={handleDropdownAction}
                   openDropdownId={openDropdownId}
-                  isWithdrawUnlockDateReachedAction={isWithdrawUnlockDateReachedCallback}
                   isAnyActionProcessing={isAnyActionProcessing}
                   isModalTransitioning={isModalTransitioning}
                   isDropdownTransitioning={isDropdownTransitioning}
