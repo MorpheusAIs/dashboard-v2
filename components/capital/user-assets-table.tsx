@@ -24,38 +24,6 @@ import { formatAssetAmount, formatStakedAmount } from "./utils/asset-formatters"
 import type { UserAsset } from "./types/user-asset";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 
-// Helper function to format unlock date for tooltip in mm/dd/yyyy hh:mm format
-function formatUnlockDateForTooltip(unlockDate: string | null): string {
-  if (!unlockDate || unlockDate === "N/A") {
-    return "No unlock date available";
-  }
-
-  // Handle special formatted timestamp strings from formatTimestamp utility
-  if (unlockDate === "--- --, ----" || unlockDate === "Never" || unlockDate === "Invalid Number" || unlockDate === "Invalid Date" || unlockDate === "Invalid Data") {
-    return "No unlock date set";
-  }
-
-  // Try to parse the date string and format it
-  try {
-    const date = new Date(unlockDate);
-    if (isNaN(date.getTime())) {
-      console.warn("Could not parse unlock date:", unlockDate);
-      return "Date format not recognized";
-    }
-
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-
-    return `${month}/${day}/${year} ${hours}:${minutes}`;
-  } catch (error) {
-    console.error("Error formatting unlock date:", error);
-    return "Error formatting date";
-  }
-}
-
 interface UserAssetsTableProps {
   userAssets: UserAsset[];
   isLoading: boolean;
@@ -128,12 +96,7 @@ export function UserAssetsTable({
         header: "Deposit Unlock Date",
         cell: (asset) => (
           <span className="text-gray-300 whitespace-nowrap">
-            {asset.canWithdraw
-              ? "Unlocked"
-              : asset.withdrawUnlockDate && asset.withdrawUnlockDate !== "N/A"
-                ? formatUnlockDateForTooltip(asset.withdrawUnlockDate)
-                : "N/A"
-            }
+            {asset.withdrawUnlockDate || "N/A"}
           </span>
         ),
       },
