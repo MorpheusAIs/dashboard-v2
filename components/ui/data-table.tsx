@@ -33,6 +33,8 @@ export interface DataTableProps<T> {
   noResultsMessage?: string
   className?: string
   onRowClick?: (item: T) => void
+  onRowHover?: (itemId: string | null) => void
+  getItemId?: (item: T) => string
 }
 
 export function DataTable<T>({
@@ -45,6 +47,8 @@ export function DataTable<T>({
   noResultsMessage = "No results found.",
   className,
   onRowClick,
+  onRowHover,
+  getItemId,
 }: DataTableProps<T>) {
   return (
     <div className={cn("table-container", className)}>
@@ -125,6 +129,8 @@ export function DataTable<T>({
                   onRowClick && "cursor-pointer hover:bg-white/[0.05]"
                 )}
                 onClick={() => onRowClick && onRowClick(item)}
+                onMouseEnter={() => onRowHover && getItemId && onRowHover(getItemId(item))}
+                onMouseLeave={() => onRowHover && onRowHover(null)}
                 style={onRowClick ? { cursor: 'pointer' } : undefined}
               >
                 {columns.map((column) => (

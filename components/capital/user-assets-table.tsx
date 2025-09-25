@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { TokenIcon } from '@web3icons/react';
 import { DataTable, Column } from "@/components/ui/data-table";
 import {
@@ -9,12 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
 import {
   Ellipsis,
   TrendingUp,
@@ -89,6 +83,7 @@ export function UserAssetsTable({
   isModalTransitioning,
   isDropdownTransitioning
 }: UserAssetsTableProps) {
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
   // Define columns for the assets table
   const assetsColumns: Column<UserAsset>[] = useMemo(
     () => [
@@ -115,39 +110,33 @@ export function UserAssetsTable({
               {formatStakedAmount(asset.amountStaked, asset.assetSymbol)}
             </span>
             {asset.amountStaked > 0 && (
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="inline-block">
-                      <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums cursor-pointer ${
-                        isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate)
-                          ? "bg-emerald-400 hover:bg-emerald-500 text-black border-emerald-400"
-                          : "bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
-                      }`}>
-                        {isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate) ? (
-                          <LockOpen className="h-3 w-3" />
-                        ) : (
-                          <Lock className="h-3 w-3" />
-                        )}
-                      </Badge>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    avoidCollisions={false}
-                    className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
-                  >
-                    <p className="text-sm font-medium">
-                      {asset.canWithdraw
-                        ? "Unlocked"
-                        : `Locked until ${formatUnlockDateForTooltip(asset.withdrawUnlockDate)}`
-                      }
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums ${
+                isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate)
+                  ? "bg-emerald-400 hover:bg-emerald-500 text-black border-emerald-400"
+                  : "bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
+              }`}>
+                {isWithdrawUnlockDateReachedAction(asset.withdrawUnlockDate) ? (
+                  <LockOpen className="h-3 w-3" />
+                ) : (
+                  <Lock className="h-3 w-3" />
+                )}
+              </Badge>
             )}
           </div>
+        ),
+      },
+      {
+        id: "depositUnlockDate",
+        header: "Deposit Unlock Date",
+        cell: (asset) => (
+          <span className="text-gray-300 whitespace-nowrap">
+            {asset.canWithdraw
+              ? "Unlocked"
+              : asset.withdrawUnlockDate && asset.withdrawUnlockDate !== "N/A"
+                ? formatUnlockDateForTooltip(asset.withdrawUnlockDate)
+                : "N/A"
+            }
+          </span>
         ),
       },
       {
@@ -226,14 +215,23 @@ export function UserAssetsTable({
       },
       {
         id: "actions",
-        header: "", // No header for actions column
+        header: "Actions",
         cell: (asset) => (
           <DropdownMenu
             open={openDropdownId === asset.id}
             onOpenChange={(open) => onDropdownOpenChangeAction(asset.id, open)}
           >
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 p-0 rounded-lg" disabled={isAnyActionProcessing || isModalTransitioning || isDropdownTransitioning}>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className={`h-8 w-8 p-0 rounded-lg transition-all duration-200 ${
+                  hoveredRowId === asset.id 
+                    ? 'animate-pulse ring-2 ring-emerald-500 ring-opacity-75' 
+                    : ''
+                }`} 
+                disabled={isAnyActionProcessing || isModalTransitioning || isDropdownTransitioning}
+              >
                 <Ellipsis className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -271,7 +269,7 @@ export function UserAssetsTable({
         ),
       },
     ],
-    [isAnyActionProcessing, onDropdownActionAction, openDropdownId, onDropdownOpenChangeAction, isWithdrawUnlockDateReachedAction, isModalTransitioning, isDropdownTransitioning]
+    [isAnyActionProcessing, onDropdownActionAction, openDropdownId, onDropdownOpenChangeAction, isWithdrawUnlockDateReachedAction, isModalTransitioning, isDropdownTransitioning, hoveredRowId]
   );
 
   return (
@@ -284,6 +282,8 @@ export function UserAssetsTable({
         onSortingChange={onSortingChangeAction}
         loadingRows={2}
         noResultsMessage="No assets found."
+        onRowHover={setHoveredRowId}
+        getItemId={(asset) => asset.id}
       />
     </div>
   );
