@@ -145,7 +145,7 @@ export function ReferralPanel() {
                   label={referralData.isLoadingReferralData ? "" : "MOR"}
                   disableGlow={true}
                   autoFormatNumbers={false}
-                  className={`h-full ${hasClaimableRewards ? 'ring-2 ring-emerald-400/20' : ''}`}
+                  className="h-full"
                 />
               </div>
 
