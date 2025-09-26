@@ -16,26 +16,38 @@ import { type TokenType } from "@/mock-data";
 import { useAvailableAssets } from "@/hooks/use-available-assets";
 
 // Local storage utilities for chart data caching
-const CHART_DATA_CACHE_KEY = 'morpheus-chart-data-cache';
-const CACHE_EXPIRY_HOURS = 1; // Cache expires after 1 hour
+const CHART_DATA_CACHE_KEY = 'morpheus-chart-data-cache-v2'; // Updated version for better cache management
+const CACHE_EXPIRY_HOURS = 2; // Cache expires after 2 hours (increased for better persistence)
 
 interface CachedChartData {
-  [asset: string]: {
+  [assetNetworkKey: string]: { // Use combined key for better isolation
     data: DataPoint[];
     timestamp: number;
     networkEnv: string;
+    asset: string;
   };
 }
 
+// Generate cache key for specific asset-network combination
+const getCacheKey = (asset: TokenType, networkEnv: string): string => {
+  return `${asset}_${networkEnv}`;
+};
+
 const getChartDataFromCache = (asset: TokenType, networkEnv: string): DataPoint[] | null => {
+  if (typeof window === 'undefined') return null; // SSR safety
+  
   try {
     const cached = localStorage.getItem(CHART_DATA_CACHE_KEY);
     if (!cached) return null;
     
     const parsedCache: CachedChartData = JSON.parse(cached);
-    const assetCache = parsedCache[asset];
+    const cacheKey = getCacheKey(asset, networkEnv);
+    const assetCache = parsedCache[cacheKey];
     
-    if (!assetCache || assetCache.networkEnv !== networkEnv) return null;
+    if (!assetCache || assetCache.networkEnv !== networkEnv || assetCache.asset !== asset) {
+      console.log(`📦 No valid cache found for ${asset} on ${networkEnv}`);
+      return null;
+    }
     
     // Check if cache is expired
     const now = Date.now();
@@ -44,10 +56,13 @@ const getChartDataFromCache = (asset: TokenType, networkEnv: string): DataPoint[
     
     if (cacheAge > maxAge) {
       console.log(`📦 Cache expired for ${asset} (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
+      // Remove expired cache entry
+      delete parsedCache[cacheKey];
+      localStorage.setItem(CHART_DATA_CACHE_KEY, JSON.stringify(parsedCache));
       return null;
     }
     
-    console.log(`📦 Using cached data for ${asset} (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
+    console.log(`📦 ✅ Using cached data for ${asset} on ${networkEnv} (${Math.round(cacheAge / 1000 / 60)} minutes old, ${assetCache.data.length} points)`);
     return assetCache.data;
   } catch (error) {
     console.warn('Error reading chart data from cache:', error);
@@ -56,18 +71,22 @@ const getChartDataFromCache = (asset: TokenType, networkEnv: string): DataPoint[
 };
 
 const saveChartDataToCache = (asset: TokenType, data: DataPoint[], networkEnv: string): void => {
+  if (typeof window === 'undefined') return; // SSR safety
+  
   try {
     const cached = localStorage.getItem(CHART_DATA_CACHE_KEY);
     const parsedCache: CachedChartData = cached ? JSON.parse(cached) : {};
     
-    parsedCache[asset] = {
+    const cacheKey = getCacheKey(asset, networkEnv);
+    parsedCache[cacheKey] = {
       data,
       timestamp: Date.now(),
-      networkEnv
+      networkEnv,
+      asset
     };
     
     localStorage.setItem(CHART_DATA_CACHE_KEY, JSON.stringify(parsedCache));
-    console.log(`📦 Cached ${data.length} data points for ${asset}`);
+    console.log(`📦 ✅ Cached ${data.length} data points for ${asset} on ${networkEnv}`);
   } catch (error) {
     console.warn('Error saving chart data to cache:', error);
   }
@@ -104,6 +123,11 @@ export function useCapitalChartData() {
   // Cache management
   const [isCacheLoaded, setIsCacheLoaded] = useState<boolean>(false);
   
+  // Reset cache loaded state when asset or network changes
+  useEffect(() => {
+    setIsCacheLoaded(false);
+  }, [selectedAsset, networkEnv]);
+  
   // Always use live data from actual API endpoints
   
   // Initialize selected asset only once when primary asset is first available
@@ -130,7 +154,7 @@ export function useCapitalChartData() {
     } else {
       console.log(`📦 No valid cache found for ${selectedAsset}, will fetch fresh data`);
       setIsCacheLoaded(false);
-      // Don't set loading here - let the main effect handle it
+      setChartLoading(true); // Set loading when no cache found
     }
   }, [selectedAsset, networkEnv]);
 
@@ -268,8 +292,8 @@ export function useCapitalChartData() {
     console.log('📊 Current Chart Data Length:', chartData.length);
     console.log('📦 Cache Loaded:', isCacheLoaded);
     
-    // Skip if we already have valid cached data
-    if (isCacheLoaded) {
+    // Skip if we already have valid cached data for this asset
+    if (isCacheLoaded && chartData.length > 0) {
       console.log('📦 Using cached data, skipping API fetch');
       return;
     }
