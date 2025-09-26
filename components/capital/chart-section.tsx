@@ -88,13 +88,6 @@ export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
   useEffect(() => {
     if (!isMorlordData) return;
 
-    // Check if we already have valid cached data
-    const cachedAPR = getCachedMorlordAPR();
-    if (cachedAPR !== null) {
-      setMorlordApr(cachedAPR);
-      return;
-    }
-
     const fetchMorlordData = async () => {
       setMorlordLoading(true);
       setMorlordError(null);
@@ -113,11 +106,19 @@ export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
       } catch (error) {
         console.error('Failed to fetch Morlord data:', error);
         setMorlordError(error instanceof Error ? error.message : 'Failed to fetch data');
+        
+        // On error, fall back to cached data if available
+        const cachedAPR = getCachedMorlordAPR();
+        if (cachedAPR !== null) {
+          console.log('Using cached Morlord APR due to API error');
+          setMorlordApr(cachedAPR);
+        }
       } finally {
         setMorlordLoading(false);
       }
     };
 
+    // Always fetch fresh data on page load, cache is only used for initial state and error fallback
     fetchMorlordData();
   }, [isMorlordData]);
 
