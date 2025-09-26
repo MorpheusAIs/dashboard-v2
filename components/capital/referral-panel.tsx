@@ -108,7 +108,7 @@ export function ReferralPanel() {
             </div>
 
             {/* Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4">
               {/* Total Deposited by Referrals */}
               <div className="col-span-1">
                 <MetricCardMinimal
@@ -126,7 +126,7 @@ export function ReferralPanel() {
               </div>
 
               {/* Lifetime Value Generated */}
-              <div className="col-span-1">
+              {/* <div className="col-span-1">
                 <MetricCardMinimal
                   title="Total MOR Earned"
                   value={referralData.isLoadingReferralData ? "---" : formatMorValue(referralData.lifetimeRewards)}
@@ -135,7 +135,7 @@ export function ReferralPanel() {
                   autoFormatNumbers={false}
                   className="h-full"
                 />
-              </div>
+              </div> */}
 
               {/* Claimable Rewards */}
               <div className="col-span-1">
