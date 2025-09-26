@@ -51,6 +51,13 @@ export function ReferralPanel() {
   // Check if user has any claimable referral rewards
   const hasClaimableRewards = referralData.assetsWithClaimableRewards.length > 0;
 
+  // Format MOR values using same logic as daily emissions (4 decimals if < 0.01, 2 decimals otherwise)
+  const formatMorValue = (value: string | number): string => {
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(numValue)) return '0';
+    return numValue < 0.01 ? numValue.toFixed(4) : numValue.toFixed(2);
+  };
+
   return (
     <div className="page-section mt-8">
       <div className="relative">
@@ -80,12 +87,18 @@ export function ReferralPanel() {
 
             {/* Content Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-4">
-              {/* Total Referrals */}
+              {/* Total Deposited by Referrals */}
               <div className="col-span-1">
                 <MetricCardMinimal
-                  title="Total Referrals"
-                  value={referralData.isLoadingReferralData ? "---" : referralData.totalReferrals}
+                  title={
+                    <div className="flex flex-col">
+                      <span>Current Deposits by Referrals ({referralData.isLoadingReferralData ? "---" : referralData.totalReferrals})</span>
+                    </div>
+                  }
+                  value={referralData.isLoadingReferralData ? "---" : referralData.totalReferralAmount}
+                  label={referralData.isLoadingReferralData ? "" : "stETH"}
                   disableGlow={true}
+                  autoFormatNumbers={true}
                   className="h-full"
                 />
               </div>
@@ -94,10 +107,10 @@ export function ReferralPanel() {
               <div className="col-span-1">
                 <MetricCardMinimal
                   title="Total MOR Earned"
-                  value={referralData.isLoadingReferralData ? "---" : referralData.lifetimeRewards}
+                  value={referralData.isLoadingReferralData ? "---" : formatMorValue(referralData.lifetimeRewards)}
                   label={referralData.isLoadingReferralData ? "" : "MOR"}
                   disableGlow={true}
-                  autoFormatNumbers={true}
+                  autoFormatNumbers={false}
                   className="h-full"
                 />
               </div>
@@ -106,10 +119,10 @@ export function ReferralPanel() {
               <div className="col-span-1">
                 <MetricCardMinimal
                   title="Claimable Rewards"
-                  value={referralData.isLoadingReferralData ? "---" : referralData.claimableRewards}
+                  value={referralData.isLoadingReferralData ? "---" : formatMorValue(referralData.claimableRewards)}
                   label={referralData.isLoadingReferralData ? "" : "MOR"}
                   disableGlow={true}
-                  autoFormatNumbers={true}
+                  autoFormatNumbers={false}
                   className={`h-full ${hasClaimableRewards ? 'ring-2 ring-emerald-400/20' : ''}`}
                 />
               </div>
