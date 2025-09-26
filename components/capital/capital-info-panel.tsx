@@ -64,6 +64,11 @@ export function CapitalInfoPanel() {
       icon: assetConfig.metadata.icon,
       disabled: assetConfig.metadata.disabled || (!hasDepositPool),
     };
+  }).sort((a, b) => {
+    // Sort by total deposited amount (highest first)
+    const aValue = parseStakedAmount(a.totalStaked);
+    const bValue = parseStakedAmount(b.totalStaked);
+    return bValue - aValue;
   });
 
   const handleStakeClick = (assetSymbol: AssetSymbol) => {

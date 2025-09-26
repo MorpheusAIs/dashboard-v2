@@ -31,7 +31,7 @@ interface LocalDepositorAdjustment {
 const TVL_CACHE_KEY = 'morpheus_tvl_cache';
 const ACTIVE_STAKERS_CACHE_KEY = 'morpheus_active_stakers_cache';
 const LOCAL_DEPOSITOR_ADJUSTMENT_KEY = 'morpheus_local_depositor_adjustment';
-const CACHE_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes - shorter cache for more frequent updates
 const MAX_RETRY_ATTEMPTS = 3;
 
 // Cache management functions
@@ -223,14 +223,14 @@ export function useCapitalMetrics(): CapitalMetrics {
       return;
     }
 
-    // Check cache first
+    // Check cache first for immediate UI update, but always fetch fresh data
     const cachedData = getCachedActiveStakers(poolData.networkEnvironment);
     if (cachedData) {
-      console.log(`📦 [FRONTEND] Using cached active stakers data for ${poolData.networkEnvironment}:`, cachedData.activeStakers);
+      console.log(`📦 [FRONTEND] Using cached active stakers data as initial state for ${poolData.networkEnvironment}:`, cachedData.activeStakers, '(fetching fresh data...)');
       setActiveStakersCount(cachedData.activeStakers);
       setActiveStakersError(null);
       setRetryAttempts(0);
-      return;
+      // Don't return - continue to fetch fresh data
     }
 
     async function fetchActiveStakersWithRetry(attemptNumber: number = 1): Promise<void> {
