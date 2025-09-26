@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useNetwork } from "@/context/network-context";
 import { useChainId, useSwitchChain, useAccount, useConnectorClient } from "wagmi";
 import { mainnet } from "wagmi/chains";
@@ -14,9 +15,51 @@ import { ChangeLockModal } from "@/components/capital/change-lock-modal";
 
 // Import new components
 import { CapitalInfoPanel } from "@/components/capital/capital-info-panel";
-import { ChartSection } from "@/components/capital/chart-section";
-import { UserAssetsPanel } from "@/components/capital/user-assets-panel";
-// import { ReferralPanel } from "@/components/capital/referral-panel";
+// Import ChartSection dynamically to prevent hydration mismatch due to localStorage usage
+const ChartSection = dynamic(() => import("@/components/capital/chart-section").then(mod => ({ default: mod.ChartSection })), {
+  ssr: false,
+  loading: () => (
+    <div className="lg:col-span-2 relative h-[500px] flex items-center justify-center">
+      <div className="text-gray-400">Loading chart...</div>
+    </div>
+  )
+});
+// Import UserAssetsPanel dynamically to prevent hydration mismatch due to localStorage usage in hooks
+const UserAssetsPanel = dynamic(() => import("@/components/capital/user-assets-panel").then(mod => ({ default: mod.UserAssetsPanel })), {
+  ssr: false,
+  loading: () => (
+    <div className="page-section mt-8">
+      <div className="relative">
+        <div className="section-content group relative px-1 py-4 sm:p-6">
+          <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Your Assets</h2>
+              <div className="text-gray-400">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+});
+// Import ReferralPanel dynamically to prevent hydration mismatch
+const ReferralPanel = dynamic(() => import("@/components/capital/referral-panel").then(mod => ({ default: mod.ReferralPanel })), {
+  ssr: false,
+  loading: () => (
+    <div className="page-section mt-8">
+      <div className="relative">
+        <div className="section-content group relative px-1 py-4 sm:p-6">
+          <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Referrals</h2>
+              <div className="text-gray-400">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+});
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 
 // Import Context and Config
@@ -151,7 +194,7 @@ function CapitalPageContent() {
       <UserAssetsPanel />
 
       {/* Referral Panel */}
-      {/* <ReferralPanel /> */}
+      <ReferralPanel />
 
       {/* Render Modals */}
       <DepositModal />
