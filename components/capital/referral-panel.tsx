@@ -5,11 +5,22 @@ import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export function ReferralPanel() {
   const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
   const [isCopying, setIsCopying] = useState(false);
   const [currentDomain, setCurrentDomain] = useState('');
+  const [showClaimDialog, setShowClaimDialog] = useState(false);
 
   // Set current domain after component mounts (client-side only)
   useEffect(() => {
@@ -36,8 +47,15 @@ export function ReferralPanel() {
     }
   };
 
-  // Handle referral rewards claim - aggregate claim from both pools
-  const handleClaimReferralRewards = async () => {
+  // Handle referral rewards claim - show confirmation dialog first
+  const handleClaimReferralRewards = () => {
+    if (!userAddress) return;
+    setShowClaimDialog(true);
+  };
+
+  // Execute the actual claim after confirmation
+  const executeClaimReferralRewards = async () => {
+    setShowClaimDialog(false);
     if (!userAddress) return;
     
     try {
@@ -77,7 +95,11 @@ export function ReferralPanel() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">Referrals</h2>
               <button
-                className="copy-button-secondary font-medium px-4 py-2 rounded-lg"
+                className={`copy-button-secondary font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
+                  !userAddress || !hasClaimableRewards || referralData.isLoadingReferralData 
+                    ? '' 
+                    : 'hover:copy-button'
+                }`}
                 onClick={handleClaimReferralRewards}
                 disabled={!userAddress || !hasClaimableRewards || referralData.isLoadingReferralData}
               >
@@ -151,6 +173,41 @@ export function ReferralPanel() {
           </div>
         </div>
       </div>
+
+      {/* Claim Confirmation Dialog */}
+      <AlertDialog open={showClaimDialog} onOpenChange={setShowClaimDialog}>
+        <AlertDialogContent className="bg-background">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-emerald-400">
+              How claiming MOR rewards works?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-300 leading-relaxed">
+              When you claim MOR referral rewards:
+              <br />
+              <br />
+              • MOR tokens are minted directly on Arbitrum (Layer 2)
+              <br />
+              • The transaction is processed cross-chain from Ethereum
+              <br />
+              • It may take 5-10 minutes for the MOR tokens to appear in your wallet balance
+              <br />
+              • You&apos;ll need a small amount of ETH (~0.01 ETH) for cross-chain gas fees
+              <br />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={executeClaimReferralRewards}
+              className="copy-button"
+            >
+              Proceed to Claim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 
