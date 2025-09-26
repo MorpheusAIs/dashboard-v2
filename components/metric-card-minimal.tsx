@@ -71,9 +71,15 @@ export function MetricCardMinimal({
       <Card className={`card-minimal group relative p-4 h-full flex flex-col ${className}`}>
         <CardContent className="absolute inset-0 pointer-events-none" />
         <CardHeader className="relative flex flex-col items-start p-0 mb-0 gap-2">
-          <CardDescription className="text-sm text-gray-400 leading-tight">
-            {title}
-          </CardDescription>
+          {typeof title === 'string' ? (
+            <CardDescription className="text-sm text-gray-400 leading-tight">
+              {title}
+            </CardDescription>
+          ) : (
+            <div className="text-sm text-gray-400 leading-tight">
+              {title}
+            </div>
+          )}
           <CardTitle className={`font-semibold tabular-nums leading-none text-base sm:text-lg ${isGreen ? "text-emerald-400" : "text-gray-200"}`}>
             {isLoading ? (
               <Skeleton className="h-6 w-16" />
