@@ -54,13 +54,20 @@ async function getCoinbaseFallbackPrice(symbol: string): Promise<number | null> 
 
 /**
  * Fetches the current price of a given token with fallback to Coinbase API.
- * First tries CoinGecko, then falls back to Coinbase for supported assets.
+ * For stablecoins (USDC, USDT), returns $1.00 directly without API calls.
+ * For other assets, tries CoinGecko first, then falls back to Coinbase.
  * @param tokenId The ID of the token on CoinGecko (e.g., 'staked-ether').
  * @param vsCurrency The currency to fetch the price in (e.g., 'usd').
  * @param useParallel Whether to fetch from both sources in parallel (default: false)
  * @returns The current price of the token, or null if all sources fail.
  */
 export async function getTokenPrice(tokenId: string, vsCurrency: string, useParallel = false): Promise<number | null> {
+    // Hardcode stablecoin prices to $1.00 (no API calls needed)
+    if (vsCurrency === 'usd' && (tokenId === 'usd-coin' || tokenId === 'tether')) {
+        console.log(`💰 Using hardcoded price for ${tokenId}: $1.00 (stablecoin)`);
+        return 1.0;
+    }
+    
     const symbol = COINGECKO_TO_SYMBOL_MAP[tokenId];
     
     // If parallel mode is enabled and we have Coinbase support
