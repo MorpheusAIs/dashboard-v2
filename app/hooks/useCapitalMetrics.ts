@@ -491,8 +491,11 @@ export function useCapitalMetrics(): CapitalMetrics {
         usdValue = amount * stethPrice;
       } else if (assetSymbol === 'LINK' && linkPrice && amount > 0) {
         usdValue = amount * linkPrice;
+      } else if ((assetSymbol === 'USDC' || assetSymbol === 'USDT') && amount > 0) {
+        // Stablecoins are always $1.00
+        usdValue = amount * 1.0;
       }
-      // For other assets, we would need their price data - for now, only include known assets
+      // For other assets (wBTC, wETH), we would need their price data
 
       assetUSDValues[assetSymbol] = usdValue;
       totalValueLockedUSD += usdValue;
@@ -580,6 +583,10 @@ export function useCapitalMetrics(): CapitalMetrics {
         prices.LINK = linkPrice;
         hasAnyPriceData = true;
       }
+      // Always include stablecoin prices
+      prices.USDC = 1.0;
+      prices.USDT = 1.0;
+      hasAnyPriceData = true;
 
       if (hasAnyPriceData) {
         const cacheData: TVLCache = {
@@ -604,7 +611,8 @@ export function useCapitalMetrics(): CapitalMetrics {
       const hasAllPrices = supportedAssets.every(assetSymbol => {
         if (assetSymbol === 'stETH') return !!stethPrice;
         if (assetSymbol === 'LINK') return !!linkPrice;
-        // For other assets, assume no price data available yet
+        if (assetSymbol === 'USDC' || assetSymbol === 'USDT') return true; // Stablecoins always have price
+        // For other assets (wBTC, wETH), assume no price data available yet
         return false;
       });
 
