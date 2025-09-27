@@ -102,12 +102,12 @@ export function useTokenPrices({
   userAddress,
   networkEnv
 }: UseTokenPricesOptions) {
-  // Dynamic price state for all assets
+  // Dynamic price state for all assets - initialize stablecoins to $1.00
   const [prices, setPrices] = useState<Record<AssetSymbol, number | null>>({
     stETH: null,
     LINK: null,
-    USDC: null,
-    USDT: null,
+    USDC: 1.0, // Stablecoin - always $1.00
+    USDT: 1.0, // Stablecoin - always $1.00
     wBTC: null,
     wETH: null,
   });
@@ -127,15 +127,24 @@ export function useTokenPrices({
         userAddress: userAddress?.slice(0, 6) || 'anonymous'
       });
       
-      // Load dynamic prices if available
+      // Load dynamic prices if available, but preserve stablecoin prices
       if (cachedPrices.prices) {
-        setPrices(cachedPrices.prices);
+        setPrices(prev => ({
+          ...prev,
+          ...cachedPrices.prices,
+          // Always ensure stablecoins are $1.00 regardless of cache
+          USDC: 1.0,
+          USDT: 1.0,
+        }));
       } else {
         // Fallback to legacy cache structure
         setPrices(prev => ({
           ...prev,
           stETH: cachedPrices.stethPrice,
           LINK: cachedPrices.linkPrice,
+          // Preserve stablecoin prices
+          USDC: 1.0,
+          USDT: 1.0,
         }));
       }
       setMorPrice(cachedPrices.morPrice);
@@ -166,6 +175,9 @@ export function useTokenPrices({
               ...prev,
               stETH: cachedPrices.stethPrice,
               LINK: cachedPrices.linkPrice,
+              // Always ensure stablecoins are $1.00
+              USDC: 1.0,
+              USDT: 1.0,
             }));
             setMorPrice(cachedPrices.morPrice);
           });
@@ -203,18 +215,21 @@ export function useTokenPrices({
           morPricePromise
         ]);
         
-        // Build dynamic prices object
+        // Build dynamic prices object - initialize stablecoins to $1.00
         const newPrices: Record<AssetSymbol, number | null> = {
           stETH: null,
           LINK: null,
-          USDC: null,
-          USDT: null,
+          USDC: 1.0, // Always $1.00 for stablecoin
+          USDT: 1.0, // Always $1.00 for stablecoin
           wBTC: null,
           wETH: null,
         };
         
+        // Update prices from API results (but skip stablecoins as they're already set)
         assetPriceResults.forEach(({ symbol, price }) => {
-          newPrices[symbol] = price;
+          if (symbol !== 'USDC' && symbol !== 'USDT') {
+            newPrices[symbol] = price;
+          }
         });
 
         // Save successful prices to cache
@@ -257,15 +272,19 @@ export function useTokenPrices({
           };
           setCachedPrices(updatedCache, userAddress);
 
-          // Use cached prices as fallback
+          // Use cached prices as fallback, but preserve stablecoin prices
           const fallbackPrices = cachedPrices.prices || {
             stETH: cachedPrices.stethPrice,
             LINK: cachedPrices.linkPrice,
-            USDC: null,
-            USDT: null,
+            USDC: 1.0, // Always $1.00 for stablecoin
+            USDT: 1.0, // Always $1.00 for stablecoin
             wBTC: null,
             wETH: null,
           };
+          
+          // Ensure stablecoins are always $1.00 even in fallback
+          fallbackPrices.USDC = 1.0;
+          fallbackPrices.USDT = 1.0;
           
           console.log('💰 Using cached prices as fallback after error:', {
             ...fallbackPrices,
@@ -278,13 +297,13 @@ export function useTokenPrices({
             setMorPrice(cachedPrices.morPrice);
           });
         } else {
-          // No cache available, create empty cache with retry count
+          // No cache available, create empty cache with retry count (but preserve stablecoin prices)
           const errorCache: TokenPriceCache = {
             prices: {
               stETH: null,
               LINK: null,
-              USDC: null,
-              USDT: null,
+              USDC: 1.0, // Always $1.00 for stablecoin
+              USDT: 1.0, // Always $1.00 for stablecoin
               wBTC: null,
               wETH: null,
             },
@@ -296,6 +315,15 @@ export function useTokenPrices({
             lastSuccessfulFetch: 0
           };
           setCachedPrices(errorCache, userAddress);
+
+          // Set stablecoin prices in state even when there's no cache
+          startPriceTransition(() => {
+            setPrices(prev => ({
+              ...prev,
+              USDC: 1.0,
+              USDT: 1.0,
+            }));
+          });
         }
       }
     }
