@@ -494,7 +494,7 @@ export function UserAssetsPanel() {
     // Use same formatting logic as daily emissions for consistency
     const lifetimeEarnings = isTotalMorEarnedLoading
       ? "..."
-      : (totalMorEarned > 0 ? formatDailyEmissions(totalMorEarned) : "0");
+      : formatDailyEmissions(totalMorEarned);
 
     const freshMetrics = {
       stakedValue: Math.floor(totalStakedValue).toLocaleString(),
