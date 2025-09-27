@@ -421,36 +421,38 @@ export function UserAssetsPanel() {
   // Calculate metrics from real asset data
   const metricsData = useMemo(() => {
 
-    // Calculate total staked value dynamically across all assets with dynamic pricing
+    // Calculate total staked value dynamically across all assets with reliable pricing
     const totalStakedValue = Object.values(assets).reduce((total, asset) => {
       const stakedAmount = parseDepositAmount(asset.userDepositedFormatted);
       const assetPrice = getAssetPrice(asset.symbol);
       
       // Enhanced debugging for price issues
       if (stakedAmount > 0) {
-        if (assetPrice === null) {
+        if (assetPrice === null || assetPrice <= 0) {
           console.error(`❌ No price available for ${asset.symbol}:`, {
             symbol: asset.symbol,
             stakedAmount,
             userAddress,
-            action: 'Skipping from staked value calculation - both CoinGecko and Coinbase failed'
+            action: 'Skipping from staked value calculation - price not available'
           });
-          // Debug cache state when price is missing for significant amounts
-          if (stakedAmount > 100) {
+          // Debug cache state when price is missing for significant amounts (but not for stablecoins)
+          if (stakedAmount > 100 && asset.symbol !== 'USDC' && asset.symbol !== 'USDT') {
             debugCacheState();
           }
           
-          // Don't add anything to total if price is unavailable - this is safer than using a wrong price
+          // Don't add anything to total if price is unavailable
           return total;
-        } else if (assetPrice > 0) {
+        } else {
+          const value = stakedAmount * assetPrice;
           console.log(`💰 Price found for ${asset.symbol}:`, {
             symbol: asset.symbol,
             stakedAmount,
             assetPrice,
-            value: stakedAmount * assetPrice
+            value,
+            isStablecoin: asset.symbol === 'USDC' || asset.symbol === 'USDT'
           });
           
-          return total + (stakedAmount * assetPrice);
+          return total + value;
         }
       }
       
