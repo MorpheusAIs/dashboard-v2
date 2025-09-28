@@ -77,7 +77,6 @@ export const assetMetadata: Record<AssetSymbol, AssetMetadata> = {
     icon: 'btc',
     decimals: 8,
     coinGeckoId: 'wrapped-bitcoin',
-    disabled: true,
   },
   wETH: {
     symbol: 'wETH',
@@ -97,7 +96,7 @@ export const assetConfig: AssetConfig = {
       metadata: assetMetadata.stETH,
     },
     LINK: {
-      address: '0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5', 
+      address: '0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5',
       metadata: assetMetadata.LINK,
     },
   },
