@@ -102,9 +102,9 @@ export function useInteractiveChart(initialData: DataPoint[] = [], defaultRange:
 
     const handleReset = useCallback(() => {
         if (originalData.length > 0) {
-            setSelectedRange('1m'); // Reset to default view
+            setSelectedRange(defaultRange); // Reset to the specified default view
         }
-    }, [originalData]);
+    }, [originalData, defaultRange]);
 
     const handleWheelZoomLogic = useCallback((e: WheelEvent, chartRef: React.RefObject<HTMLDivElement>) => {
         if (!chartRef.current || !startTime || !endTime) return;
