@@ -50,7 +50,7 @@ export function DepositStethChart({
         handleMouseUp,
         handleReset,
         handleWheelZoomLogic,
-    } = useInteractiveChart(initialData);
+    } = useInteractiveChart(initialData, '1m');
 
     const chartHeight = useResponsiveChart(containerRef);
 

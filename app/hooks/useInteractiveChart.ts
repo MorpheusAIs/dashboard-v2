@@ -27,7 +27,7 @@ const getMonthlyTicks = (data: DataPoint[]): string[] => {
     return ticks;
 };
 
-export function useInteractiveChart(initialData: DataPoint[] = []) {
+export function useInteractiveChart(initialData: DataPoint[] = [], defaultRange: '7d' | '1m' | '3m' | 'max' = '1m') {
     const [data, setData] = useState<DataPoint[]>(initialData);
     const [originalData, setOriginalData] = useState<DataPoint[]>(initialData);
     const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function useInteractiveChart(initialData: DataPoint[] = []) {
     const [startTime, setStartTime] = useState<string | null>(null);
     const [endTime, setEndTime] = useState<string | null>(null);
     const [isSelecting, setIsSelecting] = useState(false);
-    const [selectedRange, setSelectedRange] = useState<'7d' | '1m' | '3m' | 'max'>('1m');
+    const [selectedRange, setSelectedRange] = useState<'7d' | '1m' | '3m' | 'max'>(defaultRange);
 
     useEffect(() => {
         if (initialData?.length) {
