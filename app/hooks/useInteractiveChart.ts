@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { type DataPoint } from "@/components/capital/deposit-steth-chart";
+import { type DataPoint } from "@/lib/utils/chart-utils";
 
 // Helper to get monthly ticks from a dataset
 const getMonthlyTicks = (data: DataPoint[]): string[] => {
