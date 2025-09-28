@@ -141,7 +141,7 @@ export function UserAssetsTable({
       },
       {
         id: "unlockDate",
-        header: "Claim Unlock Date",
+        header: "MOR Unlock Date",
         cell: (asset) => (
           <span className="text-gray-300 whitespace-nowrap">
             {asset.unlockDate || "N/A"}
@@ -158,7 +158,7 @@ export function UserAssetsTable({
             <span className={asset.canClaim ? "text-gray-200" : "text-gray-500"}>
               {formatNumber(asset.availableToClaim)} MOR
             </span>
-            {asset.availableToClaim > 0 && (
+            {asset.amountStaked > 0 && (
               <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums ${
                 asset.canClaim
                   ? "bg-emerald-400 hover:bg-emerald-500 text-black border-emerald-400"
