@@ -2397,8 +2397,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
     if (!l1ChainId) throw new Error("Chain ID not available");
 
-    // Default to 0 seconds lock if not provided
-    const lockDuration = lockDurationSeconds || BigInt(0);
+    // Restore safety net - use contract minimum lock period
+    const MINIMUM_CLAIM_LOCK_PERIOD = BigInt(90 * 24 * 60 * 60); // 90 days in seconds  
+    const lockDuration = lockDurationSeconds || MINIMUM_CLAIM_LOCK_PERIOD;
     
     console.log(`🏦 ${asset} Deposit Details:`, {
       asset,
