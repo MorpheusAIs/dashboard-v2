@@ -15,7 +15,7 @@ export async function GET() {
     const data = await response.json();
 
     // Validate the response structure
-    const firstApr = data?.data?.aprs?.[0]?.apr;
+    const firstApr = data?.data?.aprs?.[1]?.apr;
     if (typeof firstApr !== 'number') {
       throw new Error('Invalid APR data format');
     }
