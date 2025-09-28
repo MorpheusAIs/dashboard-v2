@@ -17,6 +17,7 @@ import { parseStakedAmount } from "./utils/parse-staked-amount";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
 import { getContractAddress } from "@/config/networks";
+import type { Format } from '@number-flow/react';
 
 export function CapitalInfoPanel() {
   const {
@@ -128,7 +129,7 @@ export function CapitalInfoPanel() {
             </div>
             
             {/* Scrollable Asset Rows */}
-            <div className="relative flex-1 max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+            <div className="relative flex-1 max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
               <div className="space-y-1 py-1">
                 {/* Asset Rows */}
                 {assets.map((asset) => {
@@ -174,19 +175,34 @@ export function CapitalInfoPanel() {
                         }
                         const parsedValue = parseStakedAmount(asset.totalStaked);
 
-                        // Format value with appropriate decimal places for wETH and wBTC
-                        let displayValue = parsedValue;
+                        // Use NumberFlow's format prop for proper decimal display
+                        let formatOptions: Format = {};
                         if (asset.symbol === 'wETH' || asset.symbol === 'wBTC') {
-                          if (parsedValue < 1) {
-                            displayValue = Number(parsedValue.toFixed(4));
+                          if (parsedValue < 0.01) {
+                            formatOptions = {
+                              minimumFractionDigits: 4,
+                              maximumFractionDigits: 4
+                            };
+                          } else if (parsedValue < 1) {
+                            formatOptions = {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            };
                           } else if (parsedValue < 10) {
-                            displayValue = Number(parsedValue.toFixed(2));
+                            formatOptions = {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            };
                           }
                         }
 
                         return (
                           <p className='text-right'>
-                            <NumberFlow value={displayValue} />
+                            <NumberFlow
+                              value={parsedValue}
+                              format={formatOptions}
+                              locales="en-US"
+                            />
                           </p>
                         );
                       })()}
