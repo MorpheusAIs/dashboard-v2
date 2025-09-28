@@ -15,7 +15,6 @@ import { useAssetsTable } from "./hooks/use-assets-table";
 import { useDailyEmissions } from "./hooks/use-daily-emissions";
 import { useTotalMorEarned } from "@/hooks/use-total-mor-earned";
 import {
-  parseDepositAmount,
   hasStakedAssets as checkHasStakedAssets,
   formatUnlockDate
 } from "./utils/asset-formatters";
@@ -381,10 +380,11 @@ export function UserAssetsPanel() {
       const assetConfigData = getAssetConfig(assetSymbol, networkEnv);
       if (!assetConfigData) return null;
 
-      // Use dynamic asset data from our assets structure
-      const amount = parseFloat(assetData.userDepositedFormatted) || 0;
-      const available = parseFloat(assetData.userBalanceFormatted) || 0;
-      const claimable = parseFloat(assetData.claimableAmountFormatted) || 0;
+      // Use raw bigint values to avoid precision loss, then format for display
+      const decimals = assetConfigData.metadata.decimals;
+      const amount = Number(assetData.userDeposited) / Math.pow(10, decimals);
+      const available = Number(assetData.userBalance) / Math.pow(10, decimals);
+      const claimable = Number(assetData.claimableAmount) / Math.pow(10, 18); // MOR rewards always 18 decimals
       
       // Use dynamic emissions data based on asset symbol
       // LINK is not available on mainnet, so this will be 0
@@ -412,7 +412,17 @@ export function UserAssetsPanel() {
           canWithdraw: canAssetWithdraw(assetSymbol),
         };
     })
-    .filter(asset => asset !== null && (asset.amountStaked > 0 || asset.availableToClaim > 0)) as UserAsset[];
+    .filter(asset => {
+      if (!asset) return false;
+
+      // Check if user has any stake (even very small amounts) or claimable rewards
+      // Use raw bigint values from assets data instead of formatted values to avoid precision loss
+      const assetData = assets[asset.assetSymbol];
+      const hasStake = assetData && assetData.userDeposited > BigInt(0);
+      const hasClaimable = asset.availableToClaim > 0;
+
+      return hasStake || hasClaimable;
+    }) as UserAsset[];
   }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, getAssetWithdrawUnlockDateCallback, assetEmissions, canAssetWithdraw, networkEnv]);
 
   // Use sorting hook
@@ -423,7 +433,10 @@ export function UserAssetsPanel() {
 
     // Calculate total staked value dynamically across all assets with reliable pricing
     const totalStakedValue = Object.values(assets).reduce((total, asset) => {
-      const stakedAmount = parseDepositAmount(asset.userDepositedFormatted);
+      // Use raw bigint value instead of formatted string to avoid precision loss
+      const assetConfigData = getAssetConfig(asset.symbol, networkEnv);
+      const decimals = assetConfigData?.metadata?.decimals || 18;
+      const stakedAmount = Number(asset.userDeposited) / Math.pow(10, decimals);
       const assetPrice = getAssetPrice(asset.symbol);
       
       // Enhanced debugging for price issues

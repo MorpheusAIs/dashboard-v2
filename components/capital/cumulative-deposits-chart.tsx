@@ -1,16 +1,12 @@
 'use client'
-import { useRef, useEffect, useCallback } from "react"
+import { useRef, useEffect, useCallback, useState } from "react"
 import { Area, CartesianGrid, XAxis, YAxis, ComposedChart, ReferenceArea, ResponsiveContainer } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useInteractiveChart } from "@/app/hooks/useInteractiveChart"
 import { useResponsiveChart } from "@/app/hooks/useResponsiveChart"
-
-export type CumulativeDepositsDataPoint = {
-    date: string;
-    deposits: number;
-};
+import { calculateOptimalTicks, type CumulativeDepositsDataPoint } from "@/lib/utils/chart-utils"
 
 type CumulativeDepositsChartProps = {
     data?: CumulativeDepositsDataPoint[];
@@ -31,7 +27,6 @@ export function CumulativeDepositsChart({
         selectedRange,
         setSelectedRange,
         isZoomed,
-        monthlyTicks,
         handleMouseDown,
         handleMouseMove,
         handleMouseUp,
@@ -40,6 +35,33 @@ export function CumulativeDepositsChart({
     } = useInteractiveChart(initialData, 'max');
 
     const chartHeight = useResponsiveChart(containerRef);
+
+    // Calculate optimal ticks based on container width
+    const [optimalTicks, setOptimalTicks] = useState<string[]>([]);
+    const [chartWidth, setChartWidth] = useState(800);
+
+    useEffect(() => {
+        const updateOptimalTicks = () => {
+            if (containerRef.current && initialData && initialData.length > 0) {
+                const rect = containerRef.current.getBoundingClientRect();
+                const width = rect.width || 800;
+                setChartWidth(width);
+                const ticks = calculateOptimalTicks(initialData, width, 8);
+                setOptimalTicks(ticks);
+            }
+        };
+
+        updateOptimalTicks();
+
+        const resizeObserver = new ResizeObserver(updateOptimalTicks);
+        if (containerRef.current) {
+            resizeObserver.observe(containerRef.current);
+        }
+
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, [initialData]);
 
     useEffect(() => {
         const chartElement = chartRef.current;
@@ -164,7 +186,7 @@ export function CumulativeDepositsChart({
                                     <XAxis
                                         dataKey="date"
                                         tickFormatter={formatXAxis}
-                                        ticks={monthlyTicks}
+                                        ticks={optimalTicks}
                                         interval={0}
                                         minTickGap={20}
                                         tickLine={false}
