@@ -279,6 +279,90 @@ input[type=number] {
     @apply bg-transparent hover:bg-transparent text-emerald-400 rounded-lg border border-emerald-500/30 hover:border-emerald-500/50;
   }
 
+  /* Morpheus Tutorial Popover Styles */
+  .driver-popover.morpheus-tutorial-popover {
+    background-color: rgb(0, 0, 0);
+    color: rgb(248 250 252); /* slate-50 */
+    border: 1px solid rgb(16 185 129 / 0.3); /* emerald-500/30 */
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: rgb(16 185 129); /* emerald-500 */
+    margin-bottom: 8px;
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-description {
+    color: rgb(203 213 225); /* slate-300 */
+    line-height: 1.5;
+    font-size: 14px;
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-progress-text {
+    color: rgb(16 185 129); /* emerald-500 */
+    font-weight: 500;
+  }
+
+  .driver-popover.morpheus-tutorial-popover button {
+    background-color: transparent;
+    color: rgb(52 211 153); /* emerald-400 */
+    border: 1px solid rgb(16 185 129 / 0.3); /* emerald-500/30 */
+    font-weight: 500;
+    font-size: 14px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    text-shadow: none;
+  }
+
+  .driver-popover.morpheus-tutorial-popover button:hover {
+    background-color: transparent;
+    border-color: rgb(16 185 129 / 0.5); /* emerald-500/50 */
+    transform: translateY(-1px);
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-navigation-btns {
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-close-btn {
+    color: rgb(148 163 184); /* slate-400 */
+    background-color: transparent;
+    border: 1px solid rgb(148 163 184 / 0.3); /* slate-400/30 */
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-close-btn:hover {
+    color: rgb(241 245 249); /* slate-50 */
+    background-color: rgb(148 163 184 / 0.1); /* slate-400/10 */
+    border-color: rgb(148 163 184 / 0.5); /* slate-400/50 */
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-arrow-side-left.driver-popover-arrow {
+    border-left-color: rgb(15 23 42); /* slate-900 */
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-arrow-side-right.driver-popover-arrow {
+    border-right-color: rgb(15 23 42); /* slate-900 */
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-arrow-side-top.driver-popover-arrow {
+    border-top-color: rgb(15 23 42); /* slate-900 */
+  }
+
+  .driver-popover.morpheus-tutorial-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
+    border-bottom-color: rgb(15 23 42); /* slate-900 */
+  }
+
   /* Table styles */
   .table-container {
     @apply [&>div]:max-h-[600px] overflow-auto custom-scrollbar;

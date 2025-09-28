@@ -7,6 +7,7 @@ import { Web3Providers } from "@/components/web3-providers";
 import { BuildersProvider } from '@/context/builders-context';
 import { AuthProvider } from '@/context/auth-context';
 import { ComputeProvider } from '@/context/compute-context';
+import { TutorialProvider } from '@/context/tutorial-context';
 import { Toaster } from "@/components/ui/sonner";
 import { type State } from 'wagmi'; // Import the State type
 // RootLayoutContent is not used here, it's used in app/layout.tsx
@@ -35,15 +36,17 @@ export function Providers({
         <ComputeProvider>
           <BuildersProvider>
             <AuthProvider>
-              {/* 
-                If RootLayoutContent itself has server-only dependencies or is complex,
-                it might be better to keep it in layout.tsx and pass {children} directly.
-                For now, let's assume it's primarily client-side UI structure.
-                If issues persist, we might pass {children} directly to AuthProvider
-                and keep RootLayoutContent in layout.tsx.
-              */}
-              {children} 
-              <Toaster />
+              <TutorialProvider>
+                {/*
+                  If RootLayoutContent itself has server-only dependencies or is complex,
+                  it might be better to keep it in layout.tsx and pass {children} directly.
+                  For now, let's assume it's primarily client-side UI structure.
+                  If issues persist, we might pass {children} directly to AuthProvider
+                  and keep RootLayoutContent in layout.tsx.
+                */}
+                {children}
+                <Toaster />
+              </TutorialProvider>
             </AuthProvider>
           </BuildersProvider>
         </ComputeProvider>
