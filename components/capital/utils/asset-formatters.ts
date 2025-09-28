@@ -46,7 +46,7 @@ export const formatAssetAmount = (amount: number, assetSymbol?: AssetSymbol): st
 /**
  * Format staked amounts with conditional decimals based on asset type
  * USDC, USDT: always 2 decimals
- * wETH, wBTC, stETH: 3 decimals if < 1, 2 decimals if >= 1
+ * wETH, wBTC, stETH: 4 decimals if < 0.01, 2 decimals if >= 0.01
  */
 export const formatStakedAmount = (amount: number, assetSymbol?: AssetSymbol): string => {
   if (assetSymbol === 'USDC' || assetSymbol === 'USDT') {
@@ -54,7 +54,7 @@ export const formatStakedAmount = (amount: number, assetSymbol?: AssetSymbol): s
   }
 
   if (assetSymbol === 'wETH' || assetSymbol === 'wBTC' || assetSymbol === 'stETH') {
-    return amount < 1 ? amount.toFixed(3) : amount.toFixed(2);
+    return amount < 0.01 ? amount.toFixed(4) : amount.toFixed(2);
   }
 
   // Default to 1 decimal for other assets
@@ -147,7 +147,8 @@ export const hasStakedAssets = (assets: Record<AssetSymbol, MinimalAssetData>): 
   // Check all available assets dynamically instead of hardcoded stETH/LINK
   return Object.values(assets).some(asset => {
     const deposited = parseDepositAmount(asset.userDepositedFormatted);
-    return deposited > 0;
+    // Handle very small amounts (like 0.0001 wBTC) by checking if formatted value is not just "0" or "0.00"
+    return deposited > 0 || asset.userDepositedFormatted !== "0" && asset.userDepositedFormatted !== "0.00";
   });
 };
 
