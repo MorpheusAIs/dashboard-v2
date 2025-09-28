@@ -40,7 +40,6 @@ export function DepositStethChart({
         selectedRange,
         setSelectedRange,
         isZoomed,
-        monthlyTicks,
         handleMouseDown,
         handleMouseMove,
         handleMouseUp,
@@ -52,14 +51,12 @@ export function DepositStethChart({
 
     // Calculate optimal ticks based on container width
     const [optimalTicks, setOptimalTicks] = useState<string[]>([]);
-    const [chartWidth, setChartWidth] = useState(800);
 
     useEffect(() => {
         const updateOptimalTicks = () => {
             if (containerRef.current && initialData && initialData.length > 0) {
                 const rect = containerRef.current.getBoundingClientRect();
                 const width = rect.width || 800;
-                setChartWidth(width);
                 const ticks = calculateOptimalTicks(initialData, width, 8);
                 setOptimalTicks(ticks);
             }

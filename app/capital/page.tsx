@@ -128,7 +128,7 @@ function CapitalPageContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [chainId, contextSwitchToChain, isNetworkSwitching, isConnected, isConnecting, isReconnecting, connectorClient]);
+  }, [chainId, contextSwitchToChain, isNetworkSwitching, isConnected, isConnecting, isReconnecting, connectorClient, switchChain]);
 
   // Separate effect to handle manual network changes and hide notification
   useEffect(() => {

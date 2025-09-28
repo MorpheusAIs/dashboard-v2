@@ -136,7 +136,7 @@ export function useCapitalChartData() {
       // Only initialize if we're starting with the same asset
       console.log('🎯 Initializing selectedAsset with primaryAsset:', primaryAsset);
     }
-  }, [primaryAsset]); // Don't reset selectedAsset when user manually changes it
+  }, [primaryAsset, selectedAsset]); // Don't reset selectedAsset when user manually changes it
 
   // Load cached data immediately when asset changes (instant switching)
   useEffect(() => {
@@ -250,7 +250,7 @@ export function useCapitalChartData() {
     console.log('=== END ASSET-SPECIFIC BATCHED QUERY CONSTRUCTION ===\n');
     
     return batches;
-  }, [recentTimestamps, selectedAsset, networkEnv]);
+  }, [recentTimestamps, selectedAsset, networkEnv, primaryAsset]);
   
   // Historical data loading removed - focusing on recent data only for now
 
@@ -477,7 +477,7 @@ export function useCapitalChartData() {
         setChartData([]);
         setChartLoading(false);
       });
-  }, [selectedAsset, networkEnv, BATCH_QUERIES, isCacheLoaded]); // Updated dependencies for cached batching
+  }, [selectedAsset, networkEnv, BATCH_QUERIES, isCacheLoaded, chartData.length, recentTimestamps.length]); // Updated dependencies for cached batching
 
   // DISABLED: Historical data loading - simple query gets all data at once
   useEffect(() => {

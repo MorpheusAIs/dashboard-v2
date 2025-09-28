@@ -661,7 +661,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       isLoading,
       error: null
     };
-  }, [poolData, stethPrice, linkPrice, isPriceUpdating, supportedAssets]);
+  }, [poolData, stethPrice, linkPrice, isPriceUpdating, supportedAssets, dailyEmissions, dailyEmissionsError, isLoadingDailyEmissions]);
 
   // Combine core metrics with active stakers display
   const metrics = useMemo(() => ({

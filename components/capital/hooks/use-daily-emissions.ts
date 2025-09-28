@@ -36,7 +36,9 @@ export function useDailyEmissions(
   userDeposited: bigint | undefined,
   assetSymbol: AssetSymbol,
   networkEnv: string, // eslint-disable-line @typescript-eslint/no-unused-vars
-  poolIndex?: number // Optional pool index override
+  poolIndex?: number, // Optional pool index override
+  totalUSDValueAllPools?: number, // Total USD value across all pools
+  assetPrice?: number // Price of this specific asset
 ): { emissions: number; isLoading: boolean } {
   const chainId = useChainId();
 
@@ -110,18 +112,30 @@ export function useDailyEmissions(
     }
   });
 
-  // Get total daily rewards for the specified pool using correct RewardPoolV2 contract
+  // Get total daily rewards for the entire capital pool (pool index 0)
   const {
     data: dailyPoolRewards,
     isLoading: isLoadingPoolRewards
   } = useReadContract({
     address: rewardPoolAddress,
-    abi: RewardPoolV2Abi,
+    abi: [
+      {
+        inputs: [
+          { name: 'index_', type: 'uint256' },
+          { name: 'startTime_', type: 'uint128' },
+          { name: 'endTime_', type: 'uint128' }
+        ],
+        name: 'getPeriodRewards',
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function'
+      }
+    ],
     functionName: 'getPeriodRewards',
-    args: [rewardPoolIndex, startTime, endTime], // Dynamic pool index, 24-hour period
+    args: [BigInt(0), startTime, endTime], // Always use pool index 0 for total capital pool rewards
     chainId: l1ChainId,
     query: {
-      enabled: !!rewardPoolAddress && !!poolExists,
+      enabled: !!rewardPoolAddress,
       refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
     }
   });
@@ -183,52 +197,63 @@ export function useDailyEmissions(
         return 0;
       }
 
-      // CORRECT YIELD-BASED FORMULA (per MOR Distribution Step #1 documentation):
-      // 1. Total MOR rewards are allocated proportionally to YIELD GENERATION (not stake amounts)
-      // 2. Within each pool, users get rewards proportional to their virtual stake
+      // CORRECT USD-BASED FORMULA (per MOR Distribution v7 documentation):
+      // 1. Total MOR rewards are allocated proportionally to USD VALUE of pools
+      // 2. Within each pool, users get rewards proportional to their stake
+      // Formula: rewardShare = (poolUSDValue * totalRewards) / totalUSDValue
 
-      // For projection: estimate pool's yield share based on historical allocation patterns
-      // If pool has no historical data, assume it gets proportional share based on size
-      let poolYieldShare = 1.0; // Default for pools with no competition
-
-      // Estimate pool's yield share based on historical allocation patterns
-      const estimatedTotalHistoricalRewards = Math.max(totalDailyRewards * 30, 1000);
-
-      if (poolAllocatedRewards > 0) {
-        // Use historical allocation as proxy for yield generation capability
-        // Scale based on recent daily rewards to estimate yield share
-        poolYieldShare = Math.min(poolAllocatedRewards / estimatedTotalHistoricalRewards, 1.0);
-
-        // Ensure minimum reasonable share for active pools
-        poolYieldShare = Math.max(poolYieldShare, 0.000001); // Minimum 0.0001% share
+      let poolUSDShare = 0;
+      
+      if (totalUSDValueAllPools && totalUSDValueAllPools > 0 && assetPrice && assetPrice > 0) {
+        // Calculate this pool's USD value
+        const poolUSDValue = totalStake * assetPrice;
+        
+        // Calculate pool's proportional share based on USD value
+        poolUSDShare = poolUSDValue / totalUSDValueAllPools;
+        
+        console.log(`💰 [${assetSymbol}] USD-based pool calculation:`, {
+          totalStakeInPool: totalStake,
+          assetPrice: assetPrice,
+          poolUSDValue: poolUSDValue.toFixed(2),
+          totalUSDValueAllPools: totalUSDValueAllPools.toFixed(2),
+          poolUSDShare: (poolUSDShare * 100).toFixed(4) + '%'
+        });
+      } else {
+        // Fallback: Use historical allocation data if USD values not available
+        const estimatedTotalHistoricalRewards = Math.max(totalDailyRewards * 30, 1000);
+        
+        if (poolAllocatedRewards > 0) {
+          poolUSDShare = Math.min(poolAllocatedRewards / estimatedTotalHistoricalRewards, 1.0);
+          poolUSDShare = Math.max(poolUSDShare, 0.000001); // Minimum 0.0001% share
+        } else {
+          poolUSDShare = 0.000001; // Minimal fallback share
+        }
+        
+        console.log(`📊 [${assetSymbol}] Fallback to historical allocation:`, {
+          reason: !totalUSDValueAllPools ? 'No total USD value' : !assetPrice ? 'No asset price' : 'Unknown',
+          poolAllocatedRewards: poolAllocatedRewards.toFixed(2),
+          estimatedTotal: estimatedTotalHistoricalRewards.toFixed(2),
+          fallbackShare: (poolUSDShare * 100).toFixed(6) + '%'
+        });
       }
 
       // User's share within the pool (stake-based)
       const userShareOfPool = userStake / totalStake;
 
-      // Final calculation: user's stake share × pool's estimated yield share × total rewards
-      const userDailyEmissions = totalDailyRewards * poolYieldShare * userShareOfPool;
+      // Final calculation: total rewards × pool's USD share × user's share within pool
+      const userDailyEmissions = totalDailyRewards * poolUSDShare * userShareOfPool;
 
-      console.log(`📊 [${assetSymbol}] YIELD-BASED Daily emissions:`, {
+      console.log(`📊 [${assetSymbol}] USD-BASED Daily emissions:`, {
         userStake,
         totalStakeInPool: totalStake,
         userShareOfPool: (userShareOfPool * 100).toFixed(6) + '%',
-        poolHistoricalAllocation: poolAllocatedRewards.toFixed(2),
-        estimatedTotalHistoricalRewards: estimatedTotalHistoricalRewards.toFixed(2),
-        rawYieldShare: (poolAllocatedRewards / estimatedTotalHistoricalRewards).toFixed(8),
-        finalPoolYieldShare: (poolYieldShare * 100).toFixed(6) + '%',
+        poolUSDShare: (poolUSDShare * 100).toFixed(6) + '%',
         totalDailyRewards: totalDailyRewards.toFixed(2),
         userDailyEmissions: userDailyEmissions.toFixed(6),
         period: '24 hours',
         rewardPoolIndex: rewardPoolIndex.toString(),
-        calculation: 'Yield-based: (userStake/totalStake) × poolYieldShare × totalRewards',
-        note: poolYieldShare < 0.0001
-          ? '📉 VERY LOW YIELD POOL: Minimal historical allocation'
-          : poolYieldShare < 0.01
-          ? '📉 LOW YIELD POOL: Few MOR rewards expected'
-          : poolYieldShare > 0.5
-          ? '📈 HIGH YIELD POOL: Major MOR share'
-          : '⚖️ MODERATE POOL: Balanced yield generation'
+        calculation: 'USD-based: totalRewards × poolUSDShare × userShareOfPool',
+        method: totalUSDValueAllPools && assetPrice ? 'USD Value Proportional' : 'Historical Allocation Fallback'
       });
 
       return Math.max(0, userDailyEmissions);
@@ -249,9 +274,9 @@ export function useDailyEmissions(
     isLoadingPoolExists,
     isLoadingAllocatedRewards,
     rewardPoolIndex,
-    rewardPoolAddress,
-    depositPoolAddress,
-    networkEnvironment
+    assetPrice,
+    poolExists,
+    totalUSDValueAllPools
   ]);
 
   return {
