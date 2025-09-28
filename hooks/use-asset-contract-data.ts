@@ -255,19 +255,23 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
   // Format data for display
   const formattedData = useMemo(() => {
     const decimals = assetConfig?.metadata.decimals || 18;
-    
+
+    // Use higher precision for wBTC and wETH to handle small amounts
+    const depositPrecision = (assetSymbol === 'wBTC' || assetSymbol === 'wETH') ? 6 : 2;
+    const balancePrecision = (assetSymbol === 'wBTC' || assetSymbol === 'wETH') ? 6 : 4;
+
     return {
-      userBalanceFormatted: formatBigInt(parsedData.userBalance, decimals, 4),
-      userDepositedFormatted: formatBigInt(parsedData.userDeposited, decimals, 2),
+      userBalanceFormatted: formatBigInt(parsedData.userBalance, decimals, balancePrecision),
+      userDepositedFormatted: formatBigInt(parsedData.userDeposited, decimals, depositPrecision),
       claimableAmountFormatted: formatBigInt(parsedData.claimableAmount, 18, 2), // MOR rewards always 18 decimals
-      userMultiplierFormatted: parsedData.userMultiplier ? 
-        formatPowerFactorPrecise(parsedData.userMultiplier) : 
+      userMultiplierFormatted: parsedData.userMultiplier ?
+        formatPowerFactorPrecise(parsedData.userMultiplier) :
         (parsedData.userDeposited > BigInt(0) ? "x1.0" : "---"),
       totalDepositedFormatted: formatBigInt(parsedData.totalDeposited, decimals, 2),
       claimUnlockTimestampFormatted: formatTimestamp(parsedData.claimUnlockTimestamp),
       withdrawUnlockTimestampFormatted: formatTimestamp(parsedData.withdrawUnlockTimestamp),
     };
-  }, [parsedData, assetConfig]);
+  }, [parsedData, assetConfig, assetSymbol]);
   
   // Loading state
   const isLoading = isLoadingBalance || isLoadingAllowance || isLoadingUserData || 

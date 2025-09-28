@@ -9,7 +9,6 @@ import { getAssetsForNetwork, type AssetSymbol } from '@/components/capital/cons
 
 // Import ABIs
 import DepositPoolAbi from '@/app/abi/DepositPool.json'; // Use the generic ABI that has all functions
-import RewardPoolV2Abi from '@/app/abi/RewardPoolV2.json'; // For proper emission rate calculation
 import DistributorV2Abi from '@/app/abi/DistributorV2.json'; // For yield tracking
 import ERC20Abi from '@/app/abi/ERC20.json'; // For aToken balance calls
 
@@ -762,10 +761,12 @@ export function useCapitalPoolData(): CapitalPoolData {
         console.debug(`🐋 WBTC DEBUG:`, {
           symbol,
           rawContractData: contract?.data,
+          rawContractDataFormatted: contract?.data ? parseFloat(formatUnits(contract.data as bigint, decimals)) : 'N/A',
           virtualStake: virtualStakeByAsset?.[symbol] || 0,
           hasDepositPool: hasDepositPoolAddress,
           contractError: contract?.error?.message,
-          isLoading: contract?.isLoading
+          isLoading: contract?.isLoading,
+          decimals
         });
       }
       
@@ -807,7 +808,7 @@ export function useCapitalPoolData(): CapitalPoolData {
 
         const totalStaked = displayValue.toLocaleString('en-US', {
           minimumFractionDigits: 0,
-          maximumFractionDigits: displayValue < 0.01 ? 6 : 2
+          maximumFractionDigits: displayValue < 0.01 ? 4 : 2
         });
 
         const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
