@@ -53,6 +53,6 @@ hooks/.useSubnetContractInteractions.ts.swp
 package-lock.json
 .vercelignore
 package-lock.json
-
+anvil-scripts/
 
 create-web3-template/

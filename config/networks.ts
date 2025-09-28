@@ -1,5 +1,6 @@
 import { arbitrum, arbitrumSepolia, base, mainnet, sepolia } from 'wagmi/chains';
 import type { Chain, ChainContract } from 'viem';
+import { tenderlyVirtualTestnetConfig, isTenderlyEnabled } from './tenderly';
 
 // Network environment types
 export type NetworkEnvironment = 'mainnet' | 'testnet';
@@ -78,8 +79,8 @@ const ensureStringArray = (urlOrUrls: string | readonly string[] | unknown): str
 // Helper to convert address to ChainContract
 const toContract = (address: string): ChainContract => ({ address: address as `0x${string}` });
 
-// Testnets Configuration
-export const testnetChains: Record<string, ChainConfig> = {
+// Base testnet chains configuration
+const baseTestnetChains: Record<string, ChainConfig> = {
   sepolia: {
     ...sepolia,
     rpcUrls: {
@@ -128,6 +129,24 @@ export const testnetChains: Record<string, ChainConfig> = {
     isL2: true,
     layerZeroEndpointId: 10231,
   }
+};
+
+// Testnets Configuration - dynamically includes Tenderly if enabled
+export const testnetChains: Record<string, ChainConfig> = {
+  ...baseTestnetChains,
+  ...(isTenderlyEnabled() ? { 
+    tenderlyVirtual: {
+      ...tenderlyVirtualTestnetConfig,
+      rpcUrls: {
+        default: {
+          http: [...tenderlyVirtualTestnetConfig.rpcUrls.default.http]
+        },
+        public: {
+          http: [...tenderlyVirtualTestnetConfig.rpcUrls.default.http]
+        }
+      }
+    } as ChainConfig
+  } : {})
 };
 
 // Mainnets Configuration

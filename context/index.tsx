@@ -6,6 +6,7 @@ import { createWeb3Modal } from "@web3modal/wagmi/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { State, WagmiProvider } from "wagmi";
 import { mainnet } from "wagmi/chains";
+import { tenderlyVirtualTestnet, isTenderlyEnabled } from "@/config/tenderly";
 
 const queryClient = new QueryClient();
 
@@ -18,7 +19,7 @@ createWeb3Modal({
   enableAnalytics: true,
   enableOnramp: true,
   themeMode: "dark",
-  defaultChain: mainnet,
+  defaultChain: isTenderlyEnabled() ? tenderlyVirtualTestnet : mainnet,
   excludeWalletIds: [
     'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // Phantom wallet
   ],

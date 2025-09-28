@@ -1,6 +1,8 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { cookieStorage, createStorage } from 'wagmi';
 import { mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
+import { tenderlyVirtualTestnet, isTenderlyEnabled } from './tenderly';
+import type { Chain } from 'viem';
 // import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
@@ -16,11 +18,16 @@ const metadata = {
 
 // Create a function to get the config for a specific environment
 export const getWagmiConfig = () => {
-  // Always include all chains Wagmi needs to be aware of
-  const chains = [mainnet, arbitrum, base, arbitrumSepolia, sepolia] as const;
+  // Base chains that are always included
+  const baseChains = [mainnet, arbitrum, base, arbitrumSepolia, sepolia];
+  
+  // Conditionally add Tenderly Virtual Testnet if enabled
+  const chains = isTenderlyEnabled() 
+    ? [...baseChains, tenderlyVirtualTestnet]
+    : baseChains;
 
   return defaultWagmiConfig({
-    chains,
+    chains: chains as unknown as readonly [Chain, ...Chain[]],
     projectId,
     metadata,
     ssr: true,
