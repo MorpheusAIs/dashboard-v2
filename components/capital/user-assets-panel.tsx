@@ -55,8 +55,40 @@ export function UserAssetsPanel() {
   // Cache manager to handle wallet changes and cache invalidation
   const { debugCacheState } = useWalletCacheManager(userAddress, networkEnv);
 
+  // State for controlling initial vs background loading
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [shouldRefreshData, setShouldRefreshData] = useState(false);
+  const lastUserActionRef = useRef<string>('');
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Track data freshness to prevent unnecessary skeleton states
+  const [hasValidData, setHasValidData] = useState(false);
+
+  // Use extracted hooks - now with dynamic pricing for all assets
+  const { stethPrice, linkPrice, getAssetPrice } = useTokenPrices({
+    isInitialLoad,
+    shouldRefreshData,
+    userAddress,
+    networkEnv
+  });
+
   // All assets use the same reward pool (index 0) - confirmed via DistributorV2.depositPools() calls
   // All mainnet capital assets (stETH, USDC, USDT, wBTC, wETH) are in reward pool index 0
+
+  // Calculate total USD value across all pools for proportional distribution
+  const totalUSDValueAllPools = useMemo(() => {
+    return Object.values(assets).reduce((total, asset) => {
+      const assetConfigData = getAssetConfig(asset.symbol, networkEnv);
+      const decimals = assetConfigData?.metadata?.decimals || 18;
+      const totalStaked = Number(asset.totalDeposited) / Math.pow(10, decimals);
+      const assetPrice = getAssetPrice(asset.symbol);
+      
+      if (assetPrice && assetPrice > 0 && totalStaked > 0) {
+        return total + (totalStaked * assetPrice);
+      }
+      return total;
+    }, 0);
+  }, [assets, getAssetPrice, networkEnv]);
 
   // Calculate daily emissions for each asset dynamically using real contract data
   const stETHEmissions = useDailyEmissions(
@@ -64,7 +96,9 @@ export function UserAssetsPanel() {
     assets.stETH?.userDeposited,
     'stETH',
     networkEnv,
-    0 // All assets use reward pool index 0
+    0, // All assets use reward pool index 0
+    totalUSDValueAllPools,
+    getAssetPrice('stETH') || undefined
   );
 
   const usdcEmissions = useDailyEmissions(
@@ -72,7 +106,9 @@ export function UserAssetsPanel() {
     assets.USDC?.userDeposited,
     'USDC',
     networkEnv,
-    0 // All assets use reward pool index 0
+    0, // All assets use reward pool index 0
+    totalUSDValueAllPools,
+    getAssetPrice('USDC') || undefined
   );
 
   const usdtEmissions = useDailyEmissions(
@@ -80,7 +116,9 @@ export function UserAssetsPanel() {
     assets.USDT?.userDeposited,
     'USDT',
     networkEnv,
-    0 // All assets use reward pool index 0
+    0, // All assets use reward pool index 0
+    totalUSDValueAllPools,
+    getAssetPrice('USDT') || undefined
   );
 
   const wbtcEmissions = useDailyEmissions(
@@ -88,7 +126,9 @@ export function UserAssetsPanel() {
     assets.wBTC?.userDeposited,
     'wBTC',
     networkEnv,
-    0 // All assets use reward pool index 0
+    0, // All assets use reward pool index 0
+    totalUSDValueAllPools,
+    getAssetPrice('wBTC') || undefined
   );
 
   const wethEmissions = useDailyEmissions(
@@ -96,7 +136,9 @@ export function UserAssetsPanel() {
     assets.wETH?.userDeposited,
     'wETH',
     networkEnv,
-    0 // All assets use reward pool index 0
+    0, // All assets use reward pool index 0
+    totalUSDValueAllPools,
+    getAssetPrice('wETH') || undefined
   );
 
   // Create a mapping of asset symbols to their emission data for easy lookup
@@ -114,24 +156,6 @@ export function UserAssetsPanel() {
     totalEarned: totalMorEarned,
     isLoading: isTotalMorEarnedLoading
   } = totalMorEarnedResult;
-
-
-  // State for controlling initial vs background loading
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [shouldRefreshData, setShouldRefreshData] = useState(false);
-  const lastUserActionRef = useRef<string>('');
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Track data freshness to prevent unnecessary skeleton states
-  const [hasValidData, setHasValidData] = useState(false);
-
-  // Use extracted hooks - now with dynamic pricing for all assets
-  const { stethPrice, linkPrice, getAssetPrice } = useTokenPrices({
-    isInitialLoad,
-    shouldRefreshData,
-    userAddress,
-    networkEnv
-  });
 
   const { setCachedUserAssets } = useUserAssetsCache({
     userAddress,
@@ -422,6 +446,19 @@ export function UserAssetsPanel() {
       const hasClaimable = asset.availableToClaim > 0;
 
       return hasStake || hasClaimable;
+    })
+    // Sort so assets with exactly 0 amount deposited appear at the end
+    .sort((a, b) => {
+      if (!a || !b) return 0; // Should not happen due to filter, but safety check
+
+      const aIsZeroStaked = a.amountStaked === 0;
+      const bIsZeroStaked = b.amountStaked === 0;
+
+      // If both are zero or both are non-zero, maintain current order
+      if (aIsZeroStaked === bIsZeroStaked) return 0;
+
+      // Assets with zero staked go to the end
+      return aIsZeroStaked ? 1 : -1;
     }) as UserAsset[];
   }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, getAssetWithdrawUnlockDateCallback, assetEmissions, canAssetWithdraw, networkEnv]);
 
@@ -540,7 +577,7 @@ export function UserAssetsPanel() {
     }
 
     return freshMetrics;
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, assetEmissions, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress, setCachedUserAssets, getAssetPrice, debugCacheState]);
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress, setCachedUserAssets, getAssetPrice, debugCacheState, hasValidData, isInitialLoad]);
 
 
   return (
