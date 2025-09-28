@@ -201,7 +201,7 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }:
   return (
     <>
         {/* Mobile: 2x2 metric grid + chart below, Desktop: 1x3 metric row + chart below */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-2 sm:gap-x-4 gap-y-2 h-full grid-rows-[90px_90px_1fr] sm:grid-rows-[100px_1fr]">
+        <div className="metric-cards-row grid grid-cols-2 sm:grid-cols-3 gap-x-2 sm:gap-x-4 gap-y-2 h-full grid-rows-[90px_90px_1fr] sm:grid-rows-[100px_1fr]">
           {/* 3 Metric Cards */}
           {metricCards.map((card, index) => (
             <div key={index} className="col-span-1 h-full">
@@ -210,7 +210,7 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }:
           ))}
 
           {/* Deposit Chart (spans all columns, remaining height) */}
-          <div className="col-span-2 sm:col-span-4 relative h-full">
+          <div className="cumulative-deposits-chart col-span-2 sm:col-span-4 relative h-full">
             <GlowingEffect 
                 spread={40}
                 glow={true}

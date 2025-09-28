@@ -123,7 +123,7 @@ export function CowSwapModal() {
   return (
     <>
       <button 
-        className="copy-button-base text-sm px-4 py-1 hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-105 transition-all duration-300"
+        className="cowswap-modal-trigger copy-button-base text-sm px-4 py-1 hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-105 transition-all duration-300"
         onClick={() => setIsOpen(true)}
       >
         Buy MOR

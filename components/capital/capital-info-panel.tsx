@@ -79,7 +79,7 @@ export function CapitalInfoPanel() {
   };
 
   return (
-    <div className="lg:col-span-1 relative">
+    <div className="capital-info-panel lg:col-span-1 relative">
       <GlowingEffect 
         spread={40}
         glow={true}
@@ -121,7 +121,7 @@ export function CapitalInfoPanel() {
           {/* Assets Table */}
           <div className="flex-1 flex flex-col">
             {/* Fixed Header */}
-            <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
+            <div className="assets-table-header grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
               <div>Asset</div>
               {/* <div className="text-center">APR</div> */}
               <div className="text-center">Total Deposited</div>

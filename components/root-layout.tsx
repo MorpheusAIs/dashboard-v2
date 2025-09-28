@@ -15,12 +15,14 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-// import { usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useChainId } from 'wagmi'
+import { HelpCircle } from "lucide-react"
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
 import { CowSwapModal } from "./cowswap-modal"
 import { MyBalanceModal } from "./my-balance-modal"
+import { useTutorial } from "@/context/tutorial-context"
 // import { builders } from "@/app/builders/builders-data"
 
 // function getPageInfo(pathname: string) {
@@ -51,10 +53,13 @@ export function RootLayoutContent({
 }: {
   children: React.ReactNode;
 }) {
-  // const pathname = usePathname()
+  const pathname = usePathname()
   const chainId = useChainId()
   const isTestnet = chainId === 421614 || chainId === 11155111 // Arbitrum Sepolia or Sepolia
-  // const pageInfo = getPageInfo(pathname)
+  const isCapitalPage = pathname === '/capital'
+
+  // Tutorial context
+  const { setShowTutorial } = useTutorial()
 
   return (
     <SidebarProvider className="overflow-hidden w-screen h-screen">
@@ -64,6 +69,16 @@ export function RootLayoutContent({
           <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-1 sm:mr-2 h-4" />
+            {isCapitalPage && (
+              <button
+                onClick={() => setShowTutorial(true)}
+                className="copy-button-secondary px-3 py-1 text-sm font-medium flex items-center gap-1"
+                title="Start Tutorial"
+              >
+                <HelpCircle size={16} />
+                Tutorial
+              </button>
+            )}
           </div>
           
           <div className="flex-1 flex items-center justify-center min-w-0">
@@ -84,6 +99,7 @@ export function RootLayoutContent({
           </div>
           
           <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 flex-shrink-0">
+
             <div className="hidden sm:block">
               <MORBalance />
             </div>
