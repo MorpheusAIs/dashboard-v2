@@ -61,9 +61,11 @@ const ReferralPanel = dynamic(() => import("@/components/capital/referral-panel"
   )
 });
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
+import { CapitalTutorial } from "@/components/capital/capital-tutorial";
 
 // Import Context and Config
 import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext";
+import { useTutorial } from "@/context/tutorial-context";
 
 // --- Capital Page Content Component ---
 
@@ -77,6 +79,9 @@ function CapitalPageContent() {
     setActiveModal,
     setPreReferrerAddress,
   } = useCapitalContext();
+
+  // Tutorial context
+  const { showTutorial, setShowTutorial } = useTutorial();
 
   const { switchToChain: contextSwitchToChain, isNetworkSwitching } = useNetwork();
   const chainId = useChainId();
@@ -200,9 +205,15 @@ function CapitalPageContent() {
       <DepositModal />
       <WithdrawModal />
       <ClaimMorRewardsModal />
-      <ChangeLockModal 
+      <ChangeLockModal
         currentUserMultiplierData={currentUserMultiplierData}
         userData={userData}
+      />
+
+      {/* Tutorial Component */}
+      <CapitalTutorial
+        isActive={showTutorial}
+        onCompleteAction={() => setShowTutorial(false)}
       />
 
       {/* Placeholder for Assets to Deposit Section */}
