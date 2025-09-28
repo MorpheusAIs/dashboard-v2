@@ -234,7 +234,7 @@ export function UserAssetsTable({
   );
 
   return (
-    <div className="[&>div]:max-h-[400px] overflow-auto custom-scrollbar rounded-xl">
+    <div className="overflow-auto custom-scrollbar rounded-xl max-h-[400px]">
       <DataTable
         columns={assetsColumns}
         data={userAssets}
