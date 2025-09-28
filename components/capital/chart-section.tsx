@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { DepositStethChart } from "@/components/capital/deposit-steth-chart";
+import { CumulativeDepositsChart } from "@/components/capital/cumulative-deposits-chart";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalChartData } from "@/app/hooks/useCapitalChartData";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
+import { useCumulativeDeposits } from "@/hooks/use-cumulative-deposits";
 
 // Morlord APR cache management
 const MORLORD_APR_CACHE_KEY = 'morpheus_morlord_apr_cache';
@@ -71,9 +73,10 @@ const mockChartData = [
 
 interface ChartSectionProps {
   isMorlordData?: boolean;
+  chartType?: 'deposits' | 'cumulative';
 }
 
-export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
+export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }: ChartSectionProps) {
   // Temporary flag to show indexing animation
   const showIndexingAnimation = false; // Temporarily disabled to see actual chart
 
@@ -133,6 +136,13 @@ export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
     // Dynamic asset switching support
     availableAssets,
   } = useCapitalChartData();
+
+  // Get cumulative deposits data when chartType is 'cumulative'
+  const {
+    data: cumulativeDepositsData,
+    loading: cumulativeDepositsLoading,
+    error: cumulativeDepositsError,
+  } = useCumulativeDeposits();
 
   // Get live metrics data from pool contracts
   const {
@@ -272,27 +282,37 @@ export function ChartSection({ isMorlordData = true }: ChartSectionProps) {
               {/* Normal chart rendering when not showing indexing animation */}
               {!showIndexingAnimation && (
                 <>
-                  {(chartLoading || metricsLoading || (isMorlordData && morlordLoading)) && (
+                  {((chartType === 'deposits' && (chartLoading || metricsLoading || (isMorlordData && morlordLoading))) ||
+                    (chartType === 'cumulative' && (cumulativeDepositsLoading || metricsLoading || (isMorlordData && morlordLoading)))) && (
                     <div className="flex justify-center items-center h-full">
                       <p>Loading Chart...</p>
                     </div>
                   )}
-                  {(chartError || metricsError || morlordError) && (
+                  {((chartType === 'deposits' && (chartError || metricsError || morlordError)) ||
+                    (chartType === 'cumulative' && (cumulativeDepositsError || metricsError || morlordError))) && (
                     <div className="flex justify-center items-center h-full text-red-500">
-                      <p>{chartError || metricsError || morlordError}</p>
+                      <p>{chartType === 'deposits' ? (chartError || metricsError || morlordError) : (cumulativeDepositsError || metricsError || morlordError)}</p>
                     </div>
                   )}
-                  {!chartLoading && !metricsLoading && !(isMorlordData && morlordLoading) && !chartError && !metricsError && !morlordError && (
+                  {((chartType === 'deposits' && !chartLoading && !metricsLoading && !(isMorlordData && morlordLoading) && !chartError && !metricsError && !morlordError) ||
+                    (chartType === 'cumulative' && !cumulativeDepositsLoading && !metricsLoading && !(isMorlordData && morlordLoading) && !cumulativeDepositsError && !metricsError && !morlordError)) && (
                     <div className="relative h-full overflow-hidden rounded-xl">
-                      <DepositStethChart
-                        data={chartData}
-                        selectedAsset={selectedAsset}
-                        onAssetChange={setSelectedAsset}
-                        showAssetSwitcher={true} // Always show asset switcher
-                        availableAssets={availableAssets} // Always pass live assets from API
-                        isLoading={chartLoading}
-                      />
-                      {isLoadingHistorical && (
+                      {chartType === 'deposits' ? (
+                        <DepositStethChart
+                          data={chartData}
+                          selectedAsset={selectedAsset}
+                          onAssetChange={setSelectedAsset}
+                          showAssetSwitcher={true} // Always show asset switcher
+                          availableAssets={availableAssets} // Always pass live assets from API
+                          isLoading={chartLoading}
+                        />
+                      ) : (
+                        <CumulativeDepositsChart
+                          data={cumulativeDepositsData}
+                          isLoading={cumulativeDepositsLoading}
+                        />
+                      )}
+                      {chartType === 'deposits' && isLoadingHistorical && (
                         <div className="absolute top-2 right-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded z-5">
                           Loading historical data...
                         </div>
