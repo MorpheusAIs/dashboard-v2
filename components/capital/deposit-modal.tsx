@@ -263,6 +263,7 @@ export function DepositModal() {
 
   // Form state
   const [amount, setAmount] = useState("");
+  const [rawAmount, setRawAmount] = useState(""); // Store raw amount for transactions
   const [referrerAddress, setReferrerAddress] = useState("");
   const [lockValue, setLockValue] = useState("90");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("days");
@@ -470,7 +471,9 @@ export function DepositModal() {
   
   const amountBigInt = useMemo(() => {
     try {
-      if (!amount) return BigInt(0);
+      // Use rawAmount for calculations when available (from Max button), fallback to amount (from manual input)
+      const amountForCalculation = rawAmount || amount;
+      if (!amountForCalculation) return BigInt(0);
       
       // Get the correct decimals for the selected asset
       const assetInfo = availableAssets.find(asset => asset.metadata.symbol === selectedAsset);
@@ -479,17 +482,19 @@ export function DepositModal() {
       // Log amount processing for debugging
       console.debug(`🔍 [${selectedAsset}] Amount Processing:`, {
         selectedAsset,
-        rawAmount: amount,
+        displayAmount: amount,
+        rawAmount: rawAmount,
+        usingForCalculation: amountForCalculation,
         decimals,
-        numberValue: Number(amount),
+        numberValue: Number(amountForCalculation),
         expectedGasFee: 'NORMAL ($2-5)'
       });
 
-      const result = parseUnits(amount, decimals);
+      const result = parseUnits(amountForCalculation, decimals);
 
       console.debug(`🔍 [${selectedAsset}] parseUnits Result:`, {
         selectedAsset,
-        input: amount,
+        input: amountForCalculation,
         decimals,
         result: result.toString(),
         resultHex: '0x' + result.toString(16)
@@ -500,11 +505,12 @@ export function DepositModal() {
       console.error('🐛 [DEPOSIT DEBUG] parseUnits error:', {
         selectedAsset,
         amount,
+        rawAmount,
         error: error instanceof Error ? error.message : String(error)
       });
       return BigInt(0);
     }
-  }, [amount, selectedAsset, availableAssets]);
+  }, [amount, rawAmount, selectedAsset, availableAssets]);
 
   // ENS Resolution
   const isEnsName = useMemo(() => {
@@ -531,12 +537,12 @@ export function DepositModal() {
   const checkApprovalStatus = useCallback(async () => {
     if (amount && parseFloat(amount) > 0 && userAddress) {
       // Use checkAndUpdateApprovalNeeded to get fresh data from blockchain
-      const needsApproval = await checkAndUpdateApprovalNeeded(selectedAsset, amount);
+      const needsApproval = await checkAndUpdateApprovalNeeded(selectedAsset, rawAmount || amount);
       setCurrentlyNeedsApproval(needsApproval);
     } else {
       setCurrentlyNeedsApproval(false);
     }
-  }, [amount, userAddress, selectedAsset, checkAndUpdateApprovalNeeded]);
+  }, [amount, rawAmount, userAddress, selectedAsset, checkAndUpdateApprovalNeeded]);
 
   // Check approval status when dependencies change
   useEffect(() => {
@@ -566,7 +572,7 @@ export function DepositModal() {
             console.log(`🔍 [Deposit Modal] Checking approval status (attempt ${attempt}/${maxAttempts}) for ${selectedAsset}`);
           }
           
-          const needsApproval = await checkAndUpdateApprovalNeeded(selectedAsset, amount);
+          const needsApproval = await checkAndUpdateApprovalNeeded(selectedAsset, rawAmount || amount);
           
           if (process.env.NODE_ENV !== 'production') {
             console.log(`🔍 [Deposit Modal] Approval check result (attempt ${attempt}):`, {
@@ -798,8 +804,8 @@ export function DepositModal() {
 
     try {
       // Double-check approval status with fresh blockchain data before proceeding
-      const freshApprovalNeeded = await checkAndUpdateApprovalNeeded(selectedAsset, amount);
-      console.log('🔍 Fresh approval check:', { selectedAsset, amount, freshApprovalNeeded, currentlyNeedsApproval });
+      const freshApprovalNeeded = await checkAndUpdateApprovalNeeded(selectedAsset, rawAmount || amount);
+      console.log('🔍 Fresh approval check:', { selectedAsset, amount, rawAmount, freshApprovalNeeded, currentlyNeedsApproval });
       
       if (freshApprovalNeeded || currentlyNeedsApproval) {
         console.log('💰 Approval needed, requesting approval for', selectedAsset);
@@ -837,7 +843,8 @@ export function DepositModal() {
         // Log pre-deposit values for debugging
         console.debug(`🔍 [${selectedAsset}] Pre-Deposit Values:`, {
           selectedAsset,
-          amount,
+          displayAmount: amount,
+          transactionAmount: rawAmount || amount,
           amountParsed: amountBigInt.toString(),
           amountHex: '0x' + amountBigInt.toString(16),
           lockDuration: lockDuration.toString(),
@@ -845,7 +852,7 @@ export function DepositModal() {
           assetDecimals: availableAssets.find(a => a.metadata.symbol === selectedAsset)?.metadata.decimals
         });
         
-        await deposit(selectedAsset, amount, lockDuration);
+        await deposit(selectedAsset, rawAmount || amount, lockDuration);
       }
     } catch (error) {
       console.error("Deposit/Approve Action Error:", error);
@@ -878,10 +885,12 @@ export function DepositModal() {
       const assetInfo = availableAssets.find(asset => asset.metadata.symbol === selectedAsset);
       const decimals = assetInfo?.metadata.decimals || 18;
       
-      // Use the raw amount with full precision - don't round or truncate
-      const maxAmount = formatUnits(currentAssetBalance.balance, decimals);
+      // Get raw amount for transactions and formatted amount for display
+      const rawAmountForTx = formatUnits(currentAssetBalance.balance, decimals);
+      const formattedAmount = formatBalanceDisplay(rawAmountForTx, selectedAsset);
       
-      setAmount(maxAmount);
+      setAmount(formattedAmount); // Display amount (formatted)
+      setRawAmount(rawAmountForTx); // Transaction amount (full precision)
       setFormError(null); // Clear form error when max amount is selected
     }
   };
@@ -921,6 +930,7 @@ export function DepositModal() {
   useEffect(() => {
     if (!isOpen) {
       setAmount("");
+      setRawAmount("");
       setReferrerAddress("");
       setLockValue("90");
       setLockUnit("days");
@@ -1045,6 +1055,7 @@ export function DepositModal() {
                     
                     if (value === '' || /^\d*\.?\d*$/.test(value)) {
                       setAmount(value);
+                      setRawAmount(''); // Clear raw amount when user types manually
                       setFormError(null);
                     }
                   }}
