@@ -22,30 +22,45 @@ class WalletErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Wallet Error:', error)
-    console.error('Error Info:', errorInfo)
+    // Only log serious errors, not common wallet connection issues
+    const isProposalExpired = error.message?.toLowerCase().includes('proposal expired');
+    const isSessionExpired = error.message?.toLowerCase().includes('session expired');
+    const isWalletConnectionIssue = error.message?.toLowerCase().includes('walletconnect') ||
+                                   error.message?.toLowerCase().includes('user rejected');
+    
+    if (!isProposalExpired && !isSessionExpired && !isWalletConnectionIssue) {
+      console.error('Wallet Error:', error);
+      console.error('Error Info:', errorInfo);
+    } else {
+      console.log('🤫 Suppressed common wallet error:', error.message);
+    }
   }
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="p-4 rounded-lg bg-red-50 border border-red-200">
-          <h2 className="text-red-800 font-semibold mb-2">Wallet Connection Error</h2>
-          <p className="text-red-600 mb-4">
-            {this.state.error?.message || 'An error occurred with the wallet connection'}
-          </p>
-          <button
-            onClick={() => {
-              this.setState({ hasError: false, error: null })
-              // Force reload the page to clear any bad state
-              window.location.reload()
-            }}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      )
+      const errorMessage = this.state.error?.message || '';
+      const isProposalExpired = errorMessage.toLowerCase().includes('proposal expired');
+      const isSessionExpired = errorMessage.toLowerCase().includes('session expired');
+      
+      // For proposal/session expired errors, silently clear data and render normally
+      if (isProposalExpired || isSessionExpired) {
+        // Clear any expired wallet data silently
+        Object.keys(localStorage).forEach(key => {
+          if (key.toLowerCase().includes('walletconnect') || 
+              key.includes('wc@2') ||
+              key.includes('@walletconnect')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        // Reset the error state and render children normally (showing wallet connect button)
+        this.setState({ hasError: false, error: null });
+        return this.props.children;
+      }
+      
+      // For all other errors, reset state and render normally
+      // Let React handle temporary errors naturally without showing error UI
+      this.setState({ hasError: false, error: null });
     }
 
     return this.props.children

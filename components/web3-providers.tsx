@@ -18,17 +18,64 @@ export function Web3Providers({
   const defaultEnvironment: NetworkEnvironment = 'mainnet';
 
   useEffect(() => {
+    // Clear expired WalletConnect data on app initialization to prevent "Proposal expired" errors
+    const clearExpiredWalletData = () => {
+      try {
+        const keysToCheck = Object.keys(localStorage);
+        keysToCheck.forEach(key => {
+          if (key.toLowerCase().includes('walletconnect') || 
+              key.includes('wc@2') ||
+              key.includes('@walletconnect') ||
+              key.includes('wcm-') ||
+              key.includes('appkit-')) {
+            try {
+              const data = localStorage.getItem(key);
+              if (data) {
+                // Try to parse and check for expired proposals/sessions
+                const parsed = JSON.parse(data);
+                if (parsed) {
+                  const now = Date.now();
+                  const expiry = parsed.expiry || parsed.proposal?.expiry || parsed.session?.expiry;
+                  if (expiry && expiry < now) {
+                    console.log('🧹 Clearing expired wallet data:', key);
+                    localStorage.removeItem(key);
+                  } else if (parsed.topic && !expiry) {
+                    // Clear sessions without expiry info as they might be stale
+                    console.log('🧹 Clearing stale wallet data (no expiry):', key);
+                    localStorage.removeItem(key);
+                  }
+                }
+              }
+            } catch {
+              // If we can't parse it, it's likely corrupt, so remove it
+              console.log('🧹 Clearing corrupt wallet data:', key);
+              localStorage.removeItem(key);
+            }
+          }
+        });
+      } catch (error) {
+        console.warn('Error clearing expired wallet data:', error);
+      }
+    };
+
+    // Clear expired data immediately on app start
+    clearExpiredWalletData();
+
     // Override console.error to suppress specific Ethereum-related errors
     const originalConsoleError = console.error;
     console.error = (...args) => {
       const errorMessage = args.join(' ');
       
-      // Suppress these specific errors that come from conflicting wallet extensions
+      // Suppress these specific errors that come from conflicting wallet extensions and connection issues
       const suppressPatterns = [
         'Cannot redefine property: ethereum',
         'Cannot set property ethereum',
         'Cannot read properties of undefined (reading \'id\')',
         'Unchecked runtime.lastError',
+        'Proposal expired',
+        'Session expired',
+        'Connection proposal expired',
+        'WalletConnect proposal expired',
       ];
       
       const shouldSuppress = suppressPatterns.some(pattern => 
@@ -40,10 +87,28 @@ export function Web3Providers({
       }
     };
 
-    // Also add a global error handler to catch unhandled promise rejections
+    // Enhanced global error handler to catch unhandled promise rejections
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      if (event.reason && typeof event.reason.message === 'string' && 
-          event.reason.message.includes('ethereum')) {
+      const error = event.reason;
+      const errorMessage = error?.message?.toLowerCase() || '';
+      
+      // Suppress wallet connection related errors including proposal expired
+      const walletErrorPatterns = [
+        'ethereum',
+        'proposal expired',
+        'session expired',
+        'connection expired',
+        'walletconnect',
+        'user rejected',
+        'connection request reset'
+      ];
+      
+      const shouldSuppress = walletErrorPatterns.some(pattern => 
+        errorMessage.includes(pattern)
+      );
+      
+      if (shouldSuppress) {
+        console.log('🤫 Suppressing wallet connection error:', errorMessage);
         event.preventDefault();
       }
     };
