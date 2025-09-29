@@ -1277,7 +1277,7 @@ export function DepositModal() {
                   </div>
                   {unlockDate && (
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-300">Unlock Date</span>
+                      <span className="text-gray-300">Mor Unlock Date</span>
                       <span className="text-white">
                         {unlockDate.toLocaleDateString('en-US', { 
                           month: 'short', 
