@@ -407,8 +407,14 @@ export function DepositModal() {
   
   // Helper function to format balance with asset-specific decimal rules
   const formatBalanceDisplay = useCallback((numStr: string, assetSymbol: AssetSymbol): string => {
+    // Handle invalid/empty input
+    if (!numStr || numStr === 'undefined' || numStr === 'null') {
+      return '0.00';
+    }
+    
     const num = Number(numStr);
-    if (num === 0) return '0.00';
+    // Handle NaN or invalid numbers
+    if (isNaN(num) || num === 0) return '0.00';
 
     // Convert to string and find decimal point
     const str = num.toString();
