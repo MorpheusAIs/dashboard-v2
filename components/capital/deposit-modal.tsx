@@ -620,7 +620,7 @@ export function DepositModal() {
       // Start the retry sequence
       checkWithRetry();
     }
-  }, [isApprovalSuccess, amount, processedApprovalSuccess, checkApprovalStatus, selectedAsset, checkAndUpdateApprovalNeeded, currentlyNeedsApproval, l1ChainId]);
+  }, [isApprovalSuccess, amount, rawAmount, processedApprovalSuccess, checkApprovalStatus, selectedAsset, checkAndUpdateApprovalNeeded, currentlyNeedsApproval, l1ChainId]);
 
   // Referrer address validation function
   const validateReferrerAddress = useCallback((address: string) => {
