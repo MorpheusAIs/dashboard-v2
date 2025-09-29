@@ -503,13 +503,30 @@ export function useCapitalMetrics(): CapitalMetrics {
 
     totalValueLockedUSD = Math.floor(totalValueLockedUSD);
 
-    // Log calculation details for debugging
-    console.log('💰 TVL Calculation Debug:', {
+    // Enhanced TVL calculation debugging for mobile issues
+    console.log('💰 TVL Calculation Debug (Enhanced for Mobile):', {
       supportedAssets,
       assetAmounts,
       assetUSDValues,
       totalValueLockedUSD,
-      networkEnv: poolData.networkEnvironment
+      networkEnv: poolData.networkEnvironment,
+      prices: { stethPrice, linkPrice },
+      deviceInfo: {
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'server',
+        isMobile: typeof window !== 'undefined' && window.innerWidth < 768,
+        windowWidth: typeof window !== 'undefined' ? window.innerWidth : 'server'
+      },
+      poolDataDebug: {
+        hasPoolData: !!poolData,
+        networkEnvironment: poolData.networkEnvironment,
+        assetsCount: Object.keys(poolData.assets || {}).length,
+        assetDetails: Object.entries(poolData.assets || {}).map(([symbol, asset]) => ({
+          symbol,
+          totalStaked: asset?.totalStaked,
+          isLoading: asset?.isLoading,
+          error: asset?.error?.message
+        }))
+      }
     });
 
     // Calculate average APY (weighted by USD value) dynamically
@@ -565,7 +582,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       // Format for display
       return realDailyEmissions < 1000
         ? realDailyEmissions.toFixed(0)
-        : Math.round(realDailyEmissions).toLocaleString();
+        : Math.round(realDailyEmissions).toLocaleString('en-US');
     })();
 
     // Save successful calculation to cache
@@ -590,7 +607,7 @@ export function useCapitalMetrics(): CapitalMetrics {
 
       if (hasAnyPriceData) {
         const cacheData: TVLCache = {
-          totalValueLockedUSD: totalValueLockedUSD.toLocaleString(),
+          totalValueLockedUSD: totalValueLockedUSD.toLocaleString('en-US'),
           timestamp: Date.now(),
           networkEnvironment: poolData.networkEnvironment || 'mainnet',
           assetAmounts: { ...assetAmounts }, // Copy all asset amounts
@@ -603,7 +620,7 @@ export function useCapitalMetrics(): CapitalMetrics {
     // Provide better display values based on data availability
     const totalValueLockedUSDDisplay = (() => {
       if (totalValueLockedUSD > 0) {
-        return totalValueLockedUSD.toLocaleString();
+        return totalValueLockedUSD.toLocaleString('en-US');
       }
 
       // Check if we have any asset deposits but missing price data
