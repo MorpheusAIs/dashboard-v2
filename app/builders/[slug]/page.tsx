@@ -389,8 +389,8 @@ export default function BuilderPage() {
         isTestnet,
         stakedRaw: staked.toString(),
         stakedFormattedForUI: formattedStaked.toFixed(2),
-        claimLockEnd: new Date(Number(effectiveClaimLockEnd) * 1000).toLocaleString(),
-        lastStake: new Date(Number(lastStake) * 1000).toLocaleString(),
+        claimLockEnd: new Date(Number(effectiveClaimLockEnd) * 1000).toLocaleString('en-US'),
+        lastStake: new Date(Number(lastStake) * 1000).toLocaleString('en-US'),
         timeLeft: calculatedTimeLeft
       });
     } else {
