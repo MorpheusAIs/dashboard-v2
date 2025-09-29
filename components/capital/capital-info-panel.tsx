@@ -10,7 +10,7 @@ const NumberFlow = dynamic(() => import('@number-flow/react'), {
 })
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
-import { TokenIcon } from '@web3icons/react';
+import { AssetIcon } from "@/components/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Asset } from "./types/asset";
 import { parseStakedAmount } from "./utils/parse-staked-amount";
@@ -142,7 +142,7 @@ export function CapitalInfoPanel() {
                     {/* Asset Name & Symbol */}
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 flex items-center justify-center">
-                        <TokenIcon symbol={asset.icon} className='rounded-lg' variant="background" size="24" />
+                        <AssetIcon symbol={asset.symbol as AssetSymbol} className='rounded-lg' size={24} />
                       </div>
                       <div>
                         <div className={`text-sm font-medium ${
