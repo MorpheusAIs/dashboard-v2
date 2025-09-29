@@ -65,10 +65,11 @@ export function UserAssetsPanel() {
   const [hasValidData, setHasValidData] = useState(false);
 
   // Use extracted hooks - now with dynamic pricing for all assets
+  // Use the same parameters as useCapitalMetrics to ensure consistent price fetching
   const { stethPrice, linkPrice, getAssetPrice } = useTokenPrices({
-    isInitialLoad,
-    shouldRefreshData,
-    userAddress,
+    isInitialLoad: true, // Always fetch on component mount like useCapitalMetrics
+    shouldRefreshData: shouldRefreshData, // Keep refresh logic for user actions
+    userAddress: undefined, // Use undefined like useCapitalMetrics for consistent caching
     networkEnv
   });
 
