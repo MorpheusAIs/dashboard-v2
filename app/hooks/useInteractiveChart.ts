@@ -71,15 +71,15 @@ export function useInteractiveChart(initialData: DataPoint[] = [], defaultRange:
 
     const monthlyTicks = useMemo(() => getMonthlyTicks(originalData), [originalData]);
 
-    const handleMouseDown = useCallback((e: { activeLabel?: string }) => {
-        if (e.activeLabel) {
+    const handleMouseDown = useCallback((e: { activeLabel?: string } | null) => {
+        if (e && e.activeLabel) {
             setRefAreaLeft(e.activeLabel);
             setIsSelecting(true);
         }
     }, []);
 
-    const handleMouseMove = useCallback((e: { activeLabel?: string }) => {
-        if (isSelecting && e.activeLabel) {
+    const handleMouseMove = useCallback((e: { activeLabel?: string } | null) => {
+        if (isSelecting && e && e.activeLabel) {
             setRefAreaRight(e.activeLabel);
         }
     }, [isSelecting]);
@@ -160,6 +160,13 @@ export function useInteractiveChart(initialData: DataPoint[] = [], defaultRange:
 
         const lastDataPoint = originalData[originalData.length - 1];
         const endDate = new Date(lastDataPoint.date);
+        
+        // Validate endDate
+        if (isNaN(endDate.getTime())) {
+            console.error("Invalid end date in chart data:", lastDataPoint.date);
+            return;
+        }
+        
         let startDate: Date;
 
         if (selectedRange === '7d') {
@@ -175,9 +182,26 @@ export function useInteractiveChart(initialData: DataPoint[] = [], defaultRange:
             startDate = new Date(originalData[0].date);
         }
 
+        // Validate startDate
+        if (isNaN(startDate.getTime())) {
+            console.error("Invalid start date in chart data:", originalData[0]?.date);
+            return;
+        }
+
         const firstDataPointDate = new Date(originalData[0].date);
+        if (isNaN(firstDataPointDate.getTime())) {
+            console.error("Invalid first data point date in chart data:", originalData[0].date);
+            return;
+        }
+        
         if (startDate < firstDataPointDate) {
             startDate = firstDataPointDate;
+        }
+
+        // Final validation before setting
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            console.error("Final validation failed for chart dates:", { startDate, endDate });
+            return;
         }
 
         setStartTime(startDate.toISOString());
