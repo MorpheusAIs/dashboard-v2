@@ -80,7 +80,7 @@ export function WithdrawModal() {
     }
     
     if (amountBigInt > depositedAmountBigInt) {
-      return `Insufficient ${assetDisplayName} deposited. Available: ${parseFloat(actualDepositedAmount).toLocaleString(undefined, { 
+      return `Insufficient ${assetDisplayName} deposited. Available: ${parseFloat(actualDepositedAmount).toLocaleString('en-US', { 
         minimumFractionDigits: 2, 
         maximumFractionDigits: 6 
       })} ${assetUnit}`;
@@ -184,7 +184,7 @@ export function WithdrawModal() {
                 />
                 <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
                   <span className="text-xs text-gray-400 mr-2">
-                    {parseFloat(actualDepositedAmount).toLocaleString(undefined, { 
+                    {parseFloat(actualDepositedAmount).toLocaleString('en-US', { 
                       minimumFractionDigits: 2, 
                       maximumFractionDigits: 6 
                     })} {assetUnit}

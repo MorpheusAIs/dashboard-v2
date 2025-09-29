@@ -155,7 +155,8 @@ export function useTokenPrices({
   useEffect(() => {
     // Only fetch if it's initial load or data refresh is needed
     if (!isInitialLoad && !shouldRefreshData) return;
-    if (!userAddress) return;
+    // Allow fetching prices even when userAddress is not available for anonymous access
+    // This ensures TVL calculations work properly even when wallet is not connected
 
     async function fetchTokenPricesWithRetry() {
       const cachedPrices = getCachedPrices(userAddress);

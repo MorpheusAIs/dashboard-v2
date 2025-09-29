@@ -118,7 +118,7 @@ export function UserAssetsTable({
         enableSorting: true,
         cell: (asset) => {
           const formattedValue = asset.dailyEmissions < 1 && asset.dailyEmissions >= 0
-            ? asset.dailyEmissions.toLocaleString(undefined, { maximumFractionDigits: 4, minimumFractionDigits: 3 })
+            ? asset.dailyEmissions.toLocaleString('en-US', { maximumFractionDigits: 4, minimumFractionDigits: 3 })
             : formatNumber(asset.dailyEmissions);
 
           return (

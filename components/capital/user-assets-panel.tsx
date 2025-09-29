@@ -547,7 +547,7 @@ export function UserAssetsPanel() {
       : formatDailyEmissions(totalMorEarned);
 
     const freshMetrics = {
-      stakedValue: Math.floor(totalStakedValue).toLocaleString(),
+      stakedValue: Math.floor(totalStakedValue).toLocaleString('en-US'),
       totalMorStaked: "0",
       dailyEmissionsEarned: formatDailyEmissions(totalDailyEmissions),
       lifetimeEmissionsEarned: lifetimeEarnings,

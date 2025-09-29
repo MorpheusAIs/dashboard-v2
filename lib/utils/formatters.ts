@@ -26,7 +26,7 @@ export function formatTimestamp(timestamp: bigint | number | undefined): string 
             console.error("[formatTimestamp] Invalid Date object created from timestamp:", tsNumber);
             return "Invalid Date";
         }
-        const formattedDate = date.toLocaleString(undefined, { 
+        const formattedDate = date.toLocaleString('en-US', { 
             year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' 
         });
         return formattedDate;
@@ -54,7 +54,7 @@ export function formatBigInt(value: bigint | undefined, decimals: number = 18, p
     const num = parseFloat(formatted);
     if (isNaN(num)) return "Error";
     // Format with commas and specified precision
-    return num.toLocaleString(undefined, { 
+    return num.toLocaleString('en-US', { 
       minimumFractionDigits: precision, 
       maximumFractionDigits: precision 
     });
