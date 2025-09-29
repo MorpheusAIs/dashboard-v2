@@ -13,7 +13,7 @@ import {
   usePublicClient,
   type BaseError 
 } from "wagmi";
-import { parseUnits, parseEther, zeroAddress, maxInt256, getContract, formatUnits } from "viem";
+import { parseUnits, parseEther, zeroAddress, maxInt256, getContract, formatUnits, isAddress } from "viem";
 import { toast } from "sonner";
 
 // Import Config, Utils & ABIs
@@ -351,7 +351,7 @@ interface CapitalContextState {
   lastHandledClaimHash: `0x${string}` | null;
 
   // V2 Action Functions (asset-aware)
-  deposit: (asset: AssetSymbol, amount: string, lockDurationSeconds?: bigint) => Promise<void>;
+  deposit: (asset: AssetSymbol, amount: string, lockDurationSeconds?: bigint, referrerAddress?: string) => Promise<void>;
   claim: () => Promise<void>; // Claims from all pools
   withdraw: (asset: AssetSymbol, amount: string) => Promise<void>;
   changeLock: (lockValue: string, lockUnit: TimeUnit) => Promise<void>;
@@ -2342,7 +2342,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     }
   }, [l1ChainId, networkEnv, assetContractData]);
 
-  const deposit = useCallback(async (asset: AssetSymbol, amountString: string, lockDurationSeconds?: bigint) => {
+  const deposit = useCallback(async (asset: AssetSymbol, amountString: string, lockDurationSeconds?: bigint, referrerAddress?: string) => {
     // Get asset configuration and data
     const assetInfo = getAssetConfig(asset, networkEnv);
     if (!assetInfo) {
@@ -2401,6 +2401,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     const MINIMUM_CLAIM_LOCK_PERIOD = BigInt(90 * 24 * 60 * 60); // 90 days in seconds  
     const lockDuration = lockDurationSeconds || MINIMUM_CLAIM_LOCK_PERIOD;
     
+    // Process referrer address - use provided address or zero address as fallback
+    const finalReferrerAddress = (referrerAddress && isAddress(referrerAddress)) 
+      ? referrerAddress as `0x${string}` 
+      : zeroAddress;
+
     console.log(`🏦 ${asset} Deposit Details:`, {
       asset,
       depositPoolAddress: assetData.config.depositPoolAddress,
@@ -2412,7 +2417,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       chainId: l1ChainId,
       userBalance: assetData.userBalanceFormatted,
       userAllowance: formatBigInt(assetData.userAllowance, assetInfo.metadata.decimals, 4),
-      decimals: assetInfo.metadata.decimals
+      decimals: assetInfo.metadata.decimals,
+      referrerAddress: referrerAddress || 'none',
+      finalReferrerAddress
     });
 
     // Check if user was previously a non-depositor (had 0 deposits across all assets)
@@ -2453,7 +2460,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         address: assetData.config.depositPoolAddress,
         abi: DepositPoolAbi,
         functionName: 'stake',
-        args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, zeroAddress],
+        args: [V2_REWARD_POOL_INDEX, amountBigInt, claimLockEnd, finalReferrerAddress],
         chainId: l1ChainId,
       });
     }, {

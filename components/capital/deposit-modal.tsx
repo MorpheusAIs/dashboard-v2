@@ -817,12 +817,6 @@ export function DepositModal() {
         // Use resolved address if available, otherwise use the original input
         const finalReferrerAddress = resolvedAddress || (referrerAddress.trim() || undefined);
         
-        // TODO: Update your deposit function to accept the referrer address parameter
-        // For now, we'll just log it and use the existing deposit call
-        if (finalReferrerAddress) {
-          console.log("Referrer address for deposit:", finalReferrerAddress);
-        }
-        
         // Debug lock period validation
         const currentTimestamp = Math.floor(Date.now() / 1000);
         const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDuration;
@@ -852,7 +846,7 @@ export function DepositModal() {
           assetDecimals: availableAssets.find(a => a.metadata.symbol === selectedAsset)?.metadata.decimals
         });
         
-        await deposit(selectedAsset, rawAmount || amount, lockDuration);
+        await deposit(selectedAsset, rawAmount || amount, lockDuration, finalReferrerAddress);
       }
     } catch (error) {
       console.error("Deposit/Approve Action Error:", error);
