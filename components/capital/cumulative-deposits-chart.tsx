@@ -147,25 +147,33 @@ export function CumulativeDepositsChart({
                                 </h3>
                             </div>
                             <div className="flex items-center space-x-2 mr-2 sm:mr-4">
-                                <ToggleGroup
-                                    type="single"
-                                    value={selectedRange}
-                                    onValueChange={(value: '7d' | '1m' | '3m' | 'max') => {
-                                        if (value) setSelectedRange(value);
-                                    }}
-                                >
-                                    <ToggleGroupItem value="7d" className="text-xs px-2" aria-label="7 days">7d</ToggleGroupItem>
-                                    <ToggleGroupItem value="1m" className="text-xs px-2" aria-label="1 month">1m</ToggleGroupItem>
-                                    <ToggleGroupItem value="3m" className="text-xs px-2" aria-label="3 months">3m</ToggleGroupItem>
-                                    <ToggleGroupItem value="max" className="text-xs px-2" aria-label="Maximum">Max</ToggleGroupItem>
-                                </ToggleGroup>
-                                <button
-                                    onClick={handleReset}
-                                    disabled={!isZoomed}
-                                    className="text-xs sm:text-sm px-3 py-1 h-auto copy-button-secondary"
-                                >
-                                    Reset
-                                </button>
+                                {/* Mobile: Show "All time" text */}
+                                <span className="sm:hidden text-xs text-gray-400">
+                                    All time
+                                </span>
+                                
+                                {/* Desktop: Show toggle buttons and reset */}
+                                <div className="hidden sm:flex items-center space-x-2">
+                                    <ToggleGroup
+                                        type="single"
+                                        value={selectedRange}
+                                        onValueChange={(value: '7d' | '1m' | '3m' | 'max') => {
+                                            if (value) setSelectedRange(value);
+                                        }}
+                                    >
+                                        <ToggleGroupItem value="7d" className="text-xs px-2" aria-label="7 days">7d</ToggleGroupItem>
+                                        <ToggleGroupItem value="1m" className="text-xs px-2" aria-label="1 month">1m</ToggleGroupItem>
+                                        <ToggleGroupItem value="3m" className="text-xs px-2" aria-label="3 months">3m</ToggleGroupItem>
+                                        <ToggleGroupItem value="max" className="text-xs px-2" aria-label="Maximum">Max</ToggleGroupItem>
+                                    </ToggleGroup>
+                                    <button
+                                        onClick={handleReset}
+                                        disabled={!isZoomed}
+                                        className="text-xs sm:text-sm px-3 py-1 h-auto copy-button-secondary"
+                                    >
+                                        Reset
+                                    </button>
+                                </div>
                             </div>
                          </div>
                          <div ref={containerRef} className="flex-grow min-h-0 pt-10">
