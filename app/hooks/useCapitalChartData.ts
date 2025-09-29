@@ -490,14 +490,14 @@ export function useCapitalChartData() {
   const totalDepositsMOR = useMemo(() => {
     if (chartData.length === 0) return "0";
     const lastDeposit = chartData[chartData.length - 1]?.deposits || 0;
-    return Math.floor(lastDeposit).toLocaleString();
+    return Math.floor(lastDeposit).toLocaleString('en-US');
   }, [chartData]);
 
   const totalValueLockedUSD = useMemo(() => {
     if (!stethPrice || chartData.length === 0) return "0";
     const lastDeposit = chartData[chartData.length - 1]?.deposits || 0;
     const usdValue = lastDeposit * stethPrice;
-    return Math.floor(usdValue).toLocaleString();
+    return Math.floor(usdValue).toLocaleString('en-US');
   }, [chartData, stethPrice]);
   
   // These values should come from useCapitalMetrics hook in the component

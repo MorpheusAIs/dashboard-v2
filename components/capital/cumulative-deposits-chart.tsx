@@ -44,8 +44,21 @@ export function CumulativeDepositsChart({
             if (containerRef.current && initialData && initialData.length > 0) {
                 const rect = containerRef.current.getBoundingClientRect();
                 const width = rect.width || 800;
-                const ticks = calculateOptimalTicks(initialData, width, 8);
-                setOptimalTicks(ticks);
+                try {
+                    const ticks = calculateOptimalTicks(initialData, width, 8);
+                    // Validate that all ticks are valid dates
+                    const validTicks = ticks.filter(tick => {
+                        const date = new Date(tick);
+                        return !isNaN(date.getTime());
+                    });
+                    setOptimalTicks(validTicks);
+                } catch (error) {
+                    console.error("Error calculating optimal ticks:", error);
+                    setOptimalTicks([]);
+                }
+            } else {
+                // Clear ticks when no data
+                setOptimalTicks([]);
             }
         };
 
@@ -76,7 +89,10 @@ export function CumulativeDepositsChart({
     const formatXAxis = useCallback((tickItem: string) => {
         try {
             const date = new Date(tickItem);
-            if (isNaN(date.getTime())) return tickItem;
+            if (isNaN(date.getTime())) {
+                console.warn("Invalid date in formatXAxis:", tickItem);
+                return tickItem;
+            }
 
             let rangeMs = Infinity;
             if (zoomedData && zoomedData.length >= 2) {
@@ -184,8 +200,8 @@ export function CumulativeDepositsChart({
                                     <XAxis
                                         dataKey="date"
                                         tickFormatter={formatXAxis}
-                                        ticks={optimalTicks}
-                                        interval={0}
+                                        ticks={optimalTicks.length > 0 ? optimalTicks : undefined}
+                                        interval={optimalTicks.length > 0 ? 0 : 'preserveStartEnd'}
                                         minTickGap={20}
                                         tickLine={false}
                                         axisLine={false}
@@ -209,8 +225,20 @@ export function CumulativeDepositsChart({
                                             <ChartTooltipContent
                                                 className="w-[180px] sm:w-[220px] font-mono text-xs sm:text-sm"
                                                 nameKey="deposits"
-                                                labelFormatter={(value) => new Date(value as string).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'})}
-                                                formatter={(value) => typeof value === 'number' ? value.toLocaleString() : String(value)}
+                                                labelFormatter={(value) => {
+                                                    try {
+                                                        const date = new Date(value as string);
+                                                        if (isNaN(date.getTime())) {
+                                                            console.warn("Invalid date in tooltip:", value);
+                                                            return String(value);
+                                                        }
+                                                        return date.toLocaleString('en-US', {dateStyle: 'medium', timeStyle: 'short'});
+                                                    } catch (error) {
+                                                        console.warn("Error formatting date in tooltip:", value, error);
+                                                        return String(value);
+                                                    }
+                                                }}
+                                                formatter={(value) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
                                             />
                                         }
                                     />

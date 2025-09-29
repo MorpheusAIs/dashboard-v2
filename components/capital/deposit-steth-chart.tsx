@@ -229,8 +229,20 @@ export function DepositStethChart({
                                             <ChartTooltipContent
                                                 className="w-[180px] sm:w-[220px] font-mono text-xs sm:text-sm"
                                                 nameKey="deposits" 
-                                                labelFormatter={(value) => new Date(value as string).toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'})}
-                                                formatter={(value) => typeof value === 'number' ? value.toLocaleString() : String(value)}
+                                                labelFormatter={(value) => {
+                                                    try {
+                                                        const date = new Date(value as string);
+                                                        if (isNaN(date.getTime())) {
+                                                            console.warn("Invalid date in tooltip:", value);
+                                                            return String(value);
+                                                        }
+                                                        return date.toLocaleString('en-US', {dateStyle: 'medium', timeStyle: 'short'});
+                                                    } catch (error) {
+                                                        console.warn("Error formatting date in tooltip:", value, error);
+                                                        return String(value);
+                                                    }
+                                                }}
+                                                formatter={(value) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
                                             />
                                         }
                                     />

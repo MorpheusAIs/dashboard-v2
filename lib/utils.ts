@@ -14,6 +14,6 @@ export function formatNumber(value: number): string {
   if (isNaN(value)) return '0';
   
   return value < 1 
-    ? value.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })
-    : value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    ? value.toLocaleString('en-US', { maximumFractionDigits: 1, minimumFractionDigits: 1 })
+    : value.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
