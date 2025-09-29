@@ -1,6 +1,9 @@
 "use client"
 
 import { AppSidebar } from "@/components/app-sidebar"
+
+// Import React for JSX
+import React from 'react';
 // import {
 //   Breadcrumb,
 //   BreadcrumbItem,
@@ -87,7 +90,7 @@ export function RootLayoutContent({
             <div className="hidden sm:block">
               <MORBalance />
             </div>
-            <w3m-button size="sm"/>
+            {React.createElement('w3m-connect-button', { size: 'sm' })}
           </div>
         </header>
         {/* Page specific content */}

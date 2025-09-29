@@ -10,7 +10,7 @@ const COINGECKO_TO_SYMBOL_MAP: Record<string, string> = {
   'usd-coin': 'USDC',
   'tether': 'USDT',
   'chainlink': 'LINK',
-  'morpheus-network': 'MOR' // Note: Coinbase doesn't have MOR, will fail gracefully
+  'morpheusai': 'MOR' // Note: Coinbase doesn't have MOR, will fail gracefully
 };
 
 /**

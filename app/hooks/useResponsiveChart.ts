@@ -4,7 +4,7 @@ import { useState, useEffect, RefObject } from 'react';
 
 const SIDEBAR_COLLAPSE_WIDTH_THRESHOLD = 800; // Threshold for switching height
 
-export function useResponsiveChart(containerRef: RefObject<HTMLDivElement>) {
+export function useResponsiveChart(containerRef: RefObject<HTMLDivElement | null>) {
     const [chartHeight, setChartHeight] = useState(310); // Default height
 
     useEffect(() => {

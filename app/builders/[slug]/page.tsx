@@ -83,7 +83,7 @@ export default function BuilderPage() {
   const { address: userAddress } = useAccount();
   const { userAddress: authUserAddress } = useAuth();
   const isTestnet = chainId === arbitrumSepolia.id;
-  const previousIsTestnetRef = useRef<boolean>();
+  const previousIsTestnetRef = useRef<boolean>(false);
   
   const { switchToChain, isNetworkSwitching } = useNetwork();
   
@@ -91,7 +91,7 @@ export default function BuilderPage() {
   const [rawStakedAmount, setRawStakedAmount] = useState<bigint | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
-  const refreshStakingDataRef = useRef(false); // Add a ref to track if refresh has been called
+  const refreshStakingDataRef = useRef<boolean>(false); // Add a ref to track if refresh has been called
   const previousStakedAmountRef = useRef<number | null>(null); // Add ref to track previous staked amount
   const [builder, setBuilder] = useState<Builder | null>(null);
   const [subnetId, setSubnetId] = useState<Address | null>(null);

@@ -57,21 +57,11 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
-        ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
-        ),
-        DayContent: (props) => {
-          return (
-            <PopoverClose className="h-full w-full flex items-center justify-center">
-              {props.date.getDate()}
-            </PopoverClose>
-          );
+        Chevron: ({ orientation, className, ...props }) => {
+          const Icon = orientation === "left" ? ChevronLeft : ChevronRight;
+          return <Icon className={cn("h-4 w-4", className)} {...props} />;
         },
       }}
-      {...props}
     />
   )
 }

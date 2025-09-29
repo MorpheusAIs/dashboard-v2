@@ -76,6 +76,9 @@ export function Web3Providers({
         'Session expired',
         'Connection proposal expired',
         'WalletConnect proposal expired',
+        'All price sources failed',
+        'No price available for',
+        'Invalid DOM property',
       ];
       
       const shouldSuppress = suppressPatterns.some(pattern => 

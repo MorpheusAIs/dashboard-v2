@@ -209,7 +209,7 @@ export function useTokenPrices({
         });
         
         // Fetch MOR price separately
-        const morPricePromise = getTokenPrice('morpheus-network', 'usd');
+        const morPricePromise = getTokenPrice('morpheusai', 'usd');
         
         const [assetPriceResults, morPriceData] = await Promise.all([
           Promise.all(assetPricePromises),
