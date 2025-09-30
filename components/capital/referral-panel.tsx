@@ -16,6 +16,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { LiquidButton } from "@/components/ui/shadcn-io/liquid-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 export function ReferralPanel() {
   const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
@@ -140,13 +150,48 @@ export function ReferralPanel() {
         <div className="section-content group relative px-1 py-4 sm:p-6">
           <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent" />
           <div className="p-4 md:p-6">
-            {/* Header with button */}
+            {/* Header with buttons */}
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Referrals</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-white">Referrals</h2>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <LiquidButton size="sm" variant="ghost" className="rounded-lg">
+                      How do I earn?
+                    </LiquidButton>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>How do referrals work?</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <p className="text-muted-foreground text-sm">
+                        Earn MOR rewards by referring people to deposit assets. Your rewards are based on a tier system where you earn a percentage of MOR emissions from the virtual staked assets of your referrals.
+                      </p>
+                      <div className="space-y-2">
+                        <h5 className="text-sm font-medium">Tier System:</h5>
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          <div>• 1 stETH = 3%</div>
+                          <div>• 2.5 stETH = 5%</div>
+                          <div>• 25 stETH = 10%</div>
+                          <div>• 62.5 stETH = 15%</div>
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <button className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors">
+                          I understand
+                        </button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <button
                 className={`copy-button-secondary font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
-                  !userAddress || !hasClaimableRewards || referralData.isLoadingReferralData 
-                    ? '' 
+                  !userAddress || !hasClaimableRewards || referralData.isLoadingReferralData
+                    ? ''
                     : 'hover:copy-button'
                 }`}
                 onClick={handleClaimReferralRewards}
