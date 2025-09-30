@@ -405,3 +405,82 @@ export const GET_REFERRER_STATS = `
     }
   }
 `;
+
+export const GET_REFERRER_SUMMARY = `
+  query GetReferrerSummary($referrerAddress: Bytes!) {
+    # stETH pool referrer
+    stETH_referrer: referrers(
+      where: {
+        id_contains: "0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790"
+        referrerAddress: $referrerAddress
+      }
+    ) {
+      referrerAddress
+      claimed
+      referrals {
+        amount
+        referralAddress
+      }
+    }
+
+    # wBTC pool referrer
+    wBTC_referrer: referrers(
+      where: {
+        id_contains: "0xdE283F8309Fd1AA46c95d299f6B8310716277A42"
+        referrerAddress: $referrerAddress
+      }
+    ) {
+      referrerAddress
+      claimed
+      referrals {
+        amount
+        referralAddress
+      }
+    }
+
+    # wETH pool referrer
+    wETH_referrer: referrers(
+      where: {
+        id_contains: "0x9380d72aBbD6e0Cc45095A2Ef8c2CA87d77Cb384"
+        referrerAddress: $referrerAddress
+      }
+    ) {
+      referrerAddress
+      claimed
+      referrals {
+        amount
+        referralAddress
+      }
+    }
+
+    # USDC pool referrer
+    USDC_referrer: referrers(
+      where: {
+        id_contains: "0x6cCE082851Add4c535352f596662521B4De4750E"
+        referrerAddress: $referrerAddress
+      }
+    ) {
+      referrerAddress
+      claimed
+      referrals {
+        amount
+        referralAddress
+      }
+    }
+
+    # USDT pool referrer
+    USDT_referrer: referrers(
+      where: {
+        id_contains: "0x3B51989212BEdaB926794D6bf8e9E991218cf116"
+        referrerAddress: $referrerAddress
+      }
+    ) {
+      referrerAddress
+      claimed
+      referrals {
+        amount
+        referralAddress
+      }
+    }
+  }
+`;
