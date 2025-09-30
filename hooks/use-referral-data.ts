@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getEndpointForNetwork, fetchGraphQL } from '@/app/graphql/client';
-import { GET_REFERRALS_BY_REFERRER } from '@/app/graphql/queries/capital';
+import { GET_REFERRALS_BY_REFERRER, GET_REFERRER_SUMMARY } from '@/app/graphql/queries/capital';
 import { CapitalReferralGraphQLResponse } from '@/app/graphql/types';
 
 interface UseReferralDataProps {
@@ -126,5 +126,143 @@ export function useReferralData({ userAddress, networkEnvironment }: UseReferral
     totalReferralAmount: referralMetrics.totalReferralAmount,
     uniqueReferrals: referralMetrics.uniqueReferrals,
     rawData: rawData?.data
+  };
+}
+
+interface ReferrerSummaryData {
+  stETH_referrer: Array<{
+    referrerAddress: string;
+    claimed: string;
+    referrals: Array<{
+      amount: string;
+      referralAddress: string;
+    }>;
+  }>;
+  wBTC_referrer: Array<{
+    referrerAddress: string;
+    claimed: string;
+    referrals: Array<{
+      amount: string;
+      referralAddress: string;
+    }>;
+  }>;
+  wETH_referrer: Array<{
+    referrerAddress: string;
+    claimed: string;
+    referrals: Array<{
+      amount: string;
+      referralAddress: string;
+    }>;
+  }>;
+  USDC_referrer: Array<{
+    referrerAddress: string;
+    claimed: string;
+    referrals: Array<{
+      amount: string;
+      referralAddress: string;
+    }>;
+  }>;
+  USDT_referrer: Array<{
+    referrerAddress: string;
+    claimed: string;
+    referrals: Array<{
+      amount: string;
+      referralAddress: string;
+    }>;
+  }>;
+}
+
+export function useReferrerSummary({ userAddress, networkEnvironment }: UseReferralDataProps) {
+  const isDev = process.env.NODE_ENV !== 'production';
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rawData, setRawData] = useState<ReferrerSummaryData | null>(null);
+
+  useEffect(() => {
+    if (!userAddress) {
+      if (isDev) {
+        console.log('[useReferrerSummary] No user address provided; skipping fetch.');
+      }
+      setRawData(null);
+      setError(null);
+      return;
+    }
+
+    const fetchReferrerSummary = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // For testnet, use Ethereum Sepolia endpoint; for mainnet, use Ethereum mainnet endpoint
+        const endpoint = networkEnvironment === 'testnet'
+          ? 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest'
+          : getEndpointForNetwork('Ethereum'); // Use Ethereum mainnet
+
+        if (isDev) {
+          console.log('[useReferrerSummary] Fetching referrer summary', {
+            userAddress,
+            networkEnvironment,
+            endpoint,
+          });
+        }
+
+        const response = await fetchGraphQL<{ data: ReferrerSummaryData; errors?: Array<{ message: string }> }>(
+          endpoint,
+          'GetReferrerSummary',
+          GET_REFERRER_SUMMARY,
+          { referrerAddress: userAddress.toLowerCase() }
+        );
+
+        if (response.errors && response.errors.length > 0) {
+          throw new Error(response.errors[0].message);
+        }
+
+        if (isDev) {
+          console.log('[useReferrerSummary] GraphQL response received', response);
+        }
+
+        setRawData(response.data);
+      } catch (err) {
+        console.error('Error fetching referrer summary:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch referrer summary');
+        setRawData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReferrerSummary();
+  }, [userAddress, networkEnvironment]);
+
+  const totalMorEarned = useMemo(() => {
+    if (!rawData) {
+      return BigInt(0);
+    }
+
+    // Sum all claimed amounts across all pools
+    const pools = [
+      rawData.stETH_referrer,
+      rawData.wBTC_referrer,
+      rawData.wETH_referrer,
+      rawData.USDC_referrer,
+      rawData.USDT_referrer
+    ];
+
+    return pools.reduce((total, poolReferrers) => {
+      return poolReferrers.reduce((poolTotal, referrer) => {
+        try {
+          return poolTotal + BigInt(referrer.claimed);
+        } catch {
+          return poolTotal;
+        }
+      }, total);
+    }, BigInt(0));
+  }, [rawData]);
+
+  return {
+    isLoading,
+    error,
+    totalMorEarned,
+    rawData
   };
 }
