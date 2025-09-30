@@ -83,7 +83,7 @@ export default function BuilderPage() {
   const { address: userAddress } = useAccount();
   const { userAddress: authUserAddress } = useAuth();
   const isTestnet = chainId === arbitrumSepolia.id;
-  const previousIsTestnetRef = useRef<boolean>();
+  const previousIsTestnetRef = useRef<boolean | undefined>(undefined);
   
   const { switchToChain, isNetworkSwitching } = useNetwork();
   
