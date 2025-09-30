@@ -30,7 +30,7 @@ interface UserAssetsTableProps {
   sorting: { id: string; desc: boolean } | null;
   onSortingChangeAction: (columnId: string) => void;
   onDropdownOpenChangeAction: (assetId: string, open: boolean) => void;
-  onDropdownActionAction: (modalType: 'deposit' | 'withdraw' | 'changeLock' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => void;
+  onDropdownActionAction: (modalType: 'deposit' | 'withdraw' | 'changeLock' | 'lockMorRewards' | 'claimMorRewards' | 'stakeMorRewards', assetSymbol?: AssetSymbol) => void;
   openDropdownId: string | null;
   isAnyActionProcessing: boolean;
   isModalTransitioning: boolean;
@@ -210,7 +210,7 @@ export function UserAssetsTable({
                 {isModalTransitioning ? 'Opening...' : 'Withdraw'}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => onDropdownActionAction('claimMorRewards', asset.assetSymbol)}
+                onClick={() => onDropdownActionAction('lockMorRewards', asset.assetSymbol)}
                 disabled={isAnyActionProcessing || isModalTransitioning || asset.availableToClaim <= 0}
                 className={asset.availableToClaim <= 0 ? "text-gray-500 cursor-not-allowed" : ""}
               >

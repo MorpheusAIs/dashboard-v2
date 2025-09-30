@@ -26,7 +26,7 @@ import { useAuth } from "@/context/auth-context";
 import { useWalletCacheManager } from "@/hooks/use-wallet-cache-manager";
 
 // Type for modal actions that can be triggered from dropdowns
-type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards";
+type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "lockMorRewards" | "claimMorRewards";
 
 // Re-export cache functions for backward compatibility
 export { getCachedPrices, setCachedPrices, shouldRetryPriceFetch, MAX_PRICE_RETRIES, type TokenPriceCache } from "./hooks/use-token-prices";

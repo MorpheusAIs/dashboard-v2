@@ -117,7 +117,7 @@ interface ReferralContractData {
 }
 
 // --- Types & Helpers moved from ChangeLockModal ---
-type ActiveModal = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards" | null;
+type ActiveModal = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "lockMorRewards" | "claimMorRewards" | null;
 type TimeUnit = "days" | "months" | "years";
 
 // V2 Asset Types (imported from asset-config.ts)
