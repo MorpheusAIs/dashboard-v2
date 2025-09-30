@@ -39,7 +39,5 @@
   ],
   "exclude": [
     "node_modules",
-    "DashBoard/**/*",
-    "subgraph/**/*"
   ]
 }
