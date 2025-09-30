@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { TokenIcon } from '@web3icons/react';
+import { AssetIcon } from "@/components/icons";
 import { DataTable, Column } from "@/components/ui/data-table";
 import {
   DropdownMenu,
@@ -59,7 +59,7 @@ export function UserAssetsTable({
         cell: (asset) => (
           <div className="flex items-center space-x-2">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center">
-              <TokenIcon symbol={asset.icon} className='rounded-lg' variant="background" size="24" />
+              <AssetIcon symbol={asset.assetSymbol} className='rounded-lg' size="24" />
             </div>
             <span className="font-medium text-white">{asset.symbol}</span>
           </div>

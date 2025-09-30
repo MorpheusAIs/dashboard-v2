@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Lock, LockOpen } from "lucide-react";
-import { TokenIcon } from '@web3icons/react';
+import { AssetIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
@@ -390,7 +390,7 @@ export function ClaimMorRewardsModal() {
                     <div className="flex items-center justify-between p-3 bg-emerald-400/10 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 rounded-lg">
-                          <TokenIcon symbol={selectedAssetData.icon} className='rounded-lg' variant="background" size="24" />
+                          <AssetIcon symbol={selectedAssetData.symbol} className='rounded-lg' size="24" />
                         </div>
                         <span className="text-white font-sm">{selectedAssetData.symbol}</span>
                       </div>

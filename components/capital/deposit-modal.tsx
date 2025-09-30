@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { formatUnits, parseUnits, isAddress } from "viem";
 import { useEnsAddress, useBalance } from "wagmi";
 import { mainnet } from "wagmi/chains";
-import { TokenIcon } from '@web3icons/react';
+import { AssetIcon } from "@/components/icons";
 import { 
   Dialog, 
   DialogPortal, 
@@ -967,7 +967,7 @@ export function DepositModal() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-between bg-background border-gray-700 hover:bg-gray-800"
+                  className="w-full justify-between bg-background border-gray-700 hover:bg-gray-800/25"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -975,12 +975,11 @@ export function DepositModal() {
                   }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center">
-                      <TokenIcon 
-                        symbol={availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.icon || 'eth'}
-                        className="rounded-lg" 
-                        variant="background" 
-                        size="26" 
+                    <div className="flex items-center justify-center">
+                      <AssetIcon
+                        symbol={selectedAsset}
+                        className="rounded-lg"
+                        size={24}
                       />
                     </div>
                     <span>{selectedAsset}</span>
@@ -999,7 +998,7 @@ export function DepositModal() {
                       <button
                         key={asset.value}
                         type="button"
-                        className="w-full p-3 text-left hover:bg-gray-800 flex items-center gap-3 justify-between transition-colors"
+                        className="w-full p-3 text-left hover:translate-y-[-1px] hover:bg-gray-800/25 flex items-center gap-3 justify-between transition-colors"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1010,11 +1009,11 @@ export function DepositModal() {
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-6 h-6 flex items-center justify-center">
-                            <TokenIcon symbol={asset.symbol} className="rounded-lg" variant="background" size="24" />
+                            <AssetIcon symbol={asset.value as AssetSymbol} className="rounded-lg" size="24" />
                           </div>
                           <span className="text-white">{asset.label}</span>
                         </div>
-                                                  <span className="text-gray-400 text-sm">
+                          <span className="text-gray-400 text-sm">
                             {formatBalanceDisplay(getUserBalanceForAsset(asset.value as AssetSymbol).formatted || '0', asset.value as AssetSymbol)} Available
                           </span>
                       </button>
