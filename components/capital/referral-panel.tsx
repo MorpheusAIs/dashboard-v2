@@ -5,6 +5,7 @@ import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { toast } from "sonner";
+import { formatAssetAmount } from "./utils/asset-formatters";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +22,7 @@ export function ReferralPanel() {
   const [isCopying, setIsCopying] = useState(false);
   const [currentDomain, setCurrentDomain] = useState('');
   const [showClaimDialog, setShowClaimDialog] = useState(false);
+  const [isHoveringEarnText, setIsHoveringEarnText] = useState(false);
 
   // Set current domain after component mounts (client-side only)
   useEffect(() => {
@@ -69,6 +71,55 @@ export function ReferralPanel() {
   // Check if user has any claimable referral rewards
   const hasClaimableRewards = referralData.assetsWithClaimableRewards.length > 0;
 
+  // Component for displaying referral amounts
+  const ReferralAmountsDisplay = () => {
+    if (referralData.isLoadingReferralData) {
+      return (
+        <div className="text-gray-400 text-center py-4">
+          Loading...
+        </div>
+      );
+    }
+
+    // Type assertion for the referral amounts data
+    const referralDataAny = referralData as any;
+    const referralAmounts = referralDataAny.referralAmountsByAsset;
+
+    if (!referralAmounts || referralAmounts.length === 0) {
+      return (
+        <div
+          className="text-left cursor-pointer transition-colors text-emerald-400 hover:underline underline-offset-2 hover:translate-y-[-1px]"
+          onMouseEnter={() => setIsHoveringEarnText(true)}
+          onMouseLeave={() => setIsHoveringEarnText(false)}
+        >
+          Earn MOR by referring people
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <div className="flex gap-3 pb-2">
+          {/* @ts-ignore */}
+          {referralAmounts.map((item) => {
+            const amount = parseFloat(item.formattedAmount);
+            const formattedAmount = formatAssetAmount(amount, item.asset);
+
+            return (
+              <div
+                key={item.asset}
+                className="flex flex-row items-center gap-1 justify-between rounded-lg px-2 py-1 border border-emerald-400/40"
+              >
+                <div className="text-sm font-medium text-white">{formattedAmount}</div>
+                <div className="text-xs text-gray-400 uppercase">{item.asset}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // Format MOR values using same logic as daily emissions (4 decimals if < 0.01, 2 decimals otherwise)
   const formatMorValue = (value: string | number): string => {
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
@@ -108,34 +159,16 @@ export function ReferralPanel() {
             </div>
 
             {/* Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-4">
               {/* Total Deposited by Referrals */}
               <div className="col-span-1">
-                <MetricCardMinimal
-                  title={
-                    <div className="flex flex-col">
-                      <span>Current Deposits by Referrals ({referralData.isLoadingReferralData ? "---" : referralData.totalReferrals})</span>
-                    </div>
-                  }
-                  value={referralData.isLoadingReferralData ? "---" : referralData.totalReferralAmount}
-                  label={referralData.isLoadingReferralData ? "" : "stETH"}
-                  disableGlow={true}
-                  autoFormatNumbers={true}
-                  className="h-full"
-                />
+                <div className="card-minimal group relative p-4 h-full flex flex-col justify-center">
+                  <div className="text-sm text-gray-400 mb-2">
+                    Current Deposits by Referrals ({referralData.isLoadingReferralData ? "---" : referralData.totalReferrals})
+                  </div>
+                  <ReferralAmountsDisplay />
+                </div>
               </div>
-
-              {/* Lifetime Value Generated */}
-              {/* <div className="col-span-1">
-                <MetricCardMinimal
-                  title="Total MOR Earned"
-                  value={referralData.isLoadingReferralData ? "---" : formatMorValue(referralData.lifetimeRewards)}
-                  label={referralData.isLoadingReferralData ? "" : "MOR"}
-                  disableGlow={true}
-                  autoFormatNumbers={false}
-                  className="h-full"
-                />
-              </div> */}
 
               {/* Claimable Rewards */}
               <div className="col-span-1">
@@ -148,10 +181,24 @@ export function ReferralPanel() {
                   className="h-full"
                 />
               </div>
+              {/* Lifetime Value Generated */}
+              <div className="col-span-1">
+                <MetricCardMinimal
+                  title="Total MOR Earned"
+                  value={referralData.isLoadingReferralData ? "---" : formatMorValue(referralData.lifetimeRewards)}
+                  label={referralData.isLoadingReferralData ? "" : "MOR"}
+                  disableGlow={true}
+                  autoFormatNumbers={false}
+                  className="h-full"
+                />
+              </div>
+
 
               {/* Referral Link */}
               <div className="col-span-1">
-                <div className="card-minimal group relative p-4 h-full flex flex-col justify-center">
+                <div className={`card-minimal group relative p-4 h-full flex flex-col justify-center transition-all duration-300 ${
+                  isHoveringEarnText ? 'ring-2 ring-emerald-400 ring-opacity-75 animate-pulse' : ''
+                }`}>
                   <div className="text-sm text-gray-400 mb-2">My Referral Link</div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-gray-200 truncate flex-1 font-mono text-sm">
