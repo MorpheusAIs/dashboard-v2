@@ -449,7 +449,6 @@ export function useCapitalChartData() {
               from: sortedData[0]?.date?.split('T')[0],
               to: sortedData[sortedData.length - 1]?.date?.split('T')[0]
             });
-            console.log('📊 Sample of all data points:', sortedData.map(p => ({ date: p.date.split('T')[0], deposits: p.deposits })));
 
             setChartData(sortedData);
             setChartError(null);
