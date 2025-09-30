@@ -326,7 +326,8 @@ interface CapitalContextState {
     referrerDetailsByAsset: Partial<Record<AssetSymbol, ReferralContractData | null>>; // Referral details by asset symbol
     assetsWithClaimableRewards: AssetSymbol[]; // Assets that currently have claimable referral rewards
     availableReferralAssets: AssetSymbol[]; // All assets that support referral rewards
-    
+    referralAmountsByAsset: ReferralAmountByAsset[]; // Array of referral amounts by asset
+
     // Legacy hardcoded exports (DEPRECATED - for backward compatibility only)
     /** @deprecated Use rewardsByAsset.stETH instead. Will be removed in future versions. */
     stETHReferralRewards: bigint;
