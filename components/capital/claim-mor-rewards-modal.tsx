@@ -11,9 +11,6 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Lock, LockOpen } from "lucide-react";
 import { AssetIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +28,6 @@ import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
 import {
   getMaxAllowedValue,
   getMinAllowedValue,
-  durationToSeconds,
   type TimeUnit
 } from "@/lib/utils/power-factor-utils";
 
