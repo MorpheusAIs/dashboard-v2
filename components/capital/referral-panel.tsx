@@ -81,9 +81,8 @@ export function ReferralPanel() {
       );
     }
 
-    // Type assertion for the referral amounts data
-    const referralDataAny = referralData as any;
-    const referralAmounts = referralDataAny.referralAmountsByAsset;
+    // Access referral amounts data
+    const referralAmounts = referralData.referralAmountsByAsset;
 
     if (!referralAmounts || referralAmounts.length === 0) {
       return (
@@ -100,7 +99,7 @@ export function ReferralPanel() {
     return (
       <div className="overflow-x-auto">
         <div className="flex gap-3 pb-2">
-          {/* @ts-ignore */}
+          {/* @ts-expect-error - TypeScript cannot infer the exact structure of referralAmounts */}
           {referralAmounts.map((item) => {
             const amount = parseFloat(item.formattedAmount);
             const formattedAmount = formatAssetAmount(amount, item.asset);
