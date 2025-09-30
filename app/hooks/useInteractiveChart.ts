@@ -106,7 +106,7 @@ export function useInteractiveChart(initialData: DataPoint[] = [], defaultRange:
         }
     }, [originalData, defaultRange]);
 
-    const handleWheelZoomLogic = useCallback((e: WheelEvent, chartRef: React.RefObject<HTMLDivElement>) => {
+    const handleWheelZoomLogic = useCallback((e: WheelEvent, chartRef: React.RefObject<HTMLDivElement | null>) => {
         if (!chartRef.current || !startTime || !endTime) return;
         e.preventDefault();
 
