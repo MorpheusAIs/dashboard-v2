@@ -18,6 +18,13 @@ const nextConfig = {
     config.watchOptions = {
       ignored: ['/DashBoard', '/DashBoard/*']
     }
+
+    // Handle React Native async storage import for MetaMask SDK
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      '@react-native-async-storage/async-storage': false,
+    }
+
     return config
   },
   // Configure build output directory
