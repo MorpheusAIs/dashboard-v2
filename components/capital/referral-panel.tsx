@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { useCapitalContext } from "@/context/CapitalPageContext";
+import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { toast } from "sonner";
 import { formatAssetAmount } from "./utils/asset-formatters";
 import {
@@ -99,10 +99,9 @@ export function ReferralPanel() {
     return (
       <div className="overflow-x-auto">
         <div className="flex gap-3 pb-2">
-          {/* @ts-expect-error - TypeScript cannot infer the exact structure of referralAmounts */}
           {referralAmounts.map((item) => {
             const amount = parseFloat(item.formattedAmount);
-            const formattedAmount = formatAssetAmount(amount, item.asset);
+            const formattedAmount = formatAssetAmount(amount, item.asset as AssetSymbol);
 
             return (
               <div
