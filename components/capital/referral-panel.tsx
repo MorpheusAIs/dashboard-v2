@@ -26,6 +26,12 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export function ReferralPanel() {
   const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
@@ -168,15 +174,19 @@ export function ReferralPanel() {
                       <p className="text-muted-foreground text-sm">
                         Earn MOR rewards by referring people to deposit assets. Your rewards are based on a tier system where you earn a percentage of MOR emissions from the virtual staked assets of your referrals.
                       </p>
-                      <div className="space-y-2">
-                        <h5 className="text-sm font-medium">Tier System:</h5>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <div>• 1 stETH = 3%</div>
-                          <div>• 2.5 stETH = 5%</div>
-                          <div>• 25 stETH = 10%</div>
-                          <div>• 62.5 stETH = 15%</div>
-                        </div>
-                      </div>
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="tiers" className="border-0">
+                          <AccordionTrigger className="text-sm font-medium justify-start p-0 hover:no-underline">
+                            See Referral Tiers
+                          </AccordionTrigger>
+                          <AccordionContent className="text-sm text-muted-foreground space-y-1 pb-0">
+                            <div>• 1 stETH = 3%</div>
+                            <div>• 2.5 stETH = 5%</div>
+                            <div>• 25 stETH = 10%</div>
+                            <div>• 62.5 stETH = 15%</div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                     <DialogFooter>
                       <DialogClose asChild>
