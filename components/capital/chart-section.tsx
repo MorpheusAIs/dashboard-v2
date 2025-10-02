@@ -8,6 +8,7 @@ import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalChartData } from "@/app/hooks/useCapitalChartData";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 import { useCumulativeDeposits } from "@/hooks/use-cumulative-deposits";
+import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
 
 // Morlord APR cache management
 const MORLORD_APR_CACHE_KEY = 'morpheus_morlord_apr_cache';
@@ -74,9 +75,10 @@ const mockChartData = [
 interface ChartSectionProps {
   isMorlordData?: boolean;
   chartType?: 'deposits' | 'cumulative';
+  manual_formula?: boolean;
 }
 
-export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }: ChartSectionProps) {
+export function ChartSection({ isMorlordData = true, chartType = 'cumulative', manual_formula = true }: ChartSectionProps) {
   // Temporary flag to show indexing animation
   const showIndexingAnimation = false; // Temporarily disabled to see actual chart
 
@@ -154,10 +156,85 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }:
     error: metricsError,
   } = useCapitalMetrics();
 
-  // Use Morlord data for APR when flag is enabled, otherwise use current approach
-  const displayApyRate = isMorlordData
-    ? (morlordApr !== null ? `${morlordApr.toFixed(2)}%` : undefined)
-    : avgApyRate;
+  // Get token prices for manual formula calculation - ensure fresh data is loaded
+  const { morPrice, isPriceUpdating } = useTokenPrices({
+    isInitialLoad: true,
+    shouldRefreshData: true, // Force fresh data to ensure MOR price is available
+    networkEnv: 'mainnet'
+  });
+
+  // Calculate APR using manual formula when flag is enabled
+  const manualApr = (() => {
+    if (!manual_formula) {
+      return null;
+    }
+
+    // Wait for both metrics and prices to be loaded
+    if (metricsLoading || isPriceUpdating) {
+      console.log('⏳ Waiting for data to load...', {
+        metricsLoading,
+        isPriceUpdating,
+        totalValueLockedUSD,
+        currentDailyRewardMOR,
+        morPrice
+      });
+      return null;
+    }
+
+    console.log('🔢 Manual APR calculation debug:', {
+      totalValueLockedUSD,
+      currentDailyRewardMOR,
+      morPrice
+    });
+
+    if (!totalValueLockedUSD || !currentDailyRewardMOR || !morPrice) {
+      console.log('❌ Missing required values for APR calculation');
+      return null;
+    }
+
+    // Skip calculation if currentDailyRewardMOR is "N/A" (loading state)
+    if (currentDailyRewardMOR === 'N/A') {
+      console.log('⏳ Daily emissions data not ready (showing N/A)');
+      return null;
+    }
+
+    // Ensure all values are numbers - handle formatted strings with commas
+    const tvl = typeof totalValueLockedUSD === 'number'
+      ? totalValueLockedUSD
+      : parseFloat(typeof totalValueLockedUSD === 'string' ? totalValueLockedUSD.replace(/,/g, '') : String(totalValueLockedUSD));
+    const dailyEmissions = typeof currentDailyRewardMOR === 'number'
+      ? currentDailyRewardMOR
+      : parseFloat(typeof currentDailyRewardMOR === 'string' ? currentDailyRewardMOR.replace(/,/g, '') : String(currentDailyRewardMOR));
+    const morPriceNum = typeof morPrice === 'number' ? morPrice : parseFloat(morPrice);
+
+    console.log('🔢 Parsed values:', { tvl, dailyEmissions, morPriceNum });
+
+    if (isNaN(tvl) || isNaN(dailyEmissions) || isNaN(morPriceNum) || tvl <= 0) {
+      console.log('❌ Invalid values for APR calculation');
+      return null;
+    }
+
+    // Manual formula: apr = (daily_rewards_usd * 365) / tvl_usd * 100
+    // where daily_rewards_usd = mor_daily_emissions * mor_price
+    // Note: steth_price is not used in this calculation
+    const dailyRewardsUsd = dailyEmissions * morPriceNum;
+    const apr = (dailyRewardsUsd * 365) / tvl * 100;
+
+    console.log('✅ APR calculation result:', {
+      dailyRewardsUsd,
+      apr,
+      apr_formatted: apr.toFixed(2)
+    });
+
+    return apr.toFixed(2);
+  })();
+
+  // Use manual formula, Morlord data, or default approach based on flags
+  const displayApyRate = manual_formula
+    ? (manualApr !== null ? `${manualApr}%` : undefined)
+    : (isMorlordData
+        ? (morlordApr !== null ? `${morlordApr.toFixed(2)}%` : undefined)
+        : avgApyRate);
 
   const metricCards = [
     {
