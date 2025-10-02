@@ -2149,9 +2149,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         ? "..."
         : liveReferralData.totalReferrals.toString();
 
-    // Calculate total referrals and referral amounts by asset from referrer summary
+    // Calculate total referrals with positive amounts from referrer summary
     const totalReferralsFromSummary = referrerSummaryData.rawData ? (() => {
-      let totalCount = 0;
+      const uniqueReferralAddresses = new Set<string>();
       const pools = [
         referrerSummaryData.rawData.stETH_referrer,
         referrerSummaryData.rawData.wBTC_referrer,
@@ -2162,11 +2162,20 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
       pools.forEach(poolReferrers => {
         poolReferrers.forEach(referrer => {
-          totalCount += referrer.referrals.length;
+          referrer.referrals.forEach(ref => {
+            // Only count referrals with positive amounts (not zero)
+            try {
+              if (BigInt(ref.amount) > BigInt(0)) {
+                uniqueReferralAddresses.add(ref.referralAddress);
+              }
+            } catch {
+              // Skip invalid amounts
+            }
+          });
         });
       });
 
-      return totalCount;
+      return uniqueReferralAddresses.size;
     })() : 0;
 
     const referralAmountsByAsset = referrerSummaryData.rawData ? (() => {
