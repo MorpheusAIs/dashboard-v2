@@ -402,9 +402,7 @@ export function useCapitalChartData() {
               
               lastTotalStakedWei = currentTotalStakedWei;
               const depositValue = parseFloat(ethers.utils.formatEther(currentTotalStakedWei));
-              
-              console.log(`📊 ${batchQuery.asset} day ${index}: Final depositValue = ${depositValue}`);
-              
+                            
               allDataPoints.push({
                 date: new Date(timestampSec * 1000).toISOString(),
                 deposits: depositValue,
