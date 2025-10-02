@@ -59,7 +59,7 @@ export async function GET() {
  * Updates the price cache by fetching from DefiLlama with retry mechanism
  * This function is called by the cron job and as a fallback
  */
-export async function updatePriceCache(): Promise<void> {
+async function updatePriceCache(): Promise<void> {
   const maxRetries = 3;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
