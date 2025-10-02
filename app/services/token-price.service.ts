@@ -1,12 +1,13 @@
-// Only using DefiLlama for cached tokens (stETH, wBTC, wETH)
+// Only using DefiLlama for cached tokens (stETH, wBTC, wETH, MOR)
 // No mapping for other assets - they will return null
 
 // Tokens that are fetched from our DefiLlama API (updated via cron job)
-const DEFILLAMA_CACHED_TOKENS = new Set(['staked-ether', 'wrapped-bitcoin', 'weth']);
-const DEFILLAMA_SYMBOL_MAP: Record<string, 'stETH' | 'wBTC' | 'wETH'> = {
+const DEFILLAMA_CACHED_TOKENS = new Set(['staked-ether', 'wrapped-bitcoin', 'weth', 'morpheus-network']);
+const DEFILLAMA_SYMBOL_MAP: Record<string, 'stETH' | 'wBTC' | 'wETH' | 'MOR'> = {
   'staked-ether': 'stETH',
   'wrapped-bitcoin': 'wBTC',
   'weth': 'wETH',
+  'morpheus-network': 'MOR',
 };
 
 // In-memory cache for token prices
@@ -14,11 +15,13 @@ let priceCache: {
   stETH: number | null;
   wBTC: number | null;
   wETH: number | null;
+  MOR: number | null;
   lastUpdated: number;
 } = {
   stETH: null,
   wBTC: null,
   wETH: null,
+  MOR: null,
   lastUpdated: 0,
 };
 
@@ -33,8 +36,8 @@ export async function updatePriceCache(): Promise<void> {
     try {
       console.log(`🔄 DefiLlama cache update attempt ${attempt}/${maxRetries}...`);
 
-      // DefiLlama API endpoint for stETH, wBTC, and wETH - using addresses directly in URL
-      const defillamaUrl = new URL('https://coins.llama.fi/prices/current/ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84,ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599,ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2');
+      // DefiLlama API endpoint for stETH, wBTC, wETH, and MOR - using addresses directly in URL
+      const defillamaUrl = new URL('https://coins.llama.fi/prices/current/ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84,ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599,ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2,arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2');
 
       const response = await fetch(defillamaUrl.toString(), {
         headers: {
@@ -53,15 +56,18 @@ export async function updatePriceCache(): Promise<void> {
       // stETH: ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84
       // wBTC: ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599
       // wETH: ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+      // MOR: arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2
 
       const stETHData = data.coins['ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84'];
       const wBTCData = data.coins['ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'];
       const wETHData = data.coins['ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'];
+      const MORData = data.coins['arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2'];
 
       priceCache = {
         stETH: stETHData?.price ?? null,
         wBTC: wBTCData?.price ?? null,
         wETH: wETHData?.price ?? null,
+        MOR: MORData?.price ?? null,
         lastUpdated: Date.now(),
       };
 
@@ -69,6 +75,7 @@ export async function updatePriceCache(): Promise<void> {
         stETH: priceCache.stETH,
         wBTC: priceCache.wBTC,
         wETH: priceCache.wETH,
+        MOR: priceCache.MOR,
       });
 
       return; // Success, exit the retry loop
@@ -99,6 +106,7 @@ export function getPriceCache() {
       stETH: priceCache.stETH,
       wBTC: priceCache.wBTC,
       wETH: priceCache.wETH,
+      MOR: priceCache.MOR,
     },
     lastUpdated: priceCache.lastUpdated,
     cacheAge: Date.now() - priceCache.lastUpdated,
@@ -108,7 +116,7 @@ export function getPriceCache() {
 
 
 /**
- * Fetches price from our DefiLlama cache API (stETH, wBTC, wETH only)
+ * Fetches price from our DefiLlama cache API (stETH, wBTC, wETH, MOR only)
  * @param tokenId The CoinGecko token ID
  * @returns The price from DefiLlama cache or null if failed
  */
@@ -151,7 +159,7 @@ async function getDefiLlamaCachedPrice(tokenId: string): Promise<number | null> 
 
 /**
  * Fetches the current price of a given token using DefiLlama API only.
- * ONLY supports: stETH, wBTC, wETH (via cached API updated every 5 minutes).
+ * ONLY supports: stETH, wBTC, wETH, MOR (via cached API updated every 5 minutes).
  * For stablecoins (USDC, USDT), returns $1.00 directly without API calls.
  * For ALL other tokens: returns null (no DefiLlama support).
  * @param tokenId The ID of the token on CoinGecko (e.g., 'staked-ether').

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the implementation of token price fetching using Llama.fi API instead of CoinGecko/CoinMarketCap for stETH, wBTC, and wETH.
+This document describes the implementation of token price fetching using Llama.fi API instead of CoinGecko/CoinMarketCap for stETH, wBTC, wETH, and MOR.
 
 ## Architecture
 
@@ -11,7 +11,7 @@ This document describes the implementation of token price fetching using Llama.f
 1. **Price Cache API** (`/api/token-prices`)
    - Serves cached token prices from an in-memory store
    - Auto-refreshes stale data (older than 10 minutes)
-   - Returns prices for: stETH, wBTC, wETH
+   - Returns prices for: stETH, wBTC, wETH, MOR
 
 2. **Cron Job** (`/api/cron/update-prices`)
    - Runs every 5 minutes via Vercel Cron Jobs
@@ -19,7 +19,7 @@ This document describes the implementation of token price fetching using Llama.f
    - Updates the in-memory cache
 
 3. **Token Price Service** (`app/services/token-price.service.ts`)
-   - Updated to fetch stETH, wBTC, wETH from `/api/token-prices` first
+   - Updated to fetch stETH, wBTC, wETH, MOR from `/api/token-prices` first
    - Falls back to CoinGecko/Coinbase if Llama.fi fails
    - Other tokens continue using existing CoinGecko/Coinbase logic
 
@@ -39,7 +39,7 @@ This document describes the implementation of token price fetching using Llama.f
          │
          ▼
 ┌─────────────────┐
-│  In-Memory      │  Stores: stETH, wBTC, wETH
+│  In-Memory      │  Stores: stETH, wBTC, wETH, MOR
 │  Price Cache    │  + lastUpdated timestamp
 └────────┬────────┘
          │
@@ -60,16 +60,17 @@ This document describes the implementation of token price fetching using Llama.f
 
 ### Endpoint
 ```
-https://coins.llama.fi/prices/current/ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84,ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599,ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2
+https://coins.llama.fi/prices/current/ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84,ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599,ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2,arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2
 ```
 
 ### Token Addresses (direct in URL)
 - **stETH**: `ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84`
 - **wBTC**: `ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599`
 - **wETH**: `ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2`
+- **MOR**: `arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2`
 
 ### Price Source Priority
-- **stETH, wBTC, wETH**: DefiLlama ONLY (cached API with 3-retry mechanism)
+- **stETH, wBTC, wETH, MOR**: DefiLlama ONLY (cached API with 3-retry mechanism)
 - **USDC, USDT**: Hardcoded $1.00 (stablecoins)
 - **All other tokens**: null (not supported)
 
@@ -95,6 +96,13 @@ https://coins.llama.fi/prices/current/ethereum:0xae7ab96520DE3A18E5e111B5EaAb095
       "decimals": 18,
       "symbol": "WETH",
       "price": 4459.403618211898,
+      "timestamp": 1759422145,
+      "confidence": 0.99
+    },
+    "arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2": {
+      "decimals": 18,
+      "symbol": "MOR",
+      "price": 12.34,
       "timestamp": 1759422145,
       "confidence": 0.99
     }
@@ -170,7 +178,7 @@ The cron endpoint will verify this secret before executing.
 
 No changes needed! The existing `useTokenPrices` hook and `getTokenPrice` service function work exactly as before. The only difference is:
 
-- **stETH, wBTC, wETH**: Fetched from `/api/token-prices` (Llama.fi cache)
+- **stETH, wBTC, wETH, MOR**: Fetched from `/api/token-prices` (Llama.fi cache)
 - **Other tokens**: Continue using CoinGecko/Coinbase
 
 Example usage in components:
@@ -183,6 +191,9 @@ const stETHPrice = await getTokenPrice('staked-ether', 'usd');
 
 // This will automatically use Llama.fi for wBTC
 const wBTCPrice = await getTokenPrice('wrapped-bitcoin', 'usd');
+
+// This will automatically use Llama.fi for MOR
+const morPrice = await getTokenPrice('morpheus-network', 'usd');
 
 // This will use CoinGecko/Coinbase (not affected)
 const linkPrice = await getTokenPrice('chainlink', 'usd');
@@ -202,7 +213,8 @@ Expected response:
   "prices": {
     "stETH": 2456.78,
     "wBTC": 45678.90,
-    "wETH": 2450.00
+    "wETH": 2450.00,
+    "MOR": 12.34
   },
   "lastUpdated": 1759420817000,
   "cacheAge": 45000,
