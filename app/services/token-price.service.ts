@@ -1,168 +1,85 @@
-const COINGECKO_API_URL = "https://api.coingecko.com/api/v3/simple/price";
+// Only using DefiLlama for cached tokens (stETH, wBTC, wETH)
+// No mapping for other assets - they will return null
 
-// Map CoinGecko IDs to symbol names for Coinbase fallback
-const COINGECKO_TO_SYMBOL_MAP: Record<string, string> = {
-  'staked-ether': 'STETH',
-  'ethereum': 'ETH',
-  'weth': 'WETH',
-  'bitcoin': 'BTC',
-  'wrapped-bitcoin': 'WBTC',
-  'usd-coin': 'USDC',
-  'tether': 'USDT',
-  'chainlink': 'LINK',
-  'morpheus-network': 'MOR' // Note: Coinbase doesn't have MOR, will fail gracefully
+// Tokens that are fetched from our DefiLlama API (updated via cron job)
+const DEFILLAMA_CACHED_TOKENS = new Set(['staked-ether', 'wrapped-bitcoin', 'weth']);
+const DEFILLAMA_SYMBOL_MAP: Record<string, 'stETH' | 'wBTC' | 'wETH'> = {
+  'staked-ether': 'stETH',
+  'wrapped-bitcoin': 'wBTC',
+  'weth': 'wETH',
 };
 
+
 /**
- * Fetches price from our Coinbase API route as a fallback
- * @param symbol The symbol to fetch (e.g., 'STETH', 'ETH')
- * @returns The price from Coinbase or null if failed
+ * Fetches price from our DefiLlama cache API (stETH, wBTC, wETH only)
+ * @param tokenId The CoinGecko token ID
+ * @returns The price from DefiLlama cache or null if failed
  */
-async function getCoinbaseFallbackPrice(symbol: string): Promise<number | null> {
+async function getDefiLlamaCachedPrice(tokenId: string): Promise<number | null> {
   try {
-    console.log(`💰 Attempting Coinbase fallback for ${symbol}...`);
-    
-    const response = await fetch(`/api/coinbase-price?symbol=${symbol}`, {
+    const symbol = DEFILLAMA_SYMBOL_MAP[tokenId];
+    if (!symbol) return null;
+
+    console.log(`🦙 Fetching ${tokenId} (${symbol}) price from DefiLlama cache API...`);
+
+    const response = await fetch('/api/token-prices', {
       headers: {
         'Accept': 'application/json'
       },
-      // Add timeout to prevent hanging
-      signal: AbortSignal.timeout(8000) // 8 second timeout
+      signal: AbortSignal.timeout(5000), // 5 second timeout
+      cache: 'no-store', // Don't cache on client side
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.warn(`Coinbase fallback failed for ${symbol}:`, errorData);
+      console.warn(`DefiLlama cache API responded with status: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
-    
-    if (typeof data.price === 'number' && data.price > 0) {
-      console.log(`✅ Coinbase fallback successful for ${symbol}: $${data.price}`);
-      return data.price;
+    const price = data.prices[symbol];
+
+    if (typeof price === 'number' && price > 0) {
+      console.log(`✅ DefiLlama cached price for ${tokenId}: $${price}`);
+      return price;
     } else {
-      console.warn(`Invalid Coinbase price data for ${symbol}:`, data);
+      console.warn(`Invalid DefiLlama cached price data for ${tokenId}:`, data);
       return null;
     }
-    
+
   } catch (error) {
-    console.warn(`Coinbase fallback error for ${symbol}:`, error);
+    console.warn(`DefiLlama cache fetch error for ${tokenId}:`, error);
     return null;
   }
 }
 
 /**
- * Fetches the current price of a given token with fallback to Coinbase API.
+ * Fetches the current price of a given token using DefiLlama API only.
+ * ONLY supports: stETH, wBTC, wETH (via cached API updated every 5 minutes).
  * For stablecoins (USDC, USDT), returns $1.00 directly without API calls.
- * For other assets, tries CoinGecko first, then falls back to Coinbase.
+ * For ALL other tokens: returns null (no DefiLlama support).
  * @param tokenId The ID of the token on CoinGecko (e.g., 'staked-ether').
  * @param vsCurrency The currency to fetch the price in (e.g., 'usd').
- * @param useParallel Whether to fetch from both sources in parallel (default: false)
- * @returns The current price of the token, or null if all sources fail.
+ * @returns The current price of the token, or null if not supported or API fails.
  */
-export async function getTokenPrice(tokenId: string, vsCurrency: string, useParallel = false): Promise<number | null> {
+export async function getTokenPrice(tokenId: string, vsCurrency: string): Promise<number | null> {
     // Hardcode stablecoin prices to $1.00 (no API calls needed)
     if (vsCurrency === 'usd' && (tokenId === 'usd-coin' || tokenId === 'tether')) {
         console.log(`💰 Using hardcoded price for ${tokenId}: $1.00 (stablecoin)`);
         return 1.0;
     }
-    
-    const symbol = COINGECKO_TO_SYMBOL_MAP[tokenId];
-    
-    // If parallel mode is enabled and we have Coinbase support
-    if (useParallel && symbol && vsCurrency === 'usd') {
-        return getTokenPriceParallel(tokenId, vsCurrency, symbol);
-    }
-    
-    // Sequential mode (default): CoinGecko first, then Coinbase fallback
-    // First attempt: CoinGecko API
-    try {
-        console.log(`💰 Fetching ${tokenId} price from CoinGecko...`);
-        
-        const response = await fetch(`${COINGECKO_API_URL}?ids=${tokenId}&vs_currencies=${vsCurrency}`, {
-          // Add timeout to prevent hanging on CoinGecko
-          signal: AbortSignal.timeout(8000) // 8 second timeout
-        });
-        
-        if (!response.ok) {
-            console.warn(`CoinGecko API responded with status: ${response.status} ${response.statusText}`);
-        } else {
-            const data = await response.json();
-            
-            if (data[tokenId] && data[tokenId][vsCurrency]) {
-                const price = data[tokenId][vsCurrency];
-                console.log(`✅ CoinGecko price for ${tokenId}: $${price}`);
-                return price;
-            } else {
-                console.warn(`Price data not found for ${tokenId} in ${vsCurrency} on CoinGecko`);
-            }
-        }
-        
-    } catch (error) {
-        console.warn(`CoinGecko fetch failed for ${tokenId}:`, error);
-    }
-    
-    // Second attempt: Coinbase fallback for supported assets
-    if (symbol && vsCurrency === 'usd') {
-        console.log(`🔄 CoinGecko failed, trying Coinbase fallback for ${tokenId} (${symbol})...`);
-        const fallbackPrice = await getCoinbaseFallbackPrice(symbol);
-        
-        if (fallbackPrice !== null) {
-            return fallbackPrice;
-        }
-    }
-    
-    // All sources failed
-    console.error(`❌ All price sources failed for ${tokenId} in ${vsCurrency}`);
-    return null;
-}
 
-/**
- * Fetches price from both CoinGecko and Coinbase in parallel, returning the first successful result.
- * This provides faster response times when one API is slow.
- * @param tokenId The CoinGecko token ID
- * @param vsCurrency The currency (should be 'usd')
- * @param symbol The symbol for Coinbase API
- * @returns The first successful price, or null if both fail
- */
-async function getTokenPriceParallel(tokenId: string, vsCurrency: string, symbol: string): Promise<number | null> {
-    console.log(`⚡ Fetching ${tokenId} price from both CoinGecko and Coinbase in parallel...`);
-    
-    // Create promises for both API calls
-    const coinGeckoPromise = fetch(`${COINGECKO_API_URL}?ids=${tokenId}&vs_currencies=${vsCurrency}`, {
-        signal: AbortSignal.timeout(8000)
-    }).then(async (response) => {
-        if (!response.ok) throw new Error(`CoinGecko: ${response.status}`);
-        const data = await response.json();
-        if (data[tokenId] && data[tokenId][vsCurrency]) {
-            const price = data[tokenId][vsCurrency];
-            console.log(`✅ CoinGecko parallel result for ${tokenId}: $${price}`);
-            return { price, source: 'coingecko' };
+    // For cached tokens (stETH, wBTC, wETH): use our cached DefiLlama API
+    if (vsCurrency === 'usd' && DEFILLAMA_CACHED_TOKENS.has(tokenId)) {
+        const cachedPrice = await getDefiLlamaCachedPrice(tokenId);
+        if (cachedPrice !== null) {
+            return cachedPrice;
         }
-        throw new Error('CoinGecko: Price not found');
-    });
-    
-    const coinbasePromise = fetch(`/api/coinbase-price?symbol=${symbol}`, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(8000)
-    }).then(async (response) => {
-        if (!response.ok) throw new Error(`Coinbase: ${response.status}`);
-        const data = await response.json();
-        if (typeof data.price === 'number' && data.price > 0) {
-            console.log(`✅ Coinbase parallel result for ${tokenId}: $${data.price}`);
-            return { price: data.price, source: 'coinbase' };
-        }
-        throw new Error('Coinbase: Invalid price data');
-    });
-    
-    try {
-        // Wait for the first successful result
-        const result = await Promise.any([coinGeckoPromise, coinbasePromise]);
-        console.log(`⚡ Parallel fetch winner: ${result.source} ($${result.price})`);
-        return result.price;
-    } catch (error) {
-        console.warn(`Both parallel price fetches failed for ${tokenId}:`, error);
+        // No fallback - return null if cache fails
+        console.log(`❌ DefiLlama cache failed for ${tokenId} - no fallback available`);
         return null;
     }
-} 
+
+    // For ALL other tokens: return null (not supported)
+    console.log(`❌ Token ${tokenId} not supported by DefiLlama - only stETH, wBTC, wETH supported`);
+    return null;
+}
