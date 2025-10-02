@@ -327,11 +327,8 @@ export function useCapitalChartData() {
         // Process batches sequentially with delay to avoid overwhelming API
         for (const batchQuery of BATCH_QUERIES) {
           batchCount++;
-          console.log(`📡 Processing ${batchQuery.asset} batch ${batchCount}/${BATCH_QUERIES.length} (${batchQuery.startDate} to ${batchQuery.endDate})`);
-          console.log(`🔍 Using deposit pool address: ${batchQuery.depositPoolAddress}`);
-          
+
           const queryString = print(batchQuery.query);
-          console.log(`📝 GraphQL Query (first 500 chars): ${queryString.substring(0, 500)}...`);
           const requestBody = {
             query: queryString,
             variables: {},
@@ -388,7 +385,6 @@ export function useCapitalChartData() {
                 try {
                   currentTotalStakedWei = ethers.BigNumber.from(interactionData.totalStaked);
                   hasAnyData = true;
-                  console.log(`✅ ${batchQuery.asset} day ${index}: Found data, totalStaked = ${ethers.utils.formatEther(currentTotalStakedWei)} ETH`);
                 } catch (error) {
                   console.warn(`⚠️ Error parsing totalStaked in batch ${batchCount}, day ${index}:`, error);
                   if (allDataPoints.length === 0) currentTotalStakedWei = ethers.BigNumber.from(0);
@@ -414,7 +410,6 @@ export function useCapitalChartData() {
               console.log(`ℹ️ No historical data found for ${batchQuery.asset} - this is expected for new assets`);
             }
             
-            console.log(`📊 Batch ${batchCount} summary: hasAnyData=${hasAnyData}, added ${batchQuery.timestamps.length} data points`);
           }
           
           // Add small delay between batches to be respectful to API
@@ -423,7 +418,6 @@ export function useCapitalChartData() {
           }
         }
         
-        console.log(`✅ ${selectedAsset} BATCHED fetch completed: ${allDataPoints.length} total data points from ${batchCount} batches`);
         return allDataPoints;
       } catch (error) {
         console.error(`❌ Error in safe batched fetch at batch ${batchCount}:`, error);
@@ -434,19 +428,10 @@ export function useCapitalChartData() {
     console.log('🔧 About to call fetchSafeBatchedData()...');
     fetchSafeBatchedData()
       .then((allDataPoints) => {
-        console.log('✅ fetchSafeBatchedData completed, result:', allDataPoints ? `${allDataPoints.length} data points` : 'no data');
         if (allDataPoints && allDataPoints.length > 0) {
           try {
             // Sort data points by timestamp to ensure proper chronological order
             const sortedData = allDataPoints.sort((a, b) => a.timestamp - b.timestamp);
-            
-            console.log(`✅ ${selectedAsset} BATCHED data processing completed:`, sortedData.length, 'data points');
-            console.log('📊 First data point:', sortedData[0]);
-            console.log('📊 Last data point:', sortedData[sortedData.length - 1]);
-            console.log('📊 Date range:', {
-              from: sortedData[0]?.date?.split('T')[0],
-              to: sortedData[sortedData.length - 1]?.date?.split('T')[0]
-            });
 
             setChartData(sortedData);
             setChartError(null);
