@@ -267,7 +267,7 @@ export function useTotalMorEarned(
           ];
 
           poolAddresses.forEach(poolAddress => {
-            userClaimEventsData[poolAddress] = allClaimEvents.filter(event => event.depositPool === poolAddress);
+            userClaimEventsData[poolAddress] = allClaimEvents.filter((event: ClaimEventData) => event.depositPool === poolAddress);
           });
 
           setData(userClaimEventsData);
