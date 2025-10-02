@@ -196,11 +196,9 @@ export function useTokenPrices({
         const availableAssets = getAssetsForNetwork(networkEnvironment);
         
         // Create price fetch promises for all available assets
-        // Use parallel fetching for better performance during initial load
-        const useParallelFetching = isInitialLoad;
         const assetPricePromises = availableAssets.map(async (assetInfo) => {
           try {
-            const price = await getTokenPrice(assetInfo.metadata.coinGeckoId, 'usd', useParallelFetching);
+            const price = await getTokenPrice(assetInfo.metadata.coinGeckoId, 'usd');
             return { symbol: assetInfo.metadata.symbol, price };
           } catch (error) {
             console.warn(`Failed to fetch price for ${assetInfo.metadata.symbol}:`, error);

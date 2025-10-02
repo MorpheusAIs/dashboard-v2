@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updatePriceCache } from '../../token-prices/route';
+import { updatePriceCache } from '../../../services/token-price.service';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
