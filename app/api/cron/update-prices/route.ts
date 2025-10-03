@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
     // Verify the request is from Vercel Cron (optional but recommended)
     const authHeader = request.headers.get('authorization');
     
-    // In production, verify the cron secret
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    // In production, verify the cron secret (skip in development)
+    if (process.env.NODE_ENV === 'production' && process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       console.warn('⚠️ Unauthorized cron job request');
       return NextResponse.json(
         { error: 'Unauthorized' },
