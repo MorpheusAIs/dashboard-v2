@@ -1,8 +1,11 @@
-# Llama.fi Price Implementation
+# Token Price Implementation
 
 ## Overview
 
-This document describes the implementation of token price fetching using Llama.fi API instead of CoinGecko/CoinMarketCap for stETH, wBTC, wETH, and MOR.
+This document describes the implementation of token price fetching using:
+- **DefiLlama API** for stETH, wBTC, wETH, LINK (testnet)
+- **CoinGecko API** for MOR (not available on DefiLlama)
+- **Hardcoded $1.00** for USDC, USDT (stablecoins)
 
 ## Architecture
 
@@ -11,17 +14,19 @@ This document describes the implementation of token price fetching using Llama.f
 1. **Price Cache API** (`/api/token-prices`)
    - Serves cached token prices from an in-memory store
    - Auto-refreshes stale data (older than 10 minutes)
-   - Returns prices for: stETH, wBTC, wETH, MOR
+   - Returns prices for: stETH, wBTC, wETH, LINK, MOR
 
 2. **Cron Job** (`/api/cron/update-prices`)
    - Runs every 5 minutes via Vercel Cron Jobs
-   - Fetches fresh prices from Llama.fi
+   - Fetches fresh prices from DefiLlama (stETH, wBTC, wETH, LINK)
+   - Fetches MOR price from CoinGecko
    - Updates the in-memory cache
 
 3. **Token Price Service** (`app/services/token-price.service.ts`)
-   - Updated to fetch stETH, wBTC, wETH, MOR from `/api/token-prices` first
-   - Falls back to CoinGecko/Coinbase if Llama.fi fails
-   - Other tokens continue using existing CoinGecko/Coinbase logic
+   - Fetches stETH, wBTC, wETH, LINK from DefiLlama via `/api/token-prices`
+   - Fetches MOR from CoinGecko via `/api/token-prices`
+   - Hardcodes USDC, USDT to $1.00 (stablecoins)
+   - All other tokens return null (not supported)
 
 ### Data Flow
 
@@ -32,81 +37,117 @@ This document describes the implementation of token price fetching using Llama.f
 └────────┬────────┘
          │
          ▼
-┌─────────────────┐
-│ /api/cron/      │  Fetches from Llama.fi
-│ update-prices   │  Updates cache
-└────────┬────────┘
+┌─────────────────────────────────────┐
+│ /api/cron/update-prices             │
+│ • Fetches from DefiLlama (stETH,    │
+│   wBTC, wETH, LINK)                 │
+│ • Fetches from CoinGecko (MOR)      │
+│ • Updates in-memory cache           │
+└────────┬────────────────────────────┘
          │
          ▼
-┌─────────────────┐
-│  In-Memory      │  Stores: stETH, wBTC, wETH, MOR
-│  Price Cache    │  + lastUpdated timestamp
-└────────┬────────┘
+┌─────────────────────────────────────┐
+│  In-Memory Price Cache              │
+│  Stores: stETH, wBTC, wETH, LINK,   │
+│  MOR + lastUpdated timestamp        │
+└────────┬────────────────────────────┘
          │
          ▼
-┌─────────────────┐
-│ /api/           │  Serves cached prices
-│ token-prices    │  to frontend
-└────────┬────────┘
+┌─────────────────────────────────────┐
+│ /api/token-prices                   │
+│ Serves cached prices to frontend    │
+└────────┬────────────────────────────┘
          │
          ▼
-┌─────────────────┐
-│  Frontend       │  TanStack Query
-│  Components     │  Fetches prices
-└─────────────────┘
+┌─────────────────────────────────────┐
+│  Frontend Components                │
+│  useTokenPrices hook fetches prices │
+└─────────────────────────────────────┘
 ```
 
-## Llama.fi API Details
+## API Details
 
-### Endpoint
+### DefiLlama API
+
+#### Endpoint
 ```
-https://coins.llama.fi/prices/current/ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84,ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599,ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2,arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2
+https://coins.llama.fi/prices/current/ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84,ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599,ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2,ethereum:0x514910771AF9Ca656af840dff83E8264EcF986CA
 ```
 
-### Token Addresses (direct in URL)
+#### Token Addresses (direct in URL)
 - **stETH**: `ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84`
 - **wBTC**: `ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599`
 - **wETH**: `ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2`
-- **MOR**: `arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2`
+- **LINK**: `ethereum:0x514910771AF9Ca656af840dff83E8264EcF986CA` (testnet only)
+
+### CoinGecko API
+
+#### Endpoint
+```
+https://api.coingecko.com/api/v3/simple/price?ids=morpheusai&vs_currencies=usd
+```
+
+#### Token ID
+- **MOR**: `morpheusai` (returns current USD price)
 
 ### Price Source Priority
-- **stETH, wBTC, wETH, MOR**: DefiLlama ONLY (cached API with 3-retry mechanism)
+- **stETH, wBTC, wETH, LINK**: DefiLlama (server-side cache updated every 5 min)
+- **MOR**: CoinGecko (server-side cache updated every 5 min)
 - **USDC, USDT**: Hardcoded $1.00 (stablecoins)
 - **All other tokens**: null (not supported)
 
-### Response Format
+### Response Formats
+
+#### DefiLlama Response
 ```json
 {
   "coins": {
     "ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84": {
       "decimals": 18,
       "symbol": "stETH",
-      "price": 4447.932242468375,
+      "price": 4447.93,
       "timestamp": 1759421477,
       "confidence": 0.99
     },
     "ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": {
       "decimals": 8,
       "symbol": "WBTC",
-      "price": 119947.1132102704,
+      "price": 119947.11,
       "timestamp": 1759422426,
       "confidence": 0.99
     },
     "ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": {
       "decimals": 18,
       "symbol": "WETH",
-      "price": 4459.403618211898,
-      "timestamp": 1759422145,
-      "confidence": 0.99
-    },
-    "arbitrum:0x092baadb7def4c3981454dd9c0a0e5c4f27ead9083c756cc2": {
-      "decimals": 18,
-      "symbol": "MOR",
-      "price": 12.34,
+      "price": 4459.40,
       "timestamp": 1759422145,
       "confidence": 0.99
     }
   }
+}
+```
+
+#### CoinGecko Response
+```json
+{
+  "morpheusai": {
+    "usd": 3.72
+  }
+}
+```
+
+#### Our API Response (`/api/token-prices`)
+```json
+{
+  "prices": {
+    "stETH": 4447.93,
+    "wBTC": 119947.11,
+    "wETH": 4459.40,
+    "LINK": 30.25,
+    "MOR": 3.72
+  },
+  "lastUpdated": 1759422145000,
+  "cacheAge": 125000
 }
 ```
 
