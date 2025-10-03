@@ -178,6 +178,12 @@ export interface CapitalMetrics {
   activeStakers: string;
   isLoading: boolean;
   error: string | null;
+  // Expose all token prices from DefiLlama for calculations
+  stethPrice: number | null;
+  linkPrice: number | null;
+  morPrice: number | null;
+  wbtcPrice: number | null;
+  wethPrice: number | null;
 }
 
 /**
@@ -191,8 +197,15 @@ export { incrementLocalDepositorCount };
 export function useCapitalMetrics(): CapitalMetrics {
   const poolData = useCapitalPoolData();
 
-  // Use shared token prices hook
-  const { stethPrice, linkPrice, isPriceUpdating } = useTokenPrices({
+  // Use shared token prices hook - gets all asset prices from DefiLlama API
+  const { 
+    stethPrice, 
+    linkPrice, 
+    morPrice, 
+    wbtcPrice, 
+    wethPrice, 
+    isPriceUpdating 
+  } = useTokenPrices({
     isInitialLoad: true,
     shouldRefreshData: false,
     userAddress: undefined,
@@ -405,13 +418,32 @@ export function useCapitalMetrics(): CapitalMetrics {
 
   // Calculate core metrics from live pool data (excluding active stakers to avoid blocking)
   const coreMetrics = useMemo(() => {
+    // Check if we have the minimum required prices (stETH is most critical for mainnet)
+    const hasRequiredPrices = poolData.networkEnvironment === 'mainnet' 
+      ? (stethPrice !== null && morPrice !== null) // Mainnet needs at least stETH and MOR prices
+      : true; // Testnet can proceed with available prices
+    
     // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
-    const isLoading = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading) || isPriceUpdating || isLoadingDailyEmissions;
+    // Wait for prices to be loaded before proceeding with calculations
+    const isLoading = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading) 
+      || isPriceUpdating 
+      || isLoadingDailyEmissions
+      || !hasRequiredPrices; // Wait for required prices to be available
+    
     // Core metrics errors (DON'T include active stakers errors - they're non-critical)
     const hasError = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.error) || !!dailyEmissionsError;
 
     // If still loading, show loading state instead of zeros
     if (isLoading) {
+      const debugInfo = {
+        isPriceUpdating,
+        isLoadingDailyEmissions,
+        hasRequiredPrices,
+        prices: { stethPrice, morPrice, wbtcPrice, wethPrice },
+        poolDataLoading: supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading)
+      };
+      console.log('⏳ Waiting for data before calculating metrics:', debugInfo);
+      
       return {
         totalValueLockedUSD: "...",
         currentDailyRewardMOR: "...",
@@ -439,7 +471,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       console.warn('⚠️ Partial error in capital metrics, attempting calculation with available data:', {
         errors: errorDetails,
         availableData,
-        prices: { stethPrice, linkPrice }
+        prices: { stethPrice, linkPrice, wbtcPrice, wethPrice, morPrice }
       });
 
       // Only return error state if we have NO usable data at all
@@ -485,17 +517,20 @@ export function useCapitalMetrics(): CapitalMetrics {
       const amount = parsePoolAmount(assetData.totalStaked || '0');
       assetAmounts[assetSymbol] = amount;
 
-      // Calculate USD value based on asset type
+      // Calculate USD value based on asset type using DefiLlama prices
       let usdValue = 0;
       if (assetSymbol === 'stETH' && stethPrice && amount > 0) {
         usdValue = amount * stethPrice;
       } else if (assetSymbol === 'LINK' && linkPrice && amount > 0) {
         usdValue = amount * linkPrice;
+      } else if (assetSymbol === 'wBTC' && wbtcPrice && amount > 0) {
+        usdValue = amount * wbtcPrice;
+      } else if (assetSymbol === 'wETH' && wethPrice && amount > 0) {
+        usdValue = amount * wethPrice;
       } else if ((assetSymbol === 'USDC' || assetSymbol === 'USDT') && amount > 0) {
         // Stablecoins are always $1.00
         usdValue = amount * 1.0;
       }
-      // For other assets (wBTC, wETH), we would need their price data
 
       assetUSDValues[assetSymbol] = usdValue;
       totalValueLockedUSD += usdValue;
@@ -510,7 +545,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       assetUSDValues,
       totalValueLockedUSD,
       networkEnv: poolData.networkEnvironment,
-      prices: { stethPrice, linkPrice },
+      prices: { stethPrice, linkPrice, wbtcPrice, wethPrice, morPrice },
       deviceInfo: {
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'server',
         isMobile: typeof window !== 'undefined' && window.innerWidth < 768,
@@ -591,13 +626,21 @@ export function useCapitalMetrics(): CapitalMetrics {
       const prices: Record<string, number> = {};
       let hasAnyPriceData = false;
 
-      // Collect available price data
+      // Collect available price data from DefiLlama
       if (stethPrice) {
         prices.stETH = stethPrice;
         hasAnyPriceData = true;
       }
       if (linkPrice) {
         prices.LINK = linkPrice;
+        hasAnyPriceData = true;
+      }
+      if (wbtcPrice) {
+        prices.wBTC = wbtcPrice;
+        hasAnyPriceData = true;
+      }
+      if (wethPrice) {
+        prices.wETH = wethPrice;
         hasAnyPriceData = true;
       }
       // Always include stablecoin prices
@@ -628,8 +671,9 @@ export function useCapitalMetrics(): CapitalMetrics {
       const hasAllPrices = supportedAssets.every(assetSymbol => {
         if (assetSymbol === 'stETH') return !!stethPrice;
         if (assetSymbol === 'LINK') return !!linkPrice;
+        if (assetSymbol === 'wBTC') return !!wbtcPrice;
+        if (assetSymbol === 'wETH') return !!wethPrice;
         if (assetSymbol === 'USDC' || assetSymbol === 'USDT') return true; // Stablecoins always have price
-        // For other assets (wBTC, wETH), assume no price data available yet
         return false;
       });
 
@@ -678,13 +722,19 @@ export function useCapitalMetrics(): CapitalMetrics {
       isLoading,
       error: null
     };
-  }, [poolData, stethPrice, linkPrice, isPriceUpdating, supportedAssets, dailyEmissions, dailyEmissionsError, isLoadingDailyEmissions]);
+  }, [poolData, stethPrice, linkPrice, wbtcPrice, wethPrice, morPrice, isPriceUpdating, supportedAssets, dailyEmissions, dailyEmissionsError, isLoadingDailyEmissions]);
 
-  // Combine core metrics with active stakers display
+  // Combine core metrics with active stakers display and all token prices from DefiLlama
   const metrics = useMemo(() => ({
     ...coreMetrics,
-    activeStakers: activeStakersDisplay
-  }), [coreMetrics, activeStakersDisplay]);
+    activeStakers: activeStakersDisplay,
+    // Expose all token prices for calculations (stETH, wBTC, wETH, LINK, MOR)
+    stethPrice,
+    linkPrice,
+    morPrice,
+    wbtcPrice,
+    wethPrice
+  }), [coreMetrics, activeStakersDisplay, stethPrice, linkPrice, morPrice, wbtcPrice, wethPrice]);
 
   return metrics;
 }
