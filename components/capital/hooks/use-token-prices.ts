@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { getTokenPrice } from "@/app/services/token-price.service";
+import { getTokenPrice, updateSharedPrices } from "@/app/services/token-price.service";
 import {
   type NetworkEnvironment,
   type AssetSymbol,
@@ -113,7 +113,7 @@ export function useTokenPrices({
   });
   const [morPrice, setMorPrice] = useState<number | null>(null);
   const [isPriceUpdating, startPriceTransition] = useTransition();
-  
+
   // Legacy getters for backward compatibility
   const stethPrice = prices.stETH;
   const linkPrice = prices.LINK;
@@ -126,7 +126,7 @@ export function useTokenPrices({
         ...cachedPrices,
         userAddress: userAddress?.slice(0, 6) || 'anonymous'
       });
-      
+
       // Load dynamic prices if available, but preserve stablecoin prices
       if (cachedPrices.prices) {
         setPrices(prev => ({
@@ -148,6 +148,17 @@ export function useTokenPrices({
         }));
       }
       setMorPrice(cachedPrices.morPrice);
+
+      // Update shared state with cached prices
+      if (cachedPrices.prices || cachedPrices.stethPrice || cachedPrices.morPrice) {
+        updateSharedPrices({
+          stETH: cachedPrices.stethPrice || cachedPrices.prices?.stETH || null,
+          wBTC: cachedPrices.prices?.wBTC || null,
+          wETH: cachedPrices.prices?.wETH || null,
+          LINK: cachedPrices.linkPrice || cachedPrices.prices?.LINK || null,
+          MOR: cachedPrices.morPrice || null,
+        });
+      }
     }
   }, [userAddress]);
 
@@ -171,17 +182,27 @@ export function useTokenPrices({
         });
 
         // Use cached prices and reset loading flags
-          startPriceTransition(() => {
-            setPrices(prev => ({
-              ...prev,
-              stETH: cachedPrices.stethPrice,
-              LINK: cachedPrices.linkPrice,
-              // Always ensure stablecoins are $1.00
-              USDC: 1.0,
-              USDT: 1.0,
-            }));
-            setMorPrice(cachedPrices.morPrice);
-          });
+        startPriceTransition(() => {
+          setPrices(prev => ({
+            ...prev,
+            stETH: cachedPrices.stethPrice,
+            LINK: cachedPrices.linkPrice,
+            // Always ensure stablecoins are $1.00
+            USDC: 1.0,
+            USDT: 1.0,
+          }));
+          setMorPrice(cachedPrices.morPrice);
+        });
+
+        // Update shared state
+        updateSharedPrices({
+          stETH: cachedPrices.stethPrice || null,
+          wBTC: cachedPrices.prices?.wBTC || null,
+          wETH: cachedPrices.prices?.wETH || null,
+          LINK: cachedPrices.linkPrice || null,
+          MOR: cachedPrices.morPrice || null,
+        });
+
         return;
       }
 
@@ -194,7 +215,7 @@ export function useTokenPrices({
         // Get all available assets and fetch prices dynamically
         const networkEnvironment: NetworkEnvironment = networkEnv as NetworkEnvironment;
         const availableAssets = getAssetsForNetwork(networkEnvironment);
-        
+
         // Create price fetch promises for all available assets
         const assetPricePromises = availableAssets.map(async (assetInfo) => {
           try {
@@ -205,15 +226,15 @@ export function useTokenPrices({
             return { symbol: assetInfo.metadata.symbol, price: null };
           }
         });
-        
-        // Fetch MOR price separately
-        const morPricePromise = getTokenPrice('morpheus-network', 'usd');
-        
+
+        // Fetch MOR price separately (from CoinGecko via server cache)
+        const morPricePromise = getTokenPrice('morpheusai', 'usd');
+
         const [assetPriceResults, morPriceData] = await Promise.all([
           Promise.all(assetPricePromises),
           morPricePromise
         ]);
-        
+
         // Build dynamic prices object - initialize stablecoins to $1.00
         const newPrices: Record<AssetSymbol, number | null> = {
           stETH: null,
@@ -223,12 +244,21 @@ export function useTokenPrices({
           wBTC: null,
           wETH: null,
         };
-        
+
         // Update prices from API results (but skip stablecoins as they're already set)
         assetPriceResults.forEach(({ symbol, price }) => {
           if (symbol !== 'USDC' && symbol !== 'USDT') {
             newPrices[symbol] = price;
           }
+        });
+
+        // Update shared state with fresh prices
+        updateSharedPrices({
+          stETH: newPrices.stETH,
+          wBTC: newPrices.wBTC,
+          wETH: newPrices.wETH,
+          LINK: newPrices.LINK,
+          MOR: morPriceData,
         });
 
         // Save successful prices to cache
@@ -280,15 +310,24 @@ export function useTokenPrices({
             wBTC: null,
             wETH: null,
           };
-          
+
           // Ensure stablecoins are always $1.00 even in fallback
           fallbackPrices.USDC = 1.0;
           fallbackPrices.USDT = 1.0;
-          
+
           console.log('💰 Using cached prices as fallback after error:', {
             ...fallbackPrices,
             MOR: cachedPrices.morPrice,
             newRetryCount
+          });
+
+          // Update shared state with fallback prices
+          updateSharedPrices({
+            stETH: fallbackPrices.stETH,
+            wBTC: fallbackPrices.wBTC,
+            wETH: fallbackPrices.wETH,
+            LINK: fallbackPrices.LINK,
+            MOR: cachedPrices.morPrice,
           });
 
           startPriceTransition(() => {
@@ -322,6 +361,15 @@ export function useTokenPrices({
               USDC: 1.0,
               USDT: 1.0,
             }));
+          });
+
+          // Update shared state with empty values
+          updateSharedPrices({
+            stETH: null,
+            wBTC: null,
+            wETH: null,
+            LINK: null,
+            MOR: null,
           });
         }
       }
