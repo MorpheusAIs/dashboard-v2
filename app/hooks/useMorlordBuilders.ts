@@ -1,34 +1,68 @@
 import { useQuery } from '@tanstack/react-query';
+import { getClientForNetwork } from '@/lib/apollo-client';
+import { GET_BUILDERS_PROJECT_NAMES_BASE } from '@/lib/graphql/builders-queries';
 // import { useEffect } from 'react';
 
+interface UseMorlordBuildersOptions {
+  network?: 'base' | 'arbitrum' | 'all';
+}
 
 /**
- * Hook to fetch builder data from Morlord API via our proxy API route
+ * Hook to fetch builder names from Morlord API or Base subgraph depending on network
+ * For Base network, it uses the subgraph directly instead of morlord API
  */
-export const useMorlordBuilders = () => {
-  // console.log('[useMorlordBuilders] Hook initialized');
-  
+export const useMorlordBuilders = (options: UseMorlordBuildersOptions = {}) => {
+  const { network = 'all' } = options;
+
+  // console.log('[useMorlordBuilders] Hook initialized for network:', network);
+
   const query = useQuery<string[]>({
-    queryKey: ['morlordBuilders'],
+    queryKey: ['morlordBuilders', network],
     queryFn: async () => {
-      // console.log('[useMorlordBuilders] Query function executing');
+      // console.log('[useMorlordBuilders] Query function executing for network:', network);
+
+      // For Base network, use subgraph directly
+      if (network === 'base') {
+        try {
+          const client = getClientForNetwork('Base');
+          if (!client) {
+            throw new Error('Could not get Apollo client for Base network');
+          }
+
+          const response = await client.query<{ buildersProjects: { name: string }[] }>({
+            query: GET_BUILDERS_PROJECT_NAMES_BASE,
+            fetchPolicy: 'no-cache',
+          });
+
+          // Extract just the names from the response
+          const builderNames = response.data.buildersProjects.map(project => project.name);
+
+          // console.log(`[useMorlordBuilders] Fetched ${builderNames.length} builder names from Base subgraph:`, builderNames);
+          return builderNames;
+        } catch (error) {
+          console.error('[useMorlordBuilders] Error fetching builders from Base subgraph:', error);
+          // Fall back to morlord API if subgraph fails
+          console.log('[useMorlordBuilders] Falling back to morlord API for Base network');
+        }
+      }
+
+      // For Arbitrum or fallback, use morlord API
       try {
-        // Use our API route instead of calling the external API directly
-        // This helps avoid CORS issues
-        // console.log('[useMorlordBuilders] Fetching data from /api/builders');
-        const response = await fetch('/api/builders');
-        
+        // console.log('[useMorlordBuilders] Fetching data from /api/builders for network:', network);
+        const apiUrl = network === 'arbitrum' ? '/api/builders?network=arbitrum' : '/api/builders';
+        const response = await fetch(apiUrl);
+
         if (!response.ok) {
           // console.error(`[useMorlordBuilders] API responded with status: ${response.status} ${response.statusText}`);
           throw new Error('Failed to fetch builders from API route');
         }
-        
+
         const builderNames: string[] = await response.json();
-        
-        // console.log(`[useMorlordBuilders] Fetched ${builderNames.length} builder names:`, builderNames);
+
+        // console.log(`[useMorlordBuilders] Fetched ${builderNames.length} builder names from morlord API:`, builderNames);
         return builderNames;
       } catch (error) {
-        console.error('[useMorlordBuilders] Error fetching builders:', error);
+        console.error('[useMorlordBuilders] Error fetching builders from morlord API:', error);
         // Return an empty array to avoid breaking the app
         console.log('[useMorlordBuilders] Returning empty array due to error');
         return [];

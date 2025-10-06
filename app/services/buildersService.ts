@@ -41,11 +41,13 @@ interface TestnetSubnet {
 }
 
 export const fetchBuildersAPI = async (
-  isTestnet: boolean, 
-  supabaseBuilders: BuilderDB[] | null, 
-  supabaseBuildersLoaded: boolean, 
+  isTestnet: boolean,
+  supabaseBuilders: BuilderDB[] | null,
+  supabaseBuildersLoaded: boolean,
   userAddress?: string | null, // Added userAddress as an optional parameter
-  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null // Function to get admin address for newly created subnets
+  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null, // Function to get admin address for newly created subnets
+  baseBuilderNames?: string[], // Builder names from Base subgraph
+  arbitrumBuilderNames?: string[] // Builder names from Arbitrum (morlord API)
 ): Promise<Builder[]> => {
   // console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
   // console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
@@ -174,39 +176,64 @@ export const fetchBuildersAPI = async (
         return [];
       }
       
-      // FIXED: Use ALL builders (including Morlord-only ones), not just original Supabase
-      let builderNames = supabaseBuilders.map(b => b.name);
-      
-      // FIX: Handle name mismatch between Morlord API and GraphQL subgraphs
-      // Morlord API uses "Protection and Capital Incentive" 
+      // Use separate builder names for Base and Arbitrum networks
+      const baseNames = Array.isArray(baseBuilderNames) ? baseBuilderNames : [];
+      const arbitrumNames = Array.isArray(arbitrumBuilderNames) ? arbitrumNames : [];
+
+      // Combine with Supabase builders for complete coverage
+      const supabaseNames = supabaseBuilders.map(b => b.name);
+      const allBaseNames = [...new Set([...baseNames, ...supabaseNames])];
+      const allArbitrumNames = [...new Set([...arbitrumNames, ...supabaseNames])];
+
+      // FIX: Handle name mismatch between Base and Arbitrum GraphQL subgraphs
+      // Base subgraph uses "Protection and Capital Incentive"
       // But Arbitrum GraphQL uses "Protection and Capital Incentives Program"
       const nameMapping: Record<string, string[]> = {
         "Protection and Capital Incentive": [
           "Protection and Capital Incentive", // Base version
-          "Protection and Capital Incentives Program" // Arbitrum version  
+          "Protection and Capital Incentives Program" // Arbitrum version
         ]
       };
-      
-      // Expand builder names to include GraphQL variations
-      const expandedBuilderNames: string[] = [];
-      builderNames.forEach(name => {
-        expandedBuilderNames.push(name);
+
+      // Expand builder names to include GraphQL variations for each network
+      const expandedBaseNames: string[] = [];
+      const expandedArbitrumNames: string[] = [];
+
+      allBaseNames.forEach(name => {
+        expandedBaseNames.push(name);
         if (nameMapping[name]) {
-          expandedBuilderNames.push(...nameMapping[name]);
+          expandedBaseNames.push(...nameMapping[name]);
         }
       });
-      
+
+      allArbitrumNames.forEach(name => {
+        expandedArbitrumNames.push(name);
+        if (nameMapping[name]) {
+          expandedArbitrumNames.push(...nameMapping[name]);
+        }
+      });
+
       // Remove duplicates
-      builderNames = Array.from(new Set(expandedBuilderNames));
-      
-      // console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
-      
-      const commonVariables = {
+      const finalBaseNames = Array.from(new Set(expandedBaseNames));
+      const finalArbitrumNames = Array.from(new Set(expandedArbitrumNames));
+
+      // console.log(`[API] Mainnet: Using ${finalBaseNames.length} Base names and ${finalArbitrumNames.length} Arbitrum names for filtering`);
+
+      const baseVariables = {
         orderBy: "totalStaked",
         orderDirection: OrderDirection.Desc,
         usersOrderBy: "buildersProject__totalStaked",
         usersDirection: OrderDirection.Asc,
-        name_in: builderNames,
+        name_in: finalBaseNames,
+        address: userAddress || ""
+      };
+
+      const arbitrumVariables = {
+        orderBy: "totalStaked",
+        orderDirection: OrderDirection.Desc,
+        usersOrderBy: "buildersProject__totalStaked",
+        usersDirection: OrderDirection.Asc,
+        name_in: finalArbitrumNames,
         address: userAddress || ""
       };
 
@@ -218,16 +245,16 @@ export const fetchBuildersAPI = async (
       }
       
       // console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum.');
-      
+
       const [baseResponse, arbitrumResponse] = await Promise.all([
         baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
           query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
-          variables: commonVariables,
+          variables: baseVariables,
           fetchPolicy: 'no-cache',
         }),
         arbitrumClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
           query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
-          variables: commonVariables,
+          variables: arbitrumVariables,
           fetchPolicy: 'no-cache',
         })
       ]);
