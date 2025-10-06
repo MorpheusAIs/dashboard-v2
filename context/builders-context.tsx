@@ -117,10 +117,19 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   }, [builders]);
 
   const totalMetrics = useMemo(() => {
+    // Calculate unique subnet count across all networks
+    const allSubnetNames = new Set<string>();
+    builders.forEach(builder => {
+      if (builder.name) {
+        allSubnetNames.add(builder.name);
+      }
+    });
+
     return {
       totalBuilders: builders.length,
       totalStaked: builders.reduce((acc, builder) => acc + (builder.totalStaked || 0), 0),
       totalStaking: builders.reduce((acc, builder) => acc + (builder.stakingCount || 0), 0),
+      uniqueSubnetCount: allSubnetNames.size,
     };
   }, [builders]);
   
