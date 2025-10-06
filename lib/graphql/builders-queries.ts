@@ -424,4 +424,13 @@ export const GET_BUILDERS_PROJECT_NAMES_BASE = gql`
       name
     }
   }
+`;
+
+// Query to get just builder names from Arbitrum subgraph
+export const GET_BUILDERS_PROJECT_NAMES_ARBITRUM = gql`
+  query getBuildersProjectNamesArbitrum {
+    buildersProjects(first: 1000, skip: 0) {
+      name
+    }
+  }
 `; 
