@@ -178,7 +178,7 @@ export const fetchBuildersAPI = async (
       
       // Use separate builder names for Base and Arbitrum networks
       const baseNames = Array.isArray(baseBuilderNames) ? baseBuilderNames : [];
-      const arbitrumNames = Array.isArray(arbitrumBuilderNames) ? arbitrumNames : [];
+      const arbitrumNames = Array.isArray(arbitrumBuilderNames) ? arbitrumBuilderNames : [];
 
       // Combine with Supabase builders for complete coverage
       const supabaseNames = supabaseBuilders.map(b => b.name);
