@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getClientForNetwork } from '@/lib/apollo-client';
-import { GET_BUILDERS_PROJECT_NAMES_BASE } from '@/lib/graphql/builders-queries';
+import { GET_BUILDERS_PROJECT_NAMES_BASE, GET_BUILDERS_PROJECT_NAMES_ARBITRUM } from '@/lib/graphql/builders-queries';
 // import { useEffect } from 'react';
 
 interface UseMorlordBuildersOptions {
@@ -46,10 +46,35 @@ export const useMorlordBuilders = (options: UseMorlordBuildersOptions = {}) => {
         }
       }
 
-      // For Arbitrum or fallback, use morlord API
+      // For Arbitrum network, use subgraph directly
+      if (network === 'arbitrum') {
+        try {
+          const client = getClientForNetwork('Arbitrum');
+          if (!client) {
+            throw new Error('Could not get Apollo client for Arbitrum network');
+          }
+
+          const response = await client.query<{ buildersProjects: { name: string }[] }>({
+            query: GET_BUILDERS_PROJECT_NAMES_ARBITRUM,
+            fetchPolicy: 'no-cache',
+          });
+
+          // Extract just the names from the response
+          const builderNames = response.data.buildersProjects.map(project => project.name);
+
+          // console.log(`[useMorlordBuilders] Fetched ${builderNames.length} builder names from Arbitrum subgraph:`, builderNames);
+          return builderNames;
+        } catch (error) {
+          console.error('[useMorlordBuilders] Error fetching builders from Arbitrum subgraph:', error);
+          // Fall back to morlord API if subgraph fails
+          console.log('[useMorlordBuilders] Falling back to morlord API for Arbitrum network');
+        }
+      }
+
+      // For 'all' network or fallback, use morlord API
       try {
         // console.log('[useMorlordBuilders] Fetching data from /api/builders for network:', network);
-        const apiUrl = network === 'arbitrum' ? '/api/builders?network=arbitrum' : '/api/builders';
+        const apiUrl = '/api/builders';
         const response = await fetch(apiUrl);
 
         if (!response.ok) {
