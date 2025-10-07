@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { createPublicClient, http, formatUnits } from 'viem';
 import { mainnet, sepolia } from 'wagmi/chains';
 import { getContractAddress, NetworkEnvironment, testnetChains, mainnetChains } from '@/config/networks';
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
     console.log('🎯 [DAILY EMISSIONS API] Starting daily emissions fetch...');
 
     // Get network environment from query params
-    const { searchParams } = new URL(request.url);
+    const searchParams = request.nextUrl.searchParams;
     const networkEnv = searchParams.get('networkEnv') as NetworkEnvironment;
 
     if (!networkEnv || (networkEnv !== 'mainnet' && networkEnv !== 'testnet')) {
