@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
 import { getSupportedAssetSymbols, type AssetSymbol } from "@/components/capital/constants/asset-config";
+import { useActiveStakersSubgraph } from "@/hooks/use-active-stakers-subgraph";
 
 // Cache for last known good TVL data
 interface TVLCache {
@@ -14,13 +15,6 @@ interface TVLCache {
   prices: Record<string, number>; // Keyed by asset symbol
 }
 
-// Cache for active stakers data
-interface ActiveStakersCache {
-  activeStakers: number;
-  timestamp: number;
-  networkEnv: string;
-}
-
 // Cache for local active depositor adjustments
 interface LocalDepositorAdjustment {
   networkEnv: string;
@@ -29,10 +23,8 @@ interface LocalDepositorAdjustment {
 }
 
 const TVL_CACHE_KEY = 'morpheus_tvl_cache';
-const ACTIVE_STAKERS_CACHE_KEY = 'morpheus_active_stakers_cache';
 const LOCAL_DEPOSITOR_ADJUSTMENT_KEY = 'morpheus_local_depositor_adjustment';
 const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes - shorter cache for more frequent updates
-const MAX_RETRY_ATTEMPTS = 3;
 
 // Cache management functions
 const getCachedTVL = (): TVLCache | null => {
@@ -93,38 +85,6 @@ const setCachedTVL = (cache: TVLCache): void => {
     localStorage.setItem(TVL_CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
     console.warn('Error saving TVL cache:', error);
-  }
-};
-
-// Active stakers cache management functions
-const getCachedActiveStakers = (networkEnv: string): ActiveStakersCache | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const cached = localStorage.getItem(ACTIVE_STAKERS_CACHE_KEY);
-    if (!cached) return null;
-    
-    const parsedCache: ActiveStakersCache = JSON.parse(cached);
-    const now = Date.now();
-    
-    // Check if cache is still valid (not expired) and for correct network
-    if (now - parsedCache.timestamp > CACHE_EXPIRY_MS || parsedCache.networkEnv !== networkEnv) {
-      localStorage.removeItem(ACTIVE_STAKERS_CACHE_KEY);
-      return null;
-    }
-    
-    return parsedCache;
-  } catch (error) {
-    console.warn('Error reading active stakers cache:', error);
-    return null;
-  }
-};
-
-const setCachedActiveStakers = (cache: ActiveStakersCache): void => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(ACTIVE_STAKERS_CACHE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    console.warn('Error saving active stakers cache:', error);
   }
 };
 
@@ -212,11 +172,8 @@ export function useCapitalMetrics(): CapitalMetrics {
     networkEnv: poolData.networkEnvironment || 'mainnet'
   });
 
-  // State for active stakers from Dune API (both testnet and mainnet)
-  const [activeStakersCount, setActiveStakersCount] = useState<number | null>(null);
-  const [isLoadingActiveStakers, setIsLoadingActiveStakers] = useState<boolean>(false);
-  const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
-  const [retryAttempts, setRetryAttempts] = useState<number>(0);
+  // Use subgraph hook for active stakers (replaces Dune API)
+  const activeStakersData = useActiveStakersSubgraph(poolData.networkEnvironment as 'mainnet' | 'testnet');
 
   // State for daily emissions from server-side API
   const [dailyEmissions, setDailyEmissions] = useState<number | null>(null);
@@ -224,99 +181,6 @@ export function useCapitalMetrics(): CapitalMetrics {
   const [dailyEmissionsError, setDailyEmissionsError] = useState<string | null>(null);
 
 
-  // Fetch active stakers count from Dune API with caching and retry logic
-  useEffect(() => {
-    // Skip if running on server (SSR)
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    // Skip if no network environment is set
-    if (!poolData.networkEnvironment) {
-      return;
-    }
-
-    // Check cache first for immediate UI update, but always fetch fresh data
-    const cachedData = getCachedActiveStakers(poolData.networkEnvironment);
-    if (cachedData) {
-      console.log(`📦 [FRONTEND] Using cached active stakers data as initial state for ${poolData.networkEnvironment}:`, cachedData.activeStakers, '(fetching fresh data...)');
-      setActiveStakersCount(cachedData.activeStakers);
-      setActiveStakersError(null);
-      setRetryAttempts(0);
-      // Don't return - continue to fetch fresh data
-    }
-
-    async function fetchActiveStakersWithRetry(attemptNumber: number = 1): Promise<void> {
-      setIsLoadingActiveStakers(true);
-      setActiveStakersError(null);
-      setRetryAttempts(attemptNumber);
-      
-      try {
-        // Determine which endpoint to call based on network environment
-        const endpoint = poolData.networkEnvironment === 'testnet' 
-          ? '/api/dune/active-stakers-testnet'
-          : '/api/dune/active-stakers-mainnet';
-        
-        console.log(`🔍 [FRONTEND] Fetching active stakers for ${poolData.networkEnvironment} from ${endpoint} (attempt ${attemptNumber}/${MAX_RETRY_ATTEMPTS})`);
-        
-        const response = await fetch(endpoint);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success && typeof data.active_stakers === 'number') {
-          // Success - cache the result and update state
-          const cacheData: ActiveStakersCache = {
-            activeStakers: data.active_stakers,
-            timestamp: Date.now(),
-            networkEnv: poolData.networkEnvironment
-          };
-          setCachedActiveStakers(cacheData);
-          
-          setActiveStakersCount(data.active_stakers);
-          setActiveStakersError(null);
-          setRetryAttempts(0);
-          console.log(`✅ [FRONTEND] Active stakers count set and cached (${data.network}):`, data.active_stakers);
-        } else {
-          console.log('❌ [FRONTEND] API returned failure:', data.error || 'Invalid response format');
-          throw new Error(data.error || 'Invalid response format');
-        }
-      } catch (error) {
-        console.error(`💥 [FRONTEND] Error on attempt ${attemptNumber}/${MAX_RETRY_ATTEMPTS}:`);
-        console.error('  - Error type:', typeof error);
-        console.error('  - Error message:', error instanceof Error ? error.message : String(error));
-        console.error('  - Network environment:', poolData.networkEnvironment);
-        
-        if (attemptNumber < MAX_RETRY_ATTEMPTS) {
-          // Retry with exponential backoff
-          const delayMs = Math.min(1000 * Math.pow(2, attemptNumber - 1), 10000); // Cap at 10 seconds
-          console.log(`🔄 [FRONTEND] Retrying in ${delayMs}ms...`);
-          
-          setTimeout(() => {
-            fetchActiveStakersWithRetry(attemptNumber + 1);
-          }, delayMs);
-        } else {
-          // All retries failed
-          console.error(`💀 [FRONTEND] All ${MAX_RETRY_ATTEMPTS} attempts failed for active stakers fetch`);
-          setActiveStakersError('Failed to fetch active stakers data after multiple attempts');
-          setActiveStakersCount(null);
-          setRetryAttempts(0);
-        }
-      } finally {
-        if (attemptNumber >= MAX_RETRY_ATTEMPTS) {
-          setIsLoadingActiveStakers(false);
-        }
-      }
-    }
-
-    // Add a small delay to ensure everything is properly initialized
-    const timeoutId = setTimeout(() => fetchActiveStakersWithRetry(1), 100);
-    
-    return () => clearTimeout(timeoutId);
-  }, [poolData.networkEnvironment]);
 
   // Fetch daily emissions from server-side API
   useEffect(() => {
@@ -387,29 +251,33 @@ export function useCapitalMetrics(): CapitalMetrics {
     }
   };
 
-  // Calculate active stakers display value separately to avoid dependency issues
+  // Calculate active stakers display value using subgraph data
   const activeStakersDisplay = useMemo(() => {
-    // For both testnet and mainnet, use Dune API data
-    if (activeStakersCount !== null && activeStakersCount >= 0) {
+    // Use subgraph data for both testnet and mainnet
+    if (activeStakersData.isLoading) {
+      return "...";
+    }
+    
+    if (activeStakersData.error) {
+      console.error('Error fetching active stakers from subgraph:', activeStakersData.error);
+      return "Error";
+    }
+
+    if (activeStakersData.count >= 0) {
       // Apply local adjustment for new depositors
       const localAdjustment = getLocalDepositorAdjustment(poolData.networkEnvironment || 'mainnet');
-      const adjustedCount = activeStakersCount + (localAdjustment?.localIncrement || 0);
+      const adjustedCount = activeStakersData.count + (localAdjustment?.localIncrement || 0);
 
       if (localAdjustment && localAdjustment.localIncrement > 0) {
-        console.log(`🔄 [FRONTEND] Applied local adjustment to active stakers: ${activeStakersCount} + ${localAdjustment.localIncrement} = ${adjustedCount}`);
+        console.log(`🔄 [FRONTEND] Applied local adjustment to active stakers: ${activeStakersData.count} + ${localAdjustment.localIncrement} = ${adjustedCount}`);
       }
 
       return adjustedCount.toString();
-    } else if (isLoadingActiveStakers) {
-      // Show retry attempt info during loading if retries are happening
-      return retryAttempts > 1 ? `... (${retryAttempts}/${MAX_RETRY_ATTEMPTS})` : "...";
-    } else if (activeStakersError) {
-      return "Error"; // Error state - only shown after all retries fail
     }
 
-    // Fallback if no network environment is set
+    // Fallback if no data is available
     return "N/A";
-  }, [activeStakersCount, isLoadingActiveStakers, activeStakersError, retryAttempts, poolData.networkEnvironment]);
+  }, [activeStakersData.count, activeStakersData.isLoading, activeStakersData.error, poolData.networkEnvironment]);
 
   // Get supported assets for the current network
   const supportedAssets = useMemo(() => {
