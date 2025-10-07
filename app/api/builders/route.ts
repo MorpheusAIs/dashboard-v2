@@ -19,9 +19,24 @@ interface MorlordBuilder {
   [key: string]: string | number;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Fetch data from the external API
+    const { searchParams } = new URL(request.url);
+    const network = searchParams.get('network');
+
+    // For Base network, we don't use this API route anymore since we get names directly from subgraph
+    // This route is now primarily used for Arbitrum network or as fallback
+    if (network === 'base') {
+      return NextResponse.json([], {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      });
+    }
+
+    // For Arbitrum or other networks, fetch from morlord API
     const response = await fetch('https://morlord.com/data/builders.json', {
       // Adding a short timeout to fail fast if the service is down
       signal: AbortSignal.timeout(5000)

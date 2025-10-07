@@ -415,4 +415,13 @@ export const GET_BUILDER_SUBNET_BY_ID = gql`
       __typename
     }
   }
+`;
+
+// Query to get just builder names from Base subgraph
+export const GET_BUILDERS_PROJECT_NAMES_BASE = gql`
+  query getBuildersProjectNamesBase {
+    buildersProjects(first: 1000, skip: 0) {
+      name
+    }
+  }
 `; 

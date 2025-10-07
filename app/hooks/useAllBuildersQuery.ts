@@ -19,7 +19,9 @@ export const useAllBuildersQuery = () => {
     // error: supabaseError
    } = useSupabaseBuilders();
   const { userAddress, isAuthenticated } = useAuth(); // Get userAddress and isAuthenticated
-  const { data: morlordBuilderNames, isLoading: isLoadingMorlordBuilders } = useMorlordBuilders(); // Add the Morlord hook
+  // Get builder names from different sources based on network
+  const { data: baseBuilderNames, isLoading: isLoadingBaseBuilders } = useMorlordBuilders({ network: 'base' });
+  const { data: arbitrumBuilderNames, isLoading: isLoadingArbitrumBuilders } = useMorlordBuilders({ network: 'arbitrum' });
   const { getNewlyCreatedSubnetNames, cleanupExistingSubnets, getNewlyCreatedSubnetAdmin } = useNewlyCreatedSubnets(); // Add the newly created subnets hook
 
   // Safe access to lengths for logging
@@ -36,23 +38,24 @@ export const useAllBuildersQuery = () => {
   //   newlyCreatedNames length: ${newlyCreatedNamesLength}
   // `);
 
-  // Include userAddress, morlordBuilderNames, and newly created subnets in the queryKey for refetching
+  // Include userAddress, builder names from different sources, and newly created subnets in the queryKey for refetching
   const newlyCreatedNames = getNewlyCreatedSubnetNames();
   const queryKey: QueryKey = [
-    'builders', 
-    { 
-      isTestnet, 
-      supabaseBuildersLoaded, 
+    'builders',
+    {
+      isTestnet,
+      supabaseBuildersLoaded,
       userAddress: isAuthenticated ? userAddress : null,
-      morlordBuilderNamesLoaded: !isLoadingMorlordBuilders && !!morlordBuilderNames,
+      baseBuilderNamesLoaded: !isLoadingBaseBuilders && !!baseBuilderNames,
+      arbitrumBuilderNamesLoaded: !isLoadingArbitrumBuilders && !!arbitrumBuilderNames,
       newlyCreatedSubnets: newlyCreatedNames.join(',') // Include newly created subnets in key
     }
   ];
 
   // The query is enabled if:
   // 1. It's testnet (doesn't need supabase data pre-loaded for its core fetch)
-  // 2. It's mainnet AND supabase builders have been loaded AND Morlord builder names have been loaded
-  const isEnabled = isTestnet ? true : (supabaseBuildersLoaded && !isLoadingMorlordBuilders);
+  // 2. It's mainnet AND supabase builders have been loaded AND builder names from both sources have been loaded
+  const isEnabled = isTestnet ? true : (supabaseBuildersLoaded && !isLoadingBaseBuilders && !isLoadingArbitrumBuilders);
   
   // console.log(`[useAllBuildersQuery] Query enabled: ${isEnabled}`);
 
@@ -71,18 +74,22 @@ export const useAllBuildersQuery = () => {
         ? supabaseBuilders.filter(builder => !BUILDER_BLACKLIST.includes(builder.name))
         : [];
       
-      if (!isTestnet && Array.isArray(morlordBuilderNames) && morlordBuilderNames.length > 0) {
+      if (!isTestnet) {
+        // Combine builder names from Base and Arbitrum sources with newly created names, filtering out blacklisted ones
+        const baseNames = Array.isArray(baseBuilderNames) ? baseBuilderNames : [];
+        const arbitrumNames = Array.isArray(arbitrumBuilderNames) ? arbitrumBuilderNames : [];
         const newlyCreatedNames = getNewlyCreatedSubnetNames();
-        
-        // Combine morlord names with newly created names, filtering out blacklisted ones
-        const allOfficialNames = [...morlordBuilderNames, ...newlyCreatedNames]
+
+        // For Base network, use subgraph names directly
+        // For Arbitrum network, use morlord API names (fallback to Base names if needed)
+        const allOfficialNames = [...baseNames, ...arbitrumNames, ...newlyCreatedNames]
           .filter(name => !BUILDER_BLACKLIST.includes(name));
         
-        // console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${morlordBuilderNames.length} Morlord builder names and ${newlyCreatedNames.length} newly created names`);
-        
-        // Clean up any newly created names that now appear in morlord data
+        // console.log(`[useAllBuildersQuery] Analyzing ${supabaseBuildersLength} Supabase builders with ${baseNames.length} Base names, ${arbitrumNames.length} Arbitrum names and ${newlyCreatedNames.length} newly created names`);
+
+        // Clean up any newly created names that now appear in either Base or Arbitrum data
         if (newlyCreatedNames.length > 0) {
-          cleanupExistingSubnets(morlordBuilderNames);
+          cleanupExistingSubnets([...baseNames, ...arbitrumNames]);
         }
         
         // Log the names from Supabase
@@ -149,11 +156,13 @@ export const useAllBuildersQuery = () => {
       // console.log(`[useAllBuildersQuery] Calling fetchBuildersAPI with ${combinedBuilders.length} COMBINED builders from both Supabase and Morlord`);
       
       const result = await fetchBuildersAPI(
-        isTestnet, 
-        combinedBuilders, 
-        supabaseBuildersLoaded, 
+        isTestnet,
+        combinedBuilders,
+        supabaseBuildersLoaded,
         isAuthenticated ? userAddress : "",
-        getNewlyCreatedSubnetAdmin // Pass the function to get admin addresses for newly created subnets
+        getNewlyCreatedSubnetAdmin, // Pass the function to get admin addresses for newly created subnets
+        baseBuilderNames, // Pass Base builder names
+        arbitrumBuilderNames // Pass Arbitrum builder names
       );
       
       // console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);
