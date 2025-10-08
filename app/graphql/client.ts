@@ -18,6 +18,39 @@ interface RequestCacheEntry<T> {
 const recentRequests = new Map<string, RequestCacheEntry<unknown>>();
 const DEBOUNCE_TIME = 2000; // 2 seconds debounce time
 
+// Gentle per-endpoint pacing and cooldown after 429s
+interface EndpointState {
+  lastRequestAt: number;
+  cooldownUntil: number;
+}
+
+const endpointState = new Map<string, EndpointState>();
+const MIN_INTERVAL_BETWEEN_REQUESTS_MS = 250; // smooth out bursts
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const getEndpointState = (endpoint: string): EndpointState => {
+  const state = endpointState.get(endpoint);
+  if (state) return state;
+  const initial: EndpointState = { lastRequestAt: 0, cooldownUntil: 0 };
+  endpointState.set(endpoint, initial);
+  return initial;
+};
+
+const maybeWaitForEndpointWindow = async (endpoint: string) => {
+  const state = getEndpointState(endpoint);
+  const now = Date.now();
+  // Respect cooldown window first
+  if (now < state.cooldownUntil) {
+    await sleep(state.cooldownUntil - now);
+  }
+  // Enforce a minimal spacing between requests to the same endpoint
+  const afterMinInterval = state.lastRequestAt + MIN_INTERVAL_BETWEEN_REQUESTS_MS;
+  if (now < afterMinInterval) {
+    await sleep(afterMinInterval - now);
+  }
+};
+
 // Utility function to get the current endpoint for a network
 export const getEndpointForNetwork = (network: string) => {
   // Check if we're on Arbitrum Sepolia
@@ -46,7 +79,7 @@ export const fetchGraphQL = async <T>(
   operationName: string,
   query: string, 
   variables: Record<string, unknown> = {},
-  maxRetries = 3,
+  maxRetries = 5,
   initialBackoff = 1000
 ): Promise<T> => {
   let retries = 0;
@@ -72,6 +105,9 @@ export const fetchGraphQL = async <T>(
 
   const executeRequest = async (): Promise<T> => {
     try {
+      // Pace requests to this endpoint to avoid bursty 429s
+      await maybeWaitForEndpointWindow(endpoint);
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -88,14 +124,34 @@ export const fetchGraphQL = async <T>(
       if (response.status === 429) {
         if (retries < maxRetries) {
           retries++;
-          console.log(`Rate limited. Retrying in ${backoff}ms... (${retries}/${maxRetries})`);
-          
-          // Wait for backoff period
-          await new Promise(resolve => setTimeout(resolve, backoff));
-          
-          // Exponential backoff
+          // Respect Retry-After header if present
+          const retryAfterHeader = response.headers.get('Retry-After');
+          let retryAfterMs = 0;
+          if (retryAfterHeader) {
+            const parsedSeconds = Number(retryAfterHeader);
+            if (!Number.isNaN(parsedSeconds)) {
+              retryAfterMs = parsedSeconds * 1000;
+            } else {
+              const dateMs = Date.parse(retryAfterHeader);
+              if (!Number.isNaN(dateMs)) {
+                retryAfterMs = Math.max(0, dateMs - Date.now());
+              }
+            }
+          }
+
+          // Use the larger of our exponential backoff or server-provided value, add jitter
+          const jitter = Math.floor(Math.random() * 250);
+          const waitMs = Math.max(backoff, retryAfterMs) + jitter;
+          console.log(`Rate limited. Retrying in ${waitMs}ms... (${retries}/${maxRetries})`);
+
+          // Set endpoint cooldown and wait
+          const state = getEndpointState(endpoint);
+          state.cooldownUntil = Date.now() + waitMs;
+          await sleep(waitMs);
+
+          // Exponential backoff increase for next time
           backoff *= 2;
-          
+
           // Try again
           return executeRequest();
         } else {
@@ -120,6 +176,11 @@ export const fetchGraphQL = async <T>(
         console.warn('GraphQL response missing data property');
       }
       
+      // Update pacing info on success
+      const state = getEndpointState(endpoint);
+      state.lastRequestAt = Date.now();
+      state.cooldownUntil = Math.max(state.cooldownUntil, state.lastRequestAt);
+
       return result;
     } catch (error) {
       console.error('Error fetching GraphQL data:', error);
