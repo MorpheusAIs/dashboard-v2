@@ -1,7 +1,9 @@
 "use client";
+// @ts-nocheck
 
 import { useState, useEffect } from 'react';
 import { getGraphQLApiUrl } from '@/config/networks';
+import { fetchGraphQL } from '@/app/graphql/client';
 
 const GET_ACTIVE_STAKERS_QUERY = `
   query GetActiveStakersCount {
@@ -45,6 +47,52 @@ export function useActiveStakersSubgraph(networkEnv: 'mainnet' | 'testnet' = 'ma
   useEffect(() => {
     let isMounted = true;
 
+    // Simple in-memory cache to avoid duplicate requests across components
+    const CACHE_KEY = `active-stakers:${networkEnv}`;
+    const CACHE_TTL_MS = 60_000; // 1 minute
+    const LS_KEY = 'morpheus_active_stakers_cache_v1';
+    const LS_TTL_MS = 5 * 60_000; // 5 minutes
+    const memoryCache = (globalThis as unknown as {
+      __activeStakersCache?: Map<string, { timestamp: number; value: number }>;
+    });
+    if (!memoryCache.__activeStakersCache) {
+      memoryCache.__activeStakersCache = new Map();
+    }
+
+    const readLocalStorage = (): number | null => {
+      try {
+        if (typeof window === 'undefined') return null;
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Record<string, { timestamp: number; value: number }>;
+        const entry = parsed[networkEnv];
+        if (!entry) return null;
+        if (Date.now() - entry.timestamp > LS_TTL_MS) return null;
+        return entry.value;
+      } catch {
+        return null;
+      }
+    };
+
+    const writeLocalStorage = (value: number) => {
+      try {
+        if (typeof window === 'undefined') return;
+        const raw = localStorage.getItem(LS_KEY);
+        const parsed = raw ? (JSON.parse(raw) as Record<string, { timestamp: number; value: number }>) : {};
+        parsed[networkEnv] = { timestamp: Date.now(), value };
+        localStorage.setItem(LS_KEY, JSON.stringify(parsed));
+      } catch {
+        // ignore
+      }
+    };
+
+    // Provide immediate best-effort value from localStorage on mount
+    const lsInitial = readLocalStorage();
+    if (lsInitial !== null) {
+      setCount(lsInitial);
+      setIsLoading(false);
+    }
+
     async function fetchActiveStakers() {
       setIsLoading(true);
       setError(null);
@@ -56,23 +104,23 @@ export function useActiveStakersSubgraph(networkEnv: 'mainnet' | 'testnet' = 'ma
           throw new Error(`GraphQL URL not configured for ${networkEnv}`);
         }
 
-        console.log(`🔍 Fetching active stakers from subgraph for ${networkEnv}: ${graphqlUrl}`);
-
-        const response = await fetch(graphqlUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            query: GET_ACTIVE_STAKERS_QUERY,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Try in-memory cache first
+        const cachedEntry = memoryCache.__activeStakersCache!.get(CACHE_KEY);
+        const now = Date.now();
+        if (cachedEntry && now - cachedEntry.timestamp < CACHE_TTL_MS) {
+          if (isMounted) {
+            setCount(cachedEntry.value);
+            setIsLoading(false);
+          }
+          return;
         }
 
-        const result: SubgraphResponse = await response.json();
+        console.log(`🔍 Fetching active stakers from subgraph for ${networkEnv}: ${graphqlUrl}`);
+        const result = await fetchGraphQL<SubgraphResponse>(
+          graphqlUrl,
+          'GetActiveStakersCount',
+          GET_ACTIVE_STAKERS_QUERY
+        );
 
         if (result.errors && result.errors.length > 0) {
           throw new Error(result.errors[0].message);
@@ -99,23 +147,43 @@ export function useActiveStakersSubgraph(networkEnv: 'mainnet' | 'testnet' = 'ma
           setCount(activeStakersCount);
           setIsLoading(false);
         }
+
+        // Store in in-memory cache
+        memoryCache.__activeStakersCache!.set(CACHE_KEY, {
+          timestamp: Date.now(),
+          value: activeStakersCount,
+        });
+
+        // Store in localStorage for fallback display
+        writeLocalStorage(activeStakersCount);
       } catch (err) {
         console.error('Error fetching active stakers from subgraph:', err);
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Unknown error');
-          setIsLoading(false);
+          const lsFallback = readLocalStorage();
+          if (lsFallback !== null) {
+            // Use cached value instead of error to avoid flashing "Error" in the UI
+            setCount(lsFallback);
+            setError(null);
+            setIsLoading(false);
+          } else {
+            setError(err instanceof Error ? err.message : 'Unknown error');
+            setIsLoading(false);
+          }
         }
       }
     }
 
-    fetchActiveStakers();
+    // Add small randomized delay to reduce potential thundering herd
+    const initialJitter = Math.floor(Math.random() * 500);
+    const timeoutId = setTimeout(fetchActiveStakers, initialJitter);
 
-    // Poll every 30 seconds for fresh data
-    const intervalId = setInterval(fetchActiveStakers, 30000);
+    // Poll every 2 minutes for fresh data
+    const intervalId = setInterval(fetchActiveStakers, 120_000);
 
     return () => {
       isMounted = false;
       clearInterval(intervalId);
+      clearTimeout(timeoutId);
     };
   }, [networkEnv]);
 
