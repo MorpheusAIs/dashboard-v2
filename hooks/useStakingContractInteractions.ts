@@ -653,32 +653,13 @@ export const useStakingContractInteractions = ({
       // Parse the amount to approve
       const parsedAmount = parseEther(amount);
       
-      // Enhanced approval strategy for Base network
-      let approvalAmount: bigint;
+      // Use exact amount requested by user for all networks
+      const approvalAmount = parsedAmount;
       
-      if (networkChainId === 8453) {
-        // Base network: Approve a higher amount to reduce frequent re-approvals
-        // Use 10x the stake amount or minimum 1000 tokens, whichever is higher
-        // Note: We still use enhanced approval amounts, but standard checking logic (fixed)
-        const tenTimesParsedAmount = parsedAmount * BigInt(10);
-        const minimumApproval = parseEther("1000"); // 1000 tokens minimum
-        approvalAmount = tenTimesParsedAmount > minimumApproval ? tenTimesParsedAmount : minimumApproval;
-        
-        console.log(`Base network: Using enhanced approval strategy:`, {
-          requestedAmount: formatEther(parsedAmount),
-          tenTimesAmount: formatEther(tenTimesParsedAmount),
-          minimumApproval: formatEther(minimumApproval),
-          finalApprovalAmount: formatEther(approvalAmount)
-        });
-      } else {
-        // Other networks: Use exact amount requested by user
-        approvalAmount = parsedAmount;
-        
-        console.log(`Standard network: Using exact approval amount:`, {
-          requestedAmount: formatEther(parsedAmount),
-          approvalAmount: formatEther(approvalAmount)
-        });
-      }
+      console.log(`Using exact approval amount:`, {
+        requestedAmount: formatEther(parsedAmount),
+        approvalAmount: formatEther(approvalAmount)
+      });
       
       console.log(`Requesting approval for ${formatEther(approvalAmount)} ${tokenSymbol} to ${contractAddress}`);
       console.log("Using token contract:", tokenAddress);
