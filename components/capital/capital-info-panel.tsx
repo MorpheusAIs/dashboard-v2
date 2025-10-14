@@ -163,13 +163,15 @@ export function CapitalInfoPanel() {
                     }`}>
                       {(() => {
                         const assetPoolData = poolData.assets[asset.symbol as AssetSymbol];
-                        if (assetPoolData?.isLoading) {
+                        // Show skeleton if no data, loading, or APR is still 'N/A' (calculating)
+                        if (!assetPoolData || assetPoolData.isLoading || assetPoolData.apr === 'N/A') {
                           return <Skeleton className="h-4 w-12 bg-gray-700 mx-auto" />;
                         }
-                        if (assetPoolData?.error) {
+                        if (assetPoolData.error) {
                           return <span className="text-red-400 text-xs">Error</span>;
                         }
-                        return asset.apr;
+                        // Show valid APR values (percentage or "Coming Soon")
+                        return assetPoolData.apr;
                       })()}
                     </div>
 
@@ -179,16 +181,17 @@ export function CapitalInfoPanel() {
                     }`}>
                       {(() => {
                         const assetPoolData = poolData.assets[asset.symbol as AssetSymbol];
-                        if (assetPoolData?.isLoading) {
+                        // Show skeleton if no data, loading, or value is '0' (still fetching)
+                        if (!assetPoolData || assetPoolData.isLoading || assetPoolData.totalStaked === '0') {
                           return <Skeleton className="h-4 w-12 bg-gray-700" />;
                         }
-                        if (assetPoolData?.error) {
+                        if (assetPoolData.error) {
                           return <span className="text-red-400 text-xs">Error</span>;
                         }
-                        if (asset.totalStaked === 'N/A') {
+                        if (assetPoolData.totalStaked === 'N/A') {
                           return 'N/A';
                         }
-                        const parsedValue = parseStakedAmount(asset.totalStaked);
+                        const parsedValue = parseStakedAmount(assetPoolData.totalStaked);
 
                         // Use NumberFlow's format prop for proper decimal display
                         let formatOptions: Format = {};
