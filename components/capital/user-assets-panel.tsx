@@ -25,7 +25,6 @@ import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAuth } from "@/context/auth-context";
 import { useWalletCacheManager } from "@/hooks/use-wallet-cache-manager";
 
-
 // Promotional banner component
 const PromotionalBanner = () => (
   <div className="px-4 py-2 bg-emerald-400/10 border-2 border-emerald-400 rounded-xl animate-pulse">
@@ -611,6 +610,7 @@ export function UserAssetsPanel() {
               <div className="flex justify-center mb-4 sm:hidden">
                 <PromotionalBanner />
               </div>
+
               {/* Header with title and stake button */}
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-white">My Position</h2>
@@ -619,7 +619,7 @@ export function UserAssetsPanel() {
                 <div className="hidden sm:flex flex-col items-center justify-center mx-4">
                   <PromotionalBanner />
                 </div>
-                
+
                 <div className="flex flex-row items-center space-x-2">
                   {hasStakedAssets ? (
                     <button

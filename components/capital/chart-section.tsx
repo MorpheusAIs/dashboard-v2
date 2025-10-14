@@ -149,7 +149,7 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative', m
   const {
     totalValueLockedUSD,
     currentDailyRewardMOR,
-    avgApyRate, // Temporarily commented out with APR metric card
+    avgAprRate, // Weighted average APR across all assets
     activeStakers,
     isLoading: metricsLoading,
     error: metricsError,
@@ -249,11 +249,11 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative', m
   })();
 
   // Use manual formula, Morlord data, or default approach based on flags
-  const displayApyRate = manual_formula
+  const displayAprRate = manual_formula
     ? (manualApr !== null ? `${manualApr}%` : undefined)
     : (isMorlordData
         ? (morlordApr !== null ? `${morlordApr.toFixed(2)}%` : undefined)
-        : avgApyRate);
+        : avgAprRate);
 
   const metricCards = [
     {
@@ -274,10 +274,10 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative', m
       disableGlow: true,
       isGreen: true,
     },
-    // Temporarily commented out - Avg. APR Rate metric card
+    // Weighted average APR across all assets
     {
       title: "Avg. APR Rate",
-      value: displayApyRate,
+      value: displayAprRate,
       label: "%",
       autoFormatNumbers: false,
       className: "",

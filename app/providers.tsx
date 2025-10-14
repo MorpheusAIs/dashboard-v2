@@ -22,10 +22,10 @@ const queryClient = new QueryClient({
   },
 });
 
-export function Providers({ 
+export function Providers({
   children,
   initialState // For Web3Providers
-}: { 
+}: {
   children: React.ReactNode;
   initialState?: State | undefined; // Changed from any to State | undefined
 }) {
@@ -35,14 +35,14 @@ export function Providers({
         <ComputeProvider>
           <BuildersProvider>
             <AuthProvider>
-              {/* 
+              {/*
                 If RootLayoutContent itself has server-only dependencies or is complex,
                 it might be better to keep it in layout.tsx and pass {children} directly.
                 For now, let's assume it's primarily client-side UI structure.
                 If issues persist, we might pass {children} directly to AuthProvider
                 and keep RootLayoutContent in layout.tsx.
               */}
-              {children} 
+              {children}
               <Toaster />
             </AuthProvider>
           </BuildersProvider>

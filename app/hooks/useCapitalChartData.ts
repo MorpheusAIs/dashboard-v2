@@ -375,12 +375,6 @@ export function useCapitalChartData() {
               const interactionData = result.data[dayKey]?.[0];
               let currentTotalStakedWei = lastTotalStakedWei;
 
-              console.log(`🔍 ${batchQuery.asset} day ${index} (${dayKey}):`, {
-                hasInteractionData: !!interactionData,
-                totalStaked: interactionData?.totalStaked,
-                blockTimestamp: interactionData?.blockTimestamp
-              });
-
               if (interactionData?.totalStaked) {
                 try {
                   currentTotalStakedWei = ethers.BigNumber.from(interactionData.totalStaked);

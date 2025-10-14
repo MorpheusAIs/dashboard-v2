@@ -35,9 +35,7 @@ export const apolloClients = {
         uri: NETWORK_ENDPOINTS.Arbitrum,
       }),
     ]),
-    cache: new InMemoryCache({
-      addTypename: false
-    }),
+    cache: new InMemoryCache(),
     queryDeduplication: false,
     defaultOptions: {
       query: {
@@ -53,9 +51,7 @@ export const apolloClients = {
         uri: NETWORK_ENDPOINTS.ArbitrumSepolia,
       }),
     ]),
-    cache: new InMemoryCache({
-      addTypename: false
-    }),
+    cache: new InMemoryCache(),
     queryDeduplication: false,
     defaultOptions: {
       query: {
@@ -71,9 +67,7 @@ export const apolloClients = {
         uri: NETWORK_ENDPOINTS.Base,
       }),
     ]),
-    cache: new InMemoryCache({
-      addTypename: false
-    }),
+    cache: new InMemoryCache(),
     queryDeduplication: false,
     defaultOptions: {
       query: {
@@ -89,9 +83,7 @@ export const apolloClients = {
         uri: NETWORK_ENDPOINTS.CapitalV2Sepolia,
       }),
     ]),
-    cache: new InMemoryCache({
-      addTypename: false
-    }),
+    cache: new InMemoryCache(),
     queryDeduplication: false,
     defaultOptions: {
       query: {

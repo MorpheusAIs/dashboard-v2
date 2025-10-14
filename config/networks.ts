@@ -61,7 +61,7 @@ export interface ChainConfig extends Omit<Chain, 'rpcUrls'> {
 
 // Mainnet RPC configurations for better reliability
 const mainnetRpcUrls = [
-  'https://eth-mainnet.g.alchemy.com/v2/ZuAAStm6GwtaIo5vTSy9a'
+  process.env.NEXT_PUBLIC_ALCHEMY_MAINNET_RPC_URL || ''
 ];
 
 // Helper to ensure string arrays for RPC URLs
