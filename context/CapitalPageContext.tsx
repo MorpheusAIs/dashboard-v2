@@ -83,7 +83,7 @@ interface ReferralData {
   referralAmountsByAsset: ReferralAmountByAsset[];
   isLoadingReferralData: boolean;
   rewardsByAsset: Partial<Record<AssetSymbol, bigint>>;
-  referrerDetailsByAsset: Record<string, ReferralContractData>;
+  referrerDetailsByAsset: Partial<Record<AssetSymbol, ReferralContractData | null>>;
   assetsWithClaimableRewards: AssetSymbol[];
   availableReferralAssets: AssetSymbol[];
   stETHReferralRewards: bigint;
