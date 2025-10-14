@@ -22,17 +22,15 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🎯 [DAILY EMISSIONS API] Starting daily emissions fetch...');
 
-    // Get network environment from query params
+    // Get network environment from query params, default to mainnet for safety
     const searchParams = request.nextUrl.searchParams;
-    const networkEnv = searchParams.get('networkEnv') as NetworkEnvironment;
+    const networkEnvParam = searchParams.get('networkEnv') || searchParams.get('network');
+    const networkEnv = (networkEnvParam === 'testnet' ? 'testnet' : 'mainnet') as NetworkEnvironment;
 
-    if (!networkEnv || (networkEnv !== 'mainnet' && networkEnv !== 'testnet')) {
-      console.log('❌ Invalid network environment:', networkEnv);
-      return NextResponse.json(
-        { error: 'Invalid or missing network environment. Must be "mainnet" or "testnet"' },
-        { status: 400 }
-      );
-    }
+    console.log('🌐 [DAILY EMISSIONS API] Network environment:', {
+      param: networkEnvParam,
+      resolved: networkEnv
+    });
 
     // Check cache first
     const now = Date.now();
