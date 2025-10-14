@@ -1,5 +1,5 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
-import { cookieStorage, createStorage } from 'wagmi';
+import { cookieStorage, createStorage, http } from 'wagmi';
 import { mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
 // import { NetworkEnvironment } from './networks';
 
@@ -27,6 +27,14 @@ export const getWagmiConfig = () => {
     storage: createStorage({
       storage: cookieStorage
     }),
+    // ✅ CRITICAL: Explicitly configure transports to use Alchemy for mainnet (archive RPC)
+    transports: {
+      [mainnet.id]: http('https://eth-mainnet.g.alchemy.com/v2/ZuAAStm6GwtaIo5vTSy9a'),
+      [arbitrum.id]: http(), // Use default for other chains
+      [base.id]: http(),
+      [arbitrumSepolia.id]: http(),
+      [sepolia.id]: http(),
+    },
     enableCoinbase: true,
     auth: {
       showWallets: true,
