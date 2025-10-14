@@ -1,109 +1,127 @@
 "use client";
 
-import { useQuery } from '@apollo/client';
-import { gql } from '@apollo/client';
+import { useState, useEffect } from 'react';
+import { getGraphQLApiUrl } from '@/config/networks';
 
-const GET_ACTIVE_STAKERS_COUNT = gql`
+const GET_ACTIVE_STAKERS_QUERY = `
   query GetActiveStakersCount {
-    # Get the global count from the pre-calculated entity
-    activeStakersCount(id: "global") {
-      activeStakers
-      lastUpdatedTimestamp
-    }
-    
-    # Backup: count directly from user stats if global count doesn't exist yet
-    userPoolStats(where: { isActiveStaker: true }, first: 1000) {
-      id
-      user
-      poolType
+    users(where: { staked_gt: "0" }, first: 1000) {
+      address
+      staked
+      depositPool
     }
   }
 `;
 
-interface UserPoolStat {
-  id: string;
-  user: string;
-  poolType: string;
+interface User {
+  address: string;
+  staked: string;
+  depositPool: string;
+}
+
+interface SubgraphResponse {
+  data?: {
+    users: User[];
+  };
+  errors?: Array<{ message: string }>;
 }
 
 export interface ActiveStakersData {
   count: number;
   isLoading: boolean;
   error: string | null;
-  lastUpdated?: string;
 }
 
 /**
  * Hook to fetch active stakers count from the subgraph
  * Much faster than Dune API (50-200ms vs 10-20 seconds)
+ * Uses the new subgraph query to fetch users with staked > 0
  */
-export function useActiveStakersSubgraph(): ActiveStakersData {
-  const { data, loading, error } = useQuery(GET_ACTIVE_STAKERS_COUNT, {
-    // Refresh every 30 seconds to get latest data
-    pollInterval: 30000,
-    // Cache for 10 seconds to reduce API calls
-    fetchPolicy: 'cache-first',
-    errorPolicy: 'all'
-  });
+export function useActiveStakersSubgraph(networkEnv: 'mainnet' | 'testnet' = 'mainnet'): ActiveStakersData {
+  const [count, setCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (loading) {
-    return {
-      count: 0,
-      isLoading: true,
-      error: null
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchActiveStakers() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const graphqlUrl = getGraphQLApiUrl(networkEnv);
+        
+        if (!graphqlUrl) {
+          throw new Error(`GraphQL URL not configured for ${networkEnv}`);
+        }
+
+        console.log(`🔍 Fetching active stakers from subgraph for ${networkEnv}: ${graphqlUrl}`);
+
+        const response = await fetch(graphqlUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: GET_ACTIVE_STAKERS_QUERY,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result: SubgraphResponse = await response.json();
+
+        if (result.errors && result.errors.length > 0) {
+          throw new Error(result.errors[0].message);
+        }
+
+        if (!result.data?.users) {
+          throw new Error('No data returned from subgraph');
+        }
+
+        // Deduplicate addresses and count unique users
+        const uniqueAddresses = new Set<string>();
+        
+        result.data.users.forEach((user: User) => {
+          // Add each address to the Set (automatically handles duplicates)
+          uniqueAddresses.add(user.address.toLowerCase());
+        });
+        
+        // Count the unique addresses
+        const activeStakersCount = uniqueAddresses.size;
+        
+        console.log(`📊 Active depositors: ${activeStakersCount} unique addresses from ${result.data.users.length} total entries`);
+
+        if (isMounted) {
+          setCount(activeStakersCount);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('Error fetching active stakers from subgraph:', err);
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Unknown error');
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchActiveStakers();
+
+    // Poll every 30 seconds for fresh data
+    const intervalId = setInterval(fetchActiveStakers, 30000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
     };
-  }
-
-  if (error) {
-    console.error('Error fetching active stakers from subgraph:', error);
-    return {
-      count: 0,
-      isLoading: false,
-      error: error.message
-    };
-  }
-
-  // Try to get count from pre-calculated entity first
-  let activeStakersCount = 0;
-  let lastUpdated: string | undefined;
-
-  if (data?.activeStakersCount) {
-    activeStakersCount = parseInt(data.activeStakersCount.activeStakers);
-    lastUpdated = new Date(parseInt(data.activeStakersCount.lastUpdatedTimestamp) * 1000).toISOString();
-  } else if (data?.userPoolStats) {
-    // Fallback: count unique users from user stats
-    const uniqueUsers = new Set();
-    data.userPoolStats.forEach((stat: UserPoolStat) => {
-      uniqueUsers.add(stat.user);
-    });
-    activeStakersCount = uniqueUsers.size;
-  }
+  }, [networkEnv]);
 
   return {
-    count: activeStakersCount,
-    isLoading: false,
-    error: null,
-    lastUpdated
+    count,
+    isLoading,
+    error,
   };
 }
-
-// Example usage in useCapitalMetrics:
-/*
-export function useCapitalMetrics(): CapitalMetrics {
-  const poolData = useCapitalPoolData();
-  const activeStakersData = useActiveStakersSubgraph();
-  
-  // ... other logic ...
-  
-  const activeStakers = poolData.networkEnvironment === 'testnet' 
-    ? (activeStakersData.isLoading ? "..." : activeStakersData.count.toString())
-    : "N/A";
-    
-  return {
-    // ... other metrics ...
-    activeStakers,
-    isLoading: poolData.assets.stETH?.isLoading || poolData.assets.LINK?.isLoading || isLoadingPrices,
-    // Note: Don't include activeStakersData.isLoading in main loading state
-  };
-}
-*/
