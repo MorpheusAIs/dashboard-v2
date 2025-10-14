@@ -38,6 +38,7 @@ import { getTransactionUrl, isMainnetChain } from "@/lib/utils/transaction-utils
 
 // Import hooks that provide refetch functions
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
 import { useReferralData, useReferrerSummary } from "@/hooks/use-referral-data";
 import { useAssetContractData } from "@/hooks/use-asset-contract-data";
 import { incrementLocalDepositorCount } from "@/app/hooks/useCapitalMetrics";
@@ -82,13 +83,13 @@ interface ReferralData {
   referralAmountsByAsset: ReferralAmountByAsset[];
   isLoadingReferralData: boolean;
   rewardsByAsset: Partial<Record<AssetSymbol, bigint>>;
-  referrerDetailsByAsset: Record<string, any>;
+  referrerDetailsByAsset: Record<string, ReferralContractData>;
   assetsWithClaimableRewards: AssetSymbol[];
   availableReferralAssets: AssetSymbol[];
   stETHReferralRewards: bigint;
   linkReferralRewards: bigint;
-  stETHReferralData: any;
-  linkReferralData: any;
+  stETHReferralData: ReferralContractData | null;
+  linkReferralData: ReferralContractData | null;
 }
 
 interface PoolLimitsData {
@@ -473,8 +474,42 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const rewardPoolV2Address = useMemo(() => getContractAddress(l1ChainId, 'rewardPoolV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const l1SenderV2Address = useMemo(() => getContractAddress(l1ChainId, 'l1SenderV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
 
+  // --- Clear Stale Price Cache on Mount ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const cached = localStorage.getItem('morpheus_token_prices');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // If MOR price is suspiciously low (< $0.50), clear the cache
+        if (parsed.morPrice && parsed.morPrice < 0.5) {
+          console.log('🧹 Clearing stale price cache (morPrice too low):', parsed.morPrice);
+          localStorage.removeItem('morpheus_token_prices');
+        }
+        // If cache is older than 24 hours, clear it
+        const cacheAge = Date.now() - (parsed.timestamp || 0);
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        if (cacheAge > oneDayMs) {
+          console.log('🧹 Clearing expired price cache (age: ' + Math.floor(cacheAge / 1000 / 60 / 60) + 'h)');
+          localStorage.removeItem('morpheus_token_prices');
+        }
+      }
+    } catch (error) {
+      console.warn('Error checking price cache:', error);
+    }
+  }, []); // Run once on mount
+
+  // --- Get MOR Price for APR Calculation ---
+  const { morPrice } = useTokenPrices({
+    isInitialLoad: true,
+    shouldRefreshData: false,
+    userAddress: undefined,
+    networkEnv: networkEnv
+  });
+
   // --- Pool Data Hook with Refetch Functions ---
-  const capitalPoolData = useCapitalPoolData();
+  const capitalPoolData = useCapitalPoolData({ morPrice: morPrice || undefined });
   
   // --- Referral Data Hook (GraphQL) ---
   const liveReferralData = useReferralData({
@@ -2129,11 +2164,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       .filter((config) => (referralRewardsByAsset[config.symbol] ?? BigInt(0)) > BigInt(0))
       .map((config) => config.symbol);
     const totalClaimableRewards = referralAssetConfigs.reduce((sum, config) => {
-      const reward = referralRewardsByAsset[config.symbol] ?? BigInt(0);
-      return sum + reward;
-    }, BigInt(0));
-    const totalLifetimeValue = referralAssetConfigs.reduce((sum, config) => {
-      // Use actual MOR rewards from getLatestReferrerReward (tier multiplier already applied)
       const reward = referralRewardsByAsset[config.symbol] ?? BigInt(0);
       return sum + reward;
     }, BigInt(0));
