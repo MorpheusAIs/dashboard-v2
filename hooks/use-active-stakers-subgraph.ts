@@ -101,7 +101,7 @@ export function useActiveStakersSubgraph(): ActiveStakersData {
 
         const activeStakersCount = data.active_stakers || 0;
 
-        console.log(`📊 Active depositors from server API: ${activeStakersCount} for ${networkEnv}`);
+        console.log(`📊 Active depositors from server API: ${activeStakersCount} for mainnet`);
 
         if (isMounted) {
           setCount(activeStakersCount);
