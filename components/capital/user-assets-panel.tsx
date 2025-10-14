@@ -25,6 +25,15 @@ import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAuth } from "@/context/auth-context";
 import { useWalletCacheManager } from "@/hooks/use-wallet-cache-manager";
 
+// Promotional banner component
+const PromotionalBanner = () => (
+  <div className="px-4 py-2 bg-emerald-400/10 border-2 border-emerald-400 rounded-xl animate-pulse">
+    <span className="text-emerald-400 font-medium text-sm animate-bounce">
+      New deposits: Claim lock for rewards is 7 days only for a limited time!
+    </span>
+  </div>
+);
+
 // Type for modal actions that can be triggered from dropdowns
 type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "lockMorRewards" | "claimMorRewards";
 
@@ -597,9 +606,20 @@ export function UserAssetsPanel() {
           <div className="section-content group relative px-1 py-4 sm:p-6">
             <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent" />
             <div className="p-4 md:p-6">
+              {/* Promotional banner - mobile only (above header) */}
+              <div className="flex justify-center mb-4 sm:hidden">
+                <PromotionalBanner />
+              </div>
+
               {/* Header with title and stake button */}
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold text-white">My Position</h2>
+
+                {/* Promotional banner - desktop only (center position) */}
+                <div className="hidden sm:flex flex-col items-center justify-center mx-4">
+                  <PromotionalBanner />
+                </div>
+
                 <div className="flex flex-row items-center space-x-2">
                   {hasStakedAssets ? (
                     <button
