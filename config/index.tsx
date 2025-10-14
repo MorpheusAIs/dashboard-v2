@@ -7,6 +7,10 @@ export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
 
 if (!projectId) throw new Error('Project ID is not defined');
 
+const alchemyMainnetRpcUrl = process.env.NEXT_PUBLIC_ALCHEMY_MAINNET_RPC_URL;
+
+if (!alchemyMainnetRpcUrl) throw new Error('Alchemy Mainnet RPC URL is not defined');
+
 const metadata = {
   name: 'Morpheus Dashboard',
   description: 'Morpheus Dashboard',
@@ -29,7 +33,7 @@ export const getWagmiConfig = () => {
     }),
     // ✅ CRITICAL: Explicitly configure transports to use Alchemy for mainnet (archive RPC)
     transports: {
-      [mainnet.id]: http('https://eth-mainnet.g.alchemy.com/v2/ZuAAStm6GwtaIo5vTSy9a'),
+      [mainnet.id]: http(alchemyMainnetRpcUrl),
       [arbitrum.id]: http(), // Use default for other chains
       [base.id]: http(),
       [arbitrumSepolia.id]: http(),
