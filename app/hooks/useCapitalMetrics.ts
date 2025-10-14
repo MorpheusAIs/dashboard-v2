@@ -213,7 +213,7 @@ export function useCapitalMetrics(): CapitalMetrics {
   // Get pool data with MOR price for accurate APR calculation
   const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
 
-  // State for active stakers from Dune API (both testnet and mainnet)
+  // State for active stakers from server-side ISR API (server handles subgraph queries)
   const [activeStakersCount, setActiveStakersCount] = useState<number | null>(null);
   const [isLoadingActiveStakers, setIsLoadingActiveStakers] = useState<boolean>(false);
   const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
@@ -225,7 +225,7 @@ export function useCapitalMetrics(): CapitalMetrics {
   const [dailyEmissionsError, setDailyEmissionsError] = useState<string | null>(null);
 
 
-  // Fetch active stakers count from Dune API with caching and retry logic
+  // Fetch active stakers count from server-side ISR API with caching and retry logic
   useEffect(() => {
     // Skip if running on server (SSR)
     if (typeof window === 'undefined') {
@@ -253,13 +253,11 @@ export function useCapitalMetrics(): CapitalMetrics {
       setRetryAttempts(attemptNumber);
       
       try {
-        // Determine which endpoint to call based on network environment
-        const endpoint = poolData.networkEnvironment === 'testnet' 
-          ? '/api/dune/active-stakers-testnet'
-          : '/api/dune/active-stakers-mainnet';
-        
-        console.log(`🔍 [FRONTEND] Fetching active stakers for ${poolData.networkEnvironment} from ${endpoint} (attempt ${attemptNumber}/${MAX_RETRY_ATTEMPTS})`);
-        
+        // Use server-side ISR API for active stakers (server always uses mainnet for active stakers data)
+        const endpoint = `/api/subgraph/active-stakers`;
+
+        console.log(`🔍 [FRONTEND] Fetching active stakers from ${endpoint} (attempt ${attemptNumber}/${MAX_RETRY_ATTEMPTS}) - always mainnet data`);
+
         const response = await fetch(endpoint);
         
         if (!response.ok) {
@@ -280,7 +278,7 @@ export function useCapitalMetrics(): CapitalMetrics {
           setActiveStakersCount(data.active_stakers);
           setActiveStakersError(null);
           setRetryAttempts(0);
-          console.log(`✅ [FRONTEND] Active stakers count set and cached (${data.network}):`, data.active_stakers);
+          console.log(`✅ [FRONTEND] Active stakers count set and cached (mainnet):`, data.active_stakers);
         } else {
           console.log('❌ [FRONTEND] API returned failure:', data.error || 'Invalid response format');
           throw new Error(data.error || 'Invalid response format');
