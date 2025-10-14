@@ -174,7 +174,7 @@ const incrementLocalDepositorCount = (networkEnv: string): void => {
 export interface CapitalMetrics {
   totalValueLockedUSD: string;
   currentDailyRewardMOR: string;
-  avgApyRate: string;
+  avgAprRate: string; // Renamed from avgApyRate - we calculate weighted average APR, not APY
   activeStakers: string;
   isLoading: boolean;
   error: string | null;
@@ -195,9 +195,7 @@ export interface CapitalMetrics {
 export { incrementLocalDepositorCount };
 
 export function useCapitalMetrics(): CapitalMetrics {
-  const poolData = useCapitalPoolData();
-
-  // Use shared token prices hook - gets all asset prices from DefiLlama API
+  // Get token prices first (needed for APR calculation in poolData)
   const { 
     stethPrice, 
     linkPrice, 
@@ -209,8 +207,11 @@ export function useCapitalMetrics(): CapitalMetrics {
     isInitialLoad: true,
     shouldRefreshData: false,
     userAddress: undefined,
-    networkEnv: poolData.networkEnvironment || 'mainnet'
+    networkEnv: 'mainnet' // Default to mainnet, will be refined by poolData
   });
+
+  // Get pool data with MOR price for accurate APR calculation
+  const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
 
   // State for active stakers from Dune API (both testnet and mainnet)
   const [activeStakersCount, setActiveStakersCount] = useState<number | null>(null);
@@ -447,7 +448,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       return {
         totalValueLockedUSD: "...",
         currentDailyRewardMOR: "...",
-        avgApyRate: "...%",
+        avgAprRate: "...%",
         isLoading: true,
         error: null
       };
@@ -463,10 +464,10 @@ export function useCapitalMetrics(): CapitalMetrics {
       const availableData = supportedAssets.reduce((acc, assetSymbol) => {
         acc[assetSymbol] = {
           totalStaked: poolData.assets[assetSymbol]?.totalStaked,
-          apy: poolData.assets[assetSymbol]?.apy
+          apr: poolData.assets[assetSymbol]?.apr
         };
         return acc;
-      }, {} as Record<AssetSymbol, { totalStaked?: string; apy?: string }>);
+      }, {} as Record<AssetSymbol, { totalStaked?: string; apr?: string }>);
 
       console.warn('⚠️ Partial error in capital metrics, attempting calculation with available data:', {
         errors: errorDetails,
@@ -488,7 +489,7 @@ export function useCapitalMetrics(): CapitalMetrics {
           return {
             totalValueLockedUSD: `${cachedTVL.totalValueLockedUSD} (cached)`,
             currentDailyRewardMOR: "Error",
-            avgApyRate: "Error",
+            avgAprRate: "Error",
             isLoading: false,
             error: hasError.toString()
           };
@@ -497,7 +498,7 @@ export function useCapitalMetrics(): CapitalMetrics {
         return {
           totalValueLockedUSD: "Error",
           currentDailyRewardMOR: "Error",
-          avgApyRate: "Error",
+          avgAprRate: "Error",
           isLoading: false,
           error: hasError.toString()
         };
@@ -564,29 +565,29 @@ export function useCapitalMetrics(): CapitalMetrics {
       }
     });
 
-    // Calculate average APY (weighted by USD value) dynamically
-    let avgApy = 0;
+    // Calculate average APR (weighted by USD value) dynamically
+    let avgApr = 0;
     if (totalValueLockedUSD > 0) {
-      let weightedApySum = 0;
+      let weightedAprSum = 0;
 
       supportedAssets.forEach(assetSymbol => {
         const assetData = poolData.assets[assetSymbol];
         if (!assetData || !assetUSDValues[assetSymbol]) return;
 
-        // Skip assets with no APY data or 'N/A' values
-        if (!assetData.apy || assetData.apy === 'N/A' || assetData.apy === 'Coming Soon') {
+        // Skip assets with no APR data or 'N/A' values
+        if (!assetData.apr || assetData.apr === 'N/A' || assetData.apr === 'Coming Soon') {
           return;
         }
 
-        const apyNum = parseFloat((assetData.apy || '0%').replace('%', ''));
-        if (isNaN(apyNum) || apyNum <= 0) return;
+        const aprNum = parseFloat((assetData.apr || '0%').replace('%', ''));
+        if (isNaN(aprNum) || aprNum <= 0) return;
 
         const weight = assetUSDValues[assetSymbol] / totalValueLockedUSD;
 
-        weightedApySum += apyNum * weight;
+        weightedAprSum += aprNum * weight;
       });
 
-      avgApy = weightedApySum;
+      avgApr = weightedAprSum;
     }
 
     // Calculate LIVE daily MOR emissions from server-side API (both networks) dynamically
@@ -718,7 +719,7 @@ export function useCapitalMetrics(): CapitalMetrics {
     return {
       totalValueLockedUSD: totalValueLockedUSDDisplay,
       currentDailyRewardMOR,
-      avgApyRate: `${avgApy.toFixed(2)}%`,
+      avgAprRate: `${avgApr.toFixed(2)}%`,
       isLoading,
       error: null
     };
