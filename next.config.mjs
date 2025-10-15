@@ -28,6 +28,7 @@ const nextConfig = {
     return config
   },
   // Configure build output directory
+  // Test discord webhook
   distDir: '.next',
   pageExtensions: ['tsx', 'ts', 'jsx', 'js', 'mdx'],
 };
