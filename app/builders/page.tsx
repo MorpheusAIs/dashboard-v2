@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { MetricCard } from "@/components/metric-card";
+import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -23,7 +23,6 @@ import {
 import { Builder } from "@/app/builders/builders-data";
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
-import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
@@ -1160,63 +1159,35 @@ export default function BuildersPage() {
 
   return (
     <div className="page-container">
-      <div className="page-grid">
-        <div className="relative">
-          <MetricCard
-            title="Total Staked"
-            metrics={[{ value: totalMetrics.totalStaked, label: "MOR" }]}
-            disableGlow={true}
-            autoFormatNumbers={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <MetricCardMinimal
+          title="Total Staked"
+          value={totalMetrics.totalStaked || 0}
+          label="MOR"
+          autoFormatNumbers={true}
+          disableGlow={false}
+        />
 
-        <div className="relative">
-          <MetricCard
-            title="Active Builders"
-            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
-            disableGlow={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
+        <MetricCardMinimal
+          title="Active Builders"
+          value={totalMetrics.totalBuilders || 0}
+          label="Subnets"
+          disableGlow={false}
+        />
 
+        <MetricCardMinimal
+          title="Stakers"
+          value={totalMetrics.totalStaking || 0}
+          label="Staking"
+          disableGlow={false}
+        />
 
-        <div className="relative col-span-2">
-          <MetricCard
-            className="col-span-2"
-            title="Community Stats"
-            metrics={[
-              { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
-              { value: avgMorStakedPerUser, label: "Avg MOR / Staker" }
-            ]}
-            disableGlow={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
+        <MetricCardMinimal
+          title="Avg. stake by user"
+          value={avgMorStakedPerUser || "0"}
+          label="MOR"
+          disableGlow={false}
+        />
       </div>
 
       <div className="page-section">
