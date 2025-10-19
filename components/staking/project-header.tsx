@@ -1,8 +1,6 @@
 import Image from "next/image";
 import { NetworkIcon } from '@web3icons/react';
 import { ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { useState } from "react";
 import { EditSubnetModal } from "./edit-subnet-modal";
 import { Builder } from "@/app/builders/builders-data";
@@ -78,9 +76,6 @@ export function ProjectHeader({
   networks = ['Base'],
   website,
   rewardType,
-  backButton = false,
-  onBack,
-  backPath,
   children,
   builder,
   showEditButton = false,
@@ -108,70 +103,10 @@ export function ProjectHeader({
 
   // Generate project default icon from name
   const firstLetter = name.charAt(0);
-  
-  // Render back button if needed
-  const renderBackButton = () => {
-    if (!backButton) return null;
-    
-    if (backPath) {
-      return (
-        <Link href={backPath}>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9 rounded-full mr-3"
-          >
-            <span className="sr-only">Go back</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="size-4"
-            >
-              <path d="m15 18-6-6 6-6" />
-            </svg>
-          </Button>
-        </Link>
-      );
-    }
-    
-    return (
-      <Button
-        variant="outline"
-        size="icon"
-        className="size-9 rounded-full mr-3"
-        onClick={onBack}
-      >
-        <span className="sr-only">Go back</span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="size-4"
-        >
-          <path d="m15 18-6-6 6-6" />
-        </svg>
-      </Button>
-    );
-  };
 
   return (
     <>
       <div className="flex items-start gap-6">
-        {renderBackButton()}
-        
         <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
           {hasValidImage ? (
             <div className="relative size-24">
