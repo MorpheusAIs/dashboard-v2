@@ -20,7 +20,7 @@ import { useChainId, useAccount, useReadContract } from 'wagmi';
 import { useAuth } from "@/context/auth-context";
 import { useNetwork } from "@/context/network-context";
 import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
-import { MetricCard } from "@/components/metric-card";
+import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import BuildersAbi from '@/app/abi/Builders.json';
 import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
 import { useStakingContractInteractions, type UseStakingContractInteractionsProps } from "@/hooks/useStakingContractInteractions";
@@ -857,63 +857,37 @@ export default function BuilderPage() {
         />
 
         {/* Staking Stats */}
-        <div className={`grid grid-cols-1 md:grid-cols-4 gap-4`}>
-          <div className="relative md:col-span-2">
-            <MetricCard
-              title="Builder Stats (MOR)"
-              metrics={[
-                { value: builder.totalStaked, label: "Staked" },
-                { value: builder.totalClaimed || 0, label: "Claimed" }
-              ]}
-              autoFormatNumbers={true}
-            />
-            <GlowingEffect 
-              spread={40}
-              glow={true}
-              disabled={false}
-              proximity={64}
-              inactiveZone={0.01}
-              borderWidth={2}
-              borderRadius="rounded-xl"
-            />
-          </div>
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4`}>
+          <MetricCardMinimal
+            title="Total Staked"
+            value={builder.totalStaked || 0}
+            label="MOR"
+            autoFormatNumbers={true}
+            disableGlow={false}
+          />
           
-          <div className="relative">
-            <MetricCard
-              title="Users staking"
-              metrics={[{ value: builder.stakingCount || 0, label: "All time" }]}
-              autoFormatNumbers={true}
-            />
-            <GlowingEffect 
-              spread={40}
-              glow={true}
-              disabled={false}
-              proximity={64}
-              inactiveZone={0.01}
-              borderWidth={2}
-              borderRadius="rounded-xl"
-            />
-          </div>
+          <MetricCardMinimal
+            title="Total Claimed"
+            value={builder.totalClaimed || 0}
+            label="MOR"
+            autoFormatNumbers={true}
+            disableGlow={false}
+          />
           
-          <div className="relative">
-            <MetricCard
-              title="Lock Period"
-              metrics={[{ 
-                value: builder.lockPeriod ? builder.lockPeriod.split(' ')[0] : "-", 
-                label: builder.lockPeriod ? builder.lockPeriod.split(' ')[1] : "" 
-              }]}
-            />
-            <GlowingEffect 
-              spread={40}
-              glow={true}
-              disabled={false}
-              proximity={64}
-              inactiveZone={0.01}
-              borderWidth={2}
-              borderRadius="rounded-xl"
-            />
-          </div>
+          <MetricCardMinimal
+            title="Cumulative stakers"
+            value={builder.stakingCount || 0}
+            label="users"
+            autoFormatNumbers={true}
+            disableGlow={false}
+          />
           
+          <MetricCardMinimal
+            title="Lock Period"
+            value={builder.lockPeriod ? builder.lockPeriod.split(' ')[0] : "-"}
+            label={builder.lockPeriod ? builder.lockPeriod.split(' ')[1] : ""}
+            disableGlow={false}
+          />
         </div>
 
         {/* Staking Actions */}
