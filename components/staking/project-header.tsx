@@ -106,8 +106,80 @@ export function ProjectHeader({
 
   return (
     <>
-      <div className="flex items-start gap-6">
-        <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
+      {/* Mobile Layout (sm and smaller) */}
+      <div className="sm:hidden space-y-4">
+        {/* Row 1: Image + Title */}
+        <div className="flex items-center gap-4">
+          <div className="relative size-16 sm:size-24 rounded-xl overflow-hidden bg-white/[0.05] flex-shrink-0">
+            {hasValidImage ? (
+              <div className="relative size-16 sm:size-24">
+                <Image
+                  src={imagePath!.startsWith('http') ? imagePath! : imagePath!.startsWith('/') ? imagePath! : `/${imagePath!}`}
+                  alt={name}
+                  fill
+                  sizes="(max-width: 640px) 64px, 96px"
+                  className="object-cover"
+                  onError={() => {
+                    setImageError(true);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center size-16 sm:size-24 bg-emerald-700 text-white text-2xl sm:text-4xl font-medium">
+                {firstLetter}
+              </div>
+            )}
+          </div>
+          
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-100 flex-1">{name}</h1>
+        </div>
+        
+        {/* Row 2: Network + Reward Type + Website */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex -space-x-1">
+            {networks.map((network: string) => (
+              <div key={network} className="relative">
+                <NetworkIcon name={network.toLowerCase()} size={24} />
+              </div>
+            ))}
+          </div>
+          
+          {rewardType && (
+            <>
+              <span className="text-gray-400">|</span>
+              <span className="text-gray-300 text-sm">{rewardType}</span>
+            </>
+          )}
+          
+          {website && (
+            <>
+              <span className="text-gray-400">|</span>
+              <a 
+                href={website} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3 flex items-center gap-1 text-sm"
+              >
+                {extractDomain(website)}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </>
+          )}
+        </div>
+        
+        {/* Row 3: Description */}
+        {description && (
+          <p className="text-gray-400 text-sm">
+            {description}
+          </p>
+        )}
+        
+        {children}
+      </div>
+
+      {/* Desktop Layout (sm and larger) */}
+      <div className="hidden sm:flex items-start gap-6">
+        <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05] flex-shrink-0">
           {hasValidImage ? (
             <div className="relative size-24">
               <Image
