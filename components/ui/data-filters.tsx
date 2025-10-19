@@ -87,7 +87,7 @@ export function DataFilters({
   return (
     <div className={`mb-6 ${className}`}>
       {/* Mobile Layout (sm and smaller) */}
-      <div className="sm:hidden space-y-4">
+      <div className="block sm:hidden space-y-4">
         {/* Row 1: Name search (full width, no label) */}
         {showNameFilter && (
           <div className="w-full">
@@ -203,11 +203,11 @@ export function DataFilters({
       </div>
 
       {/* Tablet Layout (sm to lg screens: 640px - 1023px) */}
-      <div className="hidden sm:flex lg:hidden space-y-4">
+      <div className="hidden sm:block lg:hidden space-y-4">
         {/* Row 1: Name, reward type, and network filters in same row */}
         <div className="flex gap-4">
           {showNameFilter && (
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 flex flex-col gap-2">
               <Label htmlFor="name-search">{nameFilterLabel}</Label>
               <div className="relative">
                 <Input
@@ -225,7 +225,7 @@ export function DataFilters({
           )}
 
           {showSelectFilter && selectFilterOptions.length > 0 && (
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 flex flex-col gap-2">
               <Label htmlFor="select-filter">{selectFilterLabel}</Label>
               <Select
                 value={selectFilter}
@@ -247,7 +247,7 @@ export function DataFilters({
           )}
 
           {showNetworkFilter && (
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 flex flex-col gap-2">
               <Label>Network</Label>
               <ToggleGroup
                 type="single"
