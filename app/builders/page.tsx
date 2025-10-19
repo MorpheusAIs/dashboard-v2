@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { MetricCard } from "@/components/metric-card";
+import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -23,7 +23,6 @@ import {
 import { Builder } from "@/app/builders/builders-data";
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
-import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
@@ -135,18 +134,18 @@ function formatUnlockTime(claimLockEnd?: string | number | bigint | null): strin
 function BuilderModalWrapper() {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const { isAdmin } = useAuth();
-  
+
   return (
-    <div className="flex gap-4 items-center">
+    <div className="hidden md:flex gap-4 items-center">
       {isAdmin && (
-        <button 
+        <button
           onClick={() => setIsBulkModalOpen(true)}
           className="copy-button copy-button-secondary mb-4"
         >
           Bulk registration
         </button>
       )}
-      
+
       <Link href="/builders/newsubnet">
         <button
           className="copy-button mb-4"
@@ -154,7 +153,7 @@ function BuilderModalWrapper() {
           Become a Builder
         </button>
       </Link>
-      
+
       {isAdmin && (
         <BulkRegistrationModal
           open={isBulkModalOpen}
@@ -1160,63 +1159,44 @@ export default function BuildersPage() {
 
   return (
     <div className="page-container">
-      <div className="page-grid">
-        <div className="relative">
-          <MetricCard
-            title="Total Staked"
-            metrics={[{ value: totalMetrics.totalStaked, label: "MOR" }]}
-            disableGlow={true}
-            autoFormatNumbers={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <MetricCardMinimal
+          title="Total Staked"
+          value={totalMetrics.totalStaked || 0}
+          label="MOR"
+          autoFormatNumbers={true}
+          disableGlow={false}
+        />
 
-        <div className="relative">
-          <MetricCard
-            title="Active Builders"
-            metrics={[{ value: totalMetrics.totalBuilders.toString(), label: "Subnets" }]}
-            disableGlow={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
+        <MetricCardMinimal
+          title="Active Builders"
+          value={totalMetrics.totalBuilders || 0}
+          label="Subnets"
+          disableGlow={false}
+        />
 
+        <MetricCardMinimal
+          title="Stakers"
+          value={totalMetrics.totalStaking || 0}
+          label="Staking"
+          disableGlow={false}
+        />
 
-        <div className="relative col-span-2">
-          <MetricCard
-            className="col-span-2"
-            title="Community Stats"
-            metrics={[
-              { value: totalMetrics.totalStaking.toLocaleString(), label: "Staking" },
-              { value: avgMorStakedPerUser, label: "Avg MOR / Staker" }
-            ]}
-            disableGlow={true}
-          />
-          <GlowingEffect 
-            spread={40}
-            glow={true}
-            disabled={false}
-            proximity={64}
-            inactiveZone={0.01}
-            borderWidth={2}
-            borderRadius="rounded-xl"
-          />
-        </div>
+        <MetricCardMinimal
+          title="Avg. stake by user"
+          value={avgMorStakedPerUser || "0"}
+          label="MOR"
+          disableGlow={false}
+        />
+      </div>
+
+      {/* Mobile/tablet-only Become a Builder button */}
+      <div className="block md:hidden mb-8">
+        <Link href="/builders/newsubnet" className="block">
+          <button className="copy-button w-full">
+            Become a Builder
+          </button>
+        </Link>
       </div>
 
       <div className="page-section">
@@ -1225,7 +1205,33 @@ export default function BuildersPage() {
           onValueChange={handleTabChange}
           className="w-full"
         >
-          <div className="flex justify-between items-center align-middle mb-4">
+          {/* Mobile: Stack Explore title and tabs vertically */}
+          <div className="sm:hidden mb-4">
+            <h2 className="section-title mb-4">Explore</h2>
+            <TabsList className="flex h-auto rounded-none border-b border-gray-800 bg-transparent p-0">
+              <TabsTrigger
+                value="builders"
+                className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+              >
+                Builders
+              </TabsTrigger>
+              <TabsTrigger
+                value="participating"
+                className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+              >
+                Staking in
+              </TabsTrigger>
+              <TabsTrigger
+                value="subnets"
+                className="data-[state=active]:after:bg-emerald-400 relative rounded-none py-2 px-4 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 data-[state=active]:bg-transparent data-[state=active]:shadow-none text-l font-semibold"
+              >
+                Your Subnets
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Desktop: Original layout with Explore and tabs in one row */}
+          <div className="hidden sm:flex justify-between items-center align-middle mb-4">
             <div className="flex flex-row items-center gap-4 align-middle">
               <h2 className="flex section-title">Explore</h2>
               <TabsList className="flex h-auto rounded-none border-b border-gray-800 bg-transparent p-0 -mt-3">
