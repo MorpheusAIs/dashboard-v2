@@ -174,10 +174,16 @@ const incrementLocalDepositorCount = (networkEnv: string): void => {
 export interface CapitalMetrics {
   totalValueLockedUSD: string;
   currentDailyRewardMOR: string;
-  avgApyRate: string;
+  avgAprRate: string; // Renamed from avgApyRate - we calculate weighted average APR, not APY
   activeStakers: string;
   isLoading: boolean;
   error: string | null;
+  // Expose all token prices from DefiLlama for calculations
+  stethPrice: number | null;
+  linkPrice: number | null;
+  morPrice: number | null;
+  wbtcPrice: number | null;
+  wethPrice: number | null;
 }
 
 /**
@@ -189,17 +195,25 @@ export interface CapitalMetrics {
 export { incrementLocalDepositorCount };
 
 export function useCapitalMetrics(): CapitalMetrics {
-  const poolData = useCapitalPoolData();
-
-  // Use shared token prices hook
-  const { stethPrice, linkPrice, isPriceUpdating } = useTokenPrices({
+  // Get token prices first (needed for APR calculation in poolData)
+  const { 
+    stethPrice, 
+    linkPrice, 
+    morPrice, 
+    wbtcPrice, 
+    wethPrice, 
+    isPriceUpdating 
+  } = useTokenPrices({
     isInitialLoad: true,
     shouldRefreshData: false,
     userAddress: undefined,
-    networkEnv: poolData.networkEnvironment || 'mainnet'
+    networkEnv: 'mainnet' // Default to mainnet, will be refined by poolData
   });
 
-  // State for active stakers from Dune API (both testnet and mainnet)
+  // Get pool data with MOR price for accurate APR calculation
+  const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
+
+  // State for active stakers from server-side ISR API (server handles subgraph queries)
   const [activeStakersCount, setActiveStakersCount] = useState<number | null>(null);
   const [isLoadingActiveStakers, setIsLoadingActiveStakers] = useState<boolean>(false);
   const [activeStakersError, setActiveStakersError] = useState<string | null>(null);
@@ -211,7 +225,7 @@ export function useCapitalMetrics(): CapitalMetrics {
   const [dailyEmissionsError, setDailyEmissionsError] = useState<string | null>(null);
 
 
-  // Fetch active stakers count from Dune API with caching and retry logic
+  // Fetch active stakers count from server-side ISR API with caching and retry logic
   useEffect(() => {
     // Skip if running on server (SSR)
     if (typeof window === 'undefined') {
@@ -239,13 +253,11 @@ export function useCapitalMetrics(): CapitalMetrics {
       setRetryAttempts(attemptNumber);
       
       try {
-        // Determine which endpoint to call based on network environment
-        const endpoint = poolData.networkEnvironment === 'testnet' 
-          ? '/api/dune/active-stakers-testnet'
-          : '/api/dune/active-stakers-mainnet';
-        
-        console.log(`🔍 [FRONTEND] Fetching active stakers for ${poolData.networkEnvironment} from ${endpoint} (attempt ${attemptNumber}/${MAX_RETRY_ATTEMPTS})`);
-        
+        // Use server-side ISR API for active stakers (server always uses mainnet for active stakers data)
+        const endpoint = `/api/subgraph/active-stakers`;
+
+        console.log(`🔍 [FRONTEND] Fetching active stakers from ${endpoint} (attempt ${attemptNumber}/${MAX_RETRY_ATTEMPTS}) - always mainnet data`);
+
         const response = await fetch(endpoint);
         
         if (!response.ok) {
@@ -266,7 +278,7 @@ export function useCapitalMetrics(): CapitalMetrics {
           setActiveStakersCount(data.active_stakers);
           setActiveStakersError(null);
           setRetryAttempts(0);
-          console.log(`✅ [FRONTEND] Active stakers count set and cached (${data.network}):`, data.active_stakers);
+          console.log(`✅ [FRONTEND] Active stakers count set and cached (mainnet):`, data.active_stakers);
         } else {
           console.log('❌ [FRONTEND] API returned failure:', data.error || 'Invalid response format');
           throw new Error(data.error || 'Invalid response format');
@@ -405,17 +417,36 @@ export function useCapitalMetrics(): CapitalMetrics {
 
   // Calculate core metrics from live pool data (excluding active stakers to avoid blocking)
   const coreMetrics = useMemo(() => {
+    // Check if we have the minimum required prices (stETH is most critical for mainnet)
+    const hasRequiredPrices = poolData.networkEnvironment === 'mainnet' 
+      ? (stethPrice !== null && morPrice !== null) // Mainnet needs at least stETH and MOR prices
+      : true; // Testnet can proceed with available prices
+    
     // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
-    const isLoading = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading) || isPriceUpdating || isLoadingDailyEmissions;
+    // Wait for prices to be loaded before proceeding with calculations
+    const isLoading = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading) 
+      || isPriceUpdating 
+      || isLoadingDailyEmissions
+      || !hasRequiredPrices; // Wait for required prices to be available
+    
     // Core metrics errors (DON'T include active stakers errors - they're non-critical)
     const hasError = supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.error) || !!dailyEmissionsError;
 
     // If still loading, show loading state instead of zeros
     if (isLoading) {
+      const debugInfo = {
+        isPriceUpdating,
+        isLoadingDailyEmissions,
+        hasRequiredPrices,
+        prices: { stethPrice, morPrice, wbtcPrice, wethPrice },
+        poolDataLoading: supportedAssets.some(assetSymbol => poolData.assets[assetSymbol]?.isLoading)
+      };
+      console.log('⏳ Waiting for data before calculating metrics:', debugInfo);
+      
       return {
         totalValueLockedUSD: "...",
         currentDailyRewardMOR: "...",
-        avgApyRate: "...%",
+        avgAprRate: "...%",
         isLoading: true,
         error: null
       };
@@ -431,15 +462,15 @@ export function useCapitalMetrics(): CapitalMetrics {
       const availableData = supportedAssets.reduce((acc, assetSymbol) => {
         acc[assetSymbol] = {
           totalStaked: poolData.assets[assetSymbol]?.totalStaked,
-          apy: poolData.assets[assetSymbol]?.apy
+          apr: poolData.assets[assetSymbol]?.apr
         };
         return acc;
-      }, {} as Record<AssetSymbol, { totalStaked?: string; apy?: string }>);
+      }, {} as Record<AssetSymbol, { totalStaked?: string; apr?: string }>);
 
       console.warn('⚠️ Partial error in capital metrics, attempting calculation with available data:', {
         errors: errorDetails,
         availableData,
-        prices: { stethPrice, linkPrice }
+        prices: { stethPrice, linkPrice, wbtcPrice, wethPrice, morPrice }
       });
 
       // Only return error state if we have NO usable data at all
@@ -456,7 +487,7 @@ export function useCapitalMetrics(): CapitalMetrics {
           return {
             totalValueLockedUSD: `${cachedTVL.totalValueLockedUSD} (cached)`,
             currentDailyRewardMOR: "Error",
-            avgApyRate: "Error",
+            avgAprRate: "Error",
             isLoading: false,
             error: hasError.toString()
           };
@@ -465,7 +496,7 @@ export function useCapitalMetrics(): CapitalMetrics {
         return {
           totalValueLockedUSD: "Error",
           currentDailyRewardMOR: "Error",
-          avgApyRate: "Error",
+          avgAprRate: "Error",
           isLoading: false,
           error: hasError.toString()
         };
@@ -485,17 +516,20 @@ export function useCapitalMetrics(): CapitalMetrics {
       const amount = parsePoolAmount(assetData.totalStaked || '0');
       assetAmounts[assetSymbol] = amount;
 
-      // Calculate USD value based on asset type
+      // Calculate USD value based on asset type using DefiLlama prices
       let usdValue = 0;
       if (assetSymbol === 'stETH' && stethPrice && amount > 0) {
         usdValue = amount * stethPrice;
       } else if (assetSymbol === 'LINK' && linkPrice && amount > 0) {
         usdValue = amount * linkPrice;
+      } else if (assetSymbol === 'wBTC' && wbtcPrice && amount > 0) {
+        usdValue = amount * wbtcPrice;
+      } else if (assetSymbol === 'wETH' && wethPrice && amount > 0) {
+        usdValue = amount * wethPrice;
       } else if ((assetSymbol === 'USDC' || assetSymbol === 'USDT') && amount > 0) {
         // Stablecoins are always $1.00
         usdValue = amount * 1.0;
       }
-      // For other assets (wBTC, wETH), we would need their price data
 
       assetUSDValues[assetSymbol] = usdValue;
       totalValueLockedUSD += usdValue;
@@ -510,7 +544,7 @@ export function useCapitalMetrics(): CapitalMetrics {
       assetUSDValues,
       totalValueLockedUSD,
       networkEnv: poolData.networkEnvironment,
-      prices: { stethPrice, linkPrice },
+      prices: { stethPrice, linkPrice, wbtcPrice, wethPrice, morPrice },
       deviceInfo: {
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'server',
         isMobile: typeof window !== 'undefined' && window.innerWidth < 768,
@@ -529,29 +563,29 @@ export function useCapitalMetrics(): CapitalMetrics {
       }
     });
 
-    // Calculate average APY (weighted by USD value) dynamically
-    let avgApy = 0;
+    // Calculate average APR (weighted by USD value) dynamically
+    let avgApr = 0;
     if (totalValueLockedUSD > 0) {
-      let weightedApySum = 0;
+      let weightedAprSum = 0;
 
       supportedAssets.forEach(assetSymbol => {
         const assetData = poolData.assets[assetSymbol];
         if (!assetData || !assetUSDValues[assetSymbol]) return;
 
-        // Skip assets with no APY data or 'N/A' values
-        if (!assetData.apy || assetData.apy === 'N/A' || assetData.apy === 'Coming Soon') {
+        // Skip assets with no APR data or 'N/A' values
+        if (!assetData.apr || assetData.apr === 'N/A' || assetData.apr === 'Coming Soon') {
           return;
         }
 
-        const apyNum = parseFloat((assetData.apy || '0%').replace('%', ''));
-        if (isNaN(apyNum) || apyNum <= 0) return;
+        const aprNum = parseFloat((assetData.apr || '0%').replace('%', ''));
+        if (isNaN(aprNum) || aprNum <= 0) return;
 
         const weight = assetUSDValues[assetSymbol] / totalValueLockedUSD;
 
-        weightedApySum += apyNum * weight;
+        weightedAprSum += aprNum * weight;
       });
 
-      avgApy = weightedApySum;
+      avgApr = weightedAprSum;
     }
 
     // Calculate LIVE daily MOR emissions from server-side API (both networks) dynamically
@@ -591,13 +625,21 @@ export function useCapitalMetrics(): CapitalMetrics {
       const prices: Record<string, number> = {};
       let hasAnyPriceData = false;
 
-      // Collect available price data
+      // Collect available price data from DefiLlama
       if (stethPrice) {
         prices.stETH = stethPrice;
         hasAnyPriceData = true;
       }
       if (linkPrice) {
         prices.LINK = linkPrice;
+        hasAnyPriceData = true;
+      }
+      if (wbtcPrice) {
+        prices.wBTC = wbtcPrice;
+        hasAnyPriceData = true;
+      }
+      if (wethPrice) {
+        prices.wETH = wethPrice;
         hasAnyPriceData = true;
       }
       // Always include stablecoin prices
@@ -628,8 +670,9 @@ export function useCapitalMetrics(): CapitalMetrics {
       const hasAllPrices = supportedAssets.every(assetSymbol => {
         if (assetSymbol === 'stETH') return !!stethPrice;
         if (assetSymbol === 'LINK') return !!linkPrice;
+        if (assetSymbol === 'wBTC') return !!wbtcPrice;
+        if (assetSymbol === 'wETH') return !!wethPrice;
         if (assetSymbol === 'USDC' || assetSymbol === 'USDT') return true; // Stablecoins always have price
-        // For other assets (wBTC, wETH), assume no price data available yet
         return false;
       });
 
@@ -674,17 +717,23 @@ export function useCapitalMetrics(): CapitalMetrics {
     return {
       totalValueLockedUSD: totalValueLockedUSDDisplay,
       currentDailyRewardMOR,
-      avgApyRate: `${avgApy.toFixed(2)}%`,
+      avgAprRate: `${avgApr.toFixed(2)}%`,
       isLoading,
       error: null
     };
-  }, [poolData, stethPrice, linkPrice, isPriceUpdating, supportedAssets, dailyEmissions, dailyEmissionsError, isLoadingDailyEmissions]);
+  }, [poolData, stethPrice, linkPrice, wbtcPrice, wethPrice, morPrice, isPriceUpdating, supportedAssets, dailyEmissions, dailyEmissionsError, isLoadingDailyEmissions]);
 
-  // Combine core metrics with active stakers display
+  // Combine core metrics with active stakers display and all token prices from DefiLlama
   const metrics = useMemo(() => ({
     ...coreMetrics,
-    activeStakers: activeStakersDisplay
-  }), [coreMetrics, activeStakersDisplay]);
+    activeStakers: activeStakersDisplay,
+    // Expose all token prices for calculations (stETH, wBTC, wETH, LINK, MOR)
+    stethPrice,
+    linkPrice,
+    morPrice,
+    wbtcPrice,
+    wethPrice
+  }), [coreMetrics, activeStakersDisplay, stethPrice, linkPrice, morPrice, wbtcPrice, wethPrice]);
 
   return metrics;
 }

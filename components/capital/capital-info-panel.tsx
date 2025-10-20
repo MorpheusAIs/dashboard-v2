@@ -10,6 +10,7 @@ const NumberFlow = dynamic(() => import('@number-flow/react'), {
 })
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 import { AssetIcon } from "@/components/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Asset } from "./types/asset";
@@ -17,7 +18,7 @@ import { parseStakedAmount } from "./utils/parse-staked-amount";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
 import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
 import { getContractAddress } from "@/config/networks";
-import type { Format } from '@number-flow/react';
+import type { Format} from '@number-flow/react';
 
 export function CapitalInfoPanel() {
   const {
@@ -26,8 +27,13 @@ export function CapitalInfoPanel() {
     setSelectedAsset,
   } = useCapitalContext();
 
-  // Get live contract data
-  const poolData = useCapitalPoolData();
+  // Get MOR price from metrics (which already uses useTokenPrices correctly)
+  const { morPrice } = useCapitalMetrics();
+
+  console.log('💰 [CapitalInfoPanel] MOR price from metrics:', { morPrice });
+
+  // Get live contract data with MOR price
+  const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
 
 
 
@@ -60,7 +66,7 @@ export function CapitalInfoPanel() {
     
     return {
       symbol: assetConfig.metadata.symbol,
-      apy: assetData?.apy || (hasDepositPool ? 'N/A' : 'Coming Soon'),
+      apr: assetData?.apr || (hasDepositPool ? 'N/A' : 'Coming Soon'),
       totalStaked: assetData?.totalStaked || (hasDepositPool ? '0' : 'N/A'),
       icon: assetConfig.metadata.icon,
       disabled: assetConfig.metadata.disabled || (!hasDepositPool),
@@ -101,7 +107,7 @@ export function CapitalInfoPanel() {
                   <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
                     Live Data
                   </span>
-                  {Object.values(poolData.assets).some(asset => asset.apy === 'N/A') ? (
+                  {Object.values(poolData.assets).some(asset => asset.apr === 'N/A') ? (
                     <span className="px-2 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 text-xs font-medium">
                       Contract Debug
                     </span>
@@ -121,9 +127,9 @@ export function CapitalInfoPanel() {
           {/* Assets Table */}
           <div className="flex-1 flex flex-col">
             {/* Fixed Header */}
-            <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
+            <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr 1fr auto' }}>
               <div>Asset</div>
-              {/* <div className="text-center">APR</div> */}
+              <div className="text-center">APR</div>
               <div className="text-center">Total Deposited</div>
               <div className="text-center">Action</div>
             </div>
@@ -138,7 +144,7 @@ export function CapitalInfoPanel() {
                     asset.disabled
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-gray-800/30'
-                  }`} style={{ gridTemplateColumns: 'auto 1fr auto' }}>
+                  }`} style={{ gridTemplateColumns: 'auto 1fr 1fr auto' }}>
                     {/* Asset Name & Symbol */}
                     <div className="flex items-center space-x-2">
                       <div className="w-6 h-6 flex items-center justify-center">
@@ -151,12 +157,23 @@ export function CapitalInfoPanel() {
                       </div>
                     </div>
 
-                    {/* APY - Temporarily commented out */}
-                    {/* <div className={`text-center text-sm font-semibold truncate ${
+                    {/* APR */}
+                    <div className={`text-center text-sm font-semibold truncate ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
-                      {asset.apy}
-                    </div> */}
+                      {(() => {
+                        const assetPoolData = poolData.assets[asset.symbol as AssetSymbol];
+                        // Show skeleton if no data, loading, or APR is still 'N/A' (calculating)
+                        if (!assetPoolData || assetPoolData.isLoading || assetPoolData.apr === 'N/A') {
+                          return <Skeleton className="h-4 w-12 bg-gray-700 mx-auto" />;
+                        }
+                        if (assetPoolData.error) {
+                          return <span className="text-red-400 text-xs">Error</span>;
+                        }
+                        // Show valid APR values (percentage or "Coming Soon")
+                        return assetPoolData.apr;
+                      })()}
+                    </div>
 
                     {/* Total Staked */}
                     <div className={`text-right text-sm font-semibold flex justify-center ${
@@ -164,16 +181,17 @@ export function CapitalInfoPanel() {
                     }`}>
                       {(() => {
                         const assetPoolData = poolData.assets[asset.symbol as AssetSymbol];
-                        if (assetPoolData?.isLoading) {
+                        // Show skeleton if no data, loading, or value is '0' (still fetching)
+                        if (!assetPoolData || assetPoolData.isLoading || assetPoolData.totalStaked === '0') {
                           return <Skeleton className="h-4 w-12 bg-gray-700" />;
                         }
-                        if (assetPoolData?.error) {
+                        if (assetPoolData.error) {
                           return <span className="text-red-400 text-xs">Error</span>;
                         }
-                        if (asset.totalStaked === 'N/A') {
+                        if (assetPoolData.totalStaked === 'N/A') {
                           return 'N/A';
                         }
-                        const parsedValue = parseStakedAmount(asset.totalStaked);
+                        const parsedValue = parseStakedAmount(assetPoolData.totalStaked);
 
                         // Use NumberFlow's format prop for proper decimal display
                         let formatOptions: Format = {};

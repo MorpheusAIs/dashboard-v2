@@ -23,24 +23,28 @@ export const parseDepositAmount = (depositValue: string | undefined): number => 
 };
 
 /**
- * Format asset amounts with conditional decimals based on asset type
- * USDC, USDT: always 2 decimals
- * wETH, wBTC, stETH: 3 decimals if < 1, 2 decimals if >= 1
+ * Format asset amounts with conditional decimals based on asset type and remove trailing zeros
+ * USDC, USDT: always 2 decimals (but trailing zeros removed)
+ * wETH, wBTC, stETH: 3 decimals if < 1, 2 decimals if >= 1 (trailing zeros removed)
  */
 export const formatAssetAmount = (amount: number, assetSymbol?: AssetSymbol): string => {
+  let formatted: string;
+
   if (assetSymbol === 'USDC' || assetSymbol === 'USDT') {
-    return amount.toFixed(2);
+    formatted = amount.toFixed(2);
+  } else if (assetSymbol === 'wETH' || assetSymbol === 'wBTC' || assetSymbol === 'stETH') {
+    formatted = amount < 1 ? amount.toFixed(3) : amount.toFixed(2);
+  } else {
+    // Default behavior for other assets: 2 decimals for small numbers
+    if (amount < 1 && amount > 0) {
+      formatted = amount.toFixed(2);
+    } else {
+      formatted = formatNumber(amount);
+    }
   }
 
-  if (assetSymbol === 'wETH' || assetSymbol === 'wBTC' || assetSymbol === 'stETH') {
-    return amount < 1 ? amount.toFixed(3) : amount.toFixed(2);
-  }
-
-  // Default behavior for other assets: 2 decimals for small numbers
-  if (amount < 1 && amount > 0) {
-    return amount.toFixed(2);
-  }
-  return formatNumber(amount);
+  // Remove trailing zeros and decimal point if no decimals remain
+  return formatted.replace(/\.?0+$/, '');
 };
 
 /**
@@ -90,14 +94,6 @@ export const isUnlockDateReached = (unlockDate: string | null, hasStakedAssets: 
     const unlockDateTime = new Date(unlockDate);
     const currentDate = new Date();
 
-    // console.log('📅 Date parsing details:', {
-    //   unlockDateString: unlockDate,
-    //   unlockDateTime: unlockDateTime,
-    //   unlockDateTimeParsed: unlockDateTime.toISOString(),
-    //   currentDate: currentDate.toISOString(),
-    //   unlockDateTimeValid: !isNaN(unlockDateTime.getTime())
-    // });
-
     // Validate that the date was parsed correctly
     if (isNaN(unlockDateTime.getTime())) {
       console.error('❌ Invalid unlock date parsed:', unlockDate, '- Date object:', unlockDateTime);
@@ -106,16 +102,6 @@ export const isUnlockDateReached = (unlockDate: string | null, hasStakedAssets: 
 
     // Compare dates including time
     const unlockReached = currentDate >= unlockDateTime;
-
-    // console.log('✅ Unlock date comparison result:', {
-    //   unlockDate: unlockDate,
-    //   unlockDateTime: unlockDateTime.toISOString(),
-    //   currentDate: currentDate.toISOString(),
-    //   timeDifferenceMs: currentDate.getTime() - unlockDateTime.getTime(),
-    //   timeDifferenceHours: (currentDate.getTime() - unlockDateTime.getTime()) / (1000 * 60 * 60),
-    //   unlockReached,
-    //   shouldAllowWithdraw: unlockReached
-    // });
 
     return unlockReached;
   } catch (error) {

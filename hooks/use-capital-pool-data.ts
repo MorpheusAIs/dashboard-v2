@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import React from 'react';
-import { useContractReads, useChainId } from 'wagmi';
+import { useContractReads, useChainId, usePublicClient } from 'wagmi';
 import { formatUnits } from 'viem';
 import { NetworkEnvironment, getContractAddress, testnetChains, mainnetChains } from '@/config/networks';
 import { getAssetsForNetwork, type AssetSymbol } from '@/components/capital/constants/asset-config';
@@ -10,13 +10,15 @@ import { getAssetsForNetwork, type AssetSymbol } from '@/components/capital/cons
 // Import ABIs
 import DepositPoolAbi from '@/app/abi/DepositPool.json'; // Use the generic ABI that has all functions
 import DistributorV2Abi from '@/app/abi/DistributorV2.json'; // For yield tracking
+import RewardPoolV2Abi from '@/app/abi/RewardPoolV2.json';
 import ERC20Abi from '@/app/abi/ERC20.json'; // For aToken balance calls
 
 export interface AssetPoolData {
   totalStaked: string;
-  apy: string;
+  apr: string; // Renamed from 'apy' - we calculate APR (no compounding), not APY
   isLoading: boolean;
   error: Error | null;
+  aprLoading?: boolean; // Separate loading state for APR calculation
 }
 
 export interface CapitalPoolData {
@@ -28,6 +30,10 @@ export interface CapitalPoolData {
     rewardPoolData: () => void;
     refetchAll: () => void;
   };
+}
+
+export interface CapitalPoolDataOptions {
+  morPrice?: number | null; // MOR price for APR calculation in USD terms
 }
 
 // Mapping from asset symbols to their deposit pool contract keys
@@ -47,19 +53,78 @@ const ASSET_TO_DEPOSIT_POOL_MAP: Partial<Record<AssetSymbol, keyof import('@/con
  * - Dynamically handles any assets with deployed deposit pool contracts based on network config
  * - Uses DepositPool.rewardPoolsData() to get live daily reward rates for accurate APR calculation
  * - Uses DepositPool.totalDepositedInPublicPools() to get total staked amounts
- * - Calculates APR using: (dailyRewardRate * 365) / totalVirtualDeposited * 100
+ * - Calculates APR using: ((dailyRewardRate * morPrice) * 365) / (totalVirtualDeposited * assetPrice) * 100
  * - Supports all configured assets (mainnet: stETH, USDC, USDT, wBTC, wETH; testnet: stETH, LINK)
  * - Shows N/A for assets without deposit pool contracts
  * 
  * Returns live data for both testnet (Sepolia) and mainnet with proper v7 protocol daily distribution
  */
-export function useCapitalPoolData(): CapitalPoolData {
+export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoolData {
+  const { morPrice: morPriceOption } = options || {};
+  
+  // Debug log to verify MOR price is being passed
+  console.log('🔍 [useCapitalPoolData] Received options:', {
+    morPrice: morPriceOption,
+    hasOptions: !!options,
+    optionsKeys: options ? Object.keys(options) : []
+  });
+  
   const chainId = useChainId();
   
   // Determine network environment
   const networkEnvironment = useMemo((): NetworkEnvironment => {
     return [1, 42161, 8453].includes(chainId) ? 'mainnet' : 'testnet';
   }, [chainId]);
+
+  // Historical window (7 days) for stable yield deltas
+  const WINDOW_DAYS = 7;
+  const [pastBlockNumber, setPastBlockNumber] = useState<bigint | null>(null);
+  const [pastBlockTimestamp, setPastBlockTimestamp] = useState<number | null>(null);
+
+  // Decay-aware annual emissions (computed from RewardPoolV2 schedule)
+  const [annualEmissions, setAnnualEmissions] = useState<number | null>(null);
+  const [isLoadingAnnualEmissions, setIsLoadingAnnualEmissions] = useState<boolean>(false);
+  const [annualEmissionsError, setAnnualEmissionsError] = useState<string | null>(null);
+
+  // getPeriodReward TS helper (linear decrease per interval)
+  const getPeriodReward = useCallback((
+    initialAmount: bigint,
+    decreaseAmount: bigint,
+    payoutStart: bigint,
+    interval: bigint,
+    startTime: bigint,
+    endTime: bigint,
+  ): bigint => {
+    if (endTime <= startTime) return BigInt(0);
+    if (endTime <= payoutStart) return BigInt(0);
+
+    const one = BigInt(1);
+    const i0 = payoutStart;
+    const intv = interval === BigInt(0) ? BigInt(1) : interval;
+
+    const startIdx = startTime > i0 ? (startTime - i0) / intv : BigInt(0);
+    const endIdxRaw = (endTime - i0 - one) / intv; // inclusive index of last interval touching endTime
+    if (endIdxRaw < BigInt(0)) return BigInt(0);
+
+    let first = initialAmount - decreaseAmount * startIdx;
+    if (first <= BigInt(0)) return BigInt(0);
+
+    let last = initialAmount - decreaseAmount * endIdxRaw;
+    if (last < BigInt(0)) {
+      // clamp end index to last non-negative term
+      const maxIdx = initialAmount / (decreaseAmount === BigInt(0) ? BigInt(1) : decreaseAmount);
+      const clampedEndIdx = maxIdx > BigInt(0) ? maxIdx - BigInt(1) : BigInt(0);
+      last = initialAmount - decreaseAmount * clampedEndIdx;
+      // adjust start if it exceeds clamped end
+      if (clampedEndIdx < startIdx) return BigInt(0);
+      // recompute first to be safe
+      first = initialAmount - decreaseAmount * startIdx;
+    }
+
+    const n = (endIdxRaw - startIdx + BigInt(1));
+    // Sum of arithmetic series: n * (first + last) / 2
+    return n * (first + last) / BigInt(2);
+  }, []);
 
   // Get L1 chain ID based on network environment
   const l1ChainId = useMemo(() => {
@@ -69,6 +134,39 @@ export function useCapitalPoolData(): CapitalPoolData {
   // Get all configured assets for this network
   const configuredAssets = useMemo(() => getAssetsForNetwork(networkEnvironment), [networkEnvironment]);
 
+  // Discover a block ~7 days ago (archive RPC needed)
+  const publicClient = usePublicClient({ chainId: useMemo(() => (networkEnvironment === 'mainnet' ? 1 : 11155111), [networkEnvironment]) });
+  const pastBlockLoadedRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!publicClient || pastBlockLoadedRef.current) return;
+        const latest = await publicClient.getBlock();
+        const latestNum = BigInt(latest.number);
+        const targetTs = Math.floor(Date.now() / 1000) - WINDOW_DAYS * 24 * 60 * 60;
+        const est = latestNum - BigInt(Math.floor((WINDOW_DAYS * 24 * 60 * 60) / 12));
+        let low = est > BigInt(0) ? est : BigInt(0);
+        let high = latestNum;
+        for (let i = 0; i < 18; i++) {
+          const mid = (low + high) / BigInt(2);
+          const blk = await publicClient.getBlock({ blockNumber: mid });
+          if (Number(blk.timestamp) >= targetTs) high = mid; else low = mid;
+        }
+        if (cancelled) return;
+        const past = await publicClient.getBlock({ blockNumber: high });
+        // Only update if changed
+        setPastBlockNumber(prev => (prev !== high ? high : prev));
+        setPastBlockTimestamp(prev => (prev !== Number(past.timestamp) ? Number(past.timestamp) : prev));
+        pastBlockLoadedRef.current = true;
+        console.log('🕰️ [HIST] Past block (≈7d):', { block: high.toString(), ts: Number(past.timestamp) });
+      } catch (e) {
+        console.warn('⚠️ [HIST] Unable to fetch past block (archive RPC required)', (e as Error).message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [publicClient, WINDOW_DAYS]);
+
   // Get RewardPoolV2 and DistributorV2 contract addresses
   const rewardPoolV2Address = useMemo(() => {
     return getContractAddress(l1ChainId, 'rewardPoolV2', networkEnvironment) as `0x${string}` | undefined;
@@ -77,6 +175,68 @@ export function useCapitalPoolData(): CapitalPoolData {
   const distributorV2Address = useMemo(() => {
     return getContractAddress(l1ChainId, 'distributorV2', networkEnvironment) as `0x${string}` | undefined;
   }, [l1ChainId, networkEnvironment]);
+
+  // Wire schedule read now that addresses/chainId are defined
+  const rewardPoolContracts = useMemo(() => {
+    if (!rewardPoolV2Address) return [];
+    return [{
+      address: rewardPoolV2Address,
+      abi: RewardPoolV2Abi,
+      functionName: 'rewardPools',
+      args: [BigInt(0)], // Capital pool index = 0
+      chainId: l1ChainId,
+    }];
+  }, [rewardPoolV2Address, l1ChainId]);
+
+  const { data: scheduleResults } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: rewardPoolContracts as any,
+    allowFailure: true,
+    query: {
+      enabled: rewardPoolContracts.length > 0,
+      refetchInterval: 10 * 60 * 1000,
+    },
+  });
+
+  // Compute annual emissions when schedule is fetched
+  useEffect(() => {
+    try {
+      if (!scheduleResults || scheduleResults.length === 0) return;
+      const res = scheduleResults[0];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!res || (res as any).status !== 'success' || !Array.isArray((res as any).result)) return;
+      type RewardPoolTuple = readonly [bigint, bigint, bigint, bigint, boolean];
+      const tuple = (res as { result: RewardPoolTuple }).result;
+      const payoutStart = tuple[0];
+      const decreaseInterval = tuple[1];
+      const initialReward = tuple[2];
+      const rewardDecrease = tuple[3];
+
+      setIsLoadingAnnualEmissions(true);
+      const now = BigInt(Math.floor(Date.now() / 1000));
+      const oneYear = BigInt(365 * 24 * 60 * 60);
+      const end = now + oneYear;
+      const periodReward = getPeriodReward(initialReward, rewardDecrease, payoutStart, decreaseInterval, now, end);
+      const annual = Number(formatUnits(periodReward, 18));
+      setAnnualEmissions(annual);
+      setAnnualEmissionsError(null);
+      setIsLoadingAnnualEmissions(false);
+
+      console.log('📆 [EMISSIONS] Annual emissions (decay-aware):', {
+        payoutStart: Number(payoutStart),
+        decreaseInterval: Number(decreaseInterval),
+        initialReward: Number(formatUnits(initialReward, 18)),
+        rewardDecrease: Number(formatUnits(rewardDecrease, 18)),
+        now: Number(now),
+        end: Number(end),
+        annualEmissionsMOR: annual,
+      });
+    } catch (e) {
+      console.error('❌ [EMISSIONS] Failed to compute annual emissions:', e);
+      setAnnualEmissionsError((e as Error).message);
+      setIsLoadingAnnualEmissions(false);
+    }
+  }, [scheduleResults, getPeriodReward]);
 
   // Create contract address mappings for assets with deposit pools
   const depositPoolAddresses = useMemo(() => {
@@ -158,6 +318,78 @@ export function useCapitalPoolData(): CapitalPoolData {
     },
   });
 
+  // ✅ HISTORICAL DISTRIBUTOR SNAPSHOTS (~7d ago)
+  const distributorPoolContractsPast = useMemo(() => {
+    if (!distributorV2Address || pastBlockNumber == null) return [];
+    return configuredAssets
+      .filter((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const address = depositPoolAddresses[symbol];
+        return address && address !== '0x0000000000000000000000000000000000000000';
+      })
+      .map((assetConfig) => {
+        const symbol = assetConfig.metadata.symbol;
+        const depositPoolAddress = depositPoolAddresses[symbol]!;
+        return {
+          address: distributorV2Address,
+          abi: DistributorV2Abi,
+          functionName: 'depositPools',
+          args: [BigInt(0), depositPoolAddress],
+          chainId: l1ChainId,
+        };
+      });
+  }, [configuredAssets, depositPoolAddresses, distributorV2Address, l1ChainId, pastBlockNumber]);
+
+  const { data: distributorPoolResultsPast } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: distributorPoolContractsPast as any,
+    allowFailure: true,
+    blockNumber: pastBlockNumber ?? undefined,
+    query: { enabled: distributorPoolContractsPast.length > 0 && !!pastBlockNumber },
+  });
+
+  // --- DISTRIBUTED REWARDS (protocol-truth pool shares) ---
+  const distributedRewardsContracts = useMemo(() => {
+    if (!distributorV2Address) return [];
+    return configuredAssets
+      .filter((assetConfig) => depositPoolAddresses[assetConfig.metadata.symbol])
+      .map((assetConfig) => ({
+        address: distributorV2Address,
+        abi: DistributorV2Abi,
+        functionName: 'distributedRewards',
+        args: [BigInt(0), depositPoolAddresses[assetConfig.metadata.symbol]!],
+        chainId: l1ChainId,
+      }));
+  }, [configuredAssets, depositPoolAddresses, distributorV2Address, l1ChainId]);
+
+  const { data: distributedRewardsNow } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: distributedRewardsContracts as any,
+    allowFailure: true,
+    query: { enabled: distributedRewardsContracts.length > 0 },
+  });
+
+  const distributedRewardsContractsPast = useMemo(() => {
+    if (!distributorV2Address || pastBlockNumber == null) return [];
+    return configuredAssets
+      .filter((assetConfig) => depositPoolAddresses[assetConfig.metadata.symbol])
+      .map((assetConfig) => ({
+        address: distributorV2Address,
+        abi: DistributorV2Abi,
+        functionName: 'distributedRewards',
+        args: [BigInt(0), depositPoolAddresses[assetConfig.metadata.symbol]!],
+        chainId: l1ChainId,
+      }));
+  }, [configuredAssets, depositPoolAddresses, distributorV2Address, l1ChainId, pastBlockNumber]);
+
+  const { data: distributedRewardsPast } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: distributedRewardsContractsPast as any,
+    allowFailure: true,
+    blockNumber: pastBlockNumber ?? undefined,
+    query: { enabled: distributedRewardsContractsPast.length > 0 && !!pastBlockNumber },
+  });
+
   // Execute all reward rate contract calls
   const { 
     data: rewardRateResults, 
@@ -212,34 +444,73 @@ export function useCapitalPoolData(): CapitalPoolData {
 
   // ✅ ATOKEN BALANCE CALLS: For AAVE assets, get current aToken balance to calculate yield
   const aTokenBalanceContracts = useMemo(() => {
-    if (!distributorV2Address || !distributorPoolResults) return [];
+    if (!distributorV2Address || !distributorPoolResults) {
+      console.log('⚠️ [ATOKEN SETUP] Cannot create aToken contracts:', {
+        hasDistributorAddress: !!distributorV2Address,
+        hasDistributorResults: !!distributorPoolResults
+      });
+      return [];
+    }
     
-    return configuredAssets
+    const contracts = configuredAssets
       .map((assetConfig, index) => {
         const distributorPoolResult = distributorPoolResults[index];
+        const symbol = assetConfig.metadata.symbol;
+        
+        console.log(`🔍 [ATOKEN SETUP] Checking ${symbol}:`, {
+          hasResult: !!distributorPoolResult,
+          status: distributorPoolResult?.status,
+          isArray: Array.isArray(distributorPoolResult?.result)
+        });
         
         // Check if this is an AAVE strategy with valid aToken address
         if (distributorPoolResult?.status === 'success' && Array.isArray(distributorPoolResult.result)) {
           const [, , , , , strategy, aToken] = distributorPoolResult.result;
           
-          // Strategy: 0 = NONE, 1 = NO_YIELD, 2 = AAVE
+          console.log(`📋 [ATOKEN SETUP] ${symbol} pool data:`, {
+            strategy: strategy === 0 ? 'NO_YIELD' : strategy === 1 ? 'NONE' : strategy === 2 ? 'AAVE' : 'UNKNOWN',
+            strategyNum: strategy,
+            aToken,
+            isAAVE: strategy === 2
+          });
+          
+          // Strategy: 0 = NO_YIELD (rebasing, e.g. stETH), 1 = NONE (disabled), 2 = AAVE (yield-generating)
           if (strategy === 2 && aToken && aToken !== '0x0000000000000000000000000000000000000000') {
-            return {
+            const contract = {
               address: aToken as `0x${string}`,
               abi: ERC20Abi,
               functionName: 'balanceOf',
-              args: [distributorV2Address], // Get aToken balance held by Distributor
+              args: [depositPoolAddresses[assetConfig.metadata.symbol]!],
               chainId: l1ChainId,
             };
+            
+            console.log(`✅ [ATOKEN SETUP] Created contract for ${symbol}:`, {
+              aToken,
+              depositPool: depositPoolAddresses[assetConfig.metadata.symbol],
+              chainId: l1ChainId
+            });
+            
+            return contract;
           }
         }
         return null;
       })
       .filter(Boolean);
-  }, [configuredAssets, distributorPoolResults, distributorV2Address, l1ChainId]);
+    
+    console.log(`📊 [ATOKEN SETUP] Total aToken contracts created: ${contracts.length}`, {
+      contracts: contracts.map((c) => ({
+        address: c && 'address' in c ? c.address : 'unknown',
+        function: c && 'functionName' in c ? c.functionName : 'unknown'
+      }))
+    });
+    
+    return contracts;
+  }, [configuredAssets, distributorPoolResults, depositPoolAddresses, distributorV2Address, l1ChainId]);
 
   const { 
     data: aTokenBalanceResults, 
+    isLoading: isLoadingATokenBalances,
+    error: aTokenBalanceError,
     refetch: refetchATokenBalances 
   } = useContractReads({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,6 +521,53 @@ export function useCapitalPoolData(): CapitalPoolData {
       refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
     },
   });
+
+  // ✅ HISTORICAL ATOKEN BALANCES (~7d ago)
+  const aTokenBalanceContractsPast = useMemo(() => {
+    if (!distributorV2Address || !distributorPoolResults || pastBlockNumber == null) return [];
+    const contracts = configuredAssets.map((assetConfig, index) => {
+      const distributorPoolResult = distributorPoolResults[index];
+      if (!distributorPoolResult || distributorPoolResult.status !== 'success') return null;
+      const tuple = distributorPoolResult.result as readonly [string, string, bigint, bigint, bigint, number, string, boolean];
+      const aToken = tuple[6];
+      const depositPoolAddress = depositPoolAddresses[assetConfig.metadata.symbol];
+      if (!depositPoolAddress || aToken === '0x0000000000000000000000000000000000000000') return null;
+      return {
+        address: aToken as `0x${string}`,
+        abi: ERC20Abi,
+        functionName: 'balanceOf',
+        args: [depositPoolAddress],
+        chainId: l1ChainId,
+      };
+    }).filter(Boolean) as unknown[];
+    return contracts;
+  }, [configuredAssets, distributorPoolResults, depositPoolAddresses, distributorV2Address, l1ChainId, pastBlockNumber]);
+
+  const { data: aTokenBalanceResultsPast } = useContractReads({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contracts: aTokenBalanceContractsPast as any,
+    allowFailure: true,
+    blockNumber: pastBlockNumber ?? undefined,
+    query: { enabled: aTokenBalanceContractsPast.length > 0 && !!pastBlockNumber },
+  });
+
+  // Debug aToken balance results
+  React.useEffect(() => {
+    console.log('🔄 [ATOKEN RESULTS] Balance call status:', {
+      isLoading: isLoadingATokenBalances,
+      hasResults: !!aTokenBalanceResults,
+      resultsLength: aTokenBalanceResults?.length || 0,
+      contractsLength: aTokenBalanceContracts.length,
+      error: aTokenBalanceError,
+      results: aTokenBalanceResults?.map((r, i) => ({
+        index: i,
+        status: r?.status,
+        hasResult: !!r?.result,
+        result: r?.result?.toString(),
+        error: r?.status === 'failure' ? r?.error?.message : null
+      }))
+    });
+  }, [aTokenBalanceResults, isLoadingATokenBalances, aTokenBalanceContracts.length, aTokenBalanceError]);
 
 
   // Create individual contract hooks for backward compatibility and refetch functions
@@ -389,14 +707,33 @@ export function useCapitalPoolData(): CapitalPoolData {
 
   // ✅ REAL V7 Protocol APR Calculation using actual yield data from Distributor contract
   const calculateV7APR = useMemo(() => {
+    // ⏳ CHECK #1: Wait for historical data
+    if (pastBlockNumber == null || pastBlockTimestamp == null) {
+      console.log('⏳ [APR CALC] Waiting for past block discovery (7d window)');
+      return null;
+    }
+    if (!distributorPoolResultsPast || distributorPoolResultsPast.length === 0) {
+      console.log('⏳ [APR CALC] Waiting for distributor past snapshots...');
+      return null;
+    }
+    if (!distributedRewardsNow || !distributedRewardsPast) {
+      console.log('⏳ [APR CALC] Waiting for distributed rewards data...');
+      return null;
+    }
+    if (!annualEmissions || isLoadingAnnualEmissions) {
+      console.log('⏳ [APR CALC] Waiting for annual emissions...', {
+        annualEmissions,
+        isLoadingAnnualEmissions,
+        error: annualEmissionsError
+      });
+      return null;
+    }
 
-    // Note: Daily emissions are now fetched server-side via API endpoint
-    // This calculation now focuses only on APR calculation, not total emissions
-    const totalDailyEmissions = 0; // Placeholder - emissions fetched via API
+    const annualEmissionsMOR = annualEmissions;
 
-    console.log('🔢 COMPREHENSIVE DEBUG - V7 APR CALCULATION:', {
+    console.log('🔢 [APR CALC] COMPREHENSIVE DEBUG - V7 APR CALCULATION:', {
       networkEnvironment,
-      totalDailyEmissions,
+      annualEmissionsMOR,
       distributorV2Address,
       rewardPoolV2Address,
       contractAddresses: {
@@ -423,9 +760,10 @@ export function useCapitalPoolData(): CapitalPoolData {
           hasResult: !!r?.result,
           error: r?.status === 'failure' ? r.error?.message : null
         })),
-        dailyEmissions: {
-          note: 'Daily emissions now fetched via server-side API endpoint',
-          parsedValue: totalDailyEmissions
+        annualEmissions: {
+          value: annualEmissionsMOR,
+          isLoading: isLoadingAnnualEmissions,
+          error: annualEmissionsError
         }
       },
       contractCounts: {
@@ -578,111 +916,95 @@ export function useCapitalPoolData(): CapitalPoolData {
       fallbackReason: totalYieldUSD <= 100 ? 'Yield too small for reliable calculation' : 'Yield-based calculation'
     });
 
-    // Step 2: Choose distribution method based on yield data reliability
-    const useYieldBasedDistribution = totalYieldUSD > 100; // Only use yield-based if total yield > $100
-    
-    console.log(`🔄 DISTRIBUTION METHOD SELECTED:`, {
-      method: useYieldBasedDistribution ? 'Yield-based' : 'Stake-weighted fallback',
-      totalYieldUSD,
-      threshold: 100,
-      reason: useYieldBasedDistribution ? 'Sufficient yield data' : 'Yield data too small/unreliable'
-    });
-
-    if (useYieldBasedDistribution) {
-      // ✅ YIELD-BASED DISTRIBUTION (V7 Protocol Standard)
-      Object.entries(assetYields).forEach(([symbol, assetYieldUSD]) => {
-        const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
-        
-        if (!rateData?.data || !Array.isArray(rateData.data) || assetYieldUSD <= 0) {
-          aprResults[symbol] = 'N/A';
-          return;
-        }
-
-        try {
-          const [, , totalVirtualDeposited] = rateData.data;
-          const assetConfig = configuredAssets.find(config => config.metadata.symbol === symbol);
-          const decimals = assetConfig?.metadata.decimals || 18;
-          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, decimals));
-          
-          if (totalVirtual > 0 && totalDailyEmissions > 0) {
-            const assetRewardShare = (assetYieldUSD / totalYieldUSD) * totalDailyEmissions;
-            const annualRewards = assetRewardShare * 365;
-            const aprPercentage = Math.min((annualRewards / totalVirtual) * 100, 1000);
-            
-            aprResults[symbol] = aprPercentage > 0.01 ? `${aprPercentage.toFixed(2)}%` : 'N/A';
-            
-            console.log(`✅ YIELD-BASED APR [${symbol}]:`, {
-              yieldShare: (assetYieldUSD / totalYieldUSD * 100).toFixed(2) + '%',
-              dailyRewards: assetRewardShare.toFixed(2),
-              finalAPR: aprResults[symbol]
-            });
-          } else {
-            aprResults[symbol] = 'N/A';
-          }
-        } catch (error) {
-          console.error(`❌ Error in yield-based calculation for ${symbol}:`, error);
-          aprResults[symbol] = 'N/A';
-        }
+    // Step 2: Compute protocol-truth shares from distributedRewards deltas (7d window)
+    let rewardsShareByAsset: Record<string, number> | null = null;
+    if (distributedRewardsNow && distributedRewardsPast && distributedRewardsNow.length === configuredAssets.length) {
+      const deltas: number[] = configuredAssets.map((assetConfig, i) => {
+        const nowVal = distributedRewardsNow?.[i]?.status === 'success' 
+          ? Number(formatUnits(distributedRewardsNow[i].result as bigint, 18)) 
+          : 0;
+        const pastVal = distributedRewardsPast?.[i]?.status === 'success' 
+          ? Number(formatUnits(distributedRewardsPast[i].result as bigint, 18)) 
+          : 0;
+        return Math.max(0, nowVal - pastVal);
       });
-    } else {
-      // 🔄 STAKE-WEIGHTED FALLBACK DISTRIBUTION
-      // Calculate total virtual stake across all pools for proportional distribution
-      let totalVirtualStakeAcrossPools = 0;
-      const localVirtualStakeByAsset: Record<string, number> = {};
-
-      configuredAssets.forEach((assetConfig) => {
-        const symbol = assetConfig.metadata.symbol;
-        const decimals = assetConfig.metadata.decimals;
-        const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
-
-        if (rateData?.data && Array.isArray(rateData.data)) {
-          const [, , totalVirtualDeposited] = rateData.data;
-          const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, decimals));
-          localVirtualStakeByAsset[symbol] = totalVirtual;
-          totalVirtualStakeAcrossPools += totalVirtual;
-        } else {
-          localVirtualStakeByAsset[symbol] = 0;
-        }
-      });
-
-      console.log(`📊 STAKE-WEIGHTED DISTRIBUTION DATA:`, {
-        totalVirtualStakeAcrossPools,
-        localVirtualStakeByAsset,
-        totalDailyEmissions
-      });
-
-      // Distribute rewards proportionally based on virtual stake
-      Object.entries(localVirtualStakeByAsset).forEach(([symbol, virtualStake]) => {
-        try {
-          if (virtualStake > 0 && totalVirtualStakeAcrossPools > 0 && totalDailyEmissions > 0) {
-            const stakeShare = virtualStake / totalVirtualStakeAcrossPools;
-            const assetDailyRewards = stakeShare * totalDailyEmissions;
-            const annualRewards = assetDailyRewards * 365;
-            const aprPercentage = (annualRewards / virtualStake) * 100;
-
-            // Apply reasonable caps for this fallback method
-            const cappedAPR = Math.min(aprPercentage, 50); // Lower cap for fallback method
-
-            aprResults[symbol] = cappedAPR > 0.01 ? `${cappedAPR.toFixed(2)}%` : 'N/A';
-
-            console.log(`✅ STAKE-WEIGHTED APR [${symbol}]:`, {
-              virtualStake,
-              stakeShare: (stakeShare * 100).toFixed(2) + '%',
-              dailyRewards: assetDailyRewards.toFixed(2),
-              rawAPR: aprPercentage.toFixed(2) + '%',
-              cappedAPR: aprResults[symbol],
-              method: 'Stake-weighted fallback'
-            });
-          } else {
-            aprResults[symbol] = 'N/A';
-            console.log(`❌ NO STAKE DATA [${symbol}]:`, { virtualStake, totalVirtualStakeAcrossPools });
-          }
-        } catch (error) {
-          console.error(`❌ Error in stake-weighted calculation for ${symbol}:`, error);
-          aprResults[symbol] = 'N/A';
-        }
-      });
+      
+      const totalDelta = deltas.reduce((a, b) => a + b, 0);
+      
+      if (totalDelta > 0) {
+        rewardsShareByAsset = {};
+        configuredAssets.forEach((assetConfig, i) => {
+          rewardsShareByAsset![assetConfig.metadata.symbol] = deltas[i] / totalDelta;
+        });
+        console.log('✅ [APR CALC] Using distributedRewards-based distribution');
+      }
     }
+
+    const useRewardsShares = !!rewardsShareByAsset;
+    
+    // Step 3: Calculate APR for each asset using protocol shares and annual emissions
+    Object.entries(assetYields).forEach(([symbol, assetYieldUSD]) => {
+      const rateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
+      
+      if (!rateData?.data || !Array.isArray(rateData.data)) {
+        aprResults[symbol] = 'N/A';
+        return;
+      }
+
+      const [, , totalVirtualDeposited] = rateData.data;
+      const assetConfig = configuredAssets.find(config => config.metadata.symbol === symbol);
+      const decimals = assetConfig?.metadata.decimals || 18;
+      
+      // Get actual deposited amount (not virtual)
+      const contract = contractData[symbol as keyof typeof contractData];
+      const totalActualDeposited = contract?.data 
+        ? Number(formatUnits(contract.data as bigint, decimals))
+        : 0;
+      
+      const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, decimals));
+      const tvlForAPR = totalActualDeposited > 0 ? totalActualDeposited : totalVirtual;
+      
+      // Get asset price from Distributor
+      const distributorPoolResult = distributorPoolResults?.find((_, idx) => 
+        configuredAssets[idx]?.metadata.symbol === symbol
+      );
+      const assetPriceUSD = distributorPoolResult?.status === 'success' && Array.isArray(distributorPoolResult.result)
+        ? Number(formatUnits(distributorPoolResult.result[2] as bigint, 18))
+        : 1.0;
+      
+      if (tvlForAPR > 0 && annualEmissionsMOR && annualEmissionsMOR > 0) {
+        // Use distributedRewards share if available, otherwise fall back to yield share
+        const share = useRewardsShares 
+          ? (rewardsShareByAsset![symbol] ?? 0) 
+          : (totalYieldUSD > 0 ? assetYieldUSD / totalYieldUSD : 0);
+        
+        const assetAnnualShareMOR = share * annualEmissionsMOR;
+        
+        // Calculate APR in USD terms with MOR price
+        let aprPercentage: number;
+        if (morPriceOption && morPriceOption > 0) {
+          const annualRewardsUSD = assetAnnualShareMOR * morPriceOption;
+          const tvlUSD = tvlForAPR * assetPriceUSD;
+          aprPercentage = tvlUSD > 0 ? (annualRewardsUSD / tvlUSD) * 100 : 0;
+        } else {
+          // Fallback: APR in MOR terms
+          aprPercentage = (assetAnnualShareMOR / tvlForAPR) * 100;
+        }
+        
+        aprResults[symbol] = aprPercentage > 0.01 ? `${aprPercentage.toFixed(2)}%` : 'N/A';
+        
+        console.log(`✅ [APR CALC] ${symbol} - REAL YIELD-BASED APR:`, {
+          poolShare: (share * 100).toFixed(2) + '%',
+          annualRewardsMOR: assetAnnualShareMOR.toFixed(2) + ' MOR/year',
+          morPrice: morPriceOption || 'not provided',
+          tvlUSD: (tvlForAPR * assetPriceUSD).toFixed(2),
+          finalAPR: aprResults[symbol],
+          calculationMethod: morPriceOption ? 'USD-based (actual capital)' : 'MOR-based fallback'
+        });
+      } else {
+        aprResults[symbol] = 'N/A';
+      }
+    });
 
     return aprResults;
   }, [
@@ -693,8 +1015,19 @@ export function useCapitalPoolData(): CapitalPoolData {
     rewardPoolV2Address,
     distributorV2Address,
     distributorPoolResults,
+    distributorPoolResultsPast,
     aTokenBalanceResults,
-    aTokenBalanceContracts
+    aTokenBalanceResultsPast,
+    aTokenBalanceContracts,
+    distributedRewardsNow,
+    distributedRewardsPast,
+    annualEmissions,
+    isLoadingAnnualEmissions,
+    annualEmissionsError,
+    pastBlockNumber,
+    pastBlockTimestamp,
+    depositPoolAddresses,
+    morPriceOption
   ]);
 
   // Calculate virtual stake data for fallback use (available to both APR calc and asset data)
@@ -774,7 +1107,7 @@ export function useCapitalPoolData(): CapitalPoolData {
         // Asset doesn't have a deposit pool contract
         result[symbol] = {
           totalStaked: 'N/A',
-          apy: 'Coming Soon',
+          apr: 'Coming Soon',
           isLoading: false,
           error: null
         };
@@ -782,7 +1115,7 @@ export function useCapitalPoolData(): CapitalPoolData {
         // Asset has deposit pool address but contract call is not available
         result[symbol] = {
           totalStaked: '0',
-          apy: 'N/A',
+          apr: 'N/A',
           isLoading: false,
           error: new Error(`Contract call not available for ${symbol}`)
         };
@@ -793,7 +1126,7 @@ export function useCapitalPoolData(): CapitalPoolData {
         const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
         result[symbol] = {
           totalStaked: virtualStake > 0 ? virtualStake.toString() : '0', // Use virtual stake if available
-          apy: calculateV7APR[symbol] || 'N/A',
+          apr: (calculateV7APR && calculateV7APR[symbol]) || 'N/A',
           isLoading: contract.isLoading || rewardRateData?.isLoading || false,
           error: (contract.error || rewardRateData?.error) as Error | null
         };
@@ -827,7 +1160,7 @@ export function useCapitalPoolData(): CapitalPoolData {
 
         result[symbol] = {
           totalStaked,
-          apy: calculateV7APR[symbol] || 'N/A',
+          apr: (calculateV7APR && calculateV7APR[symbol]) || 'N/A',
           isLoading: contract.isLoading || rewardRateData?.isLoading || false,
           error: (contract.error || rewardRateData?.error) as Error | null
         };

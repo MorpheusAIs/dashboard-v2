@@ -7,36 +7,54 @@ import { getChainById } from '@/config/networks';
 
 // Query to get user claim events from PoolInteractions
 // Since User.claimed may not exist in the current subgraph, we'll sum claim events
-const GET_USER_CLAIM_EVENTS = gql`
-  query GetUserClaimEvents($userAddress: String!, $poolAddress: String!) {
+const GET_USER_ALL_CLAIM_EVENTS = gql`
+  query GetUserAllClaimEvents($userAddress: Bytes!) {
     poolInteractions(
       where: {
-        depositPool: $poolAddress
         user_: { address: $userAddress }
-        type: 2  # Claim events (based on schema)
+        type: 2  # Claim events
+        depositPool_in: [
+          "0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790",  # stETH
+          "0xdE283F8309Fd1AA46c95d299f6B8310716277A42",  # wBTC
+          "0x9380d72aBbD6e0Cc45095A2Ef8c2CA87d77Cb384",  # wETH
+          "0x6cCE082851Add4c535352f596662521B4De4750E",  # USDC
+          "0x3B51989212BEdaB926794D6bf8e9E991218cf116"   # USDT
+        ]
       }
       orderBy: blockTimestamp
       orderDirection: desc
     ) {
+      id
       amount
       blockTimestamp
+      blockNumber
+      transactionHash
       type
       user {
         address
+        rewardPoolId
       }
       depositPool
+      totalStaked
+      rate
     }
   }
 `;
 
 interface ClaimEventData {
+  id: string;
   amount: string;
   blockTimestamp: string;
+  blockNumber: string;
+  transactionHash: string;
   type: string;
   user: {
     address: string;
+    rewardPoolId: string;
   };
   depositPool: string;
+  totalStaked: string;
+  rate: string;
 }
 
 interface UserClaimEventsData {
@@ -207,59 +225,61 @@ export function useTotalMorEarned(
           finalAddress: finalAddress,
         });
 
-        // Execute queries for all discovered pools dynamically using the same /api/capital endpoint as the chart
-        const queryPromises = Object.entries(currentPools).map(([assetSymbol, poolAddress]) => {
-          const queryString = print(GET_USER_CLAIM_EVENTS);
-          return fetch('/api/capital', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: queryString,
-              variables: {
-                userAddress: finalAddress,
-                poolAddress: poolAddress.toLowerCase(),
-              },
-              networkEnv,
-            }),
-          }).then(async (response) => {
-            if (!response.ok) {
-              const errorText = await response.text();
-              throw new Error(`HTTP error for ${assetSymbol}: ${response.status} ${errorText}`);
-            }
-            const result = await response.json();
-            return { assetSymbol, result };
-          });
+        // Execute single query to get all claim events across all pools
+        const queryString = print(GET_USER_ALL_CLAIM_EVENTS);
+        const response = await fetch('/api/capital', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: queryString,
+            variables: {
+              userAddress: finalAddress,
+            },
+            networkEnv,
+          }),
         });
 
-        // Execute all available queries
-        const results = await Promise.all(queryPromises);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP error: ${response.status} ${errorText}`);
+        }
+
+        const result = await response.json();
 
         if (!isCancelled) {
-          // Check for errors and process results
+          if (result.errors) {
+            throw new Error(`Claim events query error: ${result.errors[0]?.message}`);
+          }
+
+          // Process the single response with all claim events
+          const allClaimEvents = result.data?.poolInteractions || [];
+
+          // Group events by deposit pool for backward compatibility with existing data structure
           const userClaimEventsData: UserClaimEventsData = {};
 
-          for (const { assetSymbol, result } of results) {
-            if (result.errors) {
-              throw new Error(`${assetSymbol} claim events query error: ${result.errors[0]?.message}`);
-            }
+          // Initialize with empty arrays for all known pools
+          const poolAddresses = [
+            "0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790", // stETH
+            "0xdE283F8309Fd1AA46c95d299f6B8310716277A42", // wBTC
+            "0x9380d72aBbD6e0Cc45095A2Ef8c2CA87d77Cb384", // wETH
+            "0x6cCE082851Add4c535352f596662521B4De4750E", // USDC
+            "0x3B51989212BEdaB926794D6bf8e9E991218cf116"  // USDT
+          ];
 
-            userClaimEventsData[assetSymbol] = result.data?.poolInteractions || [];
-          }
+          poolAddresses.forEach(poolAddress => {
+            userClaimEventsData[poolAddress] = allClaimEvents.filter((event: ClaimEventData) => event.depositPool === poolAddress);
+          });
 
           setData(userClaimEventsData);
           console.log('📊 User claim events fetched:', {
-            discoveredAssets: Object.keys(userClaimEventsData),
-            claimEvents: Object.fromEntries(
-              Object.entries(userClaimEventsData).map(([asset, events]) => [
-                asset, events.length
+            totalEvents: allClaimEvents.length,
+            eventsByPool: Object.fromEntries(
+              Object.entries(userClaimEventsData).map(([pool, events]) => [
+                pool, events.length
               ])
             ),
             userAddress,
-            sampleData: Object.fromEntries(
-              Object.entries(userClaimEventsData).map(([asset, events]) => [
-                asset, events[0] || null
-              ])
-            ),
+            sampleEvent: allClaimEvents[0] || null,
           });
         }
       } catch (err) {
@@ -309,28 +329,61 @@ export function useTotalMorEarned(
       };
     }
 
-    // Calculate earnings for each discovered asset
-    const assetEarnings: AssetEarnings = {};
-    let totalEarned = 0;
+    // Sum all claim events across all pools
+    const allClaimEvents = Object.values(data).flat();
+    console.log('📊 Total claim events across all pools:', allClaimEvents.length);
 
-    Object.entries(data).forEach(([assetSymbol, claimEvents]) => {
-      const earned = calculateTotalEarned(claimEvents || [], assetSymbol);
-      assetEarnings[assetSymbol] = earned;
-      totalEarned += earned;
+    if (allClaimEvents.length === 0) {
+      console.log('❌ No claim events found');
+      return {
+        totalEarned: 0,
+        assetEarnings: {},
+        stETHEarned: 0,
+        linkEarned: 0,
+      };
+    }
+
+    // Sum all claim amounts (each claim event represents MOR claimed)
+    const totalClaimedWei = allClaimEvents.reduce((sum, event) => {
+      return sum + BigInt(event.amount || '0');
+    }, BigInt(0));
+
+    // Convert from wei (18 decimals) to MOR tokens
+    const totalEarned = Number(totalClaimedWei) / Math.pow(10, 18);
+
+    // Calculate earnings per pool for backward compatibility
+    const assetEarnings: AssetEarnings = {};
+    Object.entries(data).forEach(([poolAddress, claimEvents]) => {
+      if (claimEvents && claimEvents.length > 0) {
+        const poolEarned = calculateTotalEarned(claimEvents, poolAddress);
+        // Map pool address to asset symbol for backward compatibility
+        if (poolAddress === "0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790") {
+          assetEarnings.stETH = poolEarned;
+        } else if (poolAddress === "0xdE283F8309Fd1AA46c95d299f6B8310716277A42") {
+          assetEarnings.wBTC = poolEarned;
+        } else if (poolAddress === "0x9380d72aBbD6e0Cc45095A2Ef8c2CA87d77Cb384") {
+          assetEarnings.wETH = poolEarned;
+        } else if (poolAddress === "0x6cCE082851Add4c535352f596662521B4De4750E") {
+          assetEarnings.USDC = poolEarned;
+        } else if (poolAddress === "0x3B51989212BEdaB926794D6bf8e9E991218cf116") {
+          assetEarnings.USDT = poolEarned;
+        }
+      }
     });
 
     // Maintain backward compatibility with legacy fields
     const stETHEarned = assetEarnings.stETH || 0;
-    const linkEarned = assetEarnings.LINK || 0;
+    const linkEarned = assetEarnings.LINK || 0; // Note: LINK not included in current pools
 
     console.log('🚨 CRITICAL DEBUG - Final calculated MOR earnings:', {
-      assetEarnings,
+      totalClaimedWei: totalClaimedWei.toString(),
       totalEarned,
+      totalEvents: allClaimEvents.length,
+      assetEarnings,
       discoveredAssets: Object.keys(assetEarnings),
       // Legacy compatibility debug
       stETHEarned,
       linkEarned,
-      ISSUE_CHECK: `Total from ${Object.keys(assetEarnings).length} assets: ${totalEarned.toFixed(2)}`,
       detailedBreakdown: Object.fromEntries(
         Object.entries(assetEarnings).map(([asset, earned]) => [
           asset, `${earned.toFixed(2)} MOR`

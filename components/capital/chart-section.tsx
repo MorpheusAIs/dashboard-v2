@@ -74,9 +74,10 @@ const mockChartData = [
 interface ChartSectionProps {
   isMorlordData?: boolean;
   chartType?: 'deposits' | 'cumulative';
+  manual_formula?: boolean;
 }
 
-export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }: ChartSectionProps) {
+export function ChartSection({ isMorlordData = true, chartType = 'cumulative', manual_formula = true }: ChartSectionProps) {
   // Temporary flag to show indexing animation
   const showIndexingAnimation = false; // Temporarily disabled to see actual chart
 
@@ -144,20 +145,115 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }:
     error: cumulativeDepositsError,
   } = useCumulativeDeposits();
 
-  // Get live metrics data from pool contracts
+  // Get live metrics data from pool contracts (includes token prices, TVL, and daily emissions)
   const {
     totalValueLockedUSD,
     currentDailyRewardMOR,
-    avgApyRate, // Temporarily commented out with APR metric card
+    avgAprRate, // Weighted average APR across all assets
     activeStakers,
     isLoading: metricsLoading,
     error: metricsError,
+    // Get all token prices from DefiLlama via useCapitalMetrics - single source of truth
+    morPrice,
+    stethPrice,
+    linkPrice,
+    wbtcPrice,
+    wethPrice,
   } = useCapitalMetrics();
 
-  // Use Morlord data for APR when flag is enabled, otherwise use current approach
-  const displayApyRate = isMorlordData
-    ? (morlordApr !== null ? `${morlordApr.toFixed(2)}%` : undefined)
-    : avgApyRate;
+  // Calculate APR using manual formula when flag is enabled
+  // This ensures proper sequencing: prices loaded -> TVL calculated -> daily emissions fetched -> APR calculated
+  const manualApr = (() => {
+    if (!manual_formula) {
+      return null;
+    }
+
+    // Wait for all data to be loaded (metrics hook handles price loading internally)
+    if (metricsLoading) {
+      console.log('⏳ Waiting for metrics data to load...', {
+        metricsLoading,
+        totalValueLockedUSD,
+        currentDailyRewardMOR,
+        morPrice
+      });
+      return null;
+    }
+
+    console.log('🔢 Manual APR calculation debug:', {
+      totalValueLockedUSD,
+      currentDailyRewardMOR,
+      morPrice,
+      stethPrice,
+      linkPrice,
+      wbtcPrice,
+      wethPrice
+    });
+
+    // Check for required values - all must be available
+    if (!totalValueLockedUSD || !currentDailyRewardMOR || !morPrice) {
+      console.log('❌ Missing required values for APR calculation', {
+        hasTVL: !!totalValueLockedUSD,
+        hasDailyEmissions: !!currentDailyRewardMOR,
+        hasMorPrice: !!morPrice
+      });
+      return null;
+    }
+
+    // Skip calculation if currentDailyRewardMOR is a loading or error state
+    if (currentDailyRewardMOR === 'N/A' || currentDailyRewardMOR === '...' || currentDailyRewardMOR === 'Error') {
+      console.log('⏳ Daily emissions data not ready:', currentDailyRewardMOR);
+      return null;
+    }
+
+    // Skip calculation if totalValueLockedUSD is a loading or error state
+    if (totalValueLockedUSD === '...' || totalValueLockedUSD === 'Error' || totalValueLockedUSD === 'Calculating...') {
+      console.log('⏳ TVL data not ready:', totalValueLockedUSD);
+      return null;
+    }
+
+    // Ensure all values are numbers - handle formatted strings with commas
+    const tvl = typeof totalValueLockedUSD === 'number'
+      ? totalValueLockedUSD
+      : parseFloat(typeof totalValueLockedUSD === 'string' ? totalValueLockedUSD.replace(/,/g, '') : String(totalValueLockedUSD));
+    const dailyEmissions = typeof currentDailyRewardMOR === 'number'
+      ? currentDailyRewardMOR
+      : parseFloat(typeof currentDailyRewardMOR === 'string' ? currentDailyRewardMOR.replace(/,/g, '') : String(currentDailyRewardMOR));
+    const morPriceNum = typeof morPrice === 'number' ? morPrice : parseFloat(String(morPrice));
+
+    console.log('🔢 Parsed values:', { tvl, dailyEmissions, morPriceNum });
+
+    if (isNaN(tvl) || isNaN(dailyEmissions) || isNaN(morPriceNum) || tvl <= 0 || morPriceNum <= 0) {
+      console.log('❌ Invalid values for APR calculation', {
+        tvl,
+        dailyEmissions,
+        morPriceNum,
+        tvlValid: !isNaN(tvl) && tvl > 0,
+        emissionsValid: !isNaN(dailyEmissions),
+        priceValid: !isNaN(morPriceNum) && morPriceNum > 0
+      });
+      return null;
+    }
+
+    // Manual formula: apr = (daily_rewards_usd * 365) / tvl_usd * 100
+    // where daily_rewards_usd = mor_daily_emissions * mor_price
+    const dailyRewardsUsd = dailyEmissions * morPriceNum;
+    const apr = (dailyRewardsUsd * 365) / tvl * 100;
+
+    console.log('✅ APR calculation result:', {
+      dailyRewardsUsd,
+      apr,
+      apr_formatted: apr.toFixed(2)
+    });
+
+    return apr.toFixed(2);
+  })();
+
+  // Use manual formula, Morlord data, or default approach based on flags
+  const displayAprRate = manual_formula
+    ? (manualApr !== null ? `${manualApr}%` : undefined)
+    : (isMorlordData
+        ? (morlordApr !== null ? `${morlordApr.toFixed(2)}%` : undefined)
+        : avgAprRate);
 
   const metricCards = [
     {
@@ -178,10 +274,10 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative' }:
       disableGlow: true,
       isGreen: true,
     },
-    // Temporarily commented out - Avg. APR Rate metric card
+    // Weighted average APR across all assets
     {
       title: "Avg. APR Rate",
-      value: displayApyRate,
+      value: displayAprRate,
       label: "%",
       autoFormatNumbers: false,
       className: "",

@@ -11,15 +11,13 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronRight, Lock, LockOpen } from "lucide-react";
-import { TokenIcon } from '@web3icons/react';
+import { AssetIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { sepolia, mainnet } from 'wagmi/chains';
+import { TimeLockPeriodSelector } from "./time-lock-period-selector";
 
 // Import hooks for power factor and estimated rewards
 import { usePowerFactor } from "@/hooks/use-power-factor";
@@ -89,11 +87,13 @@ export function ClaimMorRewardsModal() {
     return getContractAddress(l1ChainId, 'distributorV2', effectiveNetworkEnv) as `0x${string}` | undefined;
   }, [l1ChainId, effectiveNetworkEnv]);
 
-  const isOpen = activeModal === 'claimMorRewards';
+  const isOpen = activeModal === 'claimMorRewards' || activeModal === 'lockMorRewards';
+  const isLockMode = activeModal === 'lockMorRewards';
+  const isClaimMode = activeModal === 'claimMorRewards';
 
   // State for lock duration (for lock rewards functionality)
-  const [lockValue, setLockValue] = useState<string>("3");
-  const [lockUnit, setLockUnit] = useState<TimeUnit>('months');
+  const [lockValue, setLockValue] = useState<string>("7");
+  const [lockUnit, setLockUnit] = useState<TimeUnit>('days');
 
   // Initialize power factor hook
   const powerFactor = usePowerFactor({
@@ -153,7 +153,7 @@ export function ClaimMorRewardsModal() {
     if (lockValue && parseInt(lockValue, 10) > 0) {
       const numValue = parseInt(lockValue, 10);
       const maxAllowed = getMaxAllowedValue(lockUnit);
-      
+
       if (numValue > maxAllowed) {
         return `Maximum ${maxAllowed} ${lockUnit} allowed`;
       }
@@ -208,6 +208,25 @@ export function ClaimMorRewardsModal() {
       canClaim: selectedAssetCanClaim && claimableAmount > 0, // Use dynamic claim eligibility
     };
   }, [selectedAsset, assets, selectedAssetCanClaim]);
+
+  // Validation - separate lock period validation from other validations
+  const lockPeriodError = React.useMemo(() => {
+    // Check if new lock period would be shorter than existing position
+    if (lockValue && parseInt(lockValue, 10) > 0 && selectedAssetData) {
+      const currentTimestamp = Math.floor(Date.now() / 1000);
+      const lockDurationSeconds = durationToSeconds(lockValue, lockUnit);
+      const proposedClaimLockEnd = BigInt(currentTimestamp) + lockDurationSeconds;
+
+      // Get existing lock end timestamp for selected asset
+      const existingLockEnd = assets[selectedAssetData.symbol]?.claimUnlockTimestamp;
+
+      if (existingLockEnd && existingLockEnd > BigInt(0) && proposedClaimLockEnd < existingLockEnd) {
+        const existingDate = new Date(Number(existingLockEnd) * 1000);
+        return `Lock period too short. Your existing ${selectedAssetData.symbol} position is locked until ${existingDate.toLocaleDateString()}. New deposits must have a lock period that ends on or after this date.`;
+      }
+    }
+    return null;
+  }, [lockValue, lockUnit, selectedAssetData, assets]);
 
   // Get the deposit pool address for the selected asset (V7 protocol requirement)
   // const selectedAssetDepositPoolAddress = useMemo(() => {
@@ -346,13 +365,16 @@ export function ClaimMorRewardsModal() {
         <DialogContent className="h-[100vh] w-full sm:h-auto sm:max-w-[425px] bg-background border-gray-800 flex flex-col sm:block overflow-hidden">
           <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">
-              Manage MOR Rewards
+              {isLockMode ? 'Lock MOR Rewards' : 'Claim MOR Rewards'}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-4 sm:px-0 pb-4 sm:pb-0">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-0 pb-2 sm:pb-0">
             <DialogDescription className="text-gray-400 text-sm leading-relaxed mb-6">
-              Claim rewards earned by staking capital to Morpheus or lock your rewards for an increased power factor for future rewards.
+              {isLockMode
+                ? 'Lock your MOR rewards for an increased power factor to earn more rewards in the future.'
+                : 'Claim rewards earned by staking capital to Morpheus.'
+              }
             </DialogDescription>
 
             {selectedAssetData ? (
@@ -390,7 +412,7 @@ export function ClaimMorRewardsModal() {
                     <div className="flex items-center justify-between p-3 bg-emerald-400/10 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 rounded-lg">
-                          <TokenIcon symbol={selectedAssetData.icon} className='rounded-lg' variant="background" size="24" />
+                          <AssetIcon symbol={selectedAssetData.symbol} className='rounded-lg' size="24" />
                         </div>
                         <span className="text-white font-sm">{selectedAssetData.symbol}</span>
                       </div>
@@ -434,54 +456,21 @@ export function ClaimMorRewardsModal() {
                   </div>
                 )} */}
 
-                {/* Lock Duration Selection (for Lock Rewards) */}
-                {selectedTotals.selectedAssets.length > 0 && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
-                    <p className="text-xs text-gray-400">
-                      Minimum 90 days required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after 6 months, scales up to x10.7 at 10 years, and remains capped at x10.7 for longer periods
-                    </p>
-
-                    <div className="flex gap-2">
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={lockValue}
-                        onChange={(e) => handleLockValueChange(e.target.value)}
-                        className={`flex-1 bg-background text-white ${
-                          maxLockPeriodError ? '!border-red-500 border-2' : 
-                          minLockPeriodError ? 'border-yellow-500 border' : 'border-gray-700 border'
-                        }`}
-                        placeholder="0"
-                      />
-                      <Select value={lockUnit} onValueChange={(value: TimeUnit) => handleLockUnitChange(value)}>
-                        <SelectTrigger className="w-32 bg-background border-gray-700 text-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="months">Months</SelectItem>
-                          <SelectItem value="years">Years</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    {/* Lock period validation error messages */}
-                    {minLockPeriodError && (
-                      <div className="text-xs text-yellow-600 bg-yellow-500/10 border border-yellow-500/20 rounded p-2">
-                        ⚠️ {minLockPeriodError}
-                      </div>
-                    )}
-                    {maxLockPeriodError && (
-                      <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
-                        {maxLockPeriodError}
-                      </div>
-                    )}
-                  </div>
+                {/* Lock Duration Selection (only shown in lock mode) */}
+                {isLockMode && selectedTotals.selectedAssets.length > 0 && (
+                  <TimeLockPeriodSelector
+                    lockValue={lockValue}
+                    lockUnit={lockUnit}
+                    onLockValueChange={handleLockValueChange}
+                    onLockUnitChange={handleLockUnitChange}
+                    minLockPeriodError={minLockPeriodError}
+                    maxLockPeriodError={maxLockPeriodError}
+                    lockPeriodError={lockPeriodError}
+                  />
                 )}
 
-                {/* Summary Section */}
-                {selectedAssetData && lockValue && parseInt(lockValue, 10) > 0 && powerFactor?.currentResult && (
+                {/* Summary Section (only shown in lock mode) */}
+                {isLockMode && selectedAssetData && lockValue && parseInt(lockValue, 10) > 0 && powerFactor?.currentResult && (
                   <div className="mb-6 p-4 rounded-md text-sm bg-emerald-500/20 rounded-lg mt-2 p-3 max-h-64 overflow-y-auto">
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
@@ -593,17 +582,19 @@ export function ClaimMorRewardsModal() {
             )}
           </div>
 
-          <DialogFooter className="flex-shrink-0 px-4 sm:px-0 sm:mt-4">
+          <DialogFooter className="flex-shrink-0 px-4 sm:px-0 sm:mt-1">
             {selectedAssetData && (
               <div className="w-full space-y-3">
-                <button
-                  className="w-full copy-button flex items-center justify-center relative"
-                  onClick={handleLockRewards}
-                  disabled={selectedTotals.selectedAssets.length === 0 || isProcessingChangeLock || isProcessingClaim || needsNetworkSwitch || !!minLockPeriodError || !!maxLockPeriodError}
-                >
-                  {isProcessingChangeLock ? "Locking..." : "Lock MOR Rewards"}
-                  <ChevronRight className="h-4 w-4 absolute right-4" />
-                </button>
+                {isLockMode && (
+                  <button
+                    className="w-full copy-button flex items-center justify-center relative"
+                    onClick={handleLockRewards}
+                    disabled={selectedTotals.selectedAssets.length === 0 || isProcessingChangeLock || isProcessingClaim || needsNetworkSwitch || !!minLockPeriodError || !!maxLockPeriodError || !!lockPeriodError}
+                  >
+                    {isProcessingChangeLock ? "Locking..." : "Lock MOR Rewards"}
+                    <ChevronRight className="h-4 w-4 absolute right-4" />
+                  </button>
+                )}
 
                 {needsNetworkSwitch ? (
                   <button
@@ -614,20 +605,26 @@ export function ClaimMorRewardsModal() {
                     {isNetworkSwitching ? "Switching..." : `Switch to ${networkName}`}
                   </button>
                 ) : (
-                  <button
-                    className="w-full copy-button-secondary px-4 py-2"
-                    onClick={handleClaim}
-                    disabled={selectedTotals.selectedAssets.length === 0 || isProcessingClaim || isProcessingChangeLock}
-                  >
-                    {isProcessingClaim ? "Claiming..." : "Claim MOR Rewards"}
-                  </button>
+                  isClaimMode && (
+                    <button
+                      className="w-full copy-button-secondary px-4 py-2"
+                      onClick={handleClaim}
+                      disabled={selectedTotals.selectedAssets.length === 0 || isProcessingClaim || isProcessingChangeLock}
+                    >
+                      {isProcessingClaim ? "Claiming..." : "Claim MOR Rewards"}
+                    </button>
+                  )
                 )}
 
                 <p className="text-xs text-gray-400 text-center">
                   {needsNetworkSwitch ? (
-                    <>⚠️ Switch to {networkName} network to claim rewards</>
+                    <>⚠️ Switch to {networkName} network to {isLockMode ? 'lock' : 'claim'} rewards</>
                   ) : (
-                    <>⚠️ Claims require ~0.01 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
+                    isLockMode ? (
+                      <>⚠️ Locking requires ~0.01 ETH for cross-chain gas</>
+                    ) : (
+                      <>⚠️ Claims require ~0.01 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
+                    )
                   )}
                 </p>
               </div>

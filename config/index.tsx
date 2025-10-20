@@ -1,11 +1,15 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
-import { cookieStorage, createStorage } from 'wagmi';
+import { cookieStorage, createStorage, http } from 'wagmi';
 import { mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
 // import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
 
 if (!projectId) throw new Error('Project ID is not defined');
+
+const alchemyMainnetRpcUrl = process.env.NEXT_PUBLIC_ALCHEMY_MAINNET_RPC_URL;
+
+if (!alchemyMainnetRpcUrl) throw new Error('Alchemy Mainnet RPC URL is not defined');
 
 const metadata = {
   name: 'Morpheus Dashboard',
@@ -27,6 +31,14 @@ export const getWagmiConfig = () => {
     storage: createStorage({
       storage: cookieStorage
     }),
+    // ✅ CRITICAL: Explicitly configure transports to use Alchemy for mainnet (archive RPC)
+    transports: {
+      [mainnet.id]: http(alchemyMainnetRpcUrl),
+      [arbitrum.id]: http(), // Use default for other chains
+      [base.id]: http(),
+      [arbitrumSepolia.id]: http(),
+      [sepolia.id]: http(),
+    },
     enableCoinbase: true,
     auth: {
       showWallets: true,

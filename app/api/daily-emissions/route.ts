@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { createPublicClient, http, formatUnits } from 'viem';
 import { mainnet, sepolia } from 'wagmi/chains';
 import { getContractAddress, NetworkEnvironment, testnetChains, mainnetChains } from '@/config/networks';
@@ -20,17 +22,15 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🎯 [DAILY EMISSIONS API] Starting daily emissions fetch...');
 
-    // Get network environment from query params
-    const { searchParams } = new URL(request.url);
-    const networkEnv = searchParams.get('networkEnv') as NetworkEnvironment;
+    // Get network environment from query params, default to mainnet for safety
+    const searchParams = request.nextUrl.searchParams;
+    const networkEnvParam = searchParams.get('networkEnv') || searchParams.get('network');
+    const networkEnv = (networkEnvParam === 'testnet' ? 'testnet' : 'mainnet') as NetworkEnvironment;
 
-    if (!networkEnv || (networkEnv !== 'mainnet' && networkEnv !== 'testnet')) {
-      console.log('❌ Invalid network environment:', networkEnv);
-      return NextResponse.json(
-        { error: 'Invalid or missing network environment. Must be "mainnet" or "testnet"' },
-        { status: 400 }
-      );
-    }
+    console.log('🌐 [DAILY EMISSIONS API] Network environment:', {
+      param: networkEnvParam,
+      resolved: networkEnv
+    });
 
     // Check cache first
     const now = Date.now();

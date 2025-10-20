@@ -9,7 +9,7 @@ export const POWER_FACTOR_CONSTANTS = {
   REWARDS_DIVIDER: 10000, // Final division factor
   MAX_POWER_FACTOR: 10.7, // ✅ ACTUAL contract maximum (verified through testing)
   MIN_ACTIVATION_PERIOD_MONTHS: 7, // Minimum period before power factor activates
-  MIN_DEPOSIT_LOCK_MONTHS: 3, // Minimum deposit lock period allowed
+  MIN_DEPOSIT_LOCK_DAYS: 7, // Minimum deposit lock period: 7 days
   MAX_LOCK_PERIOD_YEARS: 10, // Maximum lock period allowed
   SECONDS_PER_DAY: 86400,
   // Note: We now use real calendar calculations instead of these approximations
@@ -500,11 +500,11 @@ export function getMinAllowedValue(unit: TimeUnit): number {
     case "years":
       return 1; // Minimum 1 year (equivalent to 12 months)
     case "months":
-      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_MONTHS; // Minimum 3 months as per protocol requirements
+      return 1; // No minimum requirement for months (minimum validation is in days)
     case "days":
-      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_MONTHS * 30; // Minimum ~3 months in days
+      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS; // Minimum 7 days
     case "minutes":
-      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_MONTHS * 30 * 24 * 60; // Minimum ~3 months in minutes
+      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS * 24 * 60; // Minimum 7 days in minutes
     default:
       return 1;
   }

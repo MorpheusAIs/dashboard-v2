@@ -1,8 +1,6 @@
 import Image from "next/image";
 import { NetworkIcon } from '@web3icons/react';
 import { ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { useState } from "react";
 import { EditSubnetModal } from "./edit-subnet-modal";
 import { Builder } from "@/app/builders/builders-data";
@@ -78,9 +76,6 @@ export function ProjectHeader({
   networks = ['Base'],
   website,
   rewardType,
-  backButton = false,
-  onBack,
-  backPath,
   children,
   builder,
   showEditButton = false,
@@ -108,71 +103,83 @@ export function ProjectHeader({
 
   // Generate project default icon from name
   const firstLetter = name.charAt(0);
-  
-  // Render back button if needed
-  const renderBackButton = () => {
-    if (!backButton) return null;
-    
-    if (backPath) {
-      return (
-        <Link href={backPath}>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9 rounded-full mr-3"
-          >
-            <span className="sr-only">Go back</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="size-4"
-            >
-              <path d="m15 18-6-6 6-6" />
-            </svg>
-          </Button>
-        </Link>
-      );
-    }
-    
-    return (
-      <Button
-        variant="outline"
-        size="icon"
-        className="size-9 rounded-full mr-3"
-        onClick={onBack}
-      >
-        <span className="sr-only">Go back</span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="size-4"
-        >
-          <path d="m15 18-6-6 6-6" />
-        </svg>
-      </Button>
-    );
-  };
 
   return (
     <>
-      <div className="flex items-start gap-6">
-        {renderBackButton()}
+      {/* Mobile Layout (sm and smaller) */}
+      <div className="sm:hidden space-y-4">
+        {/* Row 1: Image + Title */}
+        <div className="flex items-center gap-4">
+          <div className="relative size-16 sm:size-24 rounded-xl overflow-hidden bg-white/[0.05] flex-shrink-0">
+            {hasValidImage ? (
+              <div className="relative size-16 sm:size-24">
+                <Image
+                  src={imagePath!.startsWith('http') ? imagePath! : imagePath!.startsWith('/') ? imagePath! : `/${imagePath!}`}
+                  alt={name}
+                  fill
+                  sizes="(max-width: 640px) 64px, 96px"
+                  className="object-cover"
+                  onError={() => {
+                    setImageError(true);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center size-16 sm:size-24 bg-emerald-700 text-white text-2xl sm:text-4xl font-medium">
+                {firstLetter}
+              </div>
+            )}
+          </div>
+          
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-100 flex-1">{name}</h1>
+        </div>
         
-        <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05]">
+        {/* Row 2: Network + Reward Type + Website */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex -space-x-1">
+            {networks.map((network: string) => (
+              <div key={network} className="relative">
+                <NetworkIcon name={network.toLowerCase()} size={24} />
+              </div>
+            ))}
+          </div>
+          
+          {rewardType && (
+            <>
+              <span className="text-gray-400">|</span>
+              <span className="text-gray-300 text-sm">{rewardType}</span>
+            </>
+          )}
+          
+          {website && (
+            <>
+              <span className="text-gray-400">|</span>
+              <a 
+                href={website} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3 flex items-center gap-1 text-sm"
+              >
+                {extractDomain(website)}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </>
+          )}
+        </div>
+        
+        {/* Row 3: Description */}
+        {description && (
+          <p className="text-gray-400 text-sm">
+            {description}
+          </p>
+        )}
+        
+        {children}
+      </div>
+
+      {/* Desktop Layout (sm and larger) */}
+      <div className="hidden sm:flex items-start gap-6">
+        <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05] flex-shrink-0">
           {hasValidImage ? (
             <div className="relative size-24">
               <Image

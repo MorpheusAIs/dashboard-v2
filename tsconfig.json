@@ -38,9 +38,6 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "DashBoard/**/*",
-    "subgraph/**/*",
-    "anvil-scripts/**/*"
+    "node_modules"
   ]
 }

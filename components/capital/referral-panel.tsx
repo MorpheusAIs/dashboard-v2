@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { useCapitalContext } from "@/context/CapitalPageContext";
+import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { toast } from "sonner";
+import { formatAssetAmount } from "./utils/asset-formatters";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,12 +16,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { LiquidButton } from "@/components/ui/shadcn-io/liquid-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export function ReferralPanel() {
   const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
   const [isCopying, setIsCopying] = useState(false);
   const [currentDomain, setCurrentDomain] = useState('');
   const [showClaimDialog, setShowClaimDialog] = useState(false);
+  const [isHoveringEarnText, setIsHoveringEarnText] = useState(false);
 
   // Set current domain after component mounts (client-side only)
   useEffect(() => {
@@ -69,6 +87,53 @@ export function ReferralPanel() {
   // Check if user has any claimable referral rewards
   const hasClaimableRewards = referralData.assetsWithClaimableRewards.length > 0;
 
+  // Component for displaying referral amounts
+  const ReferralAmountsDisplay = () => {
+    if (referralData.isLoadingReferralData) {
+      return (
+        <div className="text-gray-400 text-center py-4">
+          Loading...
+        </div>
+      );
+    }
+
+    // Access referral amounts data
+    const referralAmounts = referralData.referralAmountsByAsset;
+
+    if (!referralAmounts || referralAmounts.length === 0) {
+      return (
+        <div
+          className="text-left cursor-pointer transition-colors text-emerald-400 hover:underline underline-offset-2 hover:translate-y-[-1px]"
+          onMouseEnter={() => setIsHoveringEarnText(true)}
+          onMouseLeave={() => setIsHoveringEarnText(false)}
+        >
+          Earn MOR by referring people
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <div className="flex gap-3 pb-2">
+          {referralAmounts.map((item) => {
+            const amount = parseFloat(item.formattedAmount);
+            const formattedAmount = formatAssetAmount(amount, item.asset as AssetSymbol);
+
+            return (
+              <div
+                key={item.asset}
+                className="flex flex-row items-center gap-1 justify-between rounded-lg px-2 py-1 border border-emerald-400/40"
+              >
+                <div className="text-sm font-medium text-white">{formattedAmount}</div>
+                <div className="text-xs text-gray-400 uppercase">{item.asset}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // Format MOR values using same logic as daily emissions (4 decimals if < 0.01, 2 decimals otherwise)
   const formatMorValue = (value: string | number): string => {
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
@@ -91,13 +156,52 @@ export function ReferralPanel() {
         <div className="section-content group relative px-1 py-4 sm:p-6">
           <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent" />
           <div className="p-4 md:p-6">
-            {/* Header with button */}
+            {/* Header with buttons */}
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">Referrals</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-white">Referrals</h2>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <LiquidButton size="sm" variant="ghost" className="rounded-lg">
+                      How do I earn?
+                    </LiquidButton>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>How do referrals work?</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <p className="text-muted-foreground text-sm">
+                        Earn MOR rewards by referring people to deposit assets. Your rewards are based on a tier system where you earn a percentage of MOR emissions from the virtual staked assets of your referrals.
+                      </p>
+                      <Accordion type="single" collapsible className="w-full">
+                        <AccordionItem value="tiers" className="border-0">
+                          <AccordionTrigger className="text-sm font-medium justify-start p-0 hover:no-underline">
+                            See Referral Tiers
+                          </AccordionTrigger>
+                          <AccordionContent className="text-sm text-muted-foreground space-y-1 pb-0">
+                            <div>• 1 stETH = 3%</div>
+                            <div>• 2.5 stETH = 5%</div>
+                            <div>• 25 stETH = 10%</div>
+                            <div>• 62.5 stETH = 15%</div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <button className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors">
+                          I understand
+                        </button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <button
                 className={`copy-button-secondary font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
-                  !userAddress || !hasClaimableRewards || referralData.isLoadingReferralData 
-                    ? '' 
+                  !userAddress || !hasClaimableRewards || referralData.isLoadingReferralData
+                    ? ''
                     : 'hover:copy-button'
                 }`}
                 onClick={handleClaimReferralRewards}
@@ -108,34 +212,16 @@ export function ReferralPanel() {
             </div>
 
             {/* Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 sm:gap-4">
               {/* Total Deposited by Referrals */}
               <div className="col-span-1">
-                <MetricCardMinimal
-                  title={
-                    <div className="flex flex-col">
-                      <span>Current Deposits by Referrals ({referralData.isLoadingReferralData ? "---" : referralData.totalReferrals})</span>
-                    </div>
-                  }
-                  value={referralData.isLoadingReferralData ? "---" : referralData.totalReferralAmount}
-                  label={referralData.isLoadingReferralData ? "" : "stETH"}
-                  disableGlow={true}
-                  autoFormatNumbers={true}
-                  className="h-full"
-                />
+                <div className="card-minimal group relative p-4 h-full flex flex-col justify-center">
+                  <div className="text-sm text-gray-400 mb-2">
+                    Current Deposits by Referrals ({referralData.isLoadingReferralData ? "---" : referralData.totalReferrals})
+                  </div>
+                  <ReferralAmountsDisplay />
+                </div>
               </div>
-
-              {/* Lifetime Value Generated */}
-              {/* <div className="col-span-1">
-                <MetricCardMinimal
-                  title="Total MOR Earned"
-                  value={referralData.isLoadingReferralData ? "---" : formatMorValue(referralData.lifetimeRewards)}
-                  label={referralData.isLoadingReferralData ? "" : "MOR"}
-                  disableGlow={true}
-                  autoFormatNumbers={false}
-                  className="h-full"
-                />
-              </div> */}
 
               {/* Claimable Rewards */}
               <div className="col-span-1">
@@ -148,10 +234,24 @@ export function ReferralPanel() {
                   className="h-full"
                 />
               </div>
+              {/* Lifetime Value Generated */}
+              <div className="col-span-1">
+                <MetricCardMinimal
+                  title="Total MOR Earned"
+                  value={referralData.isLoadingReferralData ? "---" : formatMorValue(referralData.lifetimeRewards)}
+                  label={referralData.isLoadingReferralData ? "" : "MOR"}
+                  disableGlow={true}
+                  autoFormatNumbers={false}
+                  className="h-full"
+                />
+              </div>
+
 
               {/* Referral Link */}
               <div className="col-span-1">
-                <div className="card-minimal group relative p-4 h-full flex flex-col justify-center">
+                <div className={`card-minimal group relative p-4 h-full flex flex-col justify-center transition-all duration-300 ${
+                  isHoveringEarnText ? 'ring-2 ring-emerald-400 ring-opacity-75 animate-pulse' : ''
+                }`}>
                   <div className="text-sm text-gray-400 mb-2">My Referral Link</div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-gray-200 truncate flex-1 font-mono text-sm">

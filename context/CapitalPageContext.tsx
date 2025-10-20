@@ -38,7 +38,8 @@ import { getTransactionUrl, isMainnetChain } from "@/lib/utils/transaction-utils
 
 // Import hooks that provide refetch functions
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
-import { useReferralData } from "@/hooks/use-referral-data";
+import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
+import { useReferralData, useReferrerSummary } from "@/hooks/use-referral-data";
 import { useAssetContractData } from "@/hooks/use-asset-contract-data";
 import { incrementLocalDepositorCount } from "@/app/hooks/useCapitalMetrics";
 
@@ -68,6 +69,29 @@ interface PoolInfoData {
   isPublic: boolean; // bool
 }
 
+interface ReferralAmountByAsset {
+  asset: string;
+  amount: bigint;
+  formattedAmount: string;
+}
+
+interface ReferralData {
+  totalReferrals: string;
+  totalReferralAmount: string;
+  lifetimeRewards: string;
+  claimableRewards: string;
+  referralAmountsByAsset: ReferralAmountByAsset[];
+  isLoadingReferralData: boolean;
+  rewardsByAsset: Partial<Record<AssetSymbol, bigint>>;
+  referrerDetailsByAsset: Partial<Record<AssetSymbol, ReferralContractData | null>>;
+  assetsWithClaimableRewards: AssetSymbol[];
+  availableReferralAssets: AssetSymbol[];
+  stETHReferralRewards: bigint;
+  linkReferralRewards: bigint;
+  stETHReferralData: ReferralContractData | null;
+  linkReferralData: ReferralContractData | null;
+}
+
 interface PoolLimitsData {
   claimLockPeriodAfterStake: bigint; // uint128
   claimLockPeriodAfterClaim: bigint; // uint128
@@ -94,7 +118,7 @@ interface ReferralContractData {
 }
 
 // --- Types & Helpers moved from ChangeLockModal ---
-type ActiveModal = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "claimMorRewards" | null;
+type ActiveModal = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "lockMorRewards" | "claimMorRewards" | null;
 type TimeUnit = "days" | "months" | "years";
 
 // V2 Asset Types (imported from asset-config.ts)
@@ -303,7 +327,8 @@ interface CapitalContextState {
     referrerDetailsByAsset: Partial<Record<AssetSymbol, ReferralContractData | null>>; // Referral details by asset symbol
     assetsWithClaimableRewards: AssetSymbol[]; // Assets that currently have claimable referral rewards
     availableReferralAssets: AssetSymbol[]; // All assets that support referral rewards
-    
+    referralAmountsByAsset: ReferralAmountByAsset[]; // Array of referral amounts by asset
+
     // Legacy hardcoded exports (DEPRECATED - for backward compatibility only)
     /** @deprecated Use rewardsByAsset.stETH instead. Will be removed in future versions. */
     stETHReferralRewards: bigint;
@@ -449,12 +474,52 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const rewardPoolV2Address = useMemo(() => getContractAddress(l1ChainId, 'rewardPoolV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
   const l1SenderV2Address = useMemo(() => getContractAddress(l1ChainId, 'l1SenderV2', networkEnv) as `0x${string}` | undefined, [l1ChainId, networkEnv]);
 
+  // --- Clear Stale Price Cache on Mount ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const cached = localStorage.getItem('morpheus_token_prices');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // If MOR price is suspiciously low (< $0.50), clear the cache
+        if (parsed.morPrice && parsed.morPrice < 0.5) {
+          console.log('🧹 Clearing stale price cache (morPrice too low):', parsed.morPrice);
+          localStorage.removeItem('morpheus_token_prices');
+        }
+        // If cache is older than 24 hours, clear it
+        const cacheAge = Date.now() - (parsed.timestamp || 0);
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        if (cacheAge > oneDayMs) {
+          console.log('🧹 Clearing expired price cache (age: ' + Math.floor(cacheAge / 1000 / 60 / 60) + 'h)');
+          localStorage.removeItem('morpheus_token_prices');
+        }
+      }
+    } catch (error) {
+      console.warn('Error checking price cache:', error);
+    }
+  }, []); // Run once on mount
+
+  // --- Get MOR Price for APR Calculation ---
+  const { morPrice } = useTokenPrices({
+    isInitialLoad: true,
+    shouldRefreshData: false,
+    userAddress: undefined,
+    networkEnv: networkEnv
+  });
+
   // --- Pool Data Hook with Refetch Functions ---
-  const capitalPoolData = useCapitalPoolData();
+  const capitalPoolData = useCapitalPoolData({ morPrice: morPrice || undefined });
   
   // --- Referral Data Hook (GraphQL) ---
   const liveReferralData = useReferralData({
     userAddress: userAddress, // ✅ Now using actual connected wallet address
+    networkEnvironment: networkEnv
+  });
+
+  // --- Referrer Summary Hook (GraphQL) for Total MOR Earned ---
+  const referrerSummaryData = useReferrerSummary({
+    userAddress: userAddress,
     networkEnvironment: networkEnv
   });
 
@@ -2093,7 +2158,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [claimUnlockTimestamp, currentUserRewardData, currentTimestampSeconds]);
 
   // V2 Referral Data Processing - Now fully dynamic
-  const referralData = useMemo(() => {
+  const referralData: ReferralData = useMemo(() => {
     const availableReferralAssetSymbols = referralAssetConfigs.map((config) => config.symbol);
     const assetsWithClaimableRewards = referralAssetConfigs
       .filter((config) => (referralRewardsByAsset[config.symbol] ?? BigInt(0)) > BigInt(0))
@@ -2102,28 +2167,100 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       const reward = referralRewardsByAsset[config.symbol] ?? BigInt(0);
       return sum + reward;
     }, BigInt(0));
-    const totalLifetimeValue = referralAssetConfigs.reduce((sum, config) => {
-      // Use actual MOR rewards from getLatestReferrerReward (tier multiplier already applied)
-      const reward = referralRewardsByAsset[config.symbol] ?? BigInt(0);
-      return sum + reward;
-    }, BigInt(0));
 
-    const isLoadingReferralData = isLoadingReferralRewards || isLoadingReferrerDetails || liveReferralData.isLoading;
+    const isLoadingReferralData = isLoadingReferralRewards || isLoadingReferrerDetails || liveReferralData.isLoading || referrerSummaryData.isLoading;
 
     // Total claimable rewards from all pools
-    // Lifetime rewards - sum of MOR rewards earned across all referral pools (tier multipliers applied)
+    // Lifetime rewards - sum of historical MOR claims across all referral pools
     // Use live referral count or fallback to loading/error states
-    const totalReferralsDisplay = liveReferralData.error 
-      ? "Error" 
-      : liveReferralData.isLoading 
-        ? "..." 
+    const totalReferralsDisplay = liveReferralData.error
+      ? "Error"
+      : liveReferralData.isLoading
+        ? "..."
         : liveReferralData.totalReferrals.toString();
-    
+
+    // Calculate total referrals with positive amounts from referrer summary
+    const totalReferralsFromSummary = referrerSummaryData.rawData ? (() => {
+      const uniqueReferralAddresses = new Set<string>();
+      const pools = [
+        referrerSummaryData.rawData.stETH_referrer,
+        referrerSummaryData.rawData.wBTC_referrer,
+        referrerSummaryData.rawData.wETH_referrer,
+        referrerSummaryData.rawData.USDC_referrer,
+        referrerSummaryData.rawData.USDT_referrer
+      ];
+
+      pools.forEach(poolReferrers => {
+        poolReferrers.forEach(referrer => {
+          referrer.referrals.forEach(ref => {
+            // Only count referrals with positive amounts (not zero)
+            try {
+              if (BigInt(ref.amount) > BigInt(0)) {
+                uniqueReferralAddresses.add(ref.referralAddress);
+              }
+            } catch {
+              // Skip invalid amounts
+            }
+          });
+        });
+      });
+
+      return uniqueReferralAddresses.size;
+    })() : 0;
+
+    const referralAmountsByAsset = referrerSummaryData.rawData ? (() => {
+      const amounts: Array<{ asset: string; amount: bigint; formattedAmount: string }> = [];
+
+      const poolMapping = [
+        { key: 'stETH_referrer', asset: 'stETH' },
+        { key: 'wBTC_referrer', asset: 'wBTC' },
+        { key: 'wETH_referrer', asset: 'wETH' },
+        { key: 'USDC_referrer', asset: 'USDC' },
+        { key: 'USDT_referrer', asset: 'USDT' }
+      ];
+
+      poolMapping.forEach(({ key, asset }) => {
+        const poolReferrers = referrerSummaryData.rawData![key as keyof typeof referrerSummaryData.rawData] as Array<{
+          referrerAddress: string;
+          claimed: string;
+          referrals: Array<{ amount: string; referralAddress: string }>;
+        }>;
+
+        if (poolReferrers && poolReferrers.length > 0) {
+          const totalAmount = poolReferrers.reduce((sum, referrer) => {
+            return sum + referrer.referrals.reduce((refSum, ref) => {
+              try {
+                return refSum + BigInt(ref.amount);
+              } catch {
+                return refSum;
+              }
+            }, BigInt(0));
+          }, BigInt(0));
+
+          if (totalAmount > BigInt(0)) {
+            // Get the correct decimals for this asset
+            const assetConfig = getAssetConfig(asset as AssetSymbol, networkEnv);
+            const decimals = assetConfig?.metadata.decimals || 18;
+
+            amounts.push({
+              asset,
+              amount: totalAmount,
+              formattedAmount: formatBigInt(totalAmount, decimals, 4)
+            });
+          }
+        }
+      });
+
+      // Sort by amount descending
+      return amounts.sort((a, b) => Number(b.amount - a.amount));
+    })() : [];
+
     return {
-      totalReferrals: totalReferralsDisplay, // ✅ Using live GraphQL data
-      totalReferralAmount: liveReferralData.isLoading ? "---" : formatBigInt(liveReferralData.totalReferralAmount, 18, 4), // ✅ Total amount deposited by referrals
-      lifetimeRewards: formatBigInt(totalLifetimeValue, 18, 2),
+      totalReferrals: referrerSummaryData.isLoading ? "..." : (totalReferralsFromSummary > 0 ? totalReferralsFromSummary.toString() : totalReferralsDisplay), // ✅ Using referrer summary data first, fallback to live data
+      totalReferralAmount: liveReferralData.isLoading ? "---" : formatBigInt(liveReferralData.totalReferralAmount, 18, 4), // ✅ Total amount deposited by referrals (legacy)
+      lifetimeRewards: referrerSummaryData.isLoading ? "---" : formatBigInt(referrerSummaryData.totalMorEarned, 18, 2),
       claimableRewards: formatBigInt(totalClaimableRewards, 18, 4),
+      referralAmountsByAsset, // New: Array of referral amounts by asset
       isLoadingReferralData,
       
       // Dynamic asset rewards and data (all available assets)
@@ -2150,7 +2287,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     referralAssetConfigs,
     liveReferralData.isLoading,
     liveReferralData.error,
-    liveReferralData.totalReferrals
+    liveReferralData.totalReferrals,
+    referrerSummaryData.isLoading,
+    referrerSummaryData.totalMorEarned,
+    referrerSummaryData.rawData
   ]);
 
   // V2 Claim and Lock Functions

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { formatUnits, parseUnits, isAddress } from "viem";
 import { useEnsAddress, useBalance } from "wagmi";
 import { mainnet } from "wagmi/chains";
-import { TokenIcon } from '@web3icons/react';
+import { AssetIcon } from "@/components/icons";
 import { 
   Dialog, 
   DialogPortal, 
@@ -35,8 +35,7 @@ import {
 
 // Import Constants
 import {
-  ETH_ADDRESS_REGEX,
-  timeLockOptions
+  ETH_ADDRESS_REGEX
 } from "./constants/deposit-modal-constants";
 
 // Import dynamic asset configuration
@@ -44,6 +43,7 @@ import {
   getAssetsForNetwork,
   type AssetContractInfo
 } from "./constants/asset-config";
+import { TimeLockPeriodSelector } from "./time-lock-period-selector";
 
 export function DepositModal() {
   // Network switching hook
@@ -265,7 +265,7 @@ export function DepositModal() {
   const [amount, setAmount] = useState("");
   const [rawAmount, setRawAmount] = useState(""); // Store raw amount for transactions
   const [referrerAddress, setReferrerAddress] = useState("");
-  const [lockValue, setLockValue] = useState("90");
+  const [lockValue, setLockValue] = useState("7");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("days");
   const [formError, setFormError] = useState<string | null>(null);
   const [referrerAddressError, setReferrerAddressError] = useState<string | null>(null);
@@ -926,7 +926,7 @@ export function DepositModal() {
       setAmount("");
       setRawAmount("");
       setReferrerAddress("");
-      setLockValue("90");
+      setLockValue("7");
       setLockUnit("days");
       setFormError(null);
       setReferrerAddressError(null);
@@ -967,7 +967,7 @@ export function DepositModal() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-between bg-background border-gray-700 hover:bg-gray-800"
+                  className="w-full justify-between bg-background border-gray-700 hover:bg-gray-800/25"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -975,12 +975,11 @@ export function DepositModal() {
                   }}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center">
-                      <TokenIcon 
-                        symbol={availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.icon || 'eth'}
-                        className="rounded-lg" 
-                        variant="background" 
-                        size="26" 
+                    <div className="flex items-center justify-center">
+                      <AssetIcon
+                        symbol={selectedAsset}
+                        className="rounded-lg"
+                        size={24}
                       />
                     </div>
                     <span>{selectedAsset}</span>
@@ -999,7 +998,7 @@ export function DepositModal() {
                       <button
                         key={asset.value}
                         type="button"
-                        className="w-full p-3 text-left hover:bg-gray-800 flex items-center gap-3 justify-between transition-colors"
+                        className="w-full p-3 text-left hover:translate-y-[-1px] hover:bg-gray-800/25 flex items-center gap-3 justify-between transition-colors"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1010,11 +1009,11 @@ export function DepositModal() {
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-6 h-6 flex items-center justify-center">
-                            <TokenIcon symbol={asset.symbol} className="rounded-lg" variant="background" size="24" />
+                            <AssetIcon symbol={asset.value as AssetSymbol} className="rounded-lg" size="24" />
                           </div>
                           <span className="text-white">{asset.label}</span>
                         </div>
-                                                  <span className="text-gray-400 text-sm">
+                          <span className="text-gray-400 text-sm">
                             {formatBalanceDisplay(getUserBalanceForAsset(asset.value as AssetSymbol).formatted || '0', asset.value as AssetSymbol)} Available
                           </span>
                       </button>
@@ -1179,87 +1178,18 @@ export function DepositModal() {
             </div>
 
             {/* Time Lock Period */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
-              <p className="text-xs text-gray-400">
-                Minimum 90 days required. Locking MOR claims increases your power factor for future rewards but delays claiming. Power Factor activates after ~7-8 months, scales up to x10.7 at 10 years, and remains capped at x10.7 for longer periods
-              </p>
-
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="0"
-                  value={lockValue}
-                  onChange={(e) => {
-                    handleLockValueChange(e.target.value);
-                    setFormError(null); // Clear form error on input change
-                  }}
-                  className={`bg-background flex-1 text-base ${
-                    lockPeriodError || maxLockPeriodError ? '!border-red-500 border-2' : 
-                    minLockPeriodError ? 'border-yellow-500 border' : 'border-gray-700 border'
-                  }`}
-                  disabled={isProcessingDeposit}
-                />
-                <div className="relative w-32" ref={timeLockDropdownRef}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={`w-full justify-between bg-background hover:bg-gray-800 ${
-                      lockPeriodError || maxLockPeriodError ? '!border-red-500 border-2' : 
-                      minLockPeriodError ? 'border-yellow-500 border' : 'border-gray-700 border'
-                    }`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setTimeLockDropdownOpen(!timeLockDropdownOpen);
-                    }}
-                  >
-                    {lockUnit.charAt(0).toUpperCase() + lockUnit.slice(1)}
-                    <ChevronDown className={`h-4 w-4 opacity-50 transition-transform ${timeLockDropdownOpen ? 'rotate-180' : ''}`} />
-                  </Button>
-                  
-                  {timeLockDropdownOpen && (
-                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-background border border-gray-700 rounded-md shadow-lg overflow-hidden z-[10000]">
-                      {timeLockOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          className="w-full p-3 text-left hover:bg-gray-800 transition-colors text-white"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleLockUnitChange(option.value as TimeUnit);
-                            setTimeLockDropdownOpen(false);
-                            setFormError(null); // Clear form error on time unit change
-                          }}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Lock period validation error messages */}
-              {minLockPeriodError && (
-                <div className="text-xs text-yellow-600 bg-yellow-500/10 border border-yellow-500/20 rounded p-2">
-                  ⚠️ {minLockPeriodError}
-                </div>
-              )}
-              {maxLockPeriodError && (
-                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
-                  {maxLockPeriodError}
-                </div>
-              )}
-              {lockPeriodError && (
-                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded p-2">
-                  {lockPeriodError}
-                </div>
-              )}
-            </div>
+            <TimeLockPeriodSelector
+              lockValue={lockValue}
+              lockUnit={lockUnit}
+              onLockValueChange={handleLockValueChange}
+              onLockUnitChange={handleLockUnitChange}
+              minLockPeriodError={minLockPeriodError}
+              maxLockPeriodError={maxLockPeriodError}
+              lockPeriodError={lockPeriodError}
+              disabled={isProcessingDeposit}
+              onValueChangeExtra={() => setFormError(null)}
+              onUnitChangeExtra={() => setFormError(null)}
+            />
 
             {/* Summary Section */}
             {amount && parseFloat(amount) > 0 && lockValue && parseInt(lockValue, 10) > 0 && (

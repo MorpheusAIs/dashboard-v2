@@ -1,168 +1,266 @@
-const COINGECKO_API_URL = "https://api.coingecko.com/api/v3/simple/price";
+// DefiLlama for stETH, wBTC, wETH, LINK (testnet)
+// CoinGecko for MOR token (not available on DefiLlama)
+// Stablecoins (USDC, USDT) are hardcoded to $1.00
 
-// Map CoinGecko IDs to symbol names for Coinbase fallback
-const COINGECKO_TO_SYMBOL_MAP: Record<string, string> = {
-  'staked-ether': 'STETH',
-  'ethereum': 'ETH',
-  'weth': 'WETH',
-  'bitcoin': 'BTC',
-  'wrapped-bitcoin': 'WBTC',
-  'usd-coin': 'USDC',
-  'tether': 'USDT',
+// DefiLlama token addresses for direct API calls (Ethereum mainnet + LINK)
+const DEFILLAMA_TOKEN_ADDRESSES = {
+  stETH: 'ethereum:0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84',
+  wBTC: 'ethereum:0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
+  wETH: 'ethereum:0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+  LINK: 'ethereum:0x514910771AF9Ca656af840dff83E8264EcF986CA',
+} as const;
+
+// CoinGecko token IDs (for tokens not available on DefiLlama)
+const COINGECKO_TOKEN_IDS = {
+  MOR: 'morpheusai', // Correct CoinGecko ID for MOR token
+} as const;
+
+// Legacy token ID map (kept for backward compatibility)
+const DEFILLAMA_CACHED_TOKENS = new Set(['staked-ether', 'wrapped-bitcoin', 'weth', 'chainlink']);
+const DEFILLAMA_SYMBOL_MAP: Record<string, 'stETH' | 'wBTC' | 'wETH' | 'LINK'> = {
+  'staked-ether': 'stETH',
+  'wrapped-bitcoin': 'wBTC',
+  'weth': 'wETH',
   'chainlink': 'LINK',
-  'morpheusai': 'MOR' // Note: Coinbase doesn't have MOR, will fail gracefully
 };
 
-/**
- * Fetches price from our Coinbase API route as a fallback
- * @param symbol The symbol to fetch (e.g., 'STETH', 'ETH')
- * @returns The price from Coinbase or null if failed
- */
-async function getCoinbaseFallbackPrice(symbol: string): Promise<number | null> {
+// Shared in-memory cache for token prices (solves hook isolation issue)
+interface PriceCache {
+  stETH: number | null;
+  wBTC: number | null;
+  wETH: number | null;
+  MOR: number | null;
+  LINK: number | null;
+  lastUpdated: number;
+}
+
+// Global shared state - this ensures all hooks use the same data
+const sharedPriceCache: PriceCache = {
+  stETH: null,
+  wBTC: null,
+  wETH: null,
+  MOR: null,
+  LINK: null,
+  lastUpdated: 0,
+};
+
+
+// Shared price management functions (simplified approach)
+export function getSharedPrices() {
+  return sharedPriceCache;
+}
+
+export function updateSharedPrices(prices: Partial<Omit<PriceCache, 'lastUpdated'>>) {
+  // Create a new object with updated values and timestamp
+  Object.assign(sharedPriceCache, prices, { lastUpdated: Date.now() });
+}
+
+// Server-side price cache with timestamps (for API routes and cron jobs)
+interface ServerPriceCache {
+  prices: {
+    stETH: number | null;
+    wBTC: number | null;
+    wETH: number | null;
+    MOR: number | null;
+    LINK: number | null;
+  };
+  lastUpdated: number;
+  cacheAge: number; // milliseconds since last update
+}
+
+// Server-side cache (separate from client-side shared cache)
+let serverPriceCache: ServerPriceCache = {
+  prices: {
+    stETH: null,
+    wBTC: null,
+    wETH: null,
+    MOR: null,
+    LINK: null,
+  },
+  lastUpdated: 0,
+  cacheAge: Infinity,
+};
+
+// Get server-side price cache (for API routes)
+export function getPriceCache(): ServerPriceCache {
+  const now = Date.now();
+  return {
+    ...serverPriceCache,
+    cacheAge: now - serverPriceCache.lastUpdated,
+  };
+}
+
+// Update server-side price cache by fetching from DefiLlama and CoinGecko
+export async function updatePriceCache(): Promise<void> {
   try {
-    console.log(`💰 Attempting Coinbase fallback for ${symbol}...`);
+    // Fetch from DefiLlama (stETH, wBTC, wETH, LINK)
+    const tokenAddresses = Object.values(DEFILLAMA_TOKEN_ADDRESSES).join(',');
+    const defiLlamaUrl = `https://coins.llama.fi/prices/current/${tokenAddresses}`;
     
-    const response = await fetch(`/api/coinbase-price?symbol=${symbol}`, {
+    console.log('🦙 Fetching prices from DefiLlama:', defiLlamaUrl);
+    
+    const defiLlamaResponse = await fetch(defiLlamaUrl, {
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
       },
-      // Add timeout to prevent hanging
-      signal: AbortSignal.timeout(8000) // 8 second timeout
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.warn(`Coinbase fallback failed for ${symbol}:`, errorData);
-      return null;
-    }
-
-    const data = await response.json();
     
-    if (typeof data.price === 'number' && data.price > 0) {
-      console.log(`✅ Coinbase fallback successful for ${symbol}: $${data.price}`);
-      return data.price;
-    } else {
-      console.warn(`Invalid Coinbase price data for ${symbol}:`, data);
-      return null;
+    if (!defiLlamaResponse.ok) {
+      throw new Error(`DefiLlama API error: ${defiLlamaResponse.status}`);
     }
     
+    const defiLlamaData = await defiLlamaResponse.json();
+    
+    // Fetch from CoinGecko (MOR)
+    const coinGeckoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${COINGECKO_TOKEN_IDS.MOR}&vs_currencies=usd`;
+    
+    console.log('🦎 Fetching MOR price from CoinGecko:', coinGeckoUrl);
+    
+    const coinGeckoResponse = await fetch(coinGeckoUrl, {
+      headers: {
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    });
+    
+    if (!coinGeckoResponse.ok) {
+      console.warn(`CoinGecko API error: ${coinGeckoResponse.status}`);
+    }
+    
+    const coinGeckoData = coinGeckoResponse.ok ? await coinGeckoResponse.json() : null;
+    
+    // Parse prices from both sources
+    const prices = {
+      stETH: defiLlamaData.coins[DEFILLAMA_TOKEN_ADDRESSES.stETH]?.price || null,
+      wBTC: defiLlamaData.coins[DEFILLAMA_TOKEN_ADDRESSES.wBTC]?.price || null,
+      wETH: defiLlamaData.coins[DEFILLAMA_TOKEN_ADDRESSES.wETH]?.price || null,
+      LINK: defiLlamaData.coins[DEFILLAMA_TOKEN_ADDRESSES.LINK]?.price || null,
+      MOR: coinGeckoData?.[COINGECKO_TOKEN_IDS.MOR]?.usd || null,
+    };
+    
+    // Update server cache
+    serverPriceCache = {
+      prices,
+      lastUpdated: Date.now(),
+      cacheAge: 0,
+    };
+    
+    // Also update shared client-side cache
+    updateSharedPrices(prices);
+    
+    console.log('✅ Price cache updated successfully:', prices);
   } catch (error) {
-    console.warn(`Coinbase fallback error for ${symbol}:`, error);
-    return null;
+    console.error('❌ Failed to update price cache:', error);
+    throw error;
   }
 }
 
-/**
- * Fetches the current price of a given token with fallback to Coinbase API.
- * For stablecoins (USDC, USDT), returns $1.00 directly without API calls.
- * For other assets, tries CoinGecko first, then falls back to Coinbase.
- * @param tokenId The ID of the token on CoinGecko (e.g., 'staked-ether').
- * @param vsCurrency The currency to fetch the price in (e.g., 'usd').
- * @param useParallel Whether to fetch from both sources in parallel (default: false)
- * @returns The current price of the token, or null if all sources fail.
- */
-export async function getTokenPrice(tokenId: string, vsCurrency: string, useParallel = false): Promise<number | null> {
-    // Hardcode stablecoin prices to $1.00 (no API calls needed)
-    if (vsCurrency === 'usd' && (tokenId === 'usd-coin' || tokenId === 'tether')) {
-        console.log(`💰 Using hardcoded price for ${tokenId}: $1.00 (stablecoin)`);
-        return 1.0;
-    }
-    
-    const symbol = COINGECKO_TO_SYMBOL_MAP[tokenId];
-    
-    // If parallel mode is enabled and we have Coinbase support
-    if (useParallel && symbol && vsCurrency === 'usd') {
-        return getTokenPriceParallel(tokenId, vsCurrency, symbol);
-    }
-    
-    // Sequential mode (default): CoinGecko first, then Coinbase fallback
-    // First attempt: CoinGecko API
-    try {
-        console.log(`💰 Fetching ${tokenId} price from CoinGecko...`);
-        
-        const response = await fetch(`${COINGECKO_API_URL}?ids=${tokenId}&vs_currencies=${vsCurrency}`, {
-          // Add timeout to prevent hanging on CoinGecko
-          signal: AbortSignal.timeout(8000) // 8 second timeout
-        });
-        
-        if (!response.ok) {
-            console.warn(`CoinGecko API responded with status: ${response.status} ${response.statusText}`);
-        } else {
-            const data = await response.json();
-            
-            if (data[tokenId] && data[tokenId][vsCurrency]) {
-                const price = data[tokenId][vsCurrency];
-                console.log(`✅ CoinGecko price for ${tokenId}: $${price}`);
-                return price;
-            } else {
-                console.warn(`Price data not found for ${tokenId} in ${vsCurrency} on CoinGecko`);
-            }
-        }
-        
-    } catch (error) {
-        console.warn(`CoinGecko fetch failed for ${tokenId}:`, error);
-    }
-    
-    // Second attempt: Coinbase fallback for supported assets
-    if (symbol && vsCurrency === 'usd') {
-        console.log(`🔄 CoinGecko failed, trying Coinbase fallback for ${tokenId} (${symbol})...`);
-        const fallbackPrice = await getCoinbaseFallbackPrice(symbol);
-        
-        if (fallbackPrice !== null) {
-            return fallbackPrice;
-        }
-    }
-    
-    // All sources failed
-    console.error(`❌ All price sources failed for ${tokenId} in ${vsCurrency}`);
-    return null;
-}
+// Enhanced getTokenPrice function that uses shared state
+export async function getTokenPrice(tokenId: string, vsCurrency: string): Promise<number | null> {
+  // Hardcode stablecoin prices to $1.00 (no API calls needed)
+  if (vsCurrency === 'usd' && (tokenId === 'usd-coin' || tokenId === 'tether')) {
+    console.log(`💰 Using hardcoded price for ${tokenId}: $1.00 (stablecoin)`);
+    return 1.0;
+  }
 
-/**
- * Fetches price from both CoinGecko and Coinbase in parallel, returning the first successful result.
- * This provides faster response times when one API is slow.
- * @param tokenId The CoinGecko token ID
- * @param vsCurrency The currency (should be 'usd')
- * @param symbol The symbol for Coinbase API
- * @returns The first successful price, or null if both fail
- */
-async function getTokenPriceParallel(tokenId: string, vsCurrency: string, symbol: string): Promise<number | null> {
-    console.log(`⚡ Fetching ${tokenId} price from both CoinGecko and Coinbase in parallel...`);
-    
-    // Create promises for both API calls
-    const coinGeckoPromise = fetch(`${COINGECKO_API_URL}?ids=${tokenId}&vs_currencies=${vsCurrency}`, {
-        signal: AbortSignal.timeout(8000)
-    }).then(async (response) => {
-        if (!response.ok) throw new Error(`CoinGecko: ${response.status}`);
-        const data = await response.json();
-        if (data[tokenId] && data[tokenId][vsCurrency]) {
-            const price = data[tokenId][vsCurrency];
-            console.log(`✅ CoinGecko parallel result for ${tokenId}: $${price}`);
-            return { price, source: 'coingecko' };
-        }
-        throw new Error('CoinGecko: Price not found');
-    });
-    
-    const coinbasePromise = fetch(`/api/coinbase-price?symbol=${symbol}`, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(8000)
-    }).then(async (response) => {
-        if (!response.ok) throw new Error(`Coinbase: ${response.status}`);
-        const data = await response.json();
-        if (typeof data.price === 'number' && data.price > 0) {
-            console.log(`✅ Coinbase parallel result for ${tokenId}: $${data.price}`);
-            return { price: data.price, source: 'coinbase' };
-        }
-        throw new Error('Coinbase: Invalid price data');
-    });
-    
-    try {
-        // Wait for the first successful result
-        const result = await Promise.any([coinGeckoPromise, coinbasePromise]);
-        console.log(`⚡ Parallel fetch winner: ${result.source} ($${result.price})`);
-        return result.price;
-    } catch (error) {
-        console.warn(`Both parallel price fetches failed for ${tokenId}:`, error);
-        return null;
+  // For MOR token (from CoinGecko via server cache)
+  if (vsCurrency === 'usd' && tokenId === 'morpheusai') {
+    // Check shared cache first
+    const cachedPrice = sharedPriceCache.MOR;
+    if (cachedPrice !== null && cachedPrice > 0) {
+      console.log(`✅ Using shared cached MOR price: $${cachedPrice}`);
+      return cachedPrice;
     }
-} 
+
+    // Fallback to API call if not in shared cache
+    console.log(`🦎 Fetching MOR price from server cache API...`);
+    try {
+      const response = await fetch('/api/token-prices', {
+        headers: {
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+        cache: 'no-store', // Don't cache on client side
+      });
+
+      if (!response.ok) {
+        console.warn(`Server cache API responded with status: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const price = data.prices.MOR;
+
+      if (typeof price === 'number' && price > 0) {
+        console.log(`✅ MOR price from server cache: $${price}`);
+
+        // Update shared cache
+        updateSharedPrices({ MOR: price });
+
+        return price;
+      } else {
+        console.warn(`Invalid MOR price data:`, data);
+        return null;
+      }
+    } catch (error) {
+      console.warn(`Server cache fetch error for MOR:`, error);
+      return null;
+    }
+  }
+
+  // For DefiLlama tokens (stETH, wBTC, wETH, LINK)
+  if (vsCurrency === 'usd' && DEFILLAMA_CACHED_TOKENS.has(tokenId)) {
+    const symbol = DEFILLAMA_SYMBOL_MAP[tokenId];
+    if (!symbol) {
+      console.log(`❌ Token ${tokenId} not in symbol map`);
+      return null;
+    }
+
+    // Check shared cache first
+    const cachedPrice = sharedPriceCache[symbol as keyof typeof sharedPriceCache];
+    if (cachedPrice !== null && cachedPrice > 0) {
+      console.log(`✅ Using shared cached price for ${tokenId}: $${cachedPrice}`);
+      return cachedPrice;
+    }
+
+    // Fallback to API call if not in shared cache
+    console.log(`🦙 Fetching ${tokenId} (${symbol}) price from server cache API...`);
+    try {
+      const response = await fetch('/api/token-prices', {
+        headers: {
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+        cache: 'no-store', // Don't cache on client side
+      });
+
+      if (!response.ok) {
+        console.warn(`Server cache API responded with status: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const price = data.prices[symbol];
+
+      if (typeof price === 'number' && price > 0) {
+        console.log(`✅ Cached price for ${tokenId}: $${price}`);
+
+        // Update shared cache
+        updateSharedPrices({ [symbol]: price });
+
+        return price;
+      } else {
+        console.warn(`Invalid price data for ${tokenId}:`, data);
+        return null;
+      }
+    } catch (error) {
+      console.warn(`Server cache fetch error for ${tokenId}:`, error);
+      return null;
+    }
+  }
+
+  // For ALL other tokens: return null (not supported)
+  console.log(`❌ Token ${tokenId} not supported - only stETH, wBTC, wETH, LINK, MOR supported`);
+  return null;
+}

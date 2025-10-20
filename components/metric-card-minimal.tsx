@@ -67,7 +67,7 @@ export function MetricCardMinimal({
   }
 
   return (
-    <>
+    <div className="relative">
       <Card className={`card-minimal group relative p-4 h-full flex flex-col ${className}`}>
         <CardContent className="absolute inset-0 pointer-events-none" />
         <CardHeader className="relative flex flex-col items-start p-0 mb-0 gap-2">
@@ -98,7 +98,7 @@ export function MetricCardMinimal({
         </CardHeader>
       </Card>
       {!disableGlow && (
-        <GlowingEffect 
+        <GlowingEffect
           spread={40}
           glow={true}
           disabled={false}
@@ -108,6 +108,6 @@ export function MetricCardMinimal({
           borderRadius="rounded-xl"
         />
       )}
-    </>
+    </div>
   )
 } 

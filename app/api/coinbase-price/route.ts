@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface CoinbasePriceResponse {
   data: {
@@ -10,7 +12,7 @@ interface CoinbasePriceResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const searchParams = request.nextUrl.searchParams;
     const symbol = searchParams.get('symbol')?.toUpperCase();
     
     // Map our asset symbols to Coinbase symbols
