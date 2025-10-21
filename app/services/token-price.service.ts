@@ -184,13 +184,13 @@ export async function getTokenPrice(tokenId: string, vsCurrency: string): Promis
         cache: 'no-store', // Don't cache on client side
       });
 
-      if (!response.ok) {
+      // Even on non-2xx, the API returns any available cached data in body
+      const data = await response.json().catch(() => null);
+      if (!response.ok && !data) {
         console.warn(`Server cache API responded with status: ${response.status}`);
         return null;
       }
-
-      const data = await response.json();
-      const price = data.prices.MOR;
+      const price = data?.prices?.MOR;
 
       if (typeof price === 'number' && price > 0) {
         console.log(`✅ MOR price from server cache: $${price}`);
@@ -235,13 +235,13 @@ export async function getTokenPrice(tokenId: string, vsCurrency: string): Promis
         cache: 'no-store', // Don't cache on client side
       });
 
-      if (!response.ok) {
+      // Even on non-2xx, the API returns any available cached data in body
+      const data = await response.json().catch(() => null);
+      if (!response.ok && !data) {
         console.warn(`Server cache API responded with status: ${response.status}`);
         return null;
       }
-
-      const data = await response.json();
-      const price = data.prices[symbol];
+      const price = data?.prices?.[symbol];
 
       if (typeof price === 'number' && price > 0) {
         console.log(`✅ Cached price for ${tokenId}: $${price}`);
