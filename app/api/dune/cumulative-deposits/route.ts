@@ -30,6 +30,8 @@ export async function GET(_request: NextRequest) {
         'X-Dune-API-Key': process.env.DUNE_API_KEY,
         'Content-Type': 'application/json',
       },
+      // Next.js 15: explicit caching when using ISR
+      cache: 'force-cache',
     });
 
     if (!response.ok) {

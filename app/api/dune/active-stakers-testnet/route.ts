@@ -31,6 +31,7 @@ export async function GET(_request: NextRequest) {
         'X-Dune-API-Key': process.env.DUNE_API_KEY,
         'Content-Type': 'application/json',
       },
+      cache: 'force-cache',
     });
     
     if (!response.ok) {
