@@ -91,7 +91,7 @@ const claim = useCallback(async () => {
 
 ```tsx
 <p className="text-xs text-gray-400 text-center">
-  ⚠️ Claims require ~0.01 ETH for cross-chain gas to Arbitrum Sepolia
+  ⚠️ Claims require ~0.001 ETH for cross-chain gas to Arbitrum Sepolia
 </p>
 ```
 

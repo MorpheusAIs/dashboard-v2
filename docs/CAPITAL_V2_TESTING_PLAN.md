@@ -61,7 +61,7 @@ Before testing, ensure you have:
    - Contract: `0xf8Fb3713D459D7C1018BD0A49D19b4C44290EBE5`
    - May require minting from contract or faucet (check with development team)
 
-4. **Cross-chain gas**: Extra ETH for L1→L2 claiming (~0.01 ETH per claim)
+4. **Cross-chain gas**: Extra ETH for L1→L2 claiming (~0.001 ETH per claim)
 
 **Note**: If you cannot acquire test tokens through faucets, contact the development team for direct token distribution to your test wallet.
 

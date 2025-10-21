@@ -63,10 +63,10 @@ import { sepolia, mainnet } from 'wagmi/chains';
 ### **4. Clarified Warning Messages**
 ```tsx
 // Before (CONFUSING)
-<>⚠️ Claims require ~0.01 ETH for cross-chain gas to {networkName}</>
+<>⚠️ Claims require ~0.001 ETH for cross-chain gas to {networkName}</>
 
 // After (CLEAR)
-<>⚠️ Claims require ~0.01 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
+<>⚠️ Claims require ~0.001 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
 ```
 
 ### **5. Updated Status Indicator**

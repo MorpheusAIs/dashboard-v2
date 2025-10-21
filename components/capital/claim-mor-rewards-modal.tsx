@@ -621,9 +621,9 @@ export function ClaimMorRewardsModal() {
                     <>⚠️ Switch to {networkName} network to {isLockMode ? 'lock' : 'claim'} rewards</>
                   ) : (
                     isLockMode ? (
-                      <>⚠️ Locking requires ~0.01 ETH for cross-chain gas</>
+                      <>⚠️ Locking requires ~0,001 ETH for cross-chain gas</>
                     ) : (
-                      <>⚠️ Claims require ~0.01 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
+                      <>⚠️ Claims require ~0.001 ETH for cross-chain gas. MOR tokens will be minted on {networkEnv === 'testnet' ? 'Arbitrum Sepolia' : 'Arbitrum One'}</>
                     )
                   )}
                 </p>

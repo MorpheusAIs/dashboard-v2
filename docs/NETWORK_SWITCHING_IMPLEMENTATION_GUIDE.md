@@ -128,7 +128,7 @@ Replace the existing action buttons section (around line 292) with this enhanced
     {needsNetworkSwitch ? (
       <>⚠️ Switch to {networkName} network to claim rewards</>
     ) : (
-      <>⚠️ Claims require ~0.01 ETH for cross-chain gas to {networkName}</>
+      <>⚠️ Claims require ~0.001 ETH for cross-chain gas to {networkName}</>
     )}
   </p>
 </div>

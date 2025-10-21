@@ -291,7 +291,7 @@ export function ReferralPanel() {
               <br />
               • It may take 5-10 minutes for the MOR tokens to appear in your wallet balance
               <br />
-              • You&apos;ll need a small amount of ETH (~0.01 ETH) for cross-chain gas fees
+              • You&apos;ll need a small amount of ETH (~0.001 ETH) for cross-chain gas fees
               <br />
             </AlertDialogDescription>
           </AlertDialogHeader>
