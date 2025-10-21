@@ -252,6 +252,25 @@ export function useTokenPrices({
           }
         });
 
+        // Fallback: if some core tokens are still null, merge from server cache API
+        const coreSymbols: AssetSymbol[] = ['stETH', 'wBTC', 'wETH', 'LINK'];
+        if (coreSymbols.some(sym => newPrices[sym] == null)) {
+          try {
+            const resp = await fetch('/api/token-prices', {
+              headers: { 'Accept': 'application/json' },
+              cache: 'no-store',
+              signal: AbortSignal.timeout(5000),
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              coreSymbols.forEach(sym => {
+                const v = data?.prices?.[sym];
+                if (typeof v === 'number' && v > 0) newPrices[sym] = v;
+              });
+            }
+          } catch {}
+        }
+
         // Update shared state with fresh prices
         updateSharedPrices({
           stETH: newPrices.stETH,

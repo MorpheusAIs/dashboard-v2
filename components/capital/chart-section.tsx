@@ -386,8 +386,22 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative', m
                   )}
                   {((chartType === 'deposits' && (chartError || metricsError || morlordError)) ||
                     (chartType === 'cumulative' && (cumulativeDepositsError || metricsError || morlordError))) && (
-                    <div className="flex justify-center items-center h-full text-red-500">
-                      <p>{chartType === 'deposits' ? (chartError || metricsError || morlordError) : (cumulativeDepositsError || metricsError || morlordError)}</p>
+                    <div className="relative h-full rounded-xl overflow-hidden">
+                      <div className="absolute inset-0 opacity-25">
+                        <DepositStethChart
+                          data={mockChartData}
+                          selectedAsset={selectedAsset}
+                          onAssetChange={setSelectedAsset}
+                          showAssetSwitcher={false}
+                          availableAssets={availableAssets}
+                        />
+                      </div>
+                      <div className="absolute inset-0 backdrop-blur-sm flex items-center justify-center">
+                        <div className="text-center px-4 py-3 rounded-xl bg-black/50 border border-red-500/30 text-red-300">
+                          <p className="text-sm font-medium">We’re having trouble loading the chart right now.</p>
+                          <p className="text-xs text-red-400 mt-1">Server returned an error. Please try again later.</p>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {((chartType === 'deposits' && !chartLoading && !metricsLoading && !(isMorlordData && morlordLoading) && !chartError && !metricsError && !morlordError) ||

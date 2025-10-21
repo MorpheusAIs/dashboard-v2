@@ -18,6 +18,9 @@ export function Web3Providers({
   const defaultEnvironment: NetworkEnvironment = 'mainnet';
 
   useEffect(() => {
+    // Bail out if running on server
+    if (typeof window === 'undefined') return;
+
     // Clear expired WalletConnect data on app initialization to prevent "Proposal expired" errors
     const clearExpiredWalletData = () => {
       try {
@@ -58,41 +61,37 @@ export function Web3Providers({
       }
     };
 
-    // Clear expired data immediately on app start
+    // Clear expired data immediately on app start (one-time)
     clearExpiredWalletData();
 
-    // Override console.error to suppress specific Ethereum-related errors
+    // Only override console.error once
     const originalConsoleError = console.error;
-    console.error = (...args) => {
-      const errorMessage = args.join(' ');
-      
-      // Suppress these specific errors that come from conflicting wallet extensions and connection issues
-      const suppressPatterns = [
-        'Cannot redefine property: ethereum',
-        'Cannot set property ethereum',
-        'Cannot read properties of undefined (reading \'id\')',
-        'Unchecked runtime.lastError',
-        'Proposal expired',
-        'Session expired',
-        'Connection proposal expired',
-        'WalletConnect proposal expired',
-      ];
-      
-      const shouldSuppress = suppressPatterns.some(pattern => 
-        errorMessage.includes(pattern)
-      );
-      
-      if (!shouldSuppress) {
-        originalConsoleError(...args);
-      }
-    };
+    const patchedFlag = '__morpheus_console_patched__';
+    const g = window as unknown as Record<string, unknown>;
+    if (!g[patchedFlag]) {
+      g[patchedFlag] = true;
+      console.error = (...args) => {
+        const errorMessage = args.join(' ');
+        const suppressPatterns = [
+          'Cannot redefine property: ethereum',
+          'Cannot set property ethereum',
+          "Cannot read properties of undefined (reading 'id')",
+          'Unchecked runtime.lastError',
+          'Proposal expired',
+          'Session expired',
+          'Connection proposal expired',
+          'WalletConnect proposal expired',
+        ];
+        const shouldSuppress = suppressPatterns.some(pattern => errorMessage.includes(pattern));
+        if (!shouldSuppress) {
+          originalConsoleError(...args);
+        }
+      };
+    }
 
-    // Enhanced global error handler to catch unhandled promise rejections
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const error = event.reason;
       const errorMessage = error?.message?.toLowerCase() || '';
-      
-      // Suppress wallet connection related errors including proposal expired
       const walletErrorPatterns = [
         'ethereum',
         'proposal expired',
@@ -102,39 +101,18 @@ export function Web3Providers({
         'user rejected',
         'connection request reset'
       ];
-      
-      const shouldSuppress = walletErrorPatterns.some(pattern => 
-        errorMessage.includes(pattern)
-      );
-      
+      const shouldSuppress = walletErrorPatterns.some(pattern => errorMessage.includes(pattern));
       if (shouldSuppress) {
         console.log('🤫 Suppressing wallet connection error:', errorMessage);
         event.preventDefault();
       }
     };
-    
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
-    // Cleanup function to handle proper disconnection
     return () => {
-      // Restore original console.error
+      // Restore original console.error on unmount of provider tree
       console.error = originalConsoleError;
-      
-      // Remove error handler
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-      
-      // Clear any stored WalletConnect data from localStorage
-      Object.keys(localStorage).forEach(key => {
-        if (key.toLowerCase().includes('walletconnect')) {
-          localStorage.removeItem(key)
-        }
-      })
-
-      // Clear any stored session data
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('wagmi.connected')
-        window.localStorage.removeItem('wagmi.wallet')
-      }
     }
   }, [])
 
