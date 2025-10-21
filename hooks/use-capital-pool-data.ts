@@ -991,7 +991,19 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
           aprPercentage = (assetAnnualShareMOR / tvlForAPR) * 100;
         }
         
-        aprResults[symbol] = aprPercentage > 0.01 ? `${aprPercentage.toFixed(2)}%` : 'N/A';
+        // Special case for wBTC: If APR is extremely low or 0 due to minimal/no AAVE yield activity,
+        // show 0.01% instead of N/A since the pool is still active and earning rewards.
+        // wBTC on AAVE generates very low yield, so 7-day windows may show 0 yield even though rewards are distributed.
+        if (symbol === 'wBTC' && aprPercentage >= 0 && aprPercentage < 0.01 && tvlForAPR > 0) {
+          aprResults[symbol] = '0.01%';
+          console.log(`📊 [APR CALC] wBTC - Applied minimum APR floor (0.01%) due to low/zero AAVE yield in 7-day window`, {
+            calculatedAPR: aprPercentage,
+            tvl: tvlForAPR,
+            reason: 'wBTC AAVE yield is too low to show meaningful change in 7 days'
+          });
+        } else {
+          aprResults[symbol] = aprPercentage > 0.01 ? `${aprPercentage.toFixed(2)}%` : 'N/A';
+        }
         
         console.log(`✅ [APR CALC] ${symbol} - REAL YIELD-BASED APR:`, {
           poolShare: (share * 100).toFixed(2) + '%',
@@ -1071,6 +1083,12 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
   const assetsData = useMemo(() => {
     const result: Partial<Record<AssetSymbol, AssetPoolData>> = {};
 
+    console.log('🔧 ASSET DATA GENERATION - START:', {
+      totalAssets: configuredAssets.length,
+      assetSymbols: configuredAssets.map(a => a.metadata.symbol),
+      calculateV7APR: calculateV7APR ? Object.keys(calculateV7APR) : 'null (still loading dependencies)'
+    });
+
     configuredAssets.forEach(assetConfig => {
       const symbol = assetConfig.metadata.symbol;
       const decimals = assetConfig.metadata.decimals; // Get decimals from asset config
@@ -1091,14 +1109,31 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
 
       // Special logging for WBTC
       if (symbol === 'wBTC') {
-        console.debug(`🐋 WBTC DEBUG:`, {
+        const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
+        console.log(`🐋 WBTC COMPLETE DEBUG:`, {
           symbol,
           rawContractData: contract?.data,
           rawContractDataFormatted: contract?.data ? parseFloat(formatUnits(contract.data as bigint, decimals)) : 'N/A',
           virtualStake: virtualStakeByAsset?.[symbol] || 0,
           hasDepositPool: hasDepositPoolAddress,
-          contractError: contract?.error?.message,
-          isLoading: contract?.isLoading,
+          contractStatus: {
+            exists: !!contract,
+            hasData: !!contract?.data,
+            isLoading: contract?.isLoading,
+            error: contract?.error?.message || null
+          },
+          rewardRateStatus: {
+            exists: !!rewardRateData,
+            hasData: !!rewardRateData?.data,
+            isLoading: rewardRateData?.isLoading,
+            error: rewardRateData?.error?.message || null
+          },
+          aprCalculation: {
+            calculateV7APRExists: !!calculateV7APR,
+            hasWBTCInAPR: calculateV7APR ? 'wBTC' in calculateV7APR : false,
+            aprValue: calculateV7APR?.['wBTC'] || 'not calculated'
+          },
+          finalLoadingState: contract?.isLoading || rewardRateData?.isLoading || false,
           decimals
         });
       }
