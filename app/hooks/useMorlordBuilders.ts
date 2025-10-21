@@ -19,8 +19,8 @@ export const useMorlordBuilders = () => {
         const response = await fetch('/api/builders');
         
         if (!response.ok) {
-          // console.error(`[useMorlordBuilders] API responded with status: ${response.status} ${response.statusText}`);
-          throw new Error('Failed to fetch builders from API route');
+          console.warn(`[useMorlordBuilders] API responded with status: ${response.status} ${response.statusText}`);
+          return [];
         }
         
         const builderNames: string[] = await response.json();
