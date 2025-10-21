@@ -82,6 +82,8 @@ export const fetchGraphQL = async <T>(
           query,
           variables,
         }),
+        // Ensure static caching when used inside ISR route handlers on Next.js 15
+        cache: 'force-cache',
       });
 
       // Check for rate limiting (HTTP 429)
