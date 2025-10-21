@@ -45,9 +45,9 @@ export async function GET() {
       },
     });
   } catch {
-    // Return a fallback set of builder names if available, or an empty array
+    // Return empty list with 200 so clients don't treat it as an error
     return NextResponse.json([], {
-      status: 500,
+      status: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET',
