@@ -72,9 +72,17 @@ export function CapitalInfoPanel() {
       disabled: assetConfig.metadata.disabled || (!hasDepositPool),
     };
   }).sort((a, b) => {
-    // Sort by total deposited amount (highest first)
-    const aValue = parseStakedAmount(a.totalStaked);
-    const bValue = parseStakedAmount(b.totalStaked);
+    // Sort by APR (highest first)
+    const parseApr = (apr: string): number => {
+      if (apr === 'Coming Soon') return -2;
+      if (apr === 'N/A') return -1;
+      // Extract numeric value from percentage string (e.g., "5.23%" -> 5.23)
+      const numericValue = parseFloat(apr.replace('%', ''));
+      return isNaN(numericValue) ? -2 : numericValue;
+    };
+    
+    const aValue = parseApr(a.apr);
+    const bValue = parseApr(b.apr);
     return bValue - aValue;
   });
 
@@ -95,9 +103,9 @@ export function CapitalInfoPanel() {
         borderWidth={2}
         borderRadius="rounded-xl"
       /> 
-      <div className="section-content group relative h-full px-1 py-4 sm:p-6">
+      <div className="section-content group relative h-full px-1 pt-4 pb-3 sm:p-6">
         <div className="section-content-gradient group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent px-2" />
-        <div className="p-2 md:p-3 flex flex-col h-full">
+        <div className="px-2 pt-2 pb-1 md:px-3 md:pt-3 md:pb-2 flex flex-col h-full">
           {/* Title & Subtitle */} 
           <div className="mb-6"> 
             <div className="flex items-center gap-3">
@@ -134,8 +142,8 @@ export function CapitalInfoPanel() {
               <div className="text-center">Action</div>
             </div>
             
-            {/* Scrollable Asset Rows */}
-            <div className="relative flex-1 max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+            {/* Scrollable Asset Rows add "overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent" */}
+            <div className="relative flex-1 max-h-[260px]">
               <div className="space-y-1 py-1">
                 {/* Asset Rows */}
                 {assets.map((asset) => {
