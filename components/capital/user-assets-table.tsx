@@ -197,7 +197,11 @@ export function UserAssetsTable({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="mt-2 rounded-lg">
-              <DropdownMenuItem onClick={() => onDropdownActionAction('stakeMorRewards', asset.assetSymbol)} disabled={isAnyActionProcessing || isModalTransitioning}>
+              <DropdownMenuItem
+                onClick={() => onDropdownActionAction('stakeMorRewards', asset.assetSymbol)}
+                disabled={isAnyActionProcessing || isModalTransitioning || !asset.canClaim}
+                className={!asset.canClaim ? "text-gray-500 cursor-not-allowed" : ""}
+              >
                 <TrendingUp className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Stake Rewards'}
               </DropdownMenuItem>
