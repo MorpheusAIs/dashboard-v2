@@ -10,6 +10,7 @@ import { config } from "@/config"
 import { cn } from "@/lib/utils"
 import { Providers } from './providers'
 import { FeaturebaseWidget } from '@/components/featurebase-widget'
+import * as Sentry from '@sentry/nextjs'
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -23,55 +24,60 @@ const geistMono = localFont({
   weight: "100 900",
 })
 
-export const metadata: Metadata = {
-  title: "Morpheus Dashboard",
-  description: "Enter the Persistent Agentic Compute Delivery Network",
-  icons: {
-    icon: "/logo-black.png",
-    shortcut: "/logo-black.png",
-    apple: "/logo-black.png",
-  },
-  openGraph: {
+export function generateMetadata(): Metadata {
+  return {
     title: "Morpheus Dashboard",
     description: "Enter the Persistent Agentic Compute Delivery Network",
-    url: "https://builders.mor.org/",
-    siteName: "Morpheus Dashboard",
-    type: "website",
-    locale: "en_US",
-    images: [
-      {
-        url: "/opengraph.png",
-        width: 1200,
-        height: 630,
-        alt: "Morpheus Dashboard - Enter the Persistent Agentic Compute Delivery Network",
-        type: "image/png",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Morpheus Dashboard",
-    description: "Enter the Persistent Agentic Compute Delivery Network",
-    site: "@MorpheusAIs",
-    creator: "@bowtiedswan",
-    images: [
-      {
-        url: "/opengraph.png",
-        alt: "Morpheus Dashboard - Enter the Persistent Agentic Compute Delivery Network",
-      },
-    ],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
+    icons: {
+      icon: "/logo-black.png",
+      shortcut: "/logo-black.png",
+      apple: "/logo-black.png",
+    },
+    openGraph: {
+      title: "Morpheus Dashboard",
+      description: "Enter the Persistent Agentic Compute Delivery Network",
+      url: "https://builders.mor.org/",
+      siteName: "Morpheus Dashboard",
+      type: "website",
+      locale: "en_US",
+      images: [
+        {
+          url: "/opengraph.png",
+          width: 1200,
+          height: 630,
+          alt: "Morpheus Dashboard - Enter the Persistent Agentic Compute Delivery Network",
+          type: "image/png",
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Morpheus Dashboard",
+      description: "Enter the Persistent Agentic Compute Delivery Network",
+      site: "@MorpheusAIs",
+      creator: "@bowtiedswan",
+      images: [
+        {
+          url: "/opengraph.png",
+          alt: "Morpheus Dashboard - Enter the Persistent Agentic Compute Delivery Network",
+        },
+      ],
+    },
+    robots: {
       index: true,
       follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
     },
-  },
+    other: {
+      ...Sentry.getTraceData(),
+    },
+  };
 }
 
 export const viewport: Viewport = {
