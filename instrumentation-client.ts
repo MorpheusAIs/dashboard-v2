@@ -6,8 +6,8 @@ import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: "https://10fec7c6a14c67e9406d4444545925d5@o4509445712445440.ingest.us.sentry.io/4509445713690624",
-  environment: process.env.VERCEL_ENV || process.env.NODE_ENV,
-  enabled: process.env.VERCEL_ENV === 'production',
+  environment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.NODE_ENV,
+  enabled: process.env.NEXT_PUBLIC_VERCEL_ENV === 'production',
 
   // Lazy-load replay: don't initialize replayIntegration here
   integrations: [],
