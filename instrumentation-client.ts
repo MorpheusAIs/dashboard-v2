@@ -22,6 +22,7 @@ Sentry.init({
   replaysOnErrorSampleRate: 0.1,
 
   // Enable sending user PII (Personally Identifiable Information)
+  // This signed SSH works
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
 });
