@@ -40,7 +40,7 @@ export default withSentryConfig(nextConfig, {
 
   org: "morpheusai",
 
-  project: "javascript-nextjs",
+  project: "morpheus-dashboard",
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
