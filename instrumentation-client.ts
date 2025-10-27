@@ -22,7 +22,6 @@ Sentry.init({
   replaysOnErrorSampleRate: 0.1,
 
   // Enable sending user PII (Personally Identifiable Information)
-  // Test gpg git commit signature
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
 });
