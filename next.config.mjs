@@ -1,4 +1,8 @@
 import {withSentryConfig} from '@sentry/nextjs';
+import webpack from 'webpack';
+
+const isProd = process.env.VERCEL_ENV === 'production';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -13,8 +17,10 @@ const nextConfig = {
       }
     ],
   },
+  // Use hidden source maps so they are not referenced in built JS files
+  productionBrowserSourceMaps: false,
   // Ignore specific files/folders during build
-  webpack: (config) => {
+  webpack: (config, { dev }) => {
     // Add files/folders to ignore
     config.watchOptions = {
       ignored: ['/DashBoard', '/DashBoard/*']
@@ -26,10 +32,22 @@ const nextConfig = {
       '@react-native-async-storage/async-storage': false,
     }
 
+    // Force webpack to use hidden-source-map in production
+    if (isProd && !dev) {
+      config.devtool = 'hidden-source-map';
+    }
+
+    // Reduce Sentry SDK bloat
+    config.plugins.push(
+      new webpack.DefinePlugin({
+        __SENTRY_DEBUG__: false,
+        __SENTRY_TRACING__: false,
+      })
+    );
+
     return config
   },
   // Configure build output directory
-  // Test discord webhook
   distDir: '.next',
   pageExtensions: ['tsx', 'ts', 'jsx', 'js', 'mdx'],
 };
@@ -40,25 +58,37 @@ export default withSentryConfig(nextConfig, {
 
   org: "morpheusai",
 
-  project: "javascript-nextjs",
+  project: "morpheus-dashboard",
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
-  // For all available options, see:
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
+  // Upload sourcemaps only in production
+  release: {
+    create: isProd,
+  },
+  sourcemaps: {
+    disable: !isProd,
+    deleteSourcemapsAfterUpload: true, // delete after upload to Sentry
+  },
 
-  // Upload a larger set of source maps for prettier stack traces (increases build time)
-  widenClientFileUpload: true,
+  // Hide them from the public bundle
+  hideSourceMaps: true,
+
+  // Disable plugin outside production
+  disableServerWebpackPlugin: !isProd,
+  disableClientWebpackPlugin: !isProd,
+
+  // Reduce Sentry SDK bloat
+  disableLogger: true,
+  widenClientFileUpload: false,
+  transpileClientSDK: false,
 
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
   // side errors will fail.
   tunnelRoute: "/monitoring",
-
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
 
   // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
   // See the following for more information:
