@@ -5,11 +5,10 @@ import { parseEther, formatEther, Address, isAddress } from 'viem';
 import { toast } from "sonner";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
-import { arbitrumSepolia } from 'wagmi/chains';
-import { formatTimePeriod } from '@/app/utils/time-utils';
+import { baseSepolia } from 'wagmi/chains';
 
 // Import the ABIs
-import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
+import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import BuilderSubnetsAbi from '@/app/abi/BuilderSubnets.json';
 import ERC20Abi from '@/app/abi/ERC20.json';
 import BuildersAbi from '@/app/abi/Builders.json';
@@ -46,7 +45,7 @@ export const useStakingContractInteractions = ({
   const { switchToChain } = useNetwork();
   
   // Determine if we're using testnet
-  const isTestnet = networkChainId === arbitrumSepolia.id;
+  const isTestnet = networkChainId === baseSepolia.id;
   
   // Helper Functions
   const isCorrectNetwork = useCallback(() => {
@@ -54,7 +53,7 @@ export const useStakingContractInteractions = ({
   }, [walletChainId, networkChainId]);
 
   const getAbi = useCallback(() => {
-    return isTestnet ? BuilderSubnetsV2Abi : BuilderSubnetsAbi;
+    return isTestnet ? BuildersV4Abi : BuilderSubnetsAbi;
   }, [isTestnet]);
 
   const getNetworkName = useCallback((chainId: number): string => {
@@ -192,14 +191,12 @@ export const useStakingContractInteractions = ({
     }
   });
 
-  // Get claimable amount - different functions for mainnet vs testnet
+  // Get claimable amount - BuildersV4 uses getCurrentBuilderReward like mainnet
   const { data: claimableAmountData, refetch: refetchClaimableAmount, isFetching: isFetchingClaimableAmount } = useReadContract({
     address: contractAddress,
-    abi: isTestnet ? BuilderSubnetsV2Abi : BuildersAbi,
-    functionName: isTestnet ? 'getStakerRewards' : 'getCurrentBuilderReward',
-    args: isTestnet 
-      ? [subnetId!, connectedAddress!] // testnet: getStakerRewards(subnetId, stakerAddress)
-      : [subnetId!], // mainnet: getCurrentBuilderReward(builderPoolId)
+    abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+    functionName: 'getCurrentBuilderReward',
+    args: [subnetId!], // Both testnet and mainnet use: getCurrentBuilderReward(builderPoolId)
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!contractAddress && !!subnetId && !!connectedAddress,
@@ -707,89 +704,27 @@ export const useStakingContractInteractions = ({
         return false;
       }
       
-      // Different staking function for testnet vs mainnet
-      if (isTestnet) {
-        // For testnet using BuilderSubnetsV2
-        const now = Math.floor(Date.now() / 1000);
-        
-        // Use the subnet-specific lock period if provided, otherwise default to 30 days
-        const lockPeriod = lockPeriodInSeconds || (30 * 24 * 60 * 60); // Default to 30 days in seconds
-        console.log(`Using lock period: ${lockPeriod} seconds (${formatTimePeriod(lockPeriod)})`);
-        
-        const lockEndTimestamp = BigInt(now + lockPeriod);
-        
-        // Explicitly convert to uint128 by ensuring it's within range
-        const claimLockEndUint128 = lockEndTimestamp & BigInt("0xFFFFFFFFFFFFFFFF"); // Mask to uint128 range
-        
-        // Verify the contract address is the one from the networks.ts config
-        const expectedContractAddress = getChainById(networkChainId, 'testnet')?.contracts?.builders?.address;
-        
-        console.log("Testnet staking transaction parameters:", {
-          subnetId,
-          stakerAddress: connectedAddress,
-          amount: parsedAmount.toString(),
-          formattedAmount: formatEther(parsedAmount),
-          lockPeriodInSeconds: lockPeriod,
-          claimLockEnd: claimLockEndUint128.toString(),
-          formattedLockEnd: new Date(Number(claimLockEndUint128) * 1000).toISOString(),
-          contractAddress,
-          expectedContractAddress,
-          chainId: networkChainId
-        });
-        
-        // Ensure we're using the correct contract address
-        if (expectedContractAddress && contractAddress.toLowerCase() !== expectedContractAddress.toLowerCase()) {
-          console.warn(`Contract address mismatch! Using ${contractAddress} but expected ${expectedContractAddress}`);
-        }
-        
-        // Make sure the subnetId is properly formatted as bytes32
-        if (!subnetId.startsWith('0x') || subnetId.length !== 66) {
-          console.warn(`SubnetId format may be incorrect: ${subnetId}`);
-        }
-        
-        // Optimize gas settings for Arbitrum Sepolia
-        const gasConfig = networkChainId === 421614 ? {
-          gas: BigInt(3000000), // Fixed gas limit to avoid over-estimation
-          gasPrice: undefined   // Let Arbitrum estimate the gas price
-        } : {};
-        
-        writeStake({
-          address: contractAddress,
-          abi: BuilderSubnetsV2Abi,
-          functionName: 'stake',
-          args: [
-            subnetId, 
-            connectedAddress, 
-            parsedAmount,
-            claimLockEndUint128
-          ],
-          chainId: networkChainId,
-          ...gasConfig
-        });
-      } else {
-        // For mainnet using BuilderSubnets
-        // Get the network name for clearer logging
-        const networkName = networkChainId === 42161 ? 'Arbitrum' : 'Base';
-        
-        console.log(`Mainnet staking transaction parameters (${networkName}):`, {
-          builderPoolId: subnetId, // Log this to debug
-          amount: parsedAmount.toString(),
-          formattedAmount: formatEther(parsedAmount),
-          contractAddress,
-          chainId: networkChainId,
-          networkName
-        });
-        
-        // For mainnet, we need to use deposit(bytes32,uint256) from BuildersAbi
-        // Mainnet uses a different contract interface: Builders.json
-        writeStake({
-          address: contractAddress,
-          abi: BuildersAbi, // Changed from BuilderSubnetsAbi to BuildersAbi
-          functionName: 'deposit', // Changed from 'stake' to 'deposit'
-          args: [subnetId, parsedAmount], // Changed to include subnetId
-          chainId: networkChainId,
-        });
-      }
+      // BuildersV4 uses deposit() like mainnet, so we can unify the logic
+      const networkName = isTestnet ? 'Base Sepolia' : 
+                         (networkChainId === 42161 ? 'Arbitrum' : 'Base');
+      
+      console.log(`Staking transaction parameters (${networkName}):`, {
+        builderPoolId: subnetId,
+        amount: parsedAmount.toString(),
+        formattedAmount: formatEther(parsedAmount),
+        contractAddress,
+        chainId: networkChainId,
+        networkName
+      });
+      
+      // Both testnet (BuildersV4) and mainnet use deposit(bytes32,uint256)
+      writeStake({
+        address: contractAddress,
+        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        functionName: 'deposit',
+        args: [subnetId, parsedAmount],
+        chainId: networkChainId,
+      });
       
       return true;
     } catch (error) {
@@ -821,7 +756,7 @@ export const useStakingContractInteractions = ({
       
       // Get network name for better logging
       const networkType = isTestnet ? 'testnet' : 'mainnet';
-      const networkName = isTestnet ? 'Arbitrum Sepolia' : 
+      const networkName = isTestnet ? 'Base Sepolia' : 
                          (networkChainId === 42161 ? 'Arbitrum' : 'Base');
       
       console.log(`${networkType.charAt(0).toUpperCase() + networkType.slice(1)} withdrawal transaction parameters (${networkName}):`, {
@@ -833,11 +768,11 @@ export const useStakingContractInteractions = ({
         networkName
       });
       
-      // Both testnet (V2) and mainnet contracts use the same withdraw interface
+      // Both testnet (BuildersV4) and mainnet contracts use the same withdraw interface
       // withdraw(bytes32 subnetId_, uint256 amount_)
       writeWithdraw({
         address: contractAddress,
-        abi: isTestnet ? BuilderSubnetsV2Abi : BuildersAbi, // Use BuildersAbi for mainnet
+        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
         functionName: 'withdraw',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
@@ -871,7 +806,7 @@ export const useStakingContractInteractions = ({
     try {
       // Get network name for better logging
       const networkType = isTestnet ? 'testnet' : 'mainnet';
-      const networkName = isTestnet ? 'Arbitrum Sepolia' : 
+      const networkName = isTestnet ? 'Base Sepolia' : 
                          (networkChainId === 42161 ? 'Arbitrum' : 'Base');
       
       console.log(`${networkType.charAt(0).toUpperCase() + networkType.slice(1)} claim transaction parameters (${networkName}):`, {
@@ -882,26 +817,15 @@ export const useStakingContractInteractions = ({
         connectedAddress
       });
       
-      // Different claim function signatures for testnet vs mainnet
-      if (isTestnet) {
-        // Testnet: claim(bytes32 subnetId_, address stakerAddress_)
-        writeClaim({
-          address: contractAddress,
-          abi: BuilderSubnetsV2Abi,
-          functionName: 'claim',
-          args: [subnetId, connectedAddress],
-          chainId: networkChainId,
-        });
-      } else {
-        // Mainnet: claim(bytes32 builderPoolId_, address receiver_)
-        writeClaim({
-          address: contractAddress,
-          abi: BuildersAbi,
-          functionName: 'claim',
-          args: [subnetId, connectedAddress],
-          chainId: networkChainId,
-        });
-      }
+      // Both testnet (BuildersV4) and mainnet use the same claim signature
+      // claim(bytes32 subnetId_, address receiver_)
+      writeClaim({
+        address: contractAddress,
+        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        functionName: 'claim',
+        args: [subnetId, connectedAddress],
+        chainId: networkChainId,
+      });
       
       return true;
     } catch (error) {

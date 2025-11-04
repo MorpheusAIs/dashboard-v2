@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 'wagmi';
-import { parseEther, formatEther, Address, isAddress, Abi } from 'viem';
+import { parseEther, formatEther, Address, isAddress } from 'viem';
 import { toast } from "sonner";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
-import { getUnixTime } from "date-fns";
-import { arbitrum, base, arbitrumSepolia } from 'wagmi/chains'; // Import chains
+import { base, baseSepolia } from 'wagmi/chains'; // Import chains
 
 // Import the ABIs
-import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
+import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import ERC20Abi from '@/app/abi/ERC20.json';
-import BuildersAbi from '@/app/abi/Builders.json';
 
 // Import constants
 import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/utils/constants';
@@ -102,13 +100,14 @@ export const useSubnetContractInteractions = ({
   }, [creationFee, tokenSymbol]);
 
   // Contract Read Hooks
+  // Note: BuildersV4 uses depositToken() instead of token()
   const { data: morTokenAddressData, isFetching: isFetchingToken } = useReadContract({
     address: builderContractAddress,
-    abi: BuilderSubnetsV2Abi,
-    functionName: 'token',
+    abi: BuildersV4Abi,
+    functionName: 'depositToken',
     chainId: selectedChainId,
     query: {
-       enabled: isCorrectNetwork() && !!builderContractAddress,
+       enabled: isCorrectNetwork() && !!builderContractAddress && selectedChainId === baseSepolia.id,
     }
   });
 
@@ -214,7 +213,7 @@ export const useSubnetContractInteractions = ({
   // Effects
   useEffect(() => {
     // Set a default creation fee depending on network (0 on mainnets)
-    const defaultFee = (selectedChainId === arbitrum.id || selectedChainId === base.id) ? BigInt(0) : parseEther("0.1");
+    const defaultFee = selectedChainId === base.id ? BigInt(0) : parseEther("0.1");
     console.log("Setting default creation fee:", defaultFee.toString());
     setCreationFee(defaultFee);
     
@@ -233,9 +232,9 @@ export const useSubnetContractInteractions = ({
           console.log("Using token address from config:", configuredTokenAddress);
           // Skip checksum validation by lowercasing
           setTokenAddress(configuredTokenAddress.toLowerCase() as Address);
-        } else if (selectedChainId === arbitrumSepolia.id) {
-          // Only use fallback on Arbitrum Sepolia testnet
-          console.log("Using fallback token address (Sepolia testnet):", FALLBACK_TOKEN_ADDRESS);
+        } else if (selectedChainId === baseSepolia.id) {
+          // Only use fallback on Base Sepolia testnet
+          console.log("Using fallback token address (Base Sepolia testnet):", FALLBACK_TOKEN_ADDRESS);
           setTokenAddress(FALLBACK_TOKEN_ADDRESS);
         } else {
           console.error("Token address not configured for chain", selectedChainId);
@@ -345,7 +344,7 @@ export const useSubnetContractInteractions = ({
       resetWriteContract();
       
       // IMMEDIATELY populate cache before redirect
-      const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
+      const isMainnet = selectedChainId === base.id;
       console.log("[useSubnetContractInteractions] Is mainnet?", isMainnet, "Selected chain:", selectedChainId);
       
       if (isMainnet && submittedFormData && connectedAddress) {
@@ -413,7 +412,7 @@ export const useSubnetContractInteractions = ({
     
     const insertIntoSupabase = async () => {
       if (isWriteTxSuccess && submittedFormData && writeTxResult) {
-        const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
+        const isMainnet = selectedChainId === base.id;
         console.log(`[useSubnetContractInteractions] Transaction successful (Tx: ${writeTxResult}). Checking if mainnet for Supabase insert...`, { selectedChainId, isMainnet });
 
         if (isMainnet) {
@@ -515,24 +514,24 @@ export const useSubnetContractInteractions = ({
     };
   }, [writeTxResult, isWriteTxLoading, resetWriteContract, onTxSuccess]);
 
-  // Check for Subnet Creation Fee - only on testnet (BuilderSubnetsV2 contract)
-  const isTestnet = selectedChainId === arbitrumSepolia.id;
+  // Check for Subnet Creation Fee - both Base and Base Sepolia use BuildersV4 contract
+  const isV4Network = selectedChainId === base.id || selectedChainId === baseSepolia.id;
   const { data: subnetCreationFeeAmount } = useReadContract({
     address: builderContractAddress as Address,
-    abi: BuilderSubnetsV2Abi,
+    abi: BuildersV4Abi,
     functionName: 'subnetCreationFeeAmount',
     chainId: selectedChainId,
     query: {
-      enabled: !!builderContractAddress && isTestnet, // Only query on testnet
+      enabled: !!builderContractAddress && isV4Network, // Query on both Base and Base Sepolia
     }
   });
 
   useEffect(() => {
-    if (isTestnet && subnetCreationFeeAmount !== undefined && subnetCreationFeeAmount !== null) {
-      console.log("Testnet subnet creation fee amount:", subnetCreationFeeAmount.toString());
+    if (isV4Network && subnetCreationFeeAmount !== undefined && subnetCreationFeeAmount !== null) {
+      console.log("Subnet creation fee amount:", subnetCreationFeeAmount.toString());
       setCreationFee(subnetCreationFeeAmount as bigint);
     }
-  }, [subnetCreationFeeAmount, isTestnet]);
+  }, [subnetCreationFeeAmount, isV4Network]);
 
   // Action Handlers
   const handleNetworkSwitch = useCallback(async () => {
@@ -579,8 +578,8 @@ export const useSubnetContractInteractions = ({
         functionName: 'approve',
         args: [builderContractAddress, creationFee],
         chainId: selectedChainId,
-        // Add explicit gas limit for Arbitrum Sepolia to prevent excessive estimates
-        gas: selectedChainId === arbitrumSepolia.id ? BigInt(400000) : undefined,
+        // Add explicit gas limit for Base Sepolia to prevent excessive estimates
+        gas: selectedChainId === baseSepolia.id ? BigInt(400000) : undefined,
       });
     } catch (error) {
       console.error("Error preparing approve transaction:", error);
@@ -596,10 +595,9 @@ export const useSubnetContractInteractions = ({
     setSubmittedFormData(formData);
     console.log("[useSubnetContractInteractions] Form data stored for later use");
 
-    const isTestnet = selectedChainId === arbitrumSepolia.id;
-    console.log("[useSubnetContractInteractions] Is testnet?", isTestnet);
-
-    const isMainnet = selectedChainId === arbitrum.id || selectedChainId === base.id;
+    const isV4Network = selectedChainId === base.id || selectedChainId === baseSepolia.id;
+    const isTestnet = selectedChainId === baseSepolia.id;
+    console.log("[useSubnetContractInteractions] Is V4 network?", isV4Network, "Is testnet?", isTestnet);
 
     if (!connectedAddress || !isCorrectNetwork()) {
       toast.error("Cannot create builder subnet: Wallet or network issue.");
@@ -612,81 +610,43 @@ export const useSubnetContractInteractions = ({
     }
 
     try {
-      const futureDate = new Date();
-      futureDate.setHours(futureDate.getHours() + 1);
-      const startsAtTimestamp = BigInt(getUnixTime(futureDate));
-      // console.log(`Setting startsAt to 1 hour in the future for contract: ${new Date(Number(startsAtTimestamp) * 1000).toISOString()}`);
+      // Both Base and Base Sepolia use BuildersV4 with the same structure
+      const subnetName = formData.subnet.name || `Subnet-${Date.now()}`;
+      const subnetSlug = formData.metadata.slug || subnetName.toLowerCase().replace(/\s+/g, '-');
 
-      if (isMainnet) {
-        const poolName = formData.builderPool?.name || formData.subnet.name || `UniquePool-${Date.now()}`; // Name from form
-        const adminAddress = connectedAddress;
-        const poolStart = startsAtTimestamp.toString(); // From "now + 1hr"
-
-        // These now come directly from validated form data
-        const withdrawLock = calculateSecondsForLockPeriod(
+      // BuildersV4 Subnet struct: name, admin, unusedStorage1_V4Update, withdrawLockPeriodAfterDeposit, 
+      // unusedStorage2_V4Update, minimalDeposit, claimAdmin
+      const subnetStruct = {
+        name: subnetName,
+        admin: connectedAddress as `0x${string}`,
+        unusedStorage1_V4Update: BigInt(0), // Set to 0 as unused
+        withdrawLockPeriodAfterDeposit: calculateSecondsForLockPeriod(
           formData.subnet.withdrawLockPeriod,
           formData.subnet.withdrawLockUnit
-        ).toString();
+        ),
+        unusedStorage2_V4Update: BigInt(0), // Set to 0 as unused
+        minimalDeposit: parseEther((formData.subnet.minStake || 0.001).toString()),
+        claimAdmin: connectedAddress as `0x${string}`, // Use connected address as claim admin
+      };
 
-        const claimLock = BigInt(
-          getUnixTime(formData.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // Default if not set
-        ).toString();
+      // BuildersV4 SubnetMetadata struct: slug, description, website, image
+      const metadataStruct = {
+        slug: subnetSlug,
+        description: formData.metadata.description || "",
+        website: formData.metadata.website || "https://example.com",
+        image: formData.metadata.image || ""
+      };
 
-        // Form validation should ensure this meets contract's practical minimum (e.g. >= 0.01)
-        const minDeposit = parseEther(
-          (formData.builderPool?.minimalDeposit ?? formData.subnet.minStake ?? 0.01).toString() // Fallback to 0.01 if form values are missing
-        ).toString();
+      const networkName = isTestnet ? "Base Sepolia" : "Base";
+      console.log(`Creating subnet (${networkName} - BuildersV4) with DYNAMIC parameters:`, subnetStruct, metadataStruct);
 
-        const dynamicBuilderPoolTuple = [
-          poolName, adminAddress, poolStart, withdrawLock, claimLock, minDeposit
-        ];
-        console.log("Creating builder pool (Mainnet) with validated DYNAMIC parameters:", dynamicBuilderPoolTuple);
-
-        writeContract({
-          address: builderContractAddress,
-          abi: BuildersAbi as Abi, 
-          functionName: 'createBuilderPool',
-          args: [dynamicBuilderPoolTuple],
-          chainId: selectedChainId,
-        });
-
-      } else {
-        // Testnet logic (as corrected previously)
-        const testnetSubnetName = formData.subnet.name || `TestNetSubnet-${Date.now()}`;
-        const testnetSlug = formData.metadata.slug || testnetSubnetName.toLowerCase().replace(/\s+/g, '-');
-
-        const subnetStruct = {
-          name: testnetSubnetName,
-          owner: connectedAddress as `0x${string}`,
-          // Form validation should ensure minStake is appropriate for testnet (e.g. >= 0.001)
-          minStake: parseEther((formData.subnet.minStake || 0.001).toString()),
-          fee: BigInt(formData.subnet.fee || 0),
-          feeTreasury: (formData.subnet.feeTreasury || connectedAddress) as `0x${string}`,
-          startsAt: startsAtTimestamp,
-          withdrawLockPeriodAfterStake: calculateSecondsForLockPeriod(
-            formData.subnet.withdrawLockPeriod,
-            formData.subnet.withdrawLockUnit
-          ),
-          maxClaimLockEnd: BigInt(getUnixTime(formData.subnet.maxClaimLockEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))),
-        };
-
-        const metadataStruct = {
-          slug: testnetSlug,
-          description: formData.metadata.description || "Testnet subnet description",
-          website: formData.metadata.website || "https://example.com",
-          image: formData.metadata.image || ""
-        };
-
-        console.log("Creating subnet (Testnet) with DYNAMIC parameters:", subnetStruct, metadataStruct);
-
-        writeContract({
-          address: builderContractAddress,
-          abi: BuilderSubnetsV2Abi, 
-          functionName: 'createSubnet',
-          args: [subnetStruct, metadataStruct],
-          chainId: selectedChainId,
-        });
-      }
+      writeContract({
+        address: builderContractAddress,
+        abi: BuildersV4Abi, 
+        functionName: 'createSubnet',
+        args: [subnetStruct, metadataStruct],
+        chainId: selectedChainId,
+      });
 
     } catch (error) {
       console.error("Error preparing createSubnet/createBuilderPool transaction:", error);

@@ -4,7 +4,7 @@ import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry, Builders
 import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
 import { useChainId } from 'wagmi';
-import { arbitrumSepolia } from 'wagmi/chains';
+import { baseSepolia } from 'wagmi/chains';
 
 export interface StakingPaginationState {
   currentPage: number;
@@ -84,7 +84,7 @@ export function useStakingData({
 }: UseStakingDataProps) {
   // Auto-detect testnet if not explicitly provided
   const chainId = useChainId();
-  const isTestnet = providedIsTestnet !== undefined ? providedIsTestnet : chainId === arbitrumSepolia.id;
+  const isTestnet = providedIsTestnet !== undefined ? providedIsTestnet : chainId === baseSepolia.id;
   
   // Data fetching state
   const [entries, setEntries] = useState<StakingEntry[]>([]);
