@@ -258,7 +258,8 @@ interface CapitalContextState {
   // Static Info
   l1ChainId?: number;
   l2ChainId?: number;
-  userAddress?: `0x${string}`;
+  userAddress?: `0x${string}`; // Real connected address (for writes)
+  readAddress?: `0x${string}`; // Address for read operations (test override or real address)
   networkEnv: NetworkEnvironment;
   
   // V2 Contract Addresses
@@ -416,7 +417,13 @@ interface CapitalContextState {
 const CapitalPageContext = createContext<CapitalContextState | null>(null);
 
 // --- Provider Component ---
-export function CapitalProvider({ children }: { children: React.ReactNode }) {
+export function CapitalProvider({ 
+  children, 
+  testAddress 
+}: { 
+  children: React.ReactNode;
+  testAddress?: `0x${string}`;
+}) {
   // --- Modal State ---
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [selectedAsset, setSelectedAsset] = useState<AssetSymbol>('stETH');
@@ -426,6 +433,16 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const { address: userAddress } = useAccount();
   const chainId = useChainId();
   const publicClient = usePublicClient();
+
+  // --- Test Address Support ---
+  // Use testAddress for read operations, but keep real userAddress for writes
+  const readAddress = useMemo((): `0x${string}` | undefined => {
+    if (testAddress && isAddress(testAddress)) {
+      console.log('🧪 Test address active for read operations:', testAddress);
+      return testAddress as `0x${string}`;
+    }
+    return userAddress;
+  }, [testAddress, userAddress]);
 
   const networkEnv = useMemo((): NetworkEnvironment => {
     return [1, 42161, 8453].includes(chainId) ? 'mainnet' : 'testnet';
@@ -513,25 +530,26 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   
   // --- Referral Data Hook (GraphQL) ---
   const liveReferralData = useReferralData({
-    userAddress: userAddress, // ✅ Now using actual connected wallet address
+    userAddress: readAddress, // Use readAddress (test override if provided)
     networkEnvironment: networkEnv
   });
 
   // --- Referrer Summary Hook (GraphQL) for Total MOR Earned ---
   const referrerSummaryData = useReferrerSummary({
-    userAddress: userAddress,
+    userAddress: readAddress, // Use readAddress (test override if provided)
     networkEnvironment: networkEnv
   });
 
   // --- Dynamic Asset Contract Data ---
   // Use the dynamic hook for each potential asset - only enabled when contracts exist
+  // Pass readAddress to support test address override
   const assetContractData = {
-    stETH: useAssetContractData('stETH'),
-    LINK: useAssetContractData('LINK'), 
-    USDC: useAssetContractData('USDC'),
-    USDT: useAssetContractData('USDT'),
-    wBTC: useAssetContractData('wBTC'),
-    wETH: useAssetContractData('wETH'),
+    stETH: useAssetContractData('stETH', readAddress),
+    LINK: useAssetContractData('LINK', readAddress), 
+    USDC: useAssetContractData('USDC', readAddress),
+    USDT: useAssetContractData('USDT', readAddress),
+    wBTC: useAssetContractData('wBTC', readAddress),
+    wETH: useAssetContractData('wETH', readAddress),
   };
 
   // Calculate available referral assets - will be set after helper function definitions
@@ -710,9 +728,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: stETHDepositPoolAddress,
     abi: poolAbi,
     functionName: 'usersData',
-    args: [userAddress || zeroAddress, PUBLIC_POOL_ID],
+    args: [readAddress || zeroAddress, PUBLIC_POOL_ID],
     chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress && !!userAddress }
+    query: { enabled: !!stETHDepositPoolAddress && !!readAddress }
   });
   const userData = useMemo((): UserPoolData | undefined => {
     if (!usersDataResult) return undefined;
@@ -741,9 +759,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: stETHDepositPoolAddress,
     abi: poolAbi,
     functionName: 'getLatestUserReward',
-    args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
+    args: [PUBLIC_POOL_ID, readAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 } 
+    query: { enabled: !!stETHDepositPoolAddress && !!readAddress, refetchInterval: 2 * 60 * 1000 } 
   });
   const currentUserRewardData = useMemo(() => currentUserRewardDataRaw as bigint | undefined, [currentUserRewardDataRaw]);
 
@@ -751,18 +769,19 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: distributorV2Address,
     abi: ERC1967ProxyAbi, // DistributorV2 uses this ABI
     functionName: 'getCurrentUserMultiplier',
-    args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
+    args: [PUBLIC_POOL_ID, readAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!distributorV2Address && !!userAddress } 
+    query: { enabled: !!distributorV2Address && !!readAddress } 
   });
   const currentUserMultiplierData = useMemo(() => currentUserMultiplierDataRaw as bigint | undefined, [currentUserMultiplierDataRaw]);
 
-  const { data: stEthBalanceData, isLoading: isLoadingStEthBalance, error: stEthBalanceError } = useBalance({ address: userAddress, token: stEthContractAddress, chainId: l1ChainId, query: { enabled: !!userAddress && !!stEthContractAddress } });
+  const { data: stEthBalanceData, isLoading: isLoadingStEthBalance, error: stEthBalanceError } = useBalance({ address: readAddress, token: stEthContractAddress, chainId: l1ChainId, query: { enabled: !!readAddress && !!stEthContractAddress } });
   
   // Debug logging for stETH balance on testnet
   useEffect(() => {
     if (networkEnv === 'testnet') {
       console.log('🔍 stETH Balance Debug:', {
+        readAddress,
         userAddress,
         stEthContractAddress,
         l1ChainId,
@@ -774,7 +793,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         formatted: stEthBalanceData?.formatted,
         symbol: stEthBalanceData?.symbol,
         decimals: stEthBalanceData?.decimals,
-        queryEnabled: !!userAddress && !!stEthContractAddress
+        queryEnabled: !!readAddress && !!stEthContractAddress
       });
       
       if (stEthBalanceError) {
@@ -782,20 +801,20 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         console.warn('💡 Tip: The stETH contract address on Sepolia might be invalid. Consider using a valid test ERC20 token address.');
       }
     }
-  }, [networkEnv, userAddress, stEthContractAddress, l1ChainId, stEthBalanceData, isLoadingStEthBalance, stEthBalanceError]);
+  }, [networkEnv, readAddress, userAddress, stEthContractAddress, l1ChainId, stEthBalanceData, isLoadingStEthBalance, stEthBalanceError]);
   
   // stEthBalance removed - now handled by dynamic useAssetContractData hook
 
-  const { data: morBalanceData, isLoading: isLoadingMorBalance, refetch: refetchMorBalance } = useBalance({ address: userAddress, token: morContractAddress, chainId: l2ChainId, query: { enabled: !!userAddress && !!morContractAddress } });
+  const { data: morBalanceData, isLoading: isLoadingMorBalance, refetch: refetchMorBalance } = useBalance({ address: readAddress, token: morContractAddress, chainId: l2ChainId, query: { enabled: !!readAddress && !!morContractAddress } });
   const morBalance = morBalanceData?.value ?? BigInt(0);
 
   const { isLoading: isLoadingAllowance } = useReadContract({
     address: stEthContractAddress,
     abi: ERC20Abi,
     functionName: 'allowance',
-    args: [userAddress || zeroAddress, stETHDepositPoolAddress || zeroAddress],
+    args: [readAddress || zeroAddress, stETHDepositPoolAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!userAddress && !!stEthContractAddress && !!stETHDepositPoolAddress }
+    query: { enabled: !!readAddress && !!stEthContractAddress && !!stETHDepositPoolAddress }
   });
   // allowanceData removed as it was unused
 
@@ -804,9 +823,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: stETHDepositPoolAddress,
     abi: DepositPoolAbi,
     functionName: 'usersData',
-    args: [userAddress || zeroAddress, V2_REWARD_POOL_INDEX],
+    args: [readAddress || zeroAddress, V2_REWARD_POOL_INDEX],
     chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress && !!userAddress }
+    query: { enabled: !!stETHDepositPoolAddress && !!readAddress }
   });
 
   // stETHV2PoolData removed - now handled by dynamic useAssetContractData hook
@@ -818,9 +837,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: stETHDepositPoolAddress,
     abi: DepositPoolAbi,
     functionName: 'getLatestUserReward',
-    args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
+    args: [V2_REWARD_POOL_INDEX, readAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 }
+    query: { enabled: !!stETHDepositPoolAddress && !!readAddress, refetchInterval: 2 * 60 * 1000 }
   });
 
   // --- V2 DepositPool Reads (LINK) ---
@@ -828,9 +847,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: linkDepositPoolAddress,
     abi: DepositPoolAbi,
     functionName: 'usersData',
-    args: [userAddress || zeroAddress, V2_REWARD_POOL_INDEX],
+    args: [readAddress || zeroAddress, V2_REWARD_POOL_INDEX],
     chainId: l1ChainId,
-    query: { enabled: !!linkDepositPoolAddress && !!userAddress }
+    query: { enabled: !!linkDepositPoolAddress && !!readAddress }
   });
 
   // linkV2PoolData removed - now handled by dynamic useAssetContractData hook
@@ -842,9 +861,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     address: linkDepositPoolAddress,
     abi: DepositPoolAbi,
     functionName: 'getLatestUserReward',
-    args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
+    args: [V2_REWARD_POOL_INDEX, readAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 }
+    query: { enabled: !!linkDepositPoolAddress && !!readAddress, refetchInterval: 2 * 60 * 1000 }
   });
 
   // --- V2 User Multiplier Reads (Power Factor) ---
@@ -1361,35 +1380,35 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   }, [referralAssetConfigs]);
 
   const referralRewardContracts = useMemo(() => {
-    if (!userAddress) return [];
+    if (!readAddress) return [];
 
     return referralAssetConfigs.map((config) => ({
       address: config.depositPoolAddress,
       abi: DepositPoolAbi,
       functionName: 'getLatestReferrerReward' as const,
-      args: [V2_REWARD_POOL_INDEX, userAddress] as const,
+      args: [V2_REWARD_POOL_INDEX, readAddress] as const,
       chainId: l1ChainId,
     }));
-  }, [referralAssetConfigs, l1ChainId, userAddress]); // ✅ Added userAddress dependency
+  }, [referralAssetConfigs, l1ChainId, readAddress]);
 
   const referrerDataContracts = useMemo(() => {
-    if (!userAddress) return [];
+    if (!readAddress) return [];
 
     return referralAssetConfigs.map((config) => ({
       address: config.depositPoolAddress,
       abi: DepositPoolAbi,
       functionName: 'referrersData' as const,
-      args: [userAddress, V2_REWARD_POOL_INDEX] as const,
+      args: [readAddress, V2_REWARD_POOL_INDEX] as const,
       chainId: l1ChainId,
     }));
-  }, [referralAssetConfigs, l1ChainId, userAddress]); // ✅ Added userAddress dependency
+  }, [referralAssetConfigs, l1ChainId, readAddress]);
 
   const { data: referralRewardsResults, isLoading: isLoadingReferralRewards } = useContractReads({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     contracts: referralRewardContracts as any, // Required for ABI compatibility with dynamic contract generation
     allowFailure: true,
     query: {
-      enabled: referralRewardContracts.length > 0 && !!userAddress, // ✅ Now properly checks for connected wallet
+      enabled: referralRewardContracts.length > 0 && !!readAddress,
     },
   });
 
@@ -1398,7 +1417,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     contracts: referrerDataContracts as any, // Required for ABI compatibility with dynamic contract generation
     allowFailure: true,
     query: {
-      enabled: referrerDataContracts.length > 0 && !!userAddress, // ✅ Now properly checks for connected wallet
+      enabled: referrerDataContracts.length > 0 && !!readAddress,
     },
   });
 
@@ -2638,7 +2657,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     // Static Info
     l1ChainId,
     l2ChainId,
-    userAddress,
+    userAddress, // Real connected address (for writes)
+    readAddress, // Address for reads (test override if provided)
     networkEnv,
     
     // V2 Contract Addresses
@@ -2763,7 +2783,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     poolInfo,
   }), [
     // Core system dependencies
-    l1ChainId, l2ChainId, userAddress, networkEnv,
+    l1ChainId, l2ChainId, userAddress, readAddress, networkEnv,
     distributorV2Address, rewardPoolV2Address, l1SenderV2Address,
     
     // Dynamic assets object (contains all asset-specific data)

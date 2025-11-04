@@ -68,10 +68,18 @@ export interface AssetContractData {
 /**
  * Dynamic hook to read contract data for a single asset
  * This eliminates hardcoded asset-specific variables
+ * @param assetSymbol - The asset symbol to fetch data for
+ * @param overrideAddress - Optional address override for read operations (test/debugging)
  */
-export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractData {
-  const { address: userAddress } = useAccount();
+export function useAssetContractData(
+  assetSymbol: AssetSymbol,
+  overrideAddress?: `0x${string}`
+): AssetContractData {
+  const { address: connectedAddress } = useAccount();
   const chainId = useChainId();
+  
+  // Use override address if provided, otherwise use connected address
+  const userAddress = overrideAddress || connectedAddress;
   
   // Determine network environment
   const networkEnv = useMemo((): NetworkEnvironment => {

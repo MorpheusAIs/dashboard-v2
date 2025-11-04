@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useNetwork } from "@/context/network-context";
 import { useChainId, useSwitchChain, useAccount, useConnectorClient } from "wagmi";
 import { mainnet } from "wagmi/chains";
+import { isAddress } from "viem";
 
 // Import Modals (updated to kebab-case)
 import { DepositModal } from "@/components/capital/deposit-modal";
@@ -220,16 +221,35 @@ function CapitalPageContent() {
   )
 }
 
+// Component to extract test address from URL params (must be in Suspense boundary)
+function CapitalPageWithTestAddress() {
+  const searchParams = useSearchParams();
+  
+  // Support test address override via URL parameter for read operations
+  const testAddressParam = searchParams.get('testAddress');
+  const testAddress = useMemo(() => {
+    if (testAddressParam && isAddress(testAddressParam)) {
+      console.log('🧪 Test address override active:', testAddressParam);
+      return testAddressParam as `0x${string}`;
+    }
+    return undefined;
+  }, [testAddressParam]);
+
+  return (
+    <CapitalProvider testAddress={testAddress}>
+      <CapitalPageContent />
+    </CapitalProvider>
+  );
+}
+
 // Default export wraps content with Provider
 export default function CapitalPage() {
   return (
     // No ApolloProvider needed here if client is passed directly to useQuery
-    <CapitalProvider>
-      <Suspense fallback={<div className="page-container flex items-center justify-center min-h-96">
-        <div className="text-gray-400">Loading...</div>
-      </div>}>
-        <CapitalPageContent />
-      </Suspense>
-    </CapitalProvider>
+    <Suspense fallback={<div className="page-container flex items-center justify-center min-h-96">
+      <div className="text-gray-400">Loading...</div>
+    </div>}>
+      <CapitalPageWithTestAddress />
+    </Suspense>
   );
 }
