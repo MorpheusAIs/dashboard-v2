@@ -6,8 +6,10 @@ import { onError } from '@apollo/client/link/error';
 // Define the network endpoints for different chains
 const NETWORK_ENDPOINTS = {
   Arbitrum: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
+  // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility.
   ArbitrumSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
   Base: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
+  BaseSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-base-sepolia/api',
   // Capital v2 subgraph endpoints
   CapitalV2Sepolia: 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest',
 };
@@ -44,6 +46,7 @@ export const apolloClients = {
       },
     },
   }),
+  // @deprecated - Arbitrum Sepolia Apollo client. No longer used for Builders V4.
   ArbitrumSepolia: new ApolloClient({
     link: from([
       errorLink,
@@ -65,6 +68,22 @@ export const apolloClients = {
       errorLink,
       new HttpLink({
         uri: NETWORK_ENDPOINTS.Base,
+      }),
+    ]),
+    cache: new InMemoryCache(),
+    queryDeduplication: false,
+    defaultOptions: {
+      query: {
+        fetchPolicy: 'no-cache',
+        errorPolicy: 'all',
+      },
+    },
+  }),
+  BaseSepolia: new ApolloClient({
+    link: from([
+      errorLink,
+      new HttpLink({
+        uri: NETWORK_ENDPOINTS.BaseSepolia,
       }),
     ]),
     cache: new InMemoryCache(),
