@@ -4,7 +4,9 @@
 export const GRAPHQL_ENDPOINTS = {
   'Base': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
   'Arbitrum': 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
+  // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility.
   'Arbitrum_Sepolia': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
+  'Base_Sepolia': 'http://localhost:42069/graphql',
   "Ethereum": "https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest",
 };
 
@@ -20,7 +22,14 @@ const DEBOUNCE_TIME = 2000; // 2 seconds debounce time
 
 // Utility function to get the current endpoint for a network
 export const getEndpointForNetwork = (network: string) => {
-  // Check if we're on Arbitrum Sepolia
+  // Check if we're on Base Sepolia
+  if (network.toLowerCase() === 'base_sepolia' || 
+      network.toLowerCase() === 'base sepolia' || 
+      network.toLowerCase() === 'basesepolia') {
+    return GRAPHQL_ENDPOINTS.Base_Sepolia;
+  }
+  
+  // Check if we're on Arbitrum Sepolia (deprecated, kept for backward compatibility)
   if (network.toLowerCase() === 'arbitrum_sepolia' || 
       network.toLowerCase() === 'arbitrum sepolia' || 
       network.toLowerCase() === 'arbitrumsepolia') {
