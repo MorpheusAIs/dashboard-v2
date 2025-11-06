@@ -317,7 +317,7 @@ export const GET_PARTICIPATING_BUILDER_SUBNETS = gql`
   }
 `;
 
-// Query to get combined builder subnets (for Arbitrum Sepolia)
+// Query to get combined builder subnets (for Arbitrum Sepolia - deprecated)
 export const COMBINED_BUILDER_SUBNETS = gql`
   ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
   ${BUILDER_USER_DEFAULT_FRAGMENT}
@@ -350,10 +350,84 @@ export const COMBINED_BUILDER_SUBNETS = gql`
         ...BuilderSubnetDefault
       }
     }
-    counters {
+    counters(id: "1") {
       id
       totalSubnets
       totalBuilderProjects
+    }
+  }
+`;
+
+// Query to get combined builders projects (for Base Sepolia - uses BuildersV4 schema)
+export const COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA = gql`
+  query combinedBuildersProjectsBaseSepolia {
+    buildersProjects {
+      items {
+        id
+        name
+        totalStaked
+        totalClaimed
+        totalUsers
+        description
+        website
+        image
+        slug
+        minimalDeposit
+        chainId
+        withdrawLockPeriodAfterDeposit
+      }
+    }
+  }
+`;
+
+// Query to get subnets where user has staked (for Base Sepolia - "Staking in" tab)
+export const GET_SUBNETS_WHERE_USER_STAKED_BASE_SEPOLIA = gql`
+  query GetSubnetsWhereUserStaked($userAddress: String!) {
+    buildersUsers(
+      where: { 
+        address: { equals: $userAddress }
+        staked: { gt: "0" }
+      }
+    ) {
+      id
+      address
+      staked
+      lastStake
+      claimLockEnd
+      project {
+        id
+        name
+        admin
+        slug
+        description
+        website
+        image
+        totalStaked
+        minimalDeposit
+        withdrawLockPeriodAfterDeposit
+        chainId
+      }
+    }
+  }
+`;
+
+// Query to get subnets by admin (for Base Sepolia - "Your Subnets" tab)
+export const GET_SUBNETS_BY_ADMIN_BASE_SEPOLIA = gql`
+  query GetSubnetsByAdmin($adminAddress: String!) {
+    buildersProjects(
+      where: { admin: { equals: $adminAddress } }
+    ) {
+      id
+      name
+      slug
+      description
+      website
+      image
+      totalStaked
+      totalUsers
+      minimalDeposit
+      withdrawLockPeriodAfterDeposit
+      chainId
     }
   }
 `;
