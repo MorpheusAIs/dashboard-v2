@@ -6,8 +6,10 @@ Replace all Arbitrum Sepolia testnet references with Base Sepolia for builders f
 
 ## Key Differences
 
-- **Arbitrum Sepolia**: Uses `BuilderSubnetsV2Abi`, function `stake()`, chain ID 421614
+- **Arbitrum Sepolia** (deprecated): Uses `BuilderSubnetsV2Abi`, function `stake()`, chain ID 421614
 - **Base Sepolia**: Uses `BuildersV4Abi`, function `deposit()`, chain ID 84532, requires RewardPoolV4
+- **Base Mainnet**: Now uses `BuildersV4Abi` (same as Base Sepolia), function `deposit()`, chain ID 8453
+- **Arbitrum One** (no longer supported for new subnet creation): Uses `BuildersAbi`, function `createBuilderPool`
 
 ## Files to Modify
 
@@ -63,12 +65,15 @@ Replace all Arbitrum Sepolia testnet references with Base Sepolia for builders f
 **File**: `hooks/useSubnetContractInteractions.ts`
 
 - Change `isTestnet` detection from `arbitrumSepolia.id` to `baseSepolia.id`
+- **Base mainnet (8453) now uses BuildersV4** - same as Base Sepolia
 - Replace `BuilderSubnetsV2Abi` with `BuildersV4Abi`
+- **Remove all Arbitrum One logic** - no longer supported for new subnet creation
 - Update `createSubnet` call to match BuildersV4 signature:
 - Function: `createSubnet(Subnet subnet_, SubnetMetadata metadata_)`
 - Struct parameters instead of separate args
+- Both Base and Base Sepolia use the same BuildersV4 createSubnet function
 - Update fee handling (BuildersV4 uses `subnetCreationFeeAmount`)
-- Remove conditional createBuilderPool vs createSubnet logic
+- Remove conditional createBuilderPool vs createSubnet logic (all use createSubnet now)
 
 ### 6. Individual Builder Page
 
@@ -89,6 +94,8 @@ Replace all Arbitrum Sepolia testnet references with Base Sepolia for builders f
 
 - Change default network from `arbitrumSepolia.id` to `baseSepolia.id` in `getInitialNetworkId()`
 - Update supported chains to include `baseSepolia.id` instead of `arbitrumSepolia.id`
+- **Remove Arbitrum One (42161) from supported networks** - only Base and Base Sepolia supported
+- Update validation logic to use V4 structure for both Base and Base Sepolia
 - Update network name display/logic
 
 ### 8. Subnet Form Components
@@ -97,9 +104,12 @@ Replace all Arbitrum Sepolia testnet references with Base Sepolia for builders f
 
 **File**: `components/subnet-form/Step1PoolConfig.tsx`
 
-- Remove testnet-specific fields if they don't exist in BuildersV4
+- **Base mainnet now uses V4 structure** - same fields as Base Sepolia (subnet.name, subnet.minStake)
+- Remove Arbitrum One option from network selector
+- Remove builderPool.name and builderPool.minimalDeposit fields (replaced by V4 subnet fields)
 - Update form validation for BuildersV4 structure
 - Ensure form maps correctly to BuildersV4 Subnet struct
+- Both Base and Base Sepolia use the same V4 contract structure
 
 #### 8.2 Metadata Step
 
@@ -107,6 +117,15 @@ Replace all Arbitrum Sepolia testnet references with Base Sepolia for builders f
 
 - Update to match BuildersV4 SubnetMetadata structure
 - Ensure slug field works with BuildersV4 requirements
+- Same structure for both Base and Base Sepolia
+
+#### 8.3 Constants
+
+**File**: `components/subnet-form/utils/constants.ts`
+
+- **Remove Arbitrum One (42161) from SUPPORTED_CHAINS**
+- Only Base (8453) and Base Sepolia (84532) supported
+- Both use BuildersV4 contracts
 
 ### 9. Staking Modal
 
@@ -157,6 +176,15 @@ Replace all Arbitrum Sepolia testnet references with Base Sepolia for builders f
 - Check if `app/builders/builders-data.ts` needs updates for Base Sepolia
 - Verify Builder type includes Base Sepolia network support
 
+### 16. Wallet Connector Configuration
+
+**File**: `config/index.tsx`
+
+- Add `baseSepolia` to the chains array in `getWagmiConfig()`
+- Add `baseSepolia.id` to the transports configuration
+- This ensures users can switch to Base Sepolia network in their wallet connector
+- **Critical**: Without this, users won't be able to switch to Base Sepolia network in Web3Modal/wallet connector
+
 ## Implementation Steps
 
 1. **Update network configuration** (already done)
@@ -170,8 +198,9 @@ Replace all Arbitrum Sepolia testnet references with Base Sepolia for builders f
 9. **Update staking modal**
 10. **Update builders list page**
 11. **Update data fetching hooks**
-12. **Test all interactions**: deposit, withdraw, claim, create subnet
-13. **Remove or deprecate Arbitrum Sepolia code**
+12. **Update wallet connector configuration** - Add Base Sepolia to Wagmi chains
+13. **Test all interactions**: deposit, withdraw, claim, create subnet
+14. **Remove or deprecate Arbitrum Sepolia code**
 
 ## Testing Checklist
 
