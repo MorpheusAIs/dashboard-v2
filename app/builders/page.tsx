@@ -14,7 +14,7 @@ import { useAuth } from "@/context/auth-context";
 import { DataTable, Column } from "@/components/ui/data-table";
 import { DataFilters } from "@/components/ui/data-filters";
 import { useChainId } from 'wagmi';
-import { arbitrumSepolia } from 'wagmi/chains';
+import { baseSepolia } from 'wagmi/chains';
 import { 
   HoverCard,
   HoverCardContent,
@@ -26,6 +26,7 @@ import { StakeVsTotalChart } from "@/components/stake-vs-total-chart";
 import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
+import { useUserAdminSubnets } from "@/app/hooks/useUserAdminSubnets";
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -272,13 +273,13 @@ const getBuilderSlug = (builder: Builder, duplicateNames: string[]) => {
 export default function BuildersPage() {
   // Get chain ID to determine testnet vs mainnet
   const chainId = useChainId();
-  const isTestnet = chainId === arbitrumSepolia.id;
+  const isTestnet = chainId === baseSepolia.id;
   
   // Helper function to get the appropriate subnet ID for URLs
   const getSubnetId = useCallback((builder: Builder): string => {
     // Check the builder's actual network, not the user's wallet network
     const builderIsOnTestnet = builder.networks && 
-      builder.networks.some(network => network === "Arbitrum Sepolia");
+      builder.networks.some(network => network === "Base Sepolia");
     
     if (builderIsOnTestnet) {
       // For testnet: use builder.id (the on-chain subnet contract address)
@@ -358,23 +359,11 @@ export default function BuildersPage() {
   // Get auth state
   const { userAddress, isAuthenticated, isLoading: isLoadingAuth } = useAuth();
 
-  // Hook for fetching user staked builders on mainnet (for "Staking in" tab)
+  // Hook for fetching user staked builders (for "Staking in" tab)
   const { data: userStakedBuilders, isLoading: isLoadingUserStakedBuilders } = useUserStakedBuilders();
 
-  // Temporary fallback values for testing
-  const userAdminSubnets = useMemo<Builder[] | null>(() => {
-    if (!isAuthenticated || !userAddress || !builders) return null;
-    const adminSubnets = builders.filter((b: Builder) => b.admin?.toLowerCase() === userAddress.toLowerCase());
-    console.log(`[BuildersPage] userAdminSubnets calculation:`, {
-      totalBuilders: builders.length,
-      userAddress,
-      adminSubnets: adminSubnets.length,
-      subnetNames: adminSubnets.map(s => s.name)
-    });
-    return adminSubnets;
-  }, [isAuthenticated, userAddress, builders]);
-
-  const isLoadingUserAdminSubnets = isLoading || isLoadingAuth;
+  // Hook for fetching user admin subnets (for "Your Subnets" tab)
+  const { data: userAdminSubnets, isLoading: isLoadingUserAdminSubnets } = useUserAdminSubnets();
 
   // Initialize tab state from URL or use default
   const [activeTab, setActiveTab] = useState(() => {
@@ -811,7 +800,12 @@ export default function BuildersPage() {
   // --- MODIFY Filter logic ---
   // Filter the userAdminSubnets based on the filters
   const filteredUserAdminSubnets = useMemo(() => {
-    return (userAdminSubnets || []).filter((subnet) => { 
+    if (!userAdminSubnets) {
+      console.log('[BuildersPage] userAdminSubnets is null/undefined');
+      return [];
+    }
+    console.log(`[BuildersPage] Filtering ${userAdminSubnets.length} admin subnets`);
+    return userAdminSubnets.filter((subnet) => { 
       const matchesName = yourSubnetsNameFilter === '' || 
         subnet.name.toLowerCase().includes(yourSubnetsNameFilter.toLowerCase());
       
