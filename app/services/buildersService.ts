@@ -1,7 +1,8 @@
 import { getClientForNetwork } from '@/lib/apollo-client';
 import { 
   COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
-  COMBINED_BUILDER_SUBNETS
+  COMBINED_BUILDER_SUBNETS,
+  COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA
 } from '@/lib/graphql/builders-queries';
 import { 
   BuilderProject, 
@@ -45,7 +46,8 @@ export const fetchBuildersAPI = async (
   supabaseBuilders: BuilderDB[] | null, 
   supabaseBuildersLoaded: boolean, 
   userAddress?: string | null, // Added userAddress as an optional parameter
-  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null // Function to get admin address for newly created subnets
+  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null, // Function to get admin address for newly created subnets
+  chainId?: number // Optional chainId to determine which testnet network to query
 ): Promise<Builder[]> => {
   // console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
   // console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
@@ -56,74 +58,121 @@ export const fetchBuildersAPI = async (
     let combinedProjects: BuilderProject[] = [];
 
     if (isTestnet) {
-      const networkString = 'ArbitrumSepolia';
-      console.log(`[API] Fetching all subnet data from ${networkString} network.`);
+      // Determine which testnet network to query based on chainId
+      // Base Sepolia (84532) uses BuildersV4 schema (like mainnet), Arbitrum Sepolia uses old schema
+      const isBaseSepolia = chainId === 84532;
+      const networkString = isBaseSepolia ? 'BaseSepolia' : 'ArbitrumSepolia';
+      const networkName = isBaseSepolia ? 'Base Sepolia' : 'Arbitrum Sepolia';
+      
+      console.log(`[API] Fetching all subnet data from ${networkString} network (${networkName}).`);
       const client = getClientForNetwork(networkString);
       if (!client) {
         throw new Error(`[API] Could not get Apollo client for network: ${networkString}`);
       }
       
-      const testnetVariables = {
-        first: 100, // Consider making this configurable or fetching all
-        skip: 0,
-        orderBy: 'totalStaked',
-        orderDirection: OrderDirection.Desc, // Make sure OrderDirection is correctly imported or defined
-        usersOrderBy: 'builderSubnet__totalStaked',
-        usersDirection: OrderDirection.Asc,
-        builderSubnetName: "", 
-        address: "" 
-      };
-      
-      console.log(`[API Testnet Query] Variables for ${networkString}:`, testnetVariables);
-      const response = await client.query<{ builderSubnets?: TestnetSubnet[] }>({ // Typed response
-        query: COMBINED_BUILDER_SUBNETS,
-        variables: testnetVariables,
-        fetchPolicy: 'no-cache',
-      });
-      
-      console.log(`[API Testnet] Received response with ${response.data?.builderSubnets?.length || 0} subnets`);
-      
-      combinedProjects = (response.data?.builderSubnets || []).map((subnet: TestnetSubnet): BuilderProject => {
-        const totalStakedRaw = subnet.totalStaked || '0';
-        const totalStakedInMor = Number(totalStakedRaw) / 1e18;
-        const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
-        const totalClaimedRaw = subnet.totalClaimed || '0';
-        const totalClaimedInMor = Number(totalClaimedRaw) / 1e18;
+      if (isBaseSepolia) {
+        // Base Sepolia uses BuildersV4 schema with items structure
+        console.log(`[API Base Sepolia Query] Fetching projects...`);
+        const response = await client.query<{ buildersProjects?: { items?: BuilderProject[] } }>({
+          query: COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA,
+          fetchPolicy: 'no-cache',
+        });
         
-        const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
-          ? subnet.builderUsers.length 
-          : parseInt(subnet.totalUsers || '0', 10);
+        const projects = response.data?.buildersProjects?.items || [];
+        console.log(`[API Base Sepolia] Received response with ${projects.length} projects`);
         
-        const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
-        const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
-        
-        const project: BuilderProject = {
-          id: subnet.id,
-          name: subnet.name,
-          description: subnet.description || '',
-          admin: subnet.owner, 
-          networks: ['Arbitrum Sepolia'],
-          network: 'Arbitrum Sepolia',
-          totalStaked: totalStakedInMor.toString(), 
-          minDeposit: minStakeInMor, 
-          minimalDeposit: subnet.minStake, 
-          lockPeriod: lockPeriodFormatted,
-          stakingCount: stakingCount,
-          totalUsers: subnet.totalUsers,
-          website: subnet.website || '',
-          image: subnet.image || '',
-          totalStakedFormatted: totalStakedInMor,
-          totalClaimedFormatted: totalClaimedInMor,
-          startsAt: subnet.startsAt,
-          claimLockEnd: subnet.maxClaimLockEnd,
-          withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake, 
-          totalClaimed: totalClaimedInMor.toString(),
-          builderUsers: subnet.builderUsers,
+        combinedProjects = projects.map((project: BuilderProject): BuilderProject => {
+          const totalStakedRaw = project.totalStaked || '0';
+          const totalStakedInMor = Number(totalStakedRaw) / 1e18;
+          const minStakeInMor = Number(project.minimalDeposit || '0') / 1e18;
+          const totalClaimedRaw = project.totalClaimed || '0';
+          const totalClaimedInMor = Number(totalClaimedRaw) / 1e18;
+          
+          const stakingCount = parseInt(project.totalUsers || '0', 10);
+          const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          
+          return {
+            ...project,
+            admin: project.admin || '', // May not be in response, set default
+            networks: [networkName],
+            network: networkName,
+            totalStaked: totalStakedInMor.toString(),
+            minDeposit: minStakeInMor,
+            minimalDeposit: project.minimalDeposit,
+            lockPeriod: lockPeriodFormatted,
+            stakingCount: stakingCount,
+            totalStakedFormatted: totalStakedInMor,
+            totalClaimedFormatted: totalClaimedInMor,
+            totalClaimed: totalClaimedInMor.toString(),
+            startsAt: project.startsAt || '',
+            claimLockEnd: project.claimLockEnd || '',
+            builderUsers: [], // User stakes would need a separate query if needed
+          };
+        });
+      } else {
+        // Arbitrum Sepolia uses old schema (deprecated)
+        const testnetVariables = {
+          first: 100,
+          skip: 0,
+          orderBy: 'totalStaked',
+          orderDirection: OrderDirection.Desc,
+          usersOrderBy: 'builderSubnet__totalStaked',
+          usersDirection: OrderDirection.Asc,
+          builderSubnetName: "", 
+          address: "" 
         };
+        
+        console.log(`[API Arbitrum Sepolia Query] Variables:`, testnetVariables);
+        const response = await client.query<{ builderSubnets?: TestnetSubnet[] }>({
+          query: COMBINED_BUILDER_SUBNETS,
+          variables: testnetVariables,
+          fetchPolicy: 'no-cache',
+        });
+        
+        console.log(`[API Arbitrum Sepolia] Received response with ${response.data?.builderSubnets?.length || 0} subnets`);
+      
+        combinedProjects = (response.data?.builderSubnets || []).map((subnet: TestnetSubnet): BuilderProject => {
+          const totalStakedRaw = subnet.totalStaked || '0';
+          const totalStakedInMor = Number(totalStakedRaw) / 1e18;
+          const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
+          const totalClaimedRaw = subnet.totalClaimed || '0';
+          const totalClaimedInMor = Number(totalClaimedRaw) / 1e18;
+          
+          const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
+            ? subnet.builderUsers.length 
+            : parseInt(subnet.totalUsers || '0', 10);
+          
+          const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          
+          const project: BuilderProject = {
+            id: subnet.id,
+            name: subnet.name,
+            description: subnet.description || '',
+            admin: subnet.owner, 
+            networks: [networkName],
+            network: networkName,
+            totalStaked: totalStakedInMor.toString(), 
+            minDeposit: minStakeInMor, 
+            minimalDeposit: subnet.minStake, 
+            lockPeriod: lockPeriodFormatted,
+            stakingCount: stakingCount,
+            totalUsers: subnet.totalUsers,
+            website: subnet.website || '',
+            image: subnet.image || '',
+            totalStakedFormatted: totalStakedInMor,
+            totalClaimedFormatted: totalClaimedInMor,
+            startsAt: subnet.startsAt,
+            claimLockEnd: subnet.maxClaimLockEnd,
+            withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake, 
+            totalClaimed: totalClaimedInMor.toString(),
+            builderUsers: subnet.builderUsers,
+          };
 
-
-        return project;
-      });
+          return project;
+        });
+      }
       
       // To correctly pass lockPeriodSeconds for each project to the final mapping stage,
       // we need to associate it with the project. We can return an array of [project, lockPeriodSeconds] tuples.
@@ -134,7 +183,7 @@ export const fetchBuildersAPI = async (
 
       // Return mapped Builder array for testnet
       return combinedProjects.map((project): Builder => {
-        const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterStake || project.withdrawLockPeriodAfterDeposit || '0', 10);
+        const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
         const startsAtString = project.startsAt;
         return {
           id: project.id,
@@ -143,8 +192,8 @@ export const fetchBuildersAPI = async (
           description: project.description || '',
           long_description: project.description || '',
           admin: project.admin as string, 
-          networks: project.networks || ['Arbitrum Sepolia'],
-          network: project.network || 'Arbitrum Sepolia',
+          networks: project.networks || [networkName],
+          network: project.network || networkName,
           totalStaked: project.totalStakedFormatted !== undefined ? project.totalStakedFormatted : parseFloat(project.totalStaked || '0'),
           totalClaimed: project.totalClaimedFormatted !== undefined ? project.totalClaimedFormatted : parseFloat(project.totalClaimed || '0'),
           minDeposit: project.minDeposit !== undefined ? project.minDeposit : parseFloat(project.minimalDeposit || '0') / 1e18,
