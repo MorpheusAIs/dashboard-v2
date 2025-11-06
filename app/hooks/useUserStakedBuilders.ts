@@ -3,11 +3,13 @@ import { useAuth } from '@/context/auth-context';
 import { useNetworkInfo } from './useNetworkInfo';
 import { Builder } from '@/app/builders/builders-data';
 import { getClientForNetwork } from '@/lib/apollo-client';
-import { GET_ACCOUNT_USER_BUILDERS_PROJECTS } from '@/lib/graphql/builders-queries';
+import { GET_ACCOUNT_USER_BUILDERS_PROJECTS, GET_SUBNETS_WHERE_USER_STAKED_BASE_SEPOLIA } from '@/lib/graphql/builders-queries';
 import { formatTimePeriod } from "@/app/utils/time-utils";
 import { formatUnits } from 'ethers/lib/utils';
 import { useSupabaseBuilders } from './useSupabaseBuilders';
 import { useBuilders } from '@/context/builders-context';
+import { useChainId } from 'wagmi';
+import { baseSepolia } from 'wagmi/chains';
 
 interface BuilderUser {
   id: string;
@@ -38,15 +40,28 @@ interface BuilderUser {
 export const useUserStakedBuilders = () => {
   const { userAddress, isAuthenticated } = useAuth();
   const { isTestnet } = useNetworkInfo();
+  const chainId = useChainId();
   const { supabaseBuilders } = useSupabaseBuilders();
   const { builders } = useBuilders();
 
+  const isBaseSepolia = chainId === baseSepolia.id;
+
   // Create a unique query key
-  const queryKey: QueryKey = ['userStakedBuilders', { userAddress, isTestnet, buildersCount: builders?.length || 0 }];
+  const queryKey: QueryKey = ['userStakedBuilders', { userAddress, isTestnet, isBaseSepolia, buildersCount: builders?.length || 0 }];
 
   // The query is enabled only if the user is authenticated and has an address
-  // For testnet, also wait for builders to be loaded
-  const isEnabled = isAuthenticated && !!userAddress && (isTestnet ? !!builders && builders.length > 0 : true);
+  // For testnet, also wait for builders to be loaded (except Base Sepolia which uses direct query)
+  const isEnabled = isAuthenticated && !!userAddress && (isTestnet && !isBaseSepolia ? !!builders && builders.length > 0 : true);
+  
+  console.log('[useUserStakedBuilders] Query enabled:', {
+    isAuthenticated,
+    userAddress,
+    isTestnet,
+    isBaseSepolia,
+    hasBuilders: !!builders,
+    buildersCount: builders?.length || 0,
+    isEnabled
+  });
 
   return useQuery<Builder[], Error>({
     queryKey,
@@ -55,8 +70,102 @@ export const useUserStakedBuilders = () => {
         return [];
       }
 
-      if (isTestnet) {
-        // For testnet, use builders from the context and filter by user stakes
+      if (isTestnet && isBaseSepolia) {
+        // Base Sepolia: Use dedicated GraphQL query
+        console.log('[useUserStakedBuilders] Fetching Base Sepolia staked builders for:', userAddress);
+        
+        const baseSepoliaClient = getClientForNetwork('BaseSepolia');
+        if (!baseSepoliaClient) {
+          throw new Error('Could not get Apollo client for Base Sepolia');
+        }
+
+        const response = await baseSepoliaClient.query<{ buildersUsers?: Array<{
+          id: string;
+          address: string;
+          staked: string;
+          lastStake: string;
+          claimLockEnd: string;
+          project: {
+            id: string;
+            name: string;
+            admin: string;
+            slug: string;
+            description: string;
+            website: string;
+            image: string;
+            totalStaked: string;
+            minimalDeposit: string;
+            withdrawLockPeriodAfterDeposit: string;
+            chainId: string;
+          };
+        }> }>({
+          query: GET_SUBNETS_WHERE_USER_STAKED_BASE_SEPOLIA,
+          variables: { userAddress },
+          fetchPolicy: 'no-cache',
+        });
+
+        console.log('[useUserStakedBuilders] Raw GraphQL response:', response);
+        console.log('[useUserStakedBuilders] Response data:', response.data);
+        console.log('[useUserStakedBuilders] buildersUsers:', response.data?.buildersUsers);
+        
+        const buildersUsers = response.data?.buildersUsers || [];
+        console.log(`[useUserStakedBuilders] Found ${buildersUsers.length} Base Sepolia builders where user has staked`);
+
+        const stakedBuilders: Builder[] = buildersUsers.map((user) => {
+          if (!user.project) return null;
+          
+          const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
+          const totalStakedInMor = Number(user.project.totalStaked || '0') / 1e18;
+          const minDepositInMor = Number(user.project.minimalDeposit || '0') / 1e18;
+          const lockPeriodSeconds = parseInt(user.project.withdrawLockPeriodAfterDeposit || '0', 10);
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+
+          const builder: Builder = {
+            id: user.project.id,
+            mainnetProjectId: user.project.id,
+            name: user.project.name,
+            description: user.project.description || '',
+            long_description: user.project.description || '',
+            admin: user.project.admin,
+            networks: ['Base Sepolia'],
+            network: 'Base Sepolia',
+            totalStaked: totalStakedInMor,
+            totalClaimed: 0,
+            minDeposit: minDepositInMor,
+            lockPeriod: lockPeriodFormatted,
+            withdrawLockPeriodRaw: lockPeriodSeconds,
+            stakingCount: 0,
+            userStake: userStakedAmount,
+            website: user.project.website || '',
+            image_src: user.project.image || '',
+            image: user.project.image || '',
+            tags: [],
+            github_url: '',
+            twitter_url: '',
+            discord_url: '',
+            contributors: 0,
+            github_stars: 0,
+            reward_types: [],
+            reward_types_detail: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            startsAt: '',
+            builderUsers: [{
+              id: user.id,
+              address: user.address,
+              staked: user.staked,
+              claimed: '0',
+              claimLockEnd: user.claimLockEnd,
+              lastStake: user.lastStake,
+            }],
+          };
+
+          return builder;
+        }).filter((b): b is Builder => b !== null);
+
+        return stakedBuilders;
+      } else if (isTestnet) {
+        // For other testnets (Arbitrum Sepolia), use builders from the context and filter by user stakes
         console.log('[useUserStakedBuilders] Fetching testnet staked builders for:', userAddress);
         
         if (!builders || builders.length === 0) {
