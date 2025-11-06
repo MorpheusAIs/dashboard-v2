@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { zeroAddress, isAddress } from "viem";
 import { Option } from "@/components/ui/multiple-selector";
-import { arbitrum, base } from 'wagmi/chains';
+import { arbitrum, base, baseSepolia } from 'wagmi/chains';
 
 // Constants for form options
 export const REWARD_OPTIONS: Option[] = [
@@ -25,7 +25,7 @@ const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 export const subnetContractSchema = z.object({
   name: z.string().min(1, "Subnet name is required"),
   minStake: z.number().min(0, "Minimum stake must be a non-negative number"),
-  // Fee and Treasury are optional, only relevant/validated when present (i.e., on testnet)
+  // Fee and Treasury are used in V4 contracts (both Base and Base Sepolia)
   fee: z.number().min(0, "Fee must be non-negative").max(10000, "Fee cannot exceed 100% (10000 basis points)").optional(),
   feeTreasury: z.string()
     // .min(1, "Fee Treasury address is required") // Optional, so min(1) doesn't make sense here
@@ -141,6 +141,27 @@ export const formSchema = z.object({
       message: "Claim lock end date must be after the start date.",
       code: z.ZodIssueCode.custom,
     });
+  }
+
+  // Conditional validation for V4 networks (Base and Base Sepolia)
+  // Both Base and Base Sepolia use BuildersV4 contracts and require description
+  const isV4Network = data.subnet.networkChainId === base.id || data.subnet.networkChainId === baseSepolia.id;
+  
+  if (isV4Network) {
+    // V4 networks: require description with minimum length
+    if (!data.metadata.description || data.metadata.description.trim().length === 0) {
+      ctx.addIssue({
+        path: ["metadata", "description"],
+        message: "Description is required for Base and Base Sepolia networks.",
+        code: z.ZodIssueCode.custom,
+      });
+    } else if (data.metadata.description.trim().length < 10) {
+      ctx.addIssue({
+        path: ["metadata", "description"],
+        message: "Description must be at least 10 characters.",
+        code: z.ZodIssueCode.custom,
+      });
+    }
   }
 
   // Conditional validation for mainnet vs testnet names if they use different fields
