@@ -109,6 +109,7 @@ export const testnetChains: Record<string, ChainConfig> = {
     isL1: true,
     layerZeroEndpointId: 10161,
   },
+  // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility with other features.
   arbitrumSepolia: {
     ...arbitrumSepolia,
     rpcUrls: {
