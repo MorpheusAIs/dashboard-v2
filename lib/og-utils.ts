@@ -11,9 +11,9 @@ export function generateOpenGraphMetadata({
   title = "Morpheus Dashboard",
   description = "Enter the Persistent Agentic Compute Delivery Network",
   image = "/opengraph.png",
-  url = "https://builders.mor.org/"
+  url = "https://dashboard.mor.org/"
 }: OpenGraphConfig = {}): Metadata {
-  const fullUrl = url.startsWith('http') ? url : `https://builders.mor.org/${url}`
+  const fullUrl = url.startsWith('http') ? url : `https://dashboard.mor.org/${url}`
   
   return {
     title,
@@ -53,7 +53,7 @@ export function generateOpenGraphMetadata({
 
 // Helper function to get absolute URL for images
 export function getAbsoluteUrl(path: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://builders.mor.org/'
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://dashboard.mor.org/'
   return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`
 }
 

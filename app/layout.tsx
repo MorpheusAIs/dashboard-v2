@@ -36,7 +36,7 @@ export function generateMetadata(): Metadata {
     openGraph: {
       title: "Morpheus Dashboard",
       description: "Enter the Persistent Agentic Compute Delivery Network",
-      url: "https://builders.mor.org/",
+      url: "https://dashboard.mor.org/",
       siteName: "Morpheus Dashboard",
       type: "website",
       locale: "en_US",
