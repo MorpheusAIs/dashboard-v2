@@ -9,7 +9,7 @@ const NETWORK_ENDPOINTS = {
   // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility.
   ArbitrumSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
   Base: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
-  BaseSepolia: 'http://localhost:42069/graphql',
+  BaseSepolia: 'https://builders-base-sepolia.up.railway.app/graphql',
   // Capital v2 subgraph endpoints
   CapitalV2Sepolia: 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest',
 };
