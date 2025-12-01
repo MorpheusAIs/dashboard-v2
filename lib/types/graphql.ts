@@ -58,6 +58,9 @@ export interface BuilderProject {
   totalClaimedFormatted?: number;
   builderUsers?: BuilderUser[];
   mainnetProjectId?: string; // Added for mainnet staking to pass proper contract ID
+  // V4 metadata fields (optional - will be empty/null for V1 subnets)
+  slug?: string;
+  chainId?: number;
 }
 
 export interface BuilderUser {
