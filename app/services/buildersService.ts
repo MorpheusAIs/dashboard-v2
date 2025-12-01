@@ -319,6 +319,13 @@ export const fetchBuildersAPI = async (
         arbitrumQueryPromise
       ]);
 
+      // Type guard to check if response has buildersUsers (V1 query)
+      const hasBuildersUsers = (
+        data: { buildersProjects?: { items?: BuilderProject[] } } | CombinedBuildersListFilteredByPredefinedBuildersResponse
+      ): data is CombinedBuildersListFilteredByPredefinedBuildersResponse => {
+        return 'buildersUsers' in data;
+      };
+
       // Helper function to normalize GraphQL names back to Morlord API names
       const normalizeBuilderName = (graphqlName: string): string => {
         if (graphqlName === "Protection and Capital Incentives Program") {
@@ -508,7 +515,7 @@ export const fetchBuildersAPI = async (
             
             // Add slug if available (V4-only field)
             if (onChainProject.slug) {
-              (builder as any).slug = onChainProject.slug;
+              builder.slug = onChainProject.slug;
             }
             
             // Add a unique identifier for duplicate builders across networks
@@ -634,28 +641,36 @@ export const fetchBuildersAPI = async (
       // console.log("[fetchBuildersAPI Mainnet] Finished creating builders list. Count:", mappedBuilders.length);
 
       // Populate builderUsers for mainnet if userAddress was provided
-      if (userAddress && (baseResponse.data?.buildersUsers || arbitrumResponse.data?.buildersUsers)) {
-        const allUserStakes = [
-          ...(baseResponse.data?.buildersUsers || []),
-          ...(arbitrumResponse.data?.buildersUsers || [])
-        ];
+      // Note: Only V1 queries return buildersUsers; V4 queries don't include this data
+      if (userAddress && baseResponse.data && arbitrumResponse.data) {
+        const baseData = baseResponse.data;
+        const arbitrumData = arbitrumResponse.data;
+        const baseHasUsers = hasBuildersUsers(baseData);
+        const arbitrumHasUsers = hasBuildersUsers(arbitrumData);
+        
+        if (baseHasUsers || arbitrumHasUsers) {
+          // Extract buildersUsers with proper type narrowing
+          const baseUsers = baseHasUsers ? baseData.buildersUsers : [];
+          const arbitrumUsers = arbitrumHasUsers ? arbitrumData.buildersUsers : [];
+          const allUserStakes = [...baseUsers, ...arbitrumUsers];
 
-        mappedBuilders.forEach(builder => {
-          const userStakesForThisBuilder = allUserStakes.filter(
-            stake => stake.buildersProject?.id === builder.mainnetProjectId || stake.buildersProject?.name === builder.name
-          );
+          mappedBuilders.forEach(builder => {
+            const userStakesForThisBuilder = allUserStakes.filter(
+              stake => stake.buildersProject?.id === builder.mainnetProjectId || stake.buildersProject?.name === builder.name
+            );
 
-          if (userStakesForThisBuilder.length > 0) {
-            builder.builderUsers = userStakesForThisBuilder.map(stake => ({
-              id: stake.id,
-              address: stake.address,
-              staked: stake.staked,
-              claimed: "0",
-              claimLockEnd: "0",
-              lastStake: stake.lastStake,
-            }));
-          }
-        });
+            if (userStakesForThisBuilder.length > 0) {
+              builder.builderUsers = userStakesForThisBuilder.map(stake => ({
+                id: stake.id,
+                address: stake.address,
+                staked: stake.staked,
+                claimed: "0",
+                claimLockEnd: "0",
+                lastStake: stake.lastStake,
+              }));
+            }
+          });
+        }
       }
       
 
