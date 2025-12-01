@@ -867,7 +867,6 @@ export default function BuildersPage() {
   // Define state for participating tab filters
   const [participatingNameFilter, setParticipatingNameFilter] = useState("");
   const [participatingNetworkFilter, setParticipatingNetworkFilter] = useState("all");
-  const [participatingTypeFilter, setParticipatingTypeFilter] = useState("all");
 
   // Filter the participatingBuilders based on the filters
   const filteredParticipatingBuilders = useMemo(() => {
@@ -903,14 +902,10 @@ export default function BuildersPage() {
         (builder.networks && builder.networks.some(network => 
           network.toLowerCase() === participatingNetworkFilter.toLowerCase()
         ));
-      
-      const matchesType =
-        participatingTypeFilter === "all" || participatingTypeFilter === "" || 
-        (builder.reward_types && builder.reward_types.toString().toLowerCase() === participatingTypeFilter.toLowerCase());
 
-      return matchesName && matchesNetwork && matchesType;
+      return matchesName && matchesNetwork;
     });
-  }, [participatingNameFilter, participatingNetworkFilter, participatingTypeFilter, isAuthenticated, userAddress, userStakedBuilders]);
+  }, [participatingNameFilter, participatingNetworkFilter, isAuthenticated, userAddress, userStakedBuilders]);
 
   // For participating filters, initialize from URL if values exist
   useInitStateFromUrl(
@@ -925,14 +920,6 @@ export default function BuildersPage() {
     'participating_network',
     (value) => {
       if (value !== '') setParticipatingNetworkFilter(value);
-    },
-    ParamConverters.string.deserialize
-  );
-
-  useInitStateFromUrl(
-    'participating_type',
-    (value) => {
-      if (value !== '') setParticipatingTypeFilter(value);
     },
     ParamConverters.string.deserialize
   );
@@ -1035,16 +1022,6 @@ export default function BuildersPage() {
                 )}
               </div>
             ))}
-          </div>
-        ),
-      },
-      {
-        id: "rewardType",
-        header: "Reward Type",
-        accessorKey: "reward_types",
-        cell: (builder) => (
-          <div className="flex items-center gap-2 text-gray-300">
-            {builder.reward_types}
           </div>
         ),
       },
@@ -1388,16 +1365,6 @@ export default function BuildersPage() {
                     setParam('participating_network', value === 'all' ? null : value);
                   }}
                   showNetworkFilter={true}
-                  
-                  selectFilter={participatingTypeFilter}
-                  onSelectFilterChange={(value) => {
-                    setParticipatingTypeFilter(value);
-                    setParam('participating_type', value === 'all' ? null : value);
-                  }}
-                  selectFilterLabel="Reward Type"
-                  selectFilterPlaceholder="Select type"
-                  selectFilterOptions={rewardTypes.map(type => ({ value: type, label: type }))} // Use rewardTypes from context if needed here too
-                  showSelectFilter={false}
                 />
 
                 <div className="[&>div]:max-h-[600px] overflow-auto custom-scrollbar">
