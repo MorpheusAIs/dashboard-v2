@@ -11,26 +11,6 @@ import { useBuilders } from '@/context/builders-context';
 import { useChainId } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 
-interface BuilderUser {
-  id: string;
-  address: string;
-  staked: string;
-  lastStake: string;
-  buildersProject: {
-    id: string;
-    name: string;
-    admin: string;
-    minimalDeposit: string;
-    totalStaked: string;
-    totalUsers: string;
-    withdrawLockPeriodAfterDeposit: string;
-    startsAt: string;
-    claimLockEnd?: string;
-    totalClaimed?: string;
-    [key: string]: string | undefined;
-  };
-}
-
 /**
  * Hook to fetch ALL builders where the user has staked tokens
  * Handles both testnet and mainnet with different GraphQL queries and data structures
