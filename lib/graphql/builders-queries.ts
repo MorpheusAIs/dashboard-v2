@@ -684,4 +684,148 @@ export const GET_BUILDER_SUBNET_BY_ID = gql`
       __typename
     }
   }
+`;
+
+// Query to get project details with first 10 users (for Base Sepolia - builder detail page)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_WITH_DETAILS_BASE_SEPOLIA = gql`
+  query GetProjectWithDetails($projectId: String!) {
+    buildersProject(id: $projectId) {
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      slug
+      description
+      users(limit: 10, orderBy: "staked", orderDirection: "desc") {
+        items {
+          id
+          address
+          staked
+          lastStake
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+// Query to get project details with first 10 users (for Base Mainnet - builder detail page)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_WITH_DETAILS_BASE_MAINNET = gql`
+  query GetProjectWithDetails($projectId: String!) {
+    buildersProject(id: $projectId) {
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      slug
+      description
+      users(limit: 10, orderBy: "staked", orderDirection: "desc") {
+        items {
+          id
+          address
+          staked
+          lastStake
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+// Query to get project details with first 10 users (for Arbitrum Mainnet - builder detail page)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_WITH_DETAILS_ARBITRUM_MAINNET = gql`
+  query GetProjectWithDetails($projectId: String!) {
+    buildersProject(id: $projectId) {
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      slug
+      description
+      users(limit: 10, orderBy: "staked", orderDirection: "desc") {
+        items {
+          id
+          address
+          staked
+          lastStake
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+// Query to get paginated users for a project (for Base Sepolia - builder detail page pagination)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_USERS_PAGINATED_BASE_SEPOLIA = gql`
+  query GetProjectUsers($projectId: String!, $limit: Int!, $offset: Int!) {
+    buildersUsers(
+      where: { buildersProjectId: $projectId }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        address
+        staked
+        lastStake
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get paginated users for a project (for Base Mainnet - builder detail page pagination)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_USERS_PAGINATED_BASE_MAINNET = gql`
+  query GetProjectUsers($projectId: String!, $limit: Int!, $offset: Int!) {
+    buildersUsers(
+      where: { buildersProjectId: $projectId }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        address
+        staked
+        lastStake
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get paginated users for a project (for Arbitrum Mainnet - builder detail page pagination)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_USERS_PAGINATED_ARBITRUM_MAINNET = gql`
+  query GetProjectUsers($projectId: String!, $limit: Int!, $offset: Int!) {
+    buildersUsers(
+      where: { buildersProjectId: $projectId }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        address
+        staked
+        lastStake
+      }
+      totalCount
+    }
+  }
 `; 

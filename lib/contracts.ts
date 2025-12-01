@@ -67,6 +67,8 @@ export const morTokenContracts = {
   8453: mainnetChains.base.contracts?.morToken?.address || '',
   // Base Sepolia (testnet)
   84532: testnetChains.baseSepolia.contracts?.morToken?.address || '',
+  // Arbitrum Sepolia (testnet) - @deprecated but kept for backward compatibility
+  421614: testnetChains.arbitrumSepolia.contracts?.morToken?.address || '',
 } as const;
 
 // Helper to convert days to seconds
