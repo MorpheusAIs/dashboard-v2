@@ -4,7 +4,16 @@ import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry, Builders
 import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
 import { useChainId } from 'wagmi';
-import { baseSepolia } from 'wagmi/chains';
+import { baseSepolia, base, arbitrum } from 'wagmi/chains';
+import { getClientForNetwork } from '@/lib/apollo-client';
+import { 
+  GET_PROJECT_WITH_DETAILS_BASE_SEPOLIA, 
+  GET_PROJECT_WITH_DETAILS_BASE_MAINNET, 
+  GET_PROJECT_WITH_DETAILS_ARBITRUM_MAINNET,
+  GET_PROJECT_USERS_PAGINATED_BASE_SEPOLIA,
+  GET_PROJECT_USERS_PAGINATED_BASE_MAINNET,
+  GET_PROJECT_USERS_PAGINATED_ARBITRUM_MAINNET
+} from '@/lib/graphql/builders-queries';
 
 export interface StakingPaginationState {
   currentPage: number;
@@ -85,6 +94,35 @@ export function useStakingData({
   // Auto-detect testnet if not explicitly provided
   const chainId = useChainId();
   const isTestnet = providedIsTestnet !== undefined ? providedIsTestnet : chainId === baseSepolia.id;
+  
+  // Determine if we're using BuildersV4 schema (Base Sepolia, Base Mainnet, Arbitrum Mainnet)
+  const isBuildersV4 = useMemo(() => {
+    return chainId === baseSepolia.id || chainId === base.id || chainId === arbitrum.id;
+  }, [chainId]);
+  
+  // Get the appropriate Apollo client and queries for BuildersV4 networks
+  const getBuildersV4Config = useCallback(() => {
+    if (chainId === baseSepolia.id) {
+      return {
+        client: getClientForNetwork('BaseSepolia'),
+        projectQuery: GET_PROJECT_WITH_DETAILS_BASE_SEPOLIA,
+        usersQuery: GET_PROJECT_USERS_PAGINATED_BASE_SEPOLIA,
+      };
+    } else if (chainId === base.id) {
+      return {
+        client: getClientForNetwork('Base'),
+        projectQuery: GET_PROJECT_WITH_DETAILS_BASE_MAINNET,
+        usersQuery: GET_PROJECT_USERS_PAGINATED_BASE_MAINNET,
+      };
+    } else if (chainId === arbitrum.id) {
+      return {
+        client: getClientForNetwork('Arbitrum'),
+        projectQuery: GET_PROJECT_WITH_DETAILS_ARBITRUM_MAINNET,
+        usersQuery: GET_PROJECT_USERS_PAGINATED_ARBITRUM_MAINNET,
+      };
+    }
+    return null;
+  }, [chainId]);
   
   // Data fetching state
   const [entries, setEntries] = useState<StakingEntry[]>([]);
@@ -428,7 +466,144 @@ export function useStakingData({
         }));
         
         setEntries(formattedEntries);
-      } else if (isTestnet) {
+      } else {
+        // Check if we're using BuildersV4 schema (must check before isTestnet since Base Sepolia is testnet)
+        const buildersV4Config = getBuildersV4Config();
+        
+        if (buildersV4Config && buildersV4Config.client) {
+          // BuildersV4 schema (Base Sepolia, Base Mainnet, Arbitrum Mainnet)
+          console.log(`[useStakingData] Using BuildersV4 schema for chainId: ${chainId}`);
+          
+          try {
+            if (pagination.currentPage === 1) {
+              // Page 1: Use project details query with first 10 users
+              console.log(`[useStakingData] Fetching project details with first 10 users for projectId: ${projectIdToUse}`);
+              
+              const projectResponse = await buildersV4Config.client.query<{
+                buildersProject?: {
+                  id: string;
+                  name: string;
+                  admin: string;
+                  totalStaked: string;
+                  totalUsers: string;
+                  totalClaimed: string;
+                  slug: string;
+                  description: string;
+                  users?: {
+                    items?: Array<{
+                      id: string;
+                      address: string;
+                      staked: string;
+                      lastStake: string;
+                    }>;
+                    totalCount: number;
+                  };
+                };
+              }>({
+                query: buildersV4Config.projectQuery,
+                variables: { projectId: projectIdToUse },
+                fetchPolicy: 'no-cache',
+              });
+              
+              const project = projectResponse.data?.buildersProject;
+              if (!project) {
+                throw new Error("No project data returned from API");
+              }
+              
+              // Update pagination with total count
+              const totalUsers = project.users?.totalCount || parseInt(project.totalUsers || '0', 10);
+              const totalPages = Math.max(1, Math.ceil(totalUsers / pagination.pageSize));
+              
+              setPagination(prev => ({
+                ...prev,
+                totalItems: totalUsers,
+                totalPages: totalPages
+              }));
+              
+              // Format users from project query (first 10)
+              const users = project.users?.items || [];
+              const formattedEntries = users.map(user => {
+                if (formatEntryFunc) {
+                  return formatEntryFunc(user);
+                }
+                return {
+                  address: user.address,
+                  displayAddress: formatAddress(user.address),
+                  amount: parseFloat(user.staked || '0') / 1e18,
+                  timestamp: parseInt(user.lastStake || '0'),
+                };
+              }).filter(entry => entry.amount > 0);
+              
+              // Cache and set entries
+              setCachedPages(prev => ({
+                ...prev,
+                1: formattedEntries
+              }));
+              setEntries(formattedEntries);
+              
+              console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from project query`);
+            } else {
+              // Page > 1: Use paginated users query
+              const offset = (pagination.currentPage - 1) * pagination.pageSize;
+              const limit = pagination.pageSize;
+              
+              console.log(`[useStakingData] Fetching paginated users: offset=${offset}, limit=${limit}`);
+              
+              const usersResponse = await buildersV4Config.client.query<{
+                buildersUsers?: {
+                  items?: Array<{
+                    id: string;
+                    address: string;
+                    staked: string;
+                    lastStake: string;
+                  }>;
+                  totalCount: number;
+                };
+              }>({
+                query: buildersV4Config.usersQuery,
+                variables: {
+                  projectId: projectIdToUse,
+                  limit: limit,
+                  offset: offset
+                },
+                fetchPolicy: 'no-cache',
+              });
+              
+              const users = usersResponse.data?.buildersUsers?.items || [];
+              const formattedEntries = users.map(user => {
+                if (formatEntryFunc) {
+                  return formatEntryFunc(user);
+                }
+                return {
+                  address: user.address,
+                  displayAddress: formatAddress(user.address),
+                  amount: parseFloat(user.staked || '0') / 1e18,
+                  timestamp: parseInt(user.lastStake || '0'),
+                };
+              }).filter(entry => entry.amount > 0);
+              
+              // Cache and set entries
+              setCachedPages(prev => ({
+                ...prev,
+                [pagination.currentPage]: formattedEntries
+              }));
+              setEntries(formattedEntries);
+              
+              console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from paginated query`);
+            }
+          } catch (error) {
+            console.error(`[useStakingData] Error fetching BuildersV4 data:`, error);
+            setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
+            setEntries([]);
+          } finally {
+            setIsLoading(false);
+          }
+          
+          return; // Exit early for BuildersV4
+        }
+        
+        // Legacy testnet builder subnet query (for non-BuildersV4 testnets)
+        if (isTestnet) {
         // Testnet builder subnet query
         const response = await fetchGraphQL<BuilderSubnetResponse>(
           endpoint,
@@ -474,8 +649,8 @@ export function useStakingData({
         
         setEntries(formattedEntries);
       } else {
-        // Mainnet builders project query
-        console.log(`[useStakingData] Mainnet projectId (expected to be an ETH address): ${projectIdToUse}`);
+        // Legacy mainnet builders project query (for non-BuildersV4 networks)
+        console.log(`[useStakingData] Using legacy query for projectId: ${projectIdToUse}`);
         console.log(`[useStakingData] Pagination state for query: page=${pagination.currentPage}, pageSize=${pagination.pageSize}, skip=${skip}`);
 
         // Function to format and filter entries
@@ -618,6 +793,7 @@ export function useStakingData({
           console.error(`[useStakingData] Error fetching ${isTestnet ? 'testnet' : 'mainnet'} data:`, error);
           setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
           setEntries([]);
+        }
         }
       }
     } catch (error) {
