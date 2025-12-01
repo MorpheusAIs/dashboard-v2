@@ -17,6 +17,7 @@ export interface Builder extends BuilderDB {
   builderUsers?: BuilderUser[];
   mainnetProjectId: string | null;
   admin: string | null;
+  slug?: string; // V4-only field
 }
 
 export interface BuilderUser {
@@ -49,6 +50,7 @@ export const mergeBuilderData = (
     admin?: string | undefined;
     image?: string;
     website?: string;
+    description?: string;
     startsAt?: string;
   }
 ): Builder => {
@@ -74,6 +76,7 @@ export const mergeBuilderData = (
     image: typeof onChainData.image === 'string' ? onChainData.image : (builderDB.image_src || undefined),
     image_src: builderDB.image_src,
     website: typeof onChainData.website === 'string' ? onChainData.website : builderDB.website,
+    description: typeof onChainData.description === 'string' ? onChainData.description : builderDB.description,
     startsAt: onChainData.startsAt,
   };
 

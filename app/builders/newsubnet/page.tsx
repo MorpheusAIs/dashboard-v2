@@ -131,7 +131,6 @@ export default function NewSubnetPage() {
     let fieldsToValidate: string[] = [];
 
     if (currentStep === 1) {
-      const isTestnet = form.getValues("subnet.networkChainId") === baseSepolia.id;
       // Define base fields common to both networks for Step 1 validation
       const baseStep1Fields = [
         "subnet.networkChainId",
