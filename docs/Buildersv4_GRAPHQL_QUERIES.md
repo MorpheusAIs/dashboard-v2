@@ -247,6 +247,57 @@ query GetProjectsForUserOnly($userAddress: String!) {
 }
 ```
 
+### Get Projects Created by a Specific Admin
+```graphql
+query GetProjectsByAdmin($adminAddress: String!) {
+  buildersProjects(
+    where: { admin: $adminAddress }
+    orderBy: "createdAt"
+    orderDirection: "desc"
+  ) {
+    items {
+      id
+      name
+      admin
+      slug
+      description
+      website
+      image
+      totalStaked
+      totalUsers
+      totalClaimed
+      minimalDeposit
+      withdrawLockPeriodAfterDeposit
+      claimLockEnd
+      startsAt
+      chainId
+      contractAddress
+      createdAt
+      createdAtBlock
+      users(
+        orderBy: "staked"
+        orderDirection: "desc"
+        limit: 10
+      ) {
+        items {
+          address
+          staked
+          claimed
+        }
+        totalCount
+      }
+    }
+    totalCount
+  }
+}
+```
+**Variables:**
+```json
+{
+  "adminAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+}
+```
+
 ### Get Top Stakers (Users with Highest Staked Amount)
 ```graphql
 query GetTopStakers {
