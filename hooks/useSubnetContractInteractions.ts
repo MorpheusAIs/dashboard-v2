@@ -301,15 +301,17 @@ export const useSubnetContractInteractions = ({
 
   // Handle Approval Transaction Notifications
   useEffect(() => {
-    if (isApprovePending) {
+    if (isApprovePending && !isApproveTxSuccess && !approveError) {
       showEnhancedLoadingToast("Confirm approval in wallet...", "approval-tx");
     }
     if (isApproveTxSuccess) {
+      toast.dismiss("approval-tx");
       toast.success("Approval successful!", { id: "approval-tx" });
       refetchAllowance();
       resetApproveContract();
     }
     if (approveError) {
+      toast.dismiss("approval-tx");
       const errorMsg = approveError?.message || "Approval failed.";
       let displayError = errorMsg.split('(')[0].trim();
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
@@ -317,7 +319,7 @@ export const useSubnetContractInteractions = ({
       toast.error("Approval Failed", { id: "approval-tx", description: displayError });
       resetApproveContract();
     }
-  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance]);
+  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance, showEnhancedLoadingToast]);
 
   // Handle Subnet Creation Transaction Notifications
   useEffect(() => {
@@ -330,11 +332,12 @@ export const useSubnetContractInteractions = ({
       onTxSuccessExists: !!onTxSuccess
     });
     
-    if (isWritePending) {
+    if (isWritePending && !isWriteTxSuccess && !writeError && !isWriteTxError) {
       showEnhancedLoadingToast("Confirm creation in wallet...", "subnet-tx");
     }
     if (isWriteTxSuccess) {
       console.log("[useSubnetContractInteractions] Transaction successful! Processing...");
+      toast.dismiss("subnet-tx");
       toast.success("Subnet created successfully!", {
         id: "subnet-tx",
         description: `Tx: ${writeTxResult?.substring(0, 10)}...`,
@@ -374,6 +377,7 @@ export const useSubnetContractInteractions = ({
       }
     }
     if (writeError) {
+      toast.dismiss("subnet-tx");
       const errorMsg = writeError?.message || "Subnet creation failed.";
       let displayError = errorMsg.split('(')[0].trim();
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
@@ -384,6 +388,7 @@ export const useSubnetContractInteractions = ({
     }
     // Add handler for transaction error/timeout
     if (isWriteTxError || (writeTxResult && !isWriteTxLoading && !isWriteTxSuccess)) {
+      toast.dismiss("subnet-tx");
       toast.error("Transaction Failed or Timed Out", { 
         id: "subnet-tx", 
         description: "The transaction may still be pending on the network. Check your wallet or block explorer for status.",
@@ -399,7 +404,7 @@ export const useSubnetContractInteractions = ({
       });
       resetWriteContract();
     }
-  }, [isWritePending, isWriteTxSuccess, isWriteTxError, writeTxResult, isWriteTxLoading, writeError, selectedChainId, resetWriteContract, onTxSuccess]);
+  }, [isWritePending, isWriteTxSuccess, isWriteTxError, writeTxResult, isWriteTxLoading, writeError, selectedChainId, resetWriteContract, onTxSuccess, showEnhancedLoadingToast]);
 
   // Effect to handle Supabase insertion after successful transaction
   useEffect(() => {

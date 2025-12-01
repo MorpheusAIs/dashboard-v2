@@ -398,10 +398,11 @@ export const useStakingContractInteractions = ({
 
   // Handle Approval Transaction Notifications
   useEffect(() => {
-    if (isApprovePending) {
+    if (isApprovePending && !isApproveTxSuccess && !approveError) {
       showEnhancedLoadingToast("Confirm approval in wallet...", "approval-tx");
     }
     if (isApproveTxSuccess) {
+      toast.dismiss("approval-tx");
       toast.success("Approval successful!", { id: "approval-tx" });
       
       // Improved allowance refresh for Base network and all networks
@@ -421,6 +422,7 @@ export const useStakingContractInteractions = ({
       resetApproveContract();
     }
     if (approveError) {
+      toast.dismiss("approval-tx");
       const errorMsg = approveError?.message || "Approval failed.";
       let displayError = errorMsg.split('(')[0].trim();
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
@@ -428,14 +430,15 @@ export const useStakingContractInteractions = ({
       toast.error("Approval Failed", { id: "approval-tx", description: displayError });
       resetApproveContract();
     }
-  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance]);
+  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance, showEnhancedLoadingToast]);
 
   // Handle Staking Transaction Notifications
   useEffect(() => {
-    if (isStakePending) {
+    if (isStakePending && !isStakeTxSuccess && !stakeError) {
       showEnhancedLoadingToast("Confirm staking in wallet...", "stake-tx");
     }
     if (isStakeTxSuccess) {
+      toast.dismiss("stake-tx");
       toast.success("Successfully staked tokens!", {
         id: "stake-tx",
         description: `Tx: ${stakeTxResult?.substring(0, 10)}...`,
@@ -459,6 +462,7 @@ export const useStakingContractInteractions = ({
       }
     }
     if (stakeError) {
+      toast.dismiss("stake-tx");
       const errorMsg = stakeError?.message || "Staking failed.";
       let displayError = errorMsg.split('(')[0].trim();
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
@@ -466,14 +470,15 @@ export const useStakingContractInteractions = ({
       toast.error("Staking Failed", { id: "stake-tx", description: displayError });
       resetStakeContract();
     }
-  }, [isStakePending, isStakeTxSuccess, stakeTxResult, stakeError, resetStakeContract, onTxSuccess, refetchBalance, refetchAllowance, networkChainId, isTestnet]);
+  }, [isStakePending, isStakeTxSuccess, stakeTxResult, stakeError, resetStakeContract, onTxSuccess, refetchBalance, refetchAllowance, networkChainId, isTestnet, showEnhancedLoadingToast, getChainById]);
 
   // Handle Withdrawal Transaction Notifications
   useEffect(() => {
-    if (isWithdrawPending) {
+    if (isWithdrawPending && !isWithdrawTxSuccess && !withdrawError) {
       showEnhancedLoadingToast("Confirm withdrawal in wallet...", "withdraw-tx");
     }
     if (isWithdrawTxSuccess) {
+      toast.dismiss("withdraw-tx");
       toast.success("Successfully withdrawn tokens!", {
         id: "withdraw-tx",
         description: `Tx: ${withdrawTxResult?.substring(0, 10)}...`,
@@ -496,6 +501,7 @@ export const useStakingContractInteractions = ({
       }
     }
     if (withdrawError) {
+      toast.dismiss("withdraw-tx");
       const errorMsg = withdrawError?.message || "Withdrawal failed.";
       let displayError = errorMsg.split('(')[0].trim();
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
@@ -503,14 +509,15 @@ export const useStakingContractInteractions = ({
       toast.error("Withdrawal Failed", { id: "withdraw-tx", description: displayError });
       resetWithdrawContract();
     }
-  }, [isWithdrawPending, isWithdrawTxSuccess, withdrawTxResult, withdrawError, resetWithdrawContract, onTxSuccess, refetchBalance, networkChainId, isTestnet]);
+  }, [isWithdrawPending, isWithdrawTxSuccess, withdrawTxResult, withdrawError, resetWithdrawContract, onTxSuccess, refetchBalance, networkChainId, isTestnet, showEnhancedLoadingToast, getChainById]);
 
   // Handle Claim Transaction Notifications
   useEffect(() => {
-    if (isClaimPending) {
+    if (isClaimPending && !isClaimTxSuccess && !claimError) {
       showEnhancedLoadingToast("Confirm claim in wallet...", "claim-tx");
     }
     if (isClaimTxSuccess) {
+      toast.dismiss("claim-tx");
       toast.success("Successfully claimed rewards!", {
         id: "claim-tx",
         description: `Tx: ${claimTxResult?.substring(0, 10)}...`,
@@ -534,6 +541,7 @@ export const useStakingContractInteractions = ({
       }
     }
     if (claimError) {
+      toast.dismiss("claim-tx");
       const errorMsg = claimError?.message || "Claim failed.";
       let displayError = errorMsg.split('(')[0].trim();
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
@@ -541,7 +549,7 @@ export const useStakingContractInteractions = ({
       toast.error("Claim Failed", { id: "claim-tx", description: displayError });
       resetClaimContract();
     }
-  }, [isClaimPending, isClaimTxSuccess, claimTxResult, claimError, resetClaimContract, onTxSuccess, refetchBalance, refetchClaimableAmount, networkChainId, isTestnet]);
+  }, [isClaimPending, isClaimTxSuccess, claimTxResult, claimError, resetClaimContract, onTxSuccess, refetchBalance, refetchClaimableAmount, networkChainId, isTestnet, showEnhancedLoadingToast, getChainById]);
 
   // Network switching
   const handleNetworkSwitch = useCallback(async () => {

@@ -10,7 +10,8 @@ import { config } from "@/config"
 import { cn } from "@/lib/utils"
 import { Providers } from './providers'
 import { FeaturebaseWidget } from '@/components/featurebase-widget'
-import * as Sentry from '@sentry/nextjs'
+// Temporarily disabled Sentry to speed up builds
+// import * as Sentry from '@sentry/nextjs'
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -74,9 +75,10 @@ export function generateMetadata(): Metadata {
         "max-snippet": -1,
       },
     },
-    other: {
-      ...Sentry.getTraceData(),
-    },
+    // Temporarily disabled Sentry trace data
+    // other: {
+    //   ...Sentry.getTraceData(),
+    // },
   };
 }
 
