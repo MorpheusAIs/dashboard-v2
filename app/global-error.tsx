@@ -5,9 +5,10 @@
 import NextError from "next/error";
 // import { useEffect } from "react";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function GlobalError({ error: _error }: { error: Error & { digest?: string } }) {
   // Temporarily disabled Sentry error capture
-  // Parameter prefixed with _ to indicate intentionally unused
+  // Parameter is required by Next.js GlobalError but unused without Sentry
   // useEffect(() => {
   //   Sentry.captureException(_error);
   // }, [_error]);
