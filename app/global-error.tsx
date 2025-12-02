@@ -5,11 +5,12 @@
 import NextError from "next/error";
 // import { useEffect } from "react";
 
-export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
+export default function GlobalError({ error: _error }: { error: Error & { digest?: string } }) {
   // Temporarily disabled Sentry error capture
+  // Parameter prefixed with _ to indicate intentionally unused
   // useEffect(() => {
-  //   Sentry.captureException(error);
-  // }, [error]);
+  //   Sentry.captureException(_error);
+  // }, [_error]);
 
   return (
     <html>
