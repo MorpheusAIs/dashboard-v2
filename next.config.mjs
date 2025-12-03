@@ -26,11 +26,22 @@ const nextConfig = {
       ignored: ['/DashBoard', '/DashBoard/*']
     }
 
-    // Handle React Native async storage import for MetaMask SDK
+    // Handle React Native async storage import for MetaMask SDK and LiFi compatibility
     config.resolve.fallback = {
       ...config.resolve.fallback,
       '@react-native-async-storage/async-storage': false,
+      fs: false,
+      net: false,
+      tls: false,
+      encoding: false,
+      'pino-pretty': false,
     }
+
+    // Suppress warnings for optional dependencies
+    config.ignoreWarnings = [
+      { module: /node_modules\/@metamask\/sdk/ },
+      { module: /node_modules\/pino/ },
+    ]
 
     // Force webpack to use hidden-source-map in production
     if (isProd && !dev) {

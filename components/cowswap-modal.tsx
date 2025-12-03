@@ -1,9 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { CowSwapWidget } from '@cowprotocol/widget-react'
 import { CowSwapWidgetParams, TradeType, TokenInfo } from '@cowprotocol/widget-lib'
 import { useWalletClient, useAccount } from 'wagmi'
+import { Button } from "@/components/ui/button"
 
 const customTokens: TokenInfo[] = [
   {
@@ -122,12 +124,14 @@ export function CowSwapModal() {
 
   return (
     <>
-      <button 
+      <Button
+        asChild
         className="copy-button-base text-sm px-4 py-1 hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-105 transition-all duration-300"
-        onClick={() => setIsOpen(true)}
       >
-        Buy MOR
-      </button>
+        <Link href="/bridge-mor">
+          Bridge MOR
+        </Link>
+      </Button>
       
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

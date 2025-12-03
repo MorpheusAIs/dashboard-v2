@@ -14,6 +14,8 @@
     "@cowprotocol/widget-react": "^0.13.0",
     "@duneanalytics/client-sdk": "^0.2.5",
     "@hookform/resolvers": "^4.1.3",
+    "@lifi/sdk": "^3.13.5",
+    "@lifi/widget": "^3.35.1",
     "@motionone/dom": "^10.18.0",
     "@next/third-parties": "^15.3.4",
     "@number-flow/react": "^0.5.7",
