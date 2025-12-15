@@ -763,7 +763,7 @@ export function useStakingData({
   // Pagination handlers
   const nextPage = useCallback(() => {
     // For cursor-based pagination, check if there's a next page
-    if (!hasNextPage && pagination.currentPage > 1) {
+    if (!hasNextPage) {
       console.log('[useStakingData] No next page available (cursor-based pagination)');
       return;
     }
