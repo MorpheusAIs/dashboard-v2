@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { getEndpointForNetwork, fetchGraphQL } from '@/app/graphql/client';
 import { GET_REFERRALS_BY_REFERRER, GET_REFERRER_SUMMARY } from '@/app/graphql/queries/capital';
 import { CapitalReferralGraphQLResponse } from '@/app/graphql/types';
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
 interface UseReferralDataProps {
   userAddress?: `0x${string}`;
@@ -32,7 +33,7 @@ export function useReferralData({ userAddress, networkEnvironment }: UseReferral
         // For testnet, use Ethereum Sepolia endpoint; for mainnet, use Ethereum mainnet endpoint
         // Based on the apollo-client.ts, we should use CapitalV2Sepolia for testnet and Base for mainnet
         const endpoint = networkEnvironment === 'testnet' 
-          ? 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest'
+          ? SUBGRAPH_ENDPOINTS.CapitalV2Sepolia
           : getEndpointForNetwork('Ethereum'); // Use Ethereum mainnet
 
         if (isDev) {
@@ -195,7 +196,7 @@ export function useReferrerSummary({ userAddress, networkEnvironment }: UseRefer
       try {
         // For testnet, use Ethereum Sepolia endpoint; for mainnet, use Ethereum mainnet endpoint
         const endpoint = networkEnvironment === 'testnet'
-          ? 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest'
+          ? SUBGRAPH_ENDPOINTS.CapitalV2Sepolia
           : getEndpointForNetwork('Ethereum'); // Use Ethereum mainnet
 
         if (isDev) {
