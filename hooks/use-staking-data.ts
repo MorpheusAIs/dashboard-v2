@@ -493,10 +493,11 @@ export function useStakingData({
         };
 
         // Function to fetch a specific page of data for mainnet using cursor-based pagination
-        const fetchMainnetPageData = async (pageNumber: number, pageSize: number): Promise<{ items: BuildersUser[], endCursor?: string, hasNextPage: boolean }> => {
-          // Get cursor for this page (if not page 1, use cursor stored for this page)
+        const fetchMainnetPageData = async (pageNumber: number, pageSize: number, providedCursor?: string): Promise<{ items: BuildersUser[], endCursor?: string, hasNextPage: boolean }> => {
+          // Get cursor for this page (if not page 1, use provided cursor or cursor stored for this page)
           // The cursor from the previous page is stored at pageCursors[pageNumber]
-          const cursor = pageNumber === 1 ? undefined : pageCursors[pageNumber];
+          // Use providedCursor if available (for immediate prefetch), otherwise read from state
+          const cursor = pageNumber === 1 ? undefined : (providedCursor ?? pageCursors[pageNumber]);
           
           const response = await fetchGraphQL<BuildersGraphQLResponse>(
             endpoint,
@@ -586,13 +587,14 @@ export function useStakingData({
             // Prefetch next page if we're on page 1 and have more pages
             if (pagination.currentPage === 1 && currentPageResult.hasNextPage && currentPageResult.endCursor) {
               // Use the cursor returned from page 1 to fetch page 2
-              // Temporarily store cursor for page 2 so fetchMainnetPageData can use it
+              // Store cursor for page 2 in state for future use
               setPageCursors(prev => ({
                 ...prev,
                 2: currentPageResult.endCursor!
               }));
               
-              const nextPageResult = await fetchMainnetPageData(2, pagination.pageSize);
+              // Pass cursor directly to avoid race condition with async state update
+              const nextPageResult = await fetchMainnetPageData(2, pagination.pageSize, currentPageResult.endCursor);
               const nextPageEntries = formatAndFilterEntries(nextPageResult.items, 'Next Page');
               
               // Cache next page
