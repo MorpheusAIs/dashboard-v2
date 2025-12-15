@@ -2,14 +2,14 @@
 
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
-// Define the network endpoints for different chains
+// Use the shared endpoint configuration
 const NETWORK_ENDPOINTS = {
-  Arbitrum: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
-  ArbitrumSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
-  Base: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
-  // Capital v2 subgraph endpoints
-  CapitalV2Sepolia: 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest',
+  Arbitrum: SUBGRAPH_ENDPOINTS.Arbitrum,
+  ArbitrumSepolia: SUBGRAPH_ENDPOINTS.Arbitrum_Sepolia,
+  Base: SUBGRAPH_ENDPOINTS.Base,
+  CapitalV2Sepolia: SUBGRAPH_ENDPOINTS.CapitalV2Sepolia,
 };
 
 // Error handling link
