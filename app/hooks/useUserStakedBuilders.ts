@@ -99,20 +99,20 @@ export const useUserStakedBuilders = () => {
 
       // Fetch from both Base and Arbitrum networks
       const [baseResponse, arbitrumResponse] = await Promise.all([
-        baseClient.query<{ buildersUsers: BuilderUser[] }>({
+        baseClient.query<{ buildersUsers: { items: BuilderUser[] } }>({
           query: GET_ACCOUNT_USER_BUILDERS_PROJECTS,
           variables: { address: userAddress },
           fetchPolicy: 'no-cache',
         }),
-        arbitrumClient.query<{ buildersUsers: BuilderUser[] }>({
+        arbitrumClient.query<{ buildersUsers: { items: BuilderUser[] } }>({
           query: GET_ACCOUNT_USER_BUILDERS_PROJECTS,
           variables: { address: userAddress },
           fetchPolicy: 'no-cache',
         })
       ]);
 
-      const baseBuilderUsers = baseResponse.data?.buildersUsers || [];
-      const arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers || [];
+      const baseBuilderUsers = baseResponse.data?.buildersUsers?.items || [];
+      const arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers?.items || [];
 
       console.log(`[useUserStakedBuilders] Found ${baseBuilderUsers.length} Base builders and ${arbitrumBuilderUsers.length} Arbitrum builders`);
 

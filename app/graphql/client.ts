@@ -1,12 +1,8 @@
 // GraphQL API client utilities
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
-// GraphQL API endpoints
-export const GRAPHQL_ENDPOINTS = {
-  'Base': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
-  'Arbitrum': 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
-  'Arbitrum_Sepolia': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
-  "Ethereum": "https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest",
-};
+// Re-export for backwards compatibility
+export const GRAPHQL_ENDPOINTS = SUBGRAPH_ENDPOINTS;
 
 // Define the request cache entry type
 interface RequestCacheEntry<T> {

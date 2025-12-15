@@ -19,8 +19,14 @@ export interface BuildersProject {
 
 // This interface defines the structure inside the data field of the GraphQL response
 export interface BuildersResponseData {
-  buildersProjects: BuildersProject[];
-  buildersUsers: BuildersUser[];
+  buildersProjects: { items: BuildersProject[] };
+  buildersUsers: { 
+    items: BuildersUser[];
+    pageInfo?: {
+      endCursor?: string;
+      hasNextPage?: boolean;
+    };
+  };
 }
 
 // Full GraphQL response structure for builders queries

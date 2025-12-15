@@ -106,6 +106,10 @@ export function useStakingData({
   // Cache for storing fetched pages
   const [cachedPages, setCachedPages] = useState<Record<number, StakingEntry[]>>({});
   
+  // Cursor-based pagination state for Ponder
+  const [pageCursors, setPageCursors] = useState<Record<number, string>>({});
+  const [hasNextPage, setHasNextPage] = useState<boolean>(false);
+  
   // Default formatter functions
   const defaultFormatAddress = (address: string): string => {
     if (!address) return "";
@@ -200,11 +204,11 @@ export function useStakingData({
           throw new Error(response.errors[0].message);
         }
         
-        if (!response.data?.buildersProjects?.length) {
+        if (!response.data?.buildersProjects?.items?.length) {
           return null;
         }
         
-        const project = response.data.buildersProjects[0];
+        const project = response.data.buildersProjects.items[0];
         // Update total items count
         if (project.totalUsers) {
           setPagination(prev => ({
@@ -278,8 +282,8 @@ export function useStakingData({
       }
       console.log('[useStakingData] Final projectIdToUse for query:', projectIdToUse);
       
-      // Calculate pagination skip
-      const skip = (pagination.currentPage - 1) * pagination.pageSize;
+      // Note: Ponder doesn't support skip-based pagination. Using limit only for now.
+      // Cursor-based pagination will be implemented separately.
       
       // Get the right endpoint
       const endpoint = queryEndpoint || getEndpointForNetwork(network);
@@ -287,8 +291,7 @@ export function useStakingData({
       console.log('Fetching data from endpoint:', endpoint);
       console.log('Query parameters:', {
         projectId: projectIdToUse,
-        skip,
-        first: pagination.pageSize,
+        limit: pagination.pageSize,
         isComputeProject,
         isTestnet
       });
@@ -301,8 +304,10 @@ export function useStakingData({
            const getProjectQuery = `
            query getBuildersProjects($id: ID!) {
              buildersProjects(where: {id: $id}) {
-               id
-               totalUsers
+               items {
+                 id
+                 totalUsers
+               }
              }
            }`;
            
@@ -313,8 +318,8 @@ export function useStakingData({
             { id: projectIdToUse }
           );
           
-          if (builderResponse.data?.buildersProjects?.[0]) {
-            const totalUsers = parseInt(builderResponse.data.buildersProjects[0].totalUsers || '0');
+          if (builderResponse.data?.buildersProjects?.items?.[0]) {
+            const totalUsers = parseInt(builderResponse.data.buildersProjects.items[0].totalUsers || '0');
             console.log(`[useStakingData] Found builder with totalUsers: ${totalUsers}`);
             
             // Calculate total pages
@@ -328,52 +333,17 @@ export function useStakingData({
             }));
             
             // Background prefetch the second page if there are more pages
-            if (totalPages > 1 && pagination.currentPage === 1) {
-              console.log(`[useStakingData] Background prefetching page 2 data`);
-              setTimeout(() => {
-                fetchGraphQL<BuildersGraphQLResponse>(
-                  endpoint,
-                  queryFunction || "getBuildersProjectUsers",
-                  queryDocument || GET_BUILDERS_PROJECT_USERS,
-                  {
-                    first: pagination.pageSize,
-                    skip: pagination.pageSize, // Skip first page
-                    buildersProjectId: projectIdToUse,
-                    orderBy: 'staked',
-                    orderDirection: 'desc'
-                  }
-                ).then(nextPageResponse => {
-                  if (nextPageResponse.data?.buildersUsers) {
-                    // Format and cache the next page
-                    const formattedNextPageEntries = (nextPageResponse.data.buildersUsers || []).map(user => {
-                      if (formatEntryFunc) {
-                        return formatEntryFunc(user);
-                      }
-                      return {
-                        address: user.address,
-                        displayAddress: formatAddress(user.address),
-                        amount: parseFloat(user.staked || '0') / 10**18,
-                        timestamp: parseInt(user.lastStake || '0'),
-                      };
-                    });
-                    
-                    // Cache the prefetched page
-                    setCachedPages(prev => ({
-                      ...prev,
-                      2: formattedNextPageEntries
-                    }));
-                    console.log(`[useStakingData] Page 2 prefetched and cached`);
-                  }
-                }).catch(error => {
-                  console.warn(`[useStakingData] Error prefetching page 2:`, error);
-                });
-              }, 500); // Small delay to prioritize current page render
-            }
+            // Note: For cursor-based pagination, we need to wait for the cursor from page 1
+            // This prefetch will be handled in the main fetch logic after page 1 cursor is available
+            // Keeping this section for testnet compatibility but it won't run for mainnet cursor pagination
           }
         } catch (error) {
           console.error('[useStakingData] Error fetching builder details:', error);
         }
       }
+      
+      // Calculate skip value for pagination
+      const skip = (pagination.currentPage - 1) * pagination.pageSize;
       
       // Make the actual data query
       if (isComputeProject) {
@@ -476,7 +446,7 @@ export function useStakingData({
       } else {
         // Mainnet builders project query
         console.log(`[useStakingData] Mainnet projectId (expected to be an ETH address): ${projectIdToUse}`);
-        console.log(`[useStakingData] Pagination state for query: page=${pagination.currentPage}, pageSize=${pagination.pageSize}, skip=${skip}`);
+        console.log(`[useStakingData] Pagination state for query: page=${pagination.currentPage}, pageSize=${pagination.pageSize}`);
 
         // Function to format and filter entries
         const formatAndFilterEntries = (users: (BuilderSubnetUser | BuildersUser | SubnetUser)[], source: string) => {
@@ -522,29 +492,51 @@ export function useStakingData({
           return finalFiltered;
         };
 
-        // Function to fetch a specific page of data for mainnet
-        const fetchMainnetPageData = async (pageNumber: number, pageSize: number) => {
-          const skip = (pageNumber - 1) * pageSize;
+        // Function to fetch a specific page of data for mainnet using cursor-based pagination
+        const fetchMainnetPageData = async (pageNumber: number, pageSize: number, providedCursor?: string): Promise<{ items: BuildersUser[], endCursor?: string, hasNextPage: boolean }> => {
+          // Get cursor for this page (if not page 1, use provided cursor or cursor stored for this page)
+          // The cursor from the previous page is stored at pageCursors[pageNumber]
+          // Use providedCursor if available (for immediate prefetch), otherwise read from state
+          const cursor = pageNumber === 1 ? undefined : (providedCursor ?? pageCursors[pageNumber]);
           
           const response = await fetchGraphQL<BuildersGraphQLResponse>(
             endpoint,
             queryFunction || "getBuildersProjectUsers",
             queryDocument || GET_BUILDERS_PROJECT_USERS,
             {
-              first: pageSize,
-              skip,
+              limit: pageSize,
+              after: cursor,
               buildersProjectId: projectIdToUse,
               orderBy: 'staked',
               orderDirection: 'desc'
             }
           );
           
-          if (!response.data?.buildersUsers) {
+          if (!response.data?.buildersUsers?.items) {
             throw new Error("No data returned from API");
           }
           
-          console.log('[useStakingData] Mainnet raw response with ordered data:', response.data.buildersUsers);
-          return response.data.buildersUsers;
+          const endCursor = response.data.buildersUsers.pageInfo?.endCursor;
+          const hasNext = response.data.buildersUsers.pageInfo?.hasNextPage ?? false;
+          
+          // Store cursor for next page if available
+          // Store at pageNumber + 1 so it can be retrieved when fetching that page
+          if (endCursor) {
+            setPageCursors(prev => ({
+              ...prev,
+              [pageNumber + 1]: endCursor
+            }));
+          }
+          
+          // Update hasNextPage state
+          setHasNextPage(hasNext);
+          
+          console.log('[useStakingData] Mainnet raw response with ordered data:', response.data.buildersUsers.items);
+          return {
+            items: response.data.buildersUsers.items,
+            endCursor,
+            hasNextPage: hasNext
+          };
         };
 
         // Function to fetch a specific page of data for testnet
@@ -576,42 +568,97 @@ export function useStakingData({
         try {
           console.log(`[useStakingData] Starting ${isTestnet ? 'testnet' : 'mainnet'} fetch for page ${pagination.currentPage}`);
           
-          // Fetch current page and next page in parallel
           const fetchFunc = isTestnet ? fetchTestnetPageData : fetchMainnetPageData;
-          const [currentPageUsers, nextPageUsers] = await Promise.all([
-            fetchFunc(pagination.currentPage, pagination.pageSize),
-            pagination.currentPage === 1 ? fetchFunc(2, pagination.pageSize) : Promise.resolve([])
-          ]);
           
-          // Process current page
-          const currentPageEntries = formatAndFilterEntries(currentPageUsers, 'Current Page');
-          
-          // Update current page in cache and state
-          setCachedPages(prev => ({
-            ...prev,
-            [pagination.currentPage]: currentPageEntries
-          }));
-          setEntries(currentPageEntries);
-          
-          // If we're on page 1, process and cache next page
-          if (pagination.currentPage === 1 && nextPageUsers.length > 0) {
-            const nextPageEntries = formatAndFilterEntries(nextPageUsers, 'Next Page');
+          // For mainnet (cursor-based), fetch current page first to get cursor
+          // For testnet (skip-based), can fetch in parallel
+          if (!isTestnet) {
+            // Cursor-based pagination: fetch current page first
+            const currentPageResult = await fetchMainnetPageData(pagination.currentPage, pagination.pageSize);
+            const currentPageEntries = formatAndFilterEntries(currentPageResult.items, 'Current Page');
             
-            // Cache next page
+            // Update current page in cache and state
             setCachedPages(prev => ({
               ...prev,
-              2: nextPageEntries
+              [pagination.currentPage]: currentPageEntries
             }));
+            setEntries(currentPageEntries);
             
-            // Update pagination if we have more data
-            if (nextPageEntries.length > 0) {
-              setPagination(prev => ({
+            // Prefetch next page if we're on page 1 and have more pages
+            if (pagination.currentPage === 1 && currentPageResult.hasNextPage && currentPageResult.endCursor) {
+              // Use the cursor returned from page 1 to fetch page 2
+              // Store cursor for page 2 in state for future use
+              setPageCursors(prev => ({
                 ...prev,
-                totalPages: Math.max(prev.totalPages, 2)
+                2: currentPageResult.endCursor!
               }));
+              
+              // Pass cursor directly to avoid race condition with async state update
+              const nextPageResult = await fetchMainnetPageData(2, pagination.pageSize, currentPageResult.endCursor);
+              const nextPageEntries = formatAndFilterEntries(nextPageResult.items, 'Next Page');
+              
+              // Cache next page
+              setCachedPages(prev => ({
+                ...prev,
+                2: nextPageEntries
+              }));
+              
+              // Update pagination if we have more data
+              if (nextPageEntries.length > 0) {
+                setPagination(prev => ({
+                  ...prev,
+                  totalPages: Math.max(prev.totalPages, 2)
+                }));
+              }
+              
+              console.log(`[useStakingData] Prefetched and cached page 2 with ${nextPageEntries.length} entries`);
             }
+          } else {
+            // Testnet: can fetch in parallel (skip-based pagination still works for testnet)
+            const [currentPageUsers, nextPageUsers] = await Promise.all([
+              fetchFunc(pagination.currentPage, pagination.pageSize),
+              pagination.currentPage === 1 ? fetchFunc(2, pagination.pageSize) : Promise.resolve([])
+            ]);
             
-            console.log(`[useStakingData] Prefetched and cached page 2 with ${nextPageEntries.length} entries`);
+            // Extract items if result is an object with items property (mainnet format), otherwise use as array (testnet format)
+            const currentPageUsersArray = Array.isArray(currentPageUsers) 
+              ? currentPageUsers 
+              : (currentPageUsers as { items: BuildersUser[] }).items;
+            
+            // Process current page
+            const currentPageEntries = formatAndFilterEntries(currentPageUsersArray, 'Current Page');
+            
+            // Update current page in cache and state
+            setCachedPages(prev => ({
+              ...prev,
+              [pagination.currentPage]: currentPageEntries
+            }));
+            setEntries(currentPageEntries);
+            
+            // If we're on page 1, process and cache next page
+            const nextPageUsersArray = Array.isArray(nextPageUsers) 
+              ? nextPageUsers 
+              : (nextPageUsers as { items: BuildersUser[] }).items;
+            
+            if (pagination.currentPage === 1 && nextPageUsersArray.length > 0) {
+              const nextPageEntries = formatAndFilterEntries(nextPageUsersArray, 'Next Page');
+              
+              // Cache next page
+              setCachedPages(prev => ({
+                ...prev,
+                2: nextPageEntries
+              }));
+              
+              // Update pagination if we have more data
+              if (nextPageEntries.length > 0) {
+                setPagination(prev => ({
+                  ...prev,
+                  totalPages: Math.max(prev.totalPages, 2)
+                }));
+              }
+              
+              console.log(`[useStakingData] Prefetched and cached page 2 with ${nextPageEntries.length} entries`);
+            }
           }
           
         } catch (error) {
@@ -647,6 +694,8 @@ export function useStakingData({
   const refresh = useCallback(() => {
     console.log('[useStakingData] refresh CALLED. Current isLoading state:', isLoading, 'Clearing cache and calling fetchData unconditionally.');
     setCachedPages({});
+    setPageCursors({}); // Reset cursor state on refresh
+    setHasNextPage(false); // Reset hasNextPage state
     // isLoading check removed: A manual refresh should always attempt to fetch.
     // This also helps break potential loops if isLoading got stuck as true.
     fetchData(); 
@@ -675,6 +724,8 @@ export function useStakingData({
       // The actual fetchData call will be triggered by the useEffect above, which depends on `id`.
       setId(projectId);
       setCachedPages({});
+      setPageCursors({}); // Reset cursor state when projectId changes
+      setHasNextPage(false); // Reset hasNextPage state
       setPagination(prev => ({ 
         ...prev, 
         currentPage: 1, 
@@ -688,6 +739,8 @@ export function useStakingData({
       setId(null);
       setEntries([]); 
       setCachedPages({});
+      setPageCursors({}); // Reset cursor state
+      setHasNextPage(false); // Reset hasNextPage state
       setPagination(prev => ({ 
         ...prev, 
         currentPage: 1, 
@@ -711,9 +764,9 @@ export function useStakingData({
 
   // Pagination handlers
   const nextPage = useCallback(() => {
-    // First check if we're already at the last page with data
-    if (pagination.currentPage === pagination.totalPages) {
-      console.log('[useStakingData] Already at last page, not navigating forward');
+    // For cursor-based pagination, check if there's a next page
+    if (!hasNextPage) {
+      console.log('[useStakingData] No next page available (cursor-based pagination)');
       return;
     }
     
@@ -726,9 +779,11 @@ export function useStakingData({
     console.log(`[useStakingData] Moving to next page: ${pagination.currentPage + 1}`);
     setPagination(prev => ({
       ...prev,
-      currentPage: Math.min(prev.currentPage + 1, prev.totalPages)
+      currentPage: prev.currentPage + 1,
+      // Update totalPages if we're going to a new page
+      totalPages: Math.max(prev.totalPages, prev.currentPage + 1)
     }));
-  }, [pagination.currentPage, pagination.totalPages, entries.length]);
+  }, [pagination.currentPage, hasNextPage, entries.length]);
 
   const prevPage = useCallback(() => {
     if (pagination.currentPage <= 1) {

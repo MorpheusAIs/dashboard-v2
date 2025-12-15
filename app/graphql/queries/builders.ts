@@ -3,12 +3,14 @@
 export const GET_BUILDERS_PROJECT_BY_NAME = `
   query getBuildersProjectsByName($name: String!) {
     buildersProjects(where: { name: $name }) {
-      id
-      name
-      totalStaked
-      totalUsers
-      withdrawLockPeriodAfterDeposit
-      minimalDeposit
+      items {
+        id
+        name
+        totalStaked
+        totalUsers
+        withdrawLockPeriodAfterDeposit
+        minimalDeposit
+      }
     }
   }
 `;
@@ -37,23 +39,29 @@ export const GET_BUILDER_SUBNET_BY_NAME = `
 
 export const GET_BUILDERS_PROJECT_USERS = `
   query getBuildersProjectUsers(
-    $first: Int = 50
-    $skip: Int = 0
-    $buildersProjectId: Bytes = ""
+    $limit: Int = 50
+    $after: String
+    $buildersProjectId: String = ""
     $orderBy: String = "staked"
     $orderDirection: String = "desc"
   ) {
     buildersUsers(
-      first: $first
-      skip: $skip
-      where: { buildersProject_: {id: $buildersProjectId} }
+      limit: $limit
+      after: $after
+      where: { buildersProjectId: $buildersProjectId }
       orderBy: $orderBy
       orderDirection: $orderDirection
     ) {
-      address
-      id
-      staked
-      lastStake
+      items {
+        address
+        id
+        staked
+        lastStake
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
     }
   }
 `;
@@ -86,14 +94,16 @@ export const GET_BUILDER_SUBNET_USERS = `
 
 // Use this query to get all builders projects (like in query.json)
 export const GET_ALL_BUILDERS_PROJECTS = `
-  query getAllBuildersProjects($first: Int = 5) {
-    buildersProjects(first: $first) {
-      id
-      name
-      minimalDeposit
-      totalStaked
-      totalUsers
-      withdrawLockPeriodAfterDeposit
+  query getAllBuildersProjects($limit: Int = 5) {
+    buildersProjects(limit: $limit) {
+      items {
+        id
+        name
+        minimalDeposit
+        totalStaked
+        totalUsers
+        withdrawLockPeriodAfterDeposit
+      }
     }
   }
 `; 

@@ -1,5 +1,6 @@
 import { arbitrum, arbitrumSepolia, base, mainnet, sepolia } from 'wagmi/chains';
 import type { Chain, ChainContract } from 'viem';
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
 // Network environment types
 export type NetworkEnvironment = 'mainnet' | 'testnet';
@@ -220,10 +221,10 @@ export const mainnetChains: Record<string, ChainConfig> = {
 // =====================================================
 const USE_FALLBACK_MAINNET_GRAPHQL = false;
 
-// GraphQL endpoint URLs
+// GraphQL endpoint URLs - using shared configuration
 const MAINNET_GRAPHQL_ENDPOINTS = {
-  // New subgraph (currently indexing)
-  primary: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest',
+  // New subgraph (currently indexing) - from shared config
+  primary: SUBGRAPH_ENDPOINTS.Ethereum,
   // Legacy fallback subgraph
   fallback: 'https://api.studio.thegraph.com/query/67225/morpheus-dashboard/version/latest'
 };

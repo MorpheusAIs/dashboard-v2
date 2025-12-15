@@ -54,9 +54,8 @@ export function useBuilderData({
     error: null
   });
 
-  const skip = useMemo(() => {
-    return (page - 1) * DEFAULT_BUILDERS_PAGE_LIMIT;
-  }, [page]);
+  // Note: Ponder doesn't support skip-based pagination
+  // Using limit only for now - cursor-based pagination can be added if needed
 
   useEffect(() => {
     const fetchData = async () => {
@@ -74,15 +73,14 @@ export function useBuilderData({
               orderDirection,
               usersOrderBy,
               usersDirection,
-              name_in: nameFilter,
               address: address || undefined
             },
             fetchPolicy: 'network-only'
           });
 
           setData({
-            buildersProjects: filteredData.buildersProjects,
-            userAccountBuildersProjects: filteredData.buildersUsers.map((user: BuilderUser) => user.builderSubnet as unknown as BuilderProject),
+            buildersProjects: filteredData.buildersProjects.items,
+            userAccountBuildersProjects: filteredData.buildersUsers.items.map((user: BuilderUser) => user.builderSubnet as unknown as BuilderProject),
             isLoading: false,
             error: null
           });
@@ -91,8 +89,7 @@ export function useBuilderData({
           const { data: combinedData } = await client.query<CombinedBuildersListResponse>({
             query: COMBINED_BUILDERS_LIST,
             variables: {
-              first: DEFAULT_BUILDERS_PAGE_LIMIT,
-              skip,
+              limit: DEFAULT_BUILDERS_PAGE_LIMIT,
               orderBy,
               orderDirection,
               usersOrderBy,
@@ -103,8 +100,8 @@ export function useBuilderData({
           });
 
           setData({
-            buildersProjects: combinedData.buildersProjects,
-            userAccountBuildersProjects: combinedData.buildersUsers.map((user: BuilderUser) => user.builderSubnet as unknown as BuilderProject),
+            buildersProjects: combinedData.buildersProjects.items,
+            userAccountBuildersProjects: combinedData.buildersUsers.items.map((user: BuilderUser) => user.builderSubnet as unknown as BuilderProject),
             buildersCounters: combinedData.counters[0],
             isLoading: false,
             error: null
@@ -128,7 +125,6 @@ export function useBuilderData({
     usersDirection, 
     address, 
     nameFilter, 
-    skip, 
     isMainnet
   ]);
 
