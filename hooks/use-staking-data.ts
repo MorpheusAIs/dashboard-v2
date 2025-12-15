@@ -342,6 +342,9 @@ export function useStakingData({
         }
       }
       
+      // Calculate skip value for pagination
+      const skip = (pagination.currentPage - 1) * pagination.pageSize;
+      
       // Make the actual data query
       if (isComputeProject) {
         const response = await fetchGraphQL<ComputeGraphQLResponse>(
@@ -491,8 +494,9 @@ export function useStakingData({
 
         // Function to fetch a specific page of data for mainnet using cursor-based pagination
         const fetchMainnetPageData = async (pageNumber: number, pageSize: number): Promise<{ items: BuildersUser[], endCursor?: string, hasNextPage: boolean }> => {
-          // Get cursor for this page (if not page 1, use cursor from previous page)
-          const cursor = pageNumber === 1 ? undefined : pageCursors[pageNumber - 1];
+          // Get cursor for this page (if not page 1, use cursor stored for this page)
+          // The cursor from the previous page is stored at pageCursors[pageNumber]
+          const cursor = pageNumber === 1 ? undefined : pageCursors[pageNumber];
           
           const response = await fetchGraphQL<BuildersGraphQLResponse>(
             endpoint,
@@ -515,6 +519,7 @@ export function useStakingData({
           const hasNext = response.data.buildersUsers.pageInfo?.hasNextPage ?? false;
           
           // Store cursor for next page if available
+          // Store at pageNumber + 1 so it can be retrieved when fetching that page
           if (endCursor) {
             setPageCursors(prev => ({
               ...prev,
@@ -613,8 +618,13 @@ export function useStakingData({
               pagination.currentPage === 1 ? fetchFunc(2, pagination.pageSize) : Promise.resolve([])
             ]);
             
+            // Extract items if result is an object with items property (mainnet format), otherwise use as array (testnet format)
+            const currentPageUsersArray = Array.isArray(currentPageUsers) 
+              ? currentPageUsers 
+              : (currentPageUsers as { items: BuildersUser[] }).items;
+            
             // Process current page
-            const currentPageEntries = formatAndFilterEntries(currentPageUsers, 'Current Page');
+            const currentPageEntries = formatAndFilterEntries(currentPageUsersArray, 'Current Page');
             
             // Update current page in cache and state
             setCachedPages(prev => ({
@@ -624,8 +634,12 @@ export function useStakingData({
             setEntries(currentPageEntries);
             
             // If we're on page 1, process and cache next page
-            if (pagination.currentPage === 1 && nextPageUsers.length > 0) {
-              const nextPageEntries = formatAndFilterEntries(nextPageUsers, 'Next Page');
+            const nextPageUsersArray = Array.isArray(nextPageUsers) 
+              ? nextPageUsers 
+              : (nextPageUsers as { items: BuildersUser[] }).items;
+            
+            if (pagination.currentPage === 1 && nextPageUsersArray.length > 0) {
+              const nextPageEntries = formatAndFilterEntries(nextPageUsersArray, 'Next Page');
               
               // Cache next page
               setCachedPages(prev => ({
