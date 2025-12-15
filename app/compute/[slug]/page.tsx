@@ -11,6 +11,7 @@ import { StakingFormCard } from "@/components/staking/staking-form-card";
 import { WithdrawalPositionCard } from "@/components/staking/withdrawal-position-card";
 import { StakingTable } from "@/components/staking-table";
 import { useStakingData } from "@/hooks/use-staking-data";
+import { SUBGRAPH_ENDPOINTS } from "@/app/config/subgraph-endpoints";
 import Link from "next/link";
 
 // Define the type here instead of importing it
@@ -89,7 +90,7 @@ export default function ComputeSubnetPage() {
     refresh
   } = useStakingData({
     projectId: subnet?.id,
-    queryEndpoint: 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
+    queryEndpoint: SUBGRAPH_ENDPOINTS.Arbitrum,
     queryDocument: GET_SUBNET_USERS,
     formatEntryFunc: formatStakingEntry,
     initialSort: { column: 'amount', direction: 'desc' },

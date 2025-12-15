@@ -174,39 +174,12 @@ export const fetchBuildersAPI = async (
         return [];
       }
       
-      // FIXED: Use ALL builders (including Morlord-only ones), not just original Supabase
-      let builderNames = supabaseBuilders.map(b => b.name);
-      
-      // FIX: Handle name mismatch between Morlord API and GraphQL subgraphs
-      // Morlord API uses "Protection and Capital Incentive" 
-      // But Arbitrum GraphQL uses "Protection and Capital Incentives Program"
-      const nameMapping: Record<string, string[]> = {
-        "Protection and Capital Incentive": [
-          "Protection and Capital Incentive", // Base version
-          "Protection and Capital Incentives Program" // Arbitrum version  
-        ]
-      };
-      
-      // Expand builder names to include GraphQL variations
-      const expandedBuilderNames: string[] = [];
-      builderNames.forEach(name => {
-        expandedBuilderNames.push(name);
-        if (nameMapping[name]) {
-          expandedBuilderNames.push(...nameMapping[name]);
-        }
-      });
-      
-      // Remove duplicates
-      builderNames = Array.from(new Set(expandedBuilderNames));
-      
-      // console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
-      
       const commonVariables = {
+        limit: 1000,
         orderBy: "totalStaked",
         orderDirection: OrderDirection.Desc,
-        usersOrderBy: "buildersProject__totalStaked",
+        usersOrderBy: "staked",
         usersDirection: OrderDirection.Asc,
-        name_in: builderNames,
         address: userAddress || ""
       };
 
@@ -242,7 +215,7 @@ export const fetchBuildersAPI = async (
         return graphqlName;
       };
 
-      const baseProjects = (baseResponse.data?.buildersProjects || []).map((project): BuilderProject => {
+      const baseProjects = (baseResponse.data?.buildersProjects?.items || []).map((project): BuilderProject => {
 
 
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
@@ -271,7 +244,7 @@ export const fetchBuildersAPI = async (
         return projectData;
       });
       
-      const arbitrumProjects = (arbitrumResponse.data?.buildersProjects || []).map((project): BuilderProject => {
+      const arbitrumProjects = (arbitrumResponse.data?.buildersProjects?.items || []).map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
         const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
         const totalClaimedInMor = Number(project.totalClaimed || '0') / 1e18;
@@ -448,10 +421,10 @@ export const fetchBuildersAPI = async (
       // console.log("[fetchBuildersAPI Mainnet] Finished creating builders list. Count:", mappedBuilders.length);
 
       // Populate builderUsers for mainnet if userAddress was provided
-      if (userAddress && (baseResponse.data?.buildersUsers || arbitrumResponse.data?.buildersUsers)) {
+      if (userAddress && (baseResponse.data?.buildersUsers?.items || arbitrumResponse.data?.buildersUsers?.items)) {
         const allUserStakes = [
-          ...(baseResponse.data?.buildersUsers || []),
-          ...(arbitrumResponse.data?.buildersUsers || [])
+          ...(baseResponse.data?.buildersUsers?.items || []),
+          ...(arbitrumResponse.data?.buildersUsers?.items || [])
         ];
 
         mappedBuilders.forEach(builder => {
