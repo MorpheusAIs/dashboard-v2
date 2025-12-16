@@ -115,7 +115,7 @@ export function CapitalInfoPanel() {
                   <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
                     Live Data
                   </span>
-                  {Object.values(poolData.assets).some(asset => asset.apr === 'N/A') ? (
+                  {/* {Object.values(poolData.assets).some(asset => asset.apr === 'N/A') ? (
                     <span className="px-2 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-red-400 text-xs font-medium">
                       Contract Debug
                     </span>
@@ -123,7 +123,7 @@ export function CapitalInfoPanel() {
                     <span className="px-2 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-400 text-xs font-medium">
                       Accelerated Rewards
                     </span>
-                  )}
+                  )} */}
                 </div>
               )}
             </div>
