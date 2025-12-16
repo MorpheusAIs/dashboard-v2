@@ -188,7 +188,10 @@ export const useStakingContractInteractions = ({
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!tokenAddress && !!connectedAddress && !!contractAddress,
-       retry: networkChainId === 8453 ? 3 : 1, // More retries for Base network
+       retry: 3, // More retries for all networks to handle Safe wallet delays
+       refetchInterval: false, // Disable automatic polling - we'll handle it manually after transactions
+       staleTime: 5000, // Consider data stale after 5 seconds
+       gcTime: 30000, // Keep in cache for 30 seconds (previously cacheTime)
     }
   });
 
@@ -391,8 +394,26 @@ export const useStakingContractInteractions = ({
     }
     if (allowanceData !== undefined) {
       setAllowance(allowanceData as bigint);
+      console.log(`📊 Allowance data updated: ${formatEther(allowanceData as bigint)} ${tokenSymbol}`);
     }
-  }, [morTokenAddressData, tokenSymbolData, balanceData, allowanceData, networkChainId]);
+  }, [morTokenAddressData, tokenSymbolData, balanceData, allowanceData, networkChainId, tokenSymbol]);
+  
+  // Refetch allowance when critical dependencies change (e.g., after page reload or network switch)
+  // This helps ensure we always have fresh data, especially important for Safe wallet users
+  useEffect(() => {
+    if (isCorrectNetwork() && tokenAddress && connectedAddress && contractAddress) {
+      console.log("🔄 Critical dependencies ready, refetching allowance for fresh data...");
+      const timer = setTimeout(() => {
+        refetchAllowance().then(() => {
+          console.log("✅ Initial allowance refetch completed");
+        }).catch((error: unknown) => {
+          console.error("Error in initial allowance refetch:", error);
+        });
+      }, 500); // Small delay to avoid immediate double-fetch
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isCorrectNetwork, tokenAddress, connectedAddress, contractAddress]);
 
   // Update loading state for token data, balance, and allowance
   useEffect(() => {
@@ -407,20 +428,50 @@ export const useStakingContractInteractions = ({
     if (isApproveTxSuccess) {
       toast.success("Approval successful!", { id: "approval-tx" });
       
-      // Improved allowance refresh for Base network and all networks
-      // Add a delay to ensure blockchain state is updated
-      const refreshAllowanceWithDelay = () => {
-        setTimeout(() => {
-          console.log("Refreshing allowance after successful approval...");
-          refetchAllowance().then(() => {
-            console.log("Successfully refreshed allowance after approval");
-          }).catch((error: unknown) => {
-            console.error("Error refreshing allowance after approval:", error);
-          });
-        }, 2000); // 2 second delay for Base network compatibility
+      // Enhanced allowance refresh with retry logic for Safe wallet and multi-sig transactions
+      // Safe wallets require more time for transaction propagation (10-30 seconds typical)
+      const refreshAllowanceWithRetry = async () => {
+        const maxRetries = 10; // Try up to 10 times
+        const delays = [3000, 5000, 5000, 5000, 8000, 8000, 10000, 10000, 15000, 20000]; // Progressive delays in ms
+        
+        console.log("Starting allowance refresh with retry logic for Safe wallet compatibility...");
+        
+        for (let i = 0; i < maxRetries; i++) {
+          const delay = delays[i] || 10000;
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          try {
+            console.log(`Attempt ${i + 1}/${maxRetries}: Refreshing allowance after approval...`);
+            const result = await refetchAllowance();
+            
+            // Check if allowance has been updated
+            if (result.data !== undefined && result.data !== null) {
+              const currentAllowance = result.data as bigint;
+              console.log(`Allowance fetched: ${formatEther(currentAllowance)} ${tokenSymbol}`);
+              
+              // If allowance is greater than 0, approval was successful
+              if (currentAllowance > BigInt(0)) {
+                console.log(`✅ Allowance successfully updated after ${i + 1} attempts`);
+                setAllowance(currentAllowance);
+                setNeedsApproval(false);
+                return;
+              }
+            }
+            
+            console.log(`Attempt ${i + 1}: Allowance not yet updated, retrying...`);
+          } catch (error) {
+            console.error(`Attempt ${i + 1}: Error refreshing allowance:`, error);
+          }
+        }
+        
+        console.warn("⚠️ Max retry attempts reached. Allowance may not be updated yet. Try refreshing the page.");
+        toast.warning("Approval confirmed, but allowance update is taking longer than expected. Please refresh the page if you can't stake yet.", {
+          duration: 8000
+        });
       };
       
-      refreshAllowanceWithDelay();
+      refreshAllowanceWithRetry();
       resetApproveContract();
     }
     if (approveError) {
@@ -431,7 +482,7 @@ export const useStakingContractInteractions = ({
       toast.error("Approval Failed", { id: "approval-tx", description: displayError });
       resetApproveContract();
     }
-  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance]);
+  }, [isApproveTxSuccess, isApprovePending, approveError, resetApproveContract, refetchAllowance, tokenSymbol]);
 
   // Handle Staking Transaction Notifications
   useEffect(() => {
@@ -454,9 +505,38 @@ export const useStakingContractInteractions = ({
         }
       });
       resetStakeContract();
-      // Refresh balance and allowance after staking
-      refetchBalance();
-      refetchAllowance();
+      
+      // Enhanced data refresh with retry logic for Safe wallet and multi-sig transactions
+      // After staking, it may take time for balance/allowance to update on-chain
+      const refreshDataWithRetry = async () => {
+        const maxRetries = 8;
+        const delays = [3000, 5000, 5000, 8000, 10000, 10000, 15000, 20000];
+        
+        console.log("Starting data refresh after stake transaction...");
+        
+        for (let i = 0; i < maxRetries; i++) {
+          const delay = delays[i] || 10000;
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+          try {
+            console.log(`Attempt ${i + 1}/${maxRetries}: Refreshing balance and allowance...`);
+            await Promise.all([
+              refetchBalance(),
+              refetchAllowance()
+            ]);
+            
+            if (i === maxRetries - 1) {
+              console.log(`✅ Data refresh completed after ${i + 1} attempts`);
+            }
+          } catch (error) {
+            console.error(`Attempt ${i + 1}: Error refreshing data:`, error);
+          }
+        }
+      };
+      
+      refreshDataWithRetry();
+      
       if (onTxSuccess) {
         onTxSuccess();
       }
@@ -592,14 +672,15 @@ export const useStakingContractInteractions = ({
         
         console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}`);
         
-        // IMPORTANT: For mainnet, assume approval is needed when data is missing
-        if (!isTestnet) {
-          console.log("Mainnet with missing data - assuming approval needed");
-          setNeedsApproval(true);
-          return true;
-        }
+        // FIXED: Don't aggressively assume approval is needed when data is loading
+        // This was causing the UI to get stuck in "approve" state even after successful approval
+        // Instead, we wait for the actual allowance data to load
+        // The UI will show "loading" or "waiting for data" state instead of "needs approval"
+        console.log("Data still loading - waiting for allowance data before determining approval status");
         
-        return true; // Assume approval needed while loading
+        // Return true to indicate we're still checking, but don't set needsApproval state yet
+        // This prevents the UI from incorrectly showing "Approve" button
+        return allowance === undefined; // Return true if still loading
       }
       
       const parsedAmount = parseEther(stakeAmount);
@@ -911,6 +992,26 @@ export const useStakingContractInteractions = ({
     }
   }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, networkChainId, isTestnet, writeClaim]);
 
+  // Manual refresh function for allowance - useful for Safe wallet users
+  const manualRefreshAllowance = useCallback(async () => {
+    console.log("Manual allowance refresh triggered...");
+    try {
+      const result = await refetchAllowance();
+      if (result.data !== undefined) {
+        const currentAllowance = result.data as bigint;
+        console.log(`✅ Manual refresh: Allowance = ${formatEther(currentAllowance)} ${tokenSymbol}`);
+        setAllowance(currentAllowance);
+        
+        // Also update needsApproval state if we have a pending amount to check
+        return currentAllowance;
+      }
+      return undefined;
+    } catch (error) {
+      console.error("Error in manual allowance refresh:", error);
+      return undefined;
+    }
+  }, [refetchAllowance, tokenSymbol]);
+
   return {
     // State
     isCorrectNetwork,
@@ -939,6 +1040,7 @@ export const useStakingContractInteractions = ({
     checkAndUpdateApprovalNeeded,
     // Refetch functions
     refetchClaimableAmount,
+    manualRefreshAllowance,
   };
 };
 
