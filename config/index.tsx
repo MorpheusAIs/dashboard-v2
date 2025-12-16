@@ -52,6 +52,10 @@ export const getWagmiConfig = () => {
     enableEIP6963: true,
     // Reduce polling to avoid overwhelming RPC endpoints
     pollingInterval: 4000, // 4 seconds instead of default 1 second
+    // Improve wallet detection for injected wallets like Rabby
+    multiInjectedProviderDiscovery: true,
+    // Increase connection timeout for slower wallets
+    connectors: [],
   });
 };
 

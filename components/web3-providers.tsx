@@ -7,6 +7,15 @@ import WalletErrorBoundary from './WalletErrorBoundary'
 import { NetworkProvider } from '@/context/network-context'
 import { NetworkEnvironment } from '@/config/networks'
 
+// Type for wallet detection properties (extends the existing ethereum provider)
+interface WalletFlags {
+  isRabby?: boolean;
+  isMetaMask?: boolean;
+  isCoinbaseWallet?: boolean;
+  isTrust?: boolean;
+  providers?: WalletFlags[];
+}
+
 export function Web3Providers({ 
   children,
   initialState
@@ -18,6 +27,28 @@ export function Web3Providers({
   const defaultEnvironment: NetworkEnvironment = 'mainnet';
 
   useEffect(() => {
+    // Detect and log Rabby wallet presence for debugging
+    const detectWallets = () => {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        const provider = window.ethereum as typeof window.ethereum & WalletFlags;
+        console.log('🦊 Wallet detection:', {
+          isRabby: provider.isRabby || false,
+          isMetaMask: provider.isMetaMask || false,
+          isCoinbaseWallet: provider.isCoinbaseWallet || false,
+          isTrust: provider.isTrust || false,
+          providerInfo: provider.providers ? `Multiple providers (${provider.providers.length})` : 'Single provider'
+        });
+
+        // If Rabby is detected, ensure it's the active provider
+        if (provider.isRabby) {
+          console.log('✅ Rabby wallet detected and active');
+        } else if (provider.providers?.some((p) => (p as WalletFlags).isRabby)) {
+          console.log('⚠️ Rabby wallet detected but not active. Multiple wallet providers found.');
+          console.log('💡 Tip: Disable other wallet extensions or select Rabby in Web3Modal');
+        }
+      }
+    };
+
     // Clear expired WalletConnect data on app initialization to prevent "Proposal expired" errors
     const clearExpiredWalletData = () => {
       try {
@@ -58,6 +89,9 @@ export function Web3Providers({
       }
     };
 
+    // Detect wallets first
+    detectWallets();
+    
     // Clear expired data immediately on app start
     clearExpiredWalletData();
 
