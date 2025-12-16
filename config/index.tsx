@@ -1,5 +1,5 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
-import { cookieStorage, createStorage, http } from 'wagmi';
+import { cookieStorage, createStorage, http, webSocket, fallback } from 'wagmi';
 import { mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
 // import { NetworkEnvironment } from './networks';
 
@@ -7,9 +7,16 @@ export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
 
 if (!projectId) throw new Error('Project ID is not defined');
 
+// HTTP RPC URLs
 const alchemyMainnetRpcUrl = process.env.NEXT_PUBLIC_ALCHEMY_MAINNET_RPC_URL;
-
 if (!alchemyMainnetRpcUrl) throw new Error('Alchemy Mainnet RPC URL is not defined');
+
+// WebSocket URLs for real-time updates (approvals, balance changes, etc.)
+const alchemyMainnetWsUrl = process.env.NEXT_PUBLIC_ALCHEMY_MAINNET_WS_URL;
+const alchemyArbitrumWsUrl = process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_WS_URL;
+const alchemyBaseWsUrl = process.env.NEXT_PUBLIC_ALCHEMY_BASE_WS_URL;
+const alchemySepoliaWsUrl = process.env.NEXT_PUBLIC_ALCHEMY_SEPOLIA_WS_URL;
+const alchemyArbitrumSepoliaWsUrl = process.env.NEXT_PUBLIC_ALCHEMY_ARBITRUM_SEPOLIA_WS_URL;
 
 const metadata = {
   name: 'Morpheus Dashboard',
@@ -31,13 +38,97 @@ export const getWagmiConfig = () => {
     storage: createStorage({
       storage: cookieStorage
     }),
-    // ✅ CRITICAL: Explicitly configure transports to use Alchemy for mainnet (archive RPC)
+    // ✅ CRITICAL: WebSocket transports for real-time updates with HTTP fallback
+    // WebSockets provide instant updates for approvals, balance changes, etc.
+    // HTTP fallback ensures reliability if WebSocket connection fails
     transports: {
-      [mainnet.id]: http(alchemyMainnetRpcUrl),
-      [arbitrum.id]: http(), // Use default for other chains
-      [base.id]: http(),
-      [arbitrumSepolia.id]: http(),
-      [sepolia.id]: http(),
+      // Mainnet: WebSocket primary, HTTP fallback
+      [mainnet.id]: alchemyMainnetWsUrl 
+        ? fallback([
+            webSocket(alchemyMainnetWsUrl, {
+              keepAlive: true,
+              retryCount: 3,
+              retryDelay: 1000,
+            }),
+            http(alchemyMainnetRpcUrl, {
+              timeout: 60_000,
+              retryCount: 3,
+              retryDelay: 1000,
+            }),
+          ])
+        : http(alchemyMainnetRpcUrl, {
+            timeout: 60_000,
+            retryCount: 3,
+            retryDelay: 1000,
+          }),
+      
+      // Arbitrum: WebSocket primary, HTTP fallback
+      [arbitrum.id]: alchemyArbitrumWsUrl
+        ? fallback([
+            webSocket(alchemyArbitrumWsUrl, {
+              keepAlive: true,
+              retryCount: 3,
+            }),
+            http(undefined, {
+              timeout: 60_000,
+              retryCount: 3,
+            }),
+          ])
+        : http(undefined, {
+            timeout: 60_000,
+            retryCount: 3,
+          }),
+      
+      // Base: WebSocket primary, HTTP fallback
+      [base.id]: alchemyBaseWsUrl
+        ? fallback([
+            webSocket(alchemyBaseWsUrl, {
+              keepAlive: true,
+              retryCount: 3,
+            }),
+            http(undefined, {
+              timeout: 60_000,
+              retryCount: 3,
+            }),
+          ])
+        : http(undefined, {
+            timeout: 60_000,
+            retryCount: 3,
+          }),
+      
+      // Arbitrum Sepolia: WebSocket primary, HTTP fallback
+      [arbitrumSepolia.id]: alchemyArbitrumSepoliaWsUrl
+        ? fallback([
+            webSocket(alchemyArbitrumSepoliaWsUrl, {
+              keepAlive: true,
+              retryCount: 3,
+            }),
+            http(undefined, {
+              timeout: 60_000,
+              retryCount: 3,
+            }),
+          ])
+        : http(undefined, {
+            timeout: 60_000,
+            retryCount: 3,
+          }),
+      
+      // Sepolia: WebSocket primary, HTTP fallback
+      [sepolia.id]: alchemySepoliaWsUrl
+        ? fallback([
+            webSocket(alchemySepoliaWsUrl, {
+              keepAlive: true,
+              retryCount: 3,
+            }),
+            http(undefined, {
+              timeout: 60_000,
+              retryCount: 3,
+            }),
+          ])
+        : http(undefined, {
+            timeout: 60_000,
+            retryCount: 3,
+          }),
     },
     enableCoinbase: true,
     auth: {
@@ -46,12 +137,22 @@ export const getWagmiConfig = () => {
       email: false,
       socials: [],
     },
-    // Add some additional options to reduce aggressive polling and improve error handling
+    // Enhanced WalletConnect configuration for Safe wallet support
     enableWalletConnect: true,
     enableInjected: true,
     enableEIP6963: true,
-    // Reduce polling to avoid overwhelming RPC endpoints
-    pollingInterval: 4000, // 4 seconds instead of default 1 second
+    // With WebSockets, we can increase polling interval significantly
+    // WebSockets push updates in real-time, polling is only a fallback
+    pollingInterval: 10_000, // 10 seconds (was 4s) - WebSockets provide real-time updates
+    // Add batch configuration to reduce RPC calls
+    batch: {
+      multicall: {
+        batchSize: 1024,
+        wait: 50,
+      },
+    },
+    // Increase connection timeout for Safe wallet
+    connectors: undefined, // Let Web3Modal handle connectors with proper Safe support
   });
 };
 

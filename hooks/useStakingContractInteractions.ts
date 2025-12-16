@@ -425,50 +425,81 @@ export const useStakingContractInteractions = ({
     if (isApprovePending) {
       showEnhancedLoadingToast("Confirm approval in wallet...", "approval-tx");
     }
+    if (isApproveTxLoading) {
+      // Show enhanced toast while waiting for transaction confirmation
+      showEnhancedLoadingToast(
+        "Waiting for approval confirmation...", 
+        "approval-tx"
+      );
+    }
     if (isApproveTxSuccess) {
-      toast.success("Approval successful!", { id: "approval-tx" });
+      console.log(`🎉 Approval transaction confirmed! Hash: ${approveTxResult}`);
+      toast.success("Approval transaction confirmed!", { id: "approval-tx" });
       
       // Enhanced allowance refresh with retry logic for Safe wallet and multi-sig transactions
       // Safe wallets require more time for transaction propagation (10-30 seconds typical)
+      // CRITICAL: We need to verify the allowance actually updated before proceeding
       const refreshAllowanceWithRetry = async () => {
-        const maxRetries = 10; // Try up to 10 times
-        const delays = [3000, 5000, 5000, 5000, 8000, 8000, 10000, 10000, 15000, 20000]; // Progressive delays in ms
+        const maxRetries = 15; // Increased to 15 attempts for Safe wallet
+        const delays = [2000, 3000, 3000, 5000, 5000, 5000, 8000, 8000, 10000, 10000, 15000, 15000, 20000, 20000, 30000]; // Progressive delays
         
-        console.log("Starting allowance refresh with retry logic for Safe wallet compatibility...");
+        console.log("🔄 Starting allowance refresh with retry logic for Safe wallet compatibility...");
+        console.log(`📋 Checking allowance for: token=${tokenAddress}, spender=${contractAddress}`);
         
         for (let i = 0; i < maxRetries; i++) {
-          const delay = delays[i] || 10000;
+          const delay = delays[i] || 15000;
+          
+          // Show progress toast
+          if (i > 0 && i % 3 === 0) {
+            toast.loading(`Checking approval status... (${i + 1}/${maxRetries})`, { id: "approval-check" });
+          }
           
           await new Promise(resolve => setTimeout(resolve, delay));
           
           try {
-            console.log(`Attempt ${i + 1}/${maxRetries}: Refreshing allowance after approval...`);
+            console.log(`🔍 Attempt ${i + 1}/${maxRetries}: Refreshing allowance after approval...`);
             const result = await refetchAllowance();
             
             // Check if allowance has been updated
             if (result.data !== undefined && result.data !== null) {
               const currentAllowance = result.data as bigint;
-              console.log(`Allowance fetched: ${formatEther(currentAllowance)} ${tokenSymbol}`);
+              const formattedAllowance = formatEther(currentAllowance);
+              console.log(`💰 Allowance fetched: ${formattedAllowance} ${tokenSymbol} (raw: ${currentAllowance.toString()})`);
               
               // If allowance is greater than 0, approval was successful
               if (currentAllowance > BigInt(0)) {
-                console.log(`✅ Allowance successfully updated after ${i + 1} attempts`);
+                console.log(`✅ Allowance successfully updated after ${i + 1} attempts and ${(delays.slice(0, i + 1).reduce((a, b) => a + b, 0) / 1000).toFixed(1)}s`);
                 setAllowance(currentAllowance);
                 setNeedsApproval(false);
+                toast.success(`Approval confirmed! You can now stake.`, { id: "approval-check" });
                 return;
+              } else {
+                console.log(`⏳ Attempt ${i + 1}: Allowance still 0, waiting for blockchain update...`);
               }
+            } else {
+              console.log(`⚠️ Attempt ${i + 1}: Allowance data is undefined/null`);
             }
-            
-            console.log(`Attempt ${i + 1}: Allowance not yet updated, retrying...`);
           } catch (error) {
-            console.error(`Attempt ${i + 1}: Error refreshing allowance:`, error);
+            console.error(`❌ Attempt ${i + 1}: Error refreshing allowance:`, error);
           }
         }
         
-        console.warn("⚠️ Max retry attempts reached. Allowance may not be updated yet. Try refreshing the page.");
-        toast.warning("Approval confirmed, but allowance update is taking longer than expected. Please refresh the page if you can't stake yet.", {
-          duration: 8000
-        });
+        // Max retries reached - provide helpful error
+        console.error("❌ Max retry attempts reached. Allowance still showing as 0.");
+        console.error(`📋 Debug info: token=${tokenAddress}, spender=${contractAddress}, chain=${networkChainId}`);
+        
+        toast.error(
+          "Approval taking longer than expected", 
+          { 
+            id: "approval-check",
+            description: "The approval transaction was confirmed, but the allowance hasn't updated yet. This can happen with Safe wallets. Please wait a moment and refresh the page.",
+            duration: 10000,
+            action: {
+              label: "Refresh Page",
+              onClick: () => window.location.reload()
+            }
+          }
+        );
       };
       
       refreshAllowanceWithRetry();
@@ -480,19 +511,32 @@ export const useStakingContractInteractions = ({
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
       if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
       toast.error("Approval Failed", { id: "approval-tx", description: displayError });
+      toast.dismiss("approval-check");
       resetApproveContract();
     }
-  }, [isApproveTxSuccess, isApprovePending, approveError, resetApproveContract, refetchAllowance, tokenSymbol]);
+  }, [isApproveTxSuccess, isApproveTxLoading, isApprovePending, approveError, approveTxResult, resetApproveContract, refetchAllowance, tokenSymbol, tokenAddress, contractAddress, networkChainId, showEnhancedLoadingToast]);
 
   // Handle Staking Transaction Notifications
   useEffect(() => {
     if (isStakePending) {
       showEnhancedLoadingToast("Confirm staking in wallet...", "stake-tx");
     }
+    if (isStakeTxLoading) {
+      // CRITICAL: Show enhanced toast while waiting for stake confirmation
+      // This prevents UI from appearing "stuck"
+      showEnhancedLoadingToast(
+        "Waiting for staking confirmation...", 
+        "stake-tx"
+      );
+      console.log(`⏳ Waiting for stake transaction to be confirmed...`);
+    }
     if (isStakeTxSuccess) {
-      toast.success("Successfully staked tokens!", {
+      console.log(`🎉 Stake transaction confirmed! Hash: ${stakeTxResult}`);
+      
+      // Show success with explorer link
+      toast.success("Stake transaction confirmed!", {
         id: "stake-tx",
-        description: `Tx: ${stakeTxResult?.substring(0, 10)}...`,
+        description: "Your tokens have been staked. Balances will update shortly.",
         action: {
           label: "View on Explorer",
           onClick: () => {
@@ -502,35 +546,51 @@ export const useStakingContractInteractions = ({
               window.open(`${explorerUrl}/tx/${stakeTxResult}`, "_blank");
             }
           }
-        }
+        },
+        duration: 10000
       });
+      
       resetStakeContract();
       
       // Enhanced data refresh with retry logic for Safe wallet and multi-sig transactions
       // After staking, it may take time for balance/allowance to update on-chain
       const refreshDataWithRetry = async () => {
-        const maxRetries = 8;
-        const delays = [3000, 5000, 5000, 8000, 10000, 10000, 15000, 20000];
+        const maxRetries = 12; // Increased for Safe wallet
+        const delays = [2000, 3000, 3000, 5000, 5000, 8000, 8000, 10000, 10000, 15000, 20000, 30000];
         
-        console.log("Starting data refresh after stake transaction...");
+        console.log("🔄 Starting data refresh after stake transaction...");
         
         for (let i = 0; i < maxRetries; i++) {
-          const delay = delays[i] || 10000;
+          const delay = delays[i] || 15000;
+          
+          // Show progress for longer waits
+          if (i > 0 && i % 4 === 0) {
+            toast.loading(`Updating balances... (${i + 1}/${maxRetries})`, { id: "stake-refresh" });
+          }
           
           await new Promise(resolve => setTimeout(resolve, delay));
           
           try {
-            console.log(`Attempt ${i + 1}/${maxRetries}: Refreshing balance and allowance...`);
-            await Promise.all([
+            console.log(`🔍 Attempt ${i + 1}/${maxRetries}: Refreshing balance and allowance...`);
+            const [balanceResult, allowanceResult] = await Promise.all([
               refetchBalance(),
               refetchAllowance()
             ]);
             
+            // Log the results
+            if (balanceResult.data) {
+              console.log(`💰 New balance: ${formatEther(balanceResult.data as bigint)} ${tokenSymbol}`);
+            }
+            if (allowanceResult.data) {
+              console.log(`✓ New allowance: ${formatEther(allowanceResult.data as bigint)} ${tokenSymbol}`);
+            }
+            
             if (i === maxRetries - 1) {
               console.log(`✅ Data refresh completed after ${i + 1} attempts`);
+              toast.success("Balances updated!", { id: "stake-refresh" });
             }
           } catch (error) {
-            console.error(`Attempt ${i + 1}: Error refreshing data:`, error);
+            console.error(`❌ Attempt ${i + 1}: Error refreshing data:`, error);
           }
         }
       };
@@ -547,9 +607,10 @@ export const useStakingContractInteractions = ({
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
       if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
       toast.error("Staking Failed", { id: "stake-tx", description: displayError });
+      toast.dismiss("stake-refresh");
       resetStakeContract();
     }
-  }, [isStakePending, isStakeTxSuccess, stakeTxResult, stakeError, resetStakeContract, onTxSuccess, refetchBalance, refetchAllowance, networkChainId, isTestnet]);
+  }, [isStakePending, isStakeTxLoading, isStakeTxSuccess, stakeTxResult, stakeError, resetStakeContract, onTxSuccess, refetchBalance, refetchAllowance, networkChainId, isTestnet, tokenSymbol, showEnhancedLoadingToast]);
 
   // Handle Withdrawal Transaction Notifications
   useEffect(() => {

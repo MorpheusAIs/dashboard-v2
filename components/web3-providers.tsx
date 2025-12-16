@@ -18,48 +18,60 @@ export function Web3Providers({
   const defaultEnvironment: NetworkEnvironment = 'mainnet';
 
   useEffect(() => {
-    // Clear expired WalletConnect data on app initialization to prevent "Proposal expired" errors
+    // CRITICAL: Disable aggressive cleanup to prevent IndexedDB errors
+    // WalletConnect manages its own storage lifecycle
+    // Any localStorage manipulation can cause IndexedDB connection closure
+    
+    // Only run minimal cleanup on initial load, with a delay to avoid race conditions
     const clearExpiredWalletData = () => {
-      try {
-        const keysToCheck = Object.keys(localStorage);
-        keysToCheck.forEach(key => {
-          if (key.toLowerCase().includes('walletconnect') || 
-              key.includes('wc@2') ||
-              key.includes('@walletconnect') ||
-              key.includes('wcm-') ||
-              key.includes('appkit-')) {
-            try {
-              const data = localStorage.getItem(key);
-              if (data) {
-                // Try to parse and check for expired proposals/sessions
-                const parsed = JSON.parse(data);
-                if (parsed) {
-                  const now = Date.now();
-                  const expiry = parsed.expiry || parsed.proposal?.expiry || parsed.session?.expiry;
-                  if (expiry && expiry < now) {
-                    console.log('🧹 Clearing expired wallet data:', key);
-                    localStorage.removeItem(key);
-                  } else if (parsed.topic && !expiry) {
-                    // Clear sessions without expiry info as they might be stale
-                    console.log('🧹 Clearing stale wallet data (no expiry):', key);
-                    localStorage.removeItem(key);
-                  }
+      // Add a delay to ensure WalletConnect has initialized
+      setTimeout(() => {
+        try {
+          // Only clear obviously corrupt/empty entries
+          // DO NOT touch any WalletConnect data that might be active
+          const keysToCheck = Object.keys(localStorage);
+          let clearedCount = 0;
+          
+          keysToCheck.forEach(key => {
+            // Only target keys that are clearly safe to remove
+            if (key.toLowerCase().includes('walletconnect') || 
+                key.includes('wc@2') ||
+                key.includes('@walletconnect') ||
+                key.includes('wcm-') ||
+                key.includes('appkit-')) {
+              try {
+                const data = localStorage.getItem(key);
+                
+                // ONLY remove if completely empty/null
+                if (!data || data === 'null' || data === 'undefined') {
+                  console.log('🧹 Removing empty wallet data:', key);
+                  localStorage.removeItem(key);
+                  clearedCount++;
                 }
+                // DO NOT parse or check expiry - too risky during active operations
+                // Let WalletConnect manage its own lifecycle
+              } catch {
+                // Silently skip - don't interfere
               }
-            } catch {
-              // If we can't parse it, it's likely corrupt, so remove it
-              console.log('🧹 Clearing corrupt wallet data:', key);
-              localStorage.removeItem(key);
             }
+          });
+          
+          if (clearedCount > 0) {
+            console.log(`✅ Removed ${clearedCount} empty wallet data entries`);
           }
-        });
-      } catch (error) {
-        console.warn('Error clearing expired wallet data:', error);
-      }
+        } catch {
+          // Silently fail - don't break the app
+          console.warn('Cleanup skipped to avoid IndexedDB conflicts');
+        }
+      }, 2000); // 2 second delay to let WalletConnect initialize
     };
 
-    // Clear expired data immediately on app start
+    // Only run minimal cleanup on app start, with delay
     clearExpiredWalletData();
+    
+    // REMOVED: Visibility change cleanup handler
+    // This was causing IndexedDB errors when user switched tabs during transactions
+    // WalletConnect manages its own storage lifecycle - we shouldn't interfere
 
     // Override console.error to suppress specific Ethereum-related errors
     const originalConsoleError = console.error;
@@ -76,6 +88,9 @@ export function Web3Providers({
         'Session expired',
         'Connection proposal expired',
         'WalletConnect proposal expired',
+        'Failed to execute \'transaction\' on \'IDBDatabase\'',
+        'The database connection is closing',
+        'InvalidStateError',
       ];
       
       const shouldSuppress = suppressPatterns.some(pattern => 
@@ -100,7 +115,10 @@ export function Web3Providers({
         'connection expired',
         'walletconnect',
         'user rejected',
-        'connection request reset'
+        'connection request reset',
+        'idbdatabase',
+        'database connection is closing',
+        'invalidstateerror',
       ];
       
       const shouldSuppress = walletErrorPatterns.some(pattern => 
@@ -123,18 +141,9 @@ export function Web3Providers({
       // Remove error handler
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       
-      // Clear any stored WalletConnect data from localStorage
-      Object.keys(localStorage).forEach(key => {
-        if (key.toLowerCase().includes('walletconnect')) {
-          localStorage.removeItem(key)
-        }
-      })
-
-      // Clear any stored session data
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('wagmi.connected')
-        window.localStorage.removeItem('wagmi.wallet')
-      }
+      // DO NOT clear any WalletConnect data on unmount
+      // This causes IndexedDB errors during active transactions
+      // WalletConnect manages its own lifecycle
     }
   }, [])
 

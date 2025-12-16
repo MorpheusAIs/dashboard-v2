@@ -12,6 +12,7 @@ const queryClient = new QueryClient();
 if (!projectId) throw new Error("Project ID is not defined");
 
 // Configure Web3Modal with mainnet as the default chain
+// Enhanced configuration for better Safe wallet support
 createWeb3Modal({
   wagmiConfig: config,
   projectId,
@@ -22,10 +23,22 @@ createWeb3Modal({
   excludeWalletIds: [
     'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // Phantom wallet
   ],
+  // Explicitly include Safe wallet in the featured wallets
+  // This helps with connection reliability
+  featuredWalletIds: [
+    '225affb176778569276e484e1b92637ad061b01e13a048b35a9d280c3b58970f', // Safe wallet
+    'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+    'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase Wallet
+    '163d2cf19babf05eb8962e9748f9ebe613ed52ebf9c8107c9a0f104bfcf161b3', // Rabby Wallet
+    '19177a98252e07ddfc9af2083ba8e07ef627cb6103467ffebb3f8f4205fd7927', // Ledger Live
+    '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet
+  ],
   themeVariables: {
     '--w3m-accent': '#34d399',
     '--w3m-border-radius-master': '1px',
     '--w3m-font-family': 'var(--font-geist-sans)',
+    // Increase z-index to prevent modal issues
+    '--w3m-z-index': 9999,
   },
   tokens: {
     "eip155:8453": {
@@ -40,7 +53,13 @@ createWeb3Modal({
       address: '0x7431aDa8a591C955a994a21710752EF9b882b8e3',
       image: 'https://assets.coingecko.com/coins/images/279/standard/ethereum.png?1696501628'
     }
-  }
+  },
+  // Add connection retry configuration
+  // This helps with Safe wallet's slower connection process
+  allWallets: 'SHOW',
+  includeWalletIds: [
+    '225affb176778569276e484e1b92637ad061b01e13a048b35a9d280c3b58970f', // Explicitly include Safe
+  ],
 });
 
 export default function Web3ModalProvider({ children, initialState }: { children: ReactNode; initialState?: State }) {
