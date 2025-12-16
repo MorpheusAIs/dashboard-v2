@@ -39,6 +39,7 @@ export const useStakingContractInteractions = ({
   const [needsApproval, setNeedsApproval] = useState<boolean>(false);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
   const [contractAddress, setContractAddress] = useState<Address | undefined>(undefined);
+  const [lastApprovedAmount, setLastApprovedAmount] = useState<bigint | undefined>(undefined);
 
   // Hooks
   const { address: connectedAddress } = useAccount();
@@ -399,28 +400,106 @@ export const useStakingContractInteractions = ({
     setIsLoadingData(isFetchingToken || isFetchingSymbol || isFetchingBalance || isFetchingAllowance || isFetchingClaimableAmount);
   }, [isFetchingToken, isFetchingSymbol, isFetchingBalance, isFetchingAllowance, isFetchingClaimableAmount]);
 
+  // Helper function to poll allowance until it's updated
+  const pollAllowanceUntilUpdated = useCallback(async (expectedAmount: bigint) => {
+    if (!connectedAddress || !networkChainId) {
+      console.warn("Cannot poll allowance: missing connectedAddress or networkChainId");
+      return false;
+    }
+
+    // Detect if this is a Safe wallet
+    let isSafeWallet = false;
+    try {
+      const safeWalletUrl = await getSafeWalletUrlIfApplicable(connectedAddress, networkChainId);
+      isSafeWallet = !!safeWalletUrl;
+      console.log(`Wallet type detected: ${isSafeWallet ? 'Safe (multi-sig)' : 'Regular wallet'}`);
+    } catch (error) {
+      console.warn("Failed to detect Safe wallet:", error);
+    }
+
+    // Configure polling based on wallet type
+    const maxAttempts = isSafeWallet ? 15 : 10; // 15 attempts for Safe, 10 for regular
+    const intervalMs = isSafeWallet ? 5000 : 2000; // 5s for Safe, 2s for regular
+    const totalTime = (maxAttempts * intervalMs) / 1000; // Total time in seconds
+
+    console.log(`Starting allowance polling: ${maxAttempts} attempts, ${intervalMs}ms interval (max ${totalTime}s)`);
+    console.log(`Expected amount: ${formatEther(expectedAmount)} ${tokenSymbol}`);
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Wait before checking (except for first attempt which happens immediately)
+      if (attempt > 1) {
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
+      }
+
+      try {
+        console.log(`Polling attempt ${attempt}/${maxAttempts}...`);
+        const result = await refetchAllowance();
+        const currentAllowance = result.data as bigint | undefined;
+
+        if (currentAllowance !== undefined) {
+          console.log(`Current allowance: ${formatEther(currentAllowance)} ${tokenSymbol}`);
+          
+          if (currentAllowance >= expectedAmount) {
+            console.log(`✅ Allowance updated successfully after ${attempt} attempts!`);
+            toast.success("Approval confirmed on blockchain", { 
+              id: "approval-confirmed",
+              description: "You can now proceed with staking"
+            });
+            setNeedsApproval(false);
+            return true;
+          }
+        }
+      } catch (error) {
+        console.error(`Error during polling attempt ${attempt}:`, error);
+      }
+    }
+
+    // Timeout reached
+    console.warn(`⏱️ Allowance polling timed out after ${maxAttempts} attempts (${totalTime}s)`);
+    toast.warning("Approval may still be processing", {
+      id: "approval-timeout",
+      description: "Please wait a moment and try again if needed"
+    });
+    
+    // Force one final check
+    try {
+      const finalResult = await refetchAllowance();
+      const finalAllowance = finalResult.data as bigint | undefined;
+      if (finalAllowance && finalAllowance >= expectedAmount) {
+        console.log("✅ Final check: Allowance is sufficient");
+        setNeedsApproval(false);
+        return true;
+      }
+    } catch (error) {
+      console.error("Error in final allowance check:", error);
+    }
+
+    return false;
+  }, [connectedAddress, networkChainId, refetchAllowance, tokenSymbol]);
+
   // Handle Approval Transaction Notifications
   useEffect(() => {
     if (isApprovePending) {
       showEnhancedLoadingToast("Confirm approval in wallet...", "approval-tx");
     }
-    if (isApproveTxSuccess) {
+    if (isApproveTxSuccess && lastApprovedAmount) {
       toast.success("Approval successful!", { id: "approval-tx" });
       
-      // Improved allowance refresh for Base network and all networks
-      // Add a delay to ensure blockchain state is updated
-      const refreshAllowanceWithDelay = () => {
-        setTimeout(() => {
-          console.log("Refreshing allowance after successful approval...");
-          refetchAllowance().then(() => {
-            console.log("Successfully refreshed allowance after approval");
-          }).catch((error: unknown) => {
-            console.error("Error refreshing allowance after approval:", error);
-          });
-        }, 2000); // 2 second delay for Base network compatibility
-      };
+      // Poll allowance until it's updated (with Safe wallet detection)
+      // This replaces the simple single refetch with a retry mechanism
+      console.log("Starting allowance polling after approval success...");
+      pollAllowanceUntilUpdated(lastApprovedAmount).then((success) => {
+        if (success) {
+          console.log("Allowance polling completed successfully");
+        } else {
+          console.warn("Allowance polling did not confirm update within timeout");
+        }
+      }).catch((error: unknown) => {
+        console.error("Error during allowance polling:", error);
+        // Fall back to single refetch if polling fails
+        refetchAllowance();
+      });
       
-      refreshAllowanceWithDelay();
       resetApproveContract();
     }
     if (approveError) {
@@ -431,7 +510,7 @@ export const useStakingContractInteractions = ({
       toast.error("Approval Failed", { id: "approval-tx", description: displayError });
       resetApproveContract();
     }
-  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance]);
+  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance, lastApprovedAmount, pollAllowanceUntilUpdated]);
 
   // Handle Staking Transaction Notifications
   useEffect(() => {
@@ -592,14 +671,11 @@ export const useStakingContractInteractions = ({
         
         console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}`);
         
-        // IMPORTANT: For mainnet, assume approval is needed when data is missing
-        if (!isTestnet) {
-          console.log("Mainnet with missing data - assuming approval needed");
-          setNeedsApproval(true);
-          return true;
-        }
-        
-        return true; // Assume approval needed while loading
+        // Don't assume approval is needed while data is loading
+        // Keep current state and return false to avoid false positives
+        // This prevents the approval loop issue with Safe wallets
+        console.log("Data still loading - maintaining current approval state");
+        return needsApproval; // Return current state instead of assuming
       }
       
       const parsedAmount = parseEther(stakeAmount);
@@ -663,6 +739,9 @@ export const useStakingContractInteractions = ({
       
       console.log(`Requesting approval for ${formatEther(approvalAmount)} ${tokenSymbol} to ${contractAddress}`);
       console.log("Using token contract:", tokenAddress);
+
+      // Store the approved amount for polling verification
+      setLastApprovedAmount(approvalAmount);
 
       writeApprove({
         address: tokenAddress,

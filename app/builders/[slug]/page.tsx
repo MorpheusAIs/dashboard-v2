@@ -567,10 +567,11 @@ export default function BuilderPage() {
 
   // Check if approval is needed when stake amount changes
   useEffect(() => {
-    if (stakeAmount && parseFloat(stakeAmount) > 0) {
+    // Only check approval when data is loaded to avoid false positives
+    if (stakeAmount && parseFloat(stakeAmount) > 0 && !isLoadingData) {
       checkAndUpdateApprovalNeeded(stakeAmount);
     }
-  }, [stakeAmount, checkAndUpdateApprovalNeeded]);
+  }, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]);
 
   // Refresh approval state when user returns to the page or when allowance data loads
   // This fixes the issue where interface keeps asking for approval after page reload
@@ -625,6 +626,13 @@ export default function BuilderPage() {
     if (!isCorrectNetwork()) {
       await handleNetworkSwitch();
       return; // Exit after network switch to prevent further action
+    }
+
+    // Wait for data to load before checking approval (prevents false positives)
+    if (isLoadingData) {
+      console.log("Waiting for allowance data to load before proceeding...");
+      showAlert("Loading token data, please wait a moment...");
+      return;
     }
 
     // Force a fresh check for approval before proceeding
@@ -1032,7 +1040,9 @@ export default function BuilderPage() {
                 minDeposit={builder.minDeposit}
                 tokenSymbol={tokenSymbol}
                 buttonText={
-                  !isCorrectNetwork()
+                  isLoadingData
+                    ? "Loading..."
+                    : !isCorrectNetwork()
                     ? "Switch Network"
                     : isStaking
                     ? "Staking..."
@@ -1042,7 +1052,7 @@ export default function BuilderPage() {
                     ? `Approve ${tokenSymbol}`
                     : `Stake ${tokenSymbol}`
                 }
-                disableStaking={isSubmitting}
+                disableStaking={isSubmitting || isLoadingData}
                 showWarning={
                   !isCorrectNetwork() || 
                   (needsApproval && !!stakeAmount && parseFloat(stakeAmount) > 0) ||
