@@ -1,5 +1,5 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
-import { cookieStorage, createStorage, http } from 'wagmi';
+import { cookieStorage, createStorage, http, reconnect } from 'wagmi';
 import { mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
 // import { NetworkEnvironment } from './networks';
 
@@ -61,3 +61,22 @@ export const getWagmiConfig = () => {
 
 // Default config using mainnet to match NetworkProvider default
 export const config = getWagmiConfig();
+
+// Attempt to reconnect on app load to restore WalletConnect sessions (e.g., Safe wallet)
+if (typeof window !== 'undefined') {
+  // Check if there's an existing WalletConnect session
+  const hasWCSession = Object.keys(localStorage).some(key => 
+    (key.includes('wc@2') || key.includes('@walletconnect') || key.includes('appkit')) &&
+    !key.includes('expired')
+  );
+  
+  if (hasWCSession) {
+    console.log('🔄 WalletConnect session detected on load - attempting reconnection...');
+    // Attempt reconnection after a short delay to allow providers to initialize
+    setTimeout(() => {
+      reconnect(config).catch(error => {
+        console.warn('Failed to auto-reconnect WalletConnect session:', error);
+      });
+    }, 500);
+  }
+}

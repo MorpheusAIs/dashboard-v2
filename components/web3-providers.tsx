@@ -6,6 +6,7 @@ import { cookieToInitialState } from "wagmi"
 import WalletErrorBoundary from './WalletErrorBoundary'
 import { NetworkProvider } from '@/context/network-context'
 import { NetworkEnvironment } from '@/config/networks'
+import { toast } from 'sonner'
 
 // Type for wallet detection properties (extends the existing ethereum provider)
 interface WalletFlags {
@@ -71,9 +72,13 @@ export function Web3Providers({
                     console.log('🧹 Clearing expired wallet data:', key);
                     localStorage.removeItem(key);
                   } else if (parsed.topic && !expiry) {
-                    // Clear sessions without expiry info as they might be stale
-                    console.log('🧹 Clearing stale wallet data (no expiry):', key);
-                    localStorage.removeItem(key);
+                    // Don't clear active sessions - they might be from Safe or other WalletConnect wallets
+                    // Only clear if they're truly stale (no recent activity)
+                    const pairingExpiry = parsed.pairingExpiry;
+                    if (pairingExpiry && pairingExpiry < now) {
+                      console.log('🧹 Clearing stale wallet data (expired pairing):', key);
+                      localStorage.removeItem(key);
+                    }
                   }
                 }
               }
@@ -126,10 +131,49 @@ export function Web3Providers({
       const error = event.reason;
       const errorMessage = error?.message?.toLowerCase() || '';
       
-      // Suppress wallet connection related errors including proposal expired
+      // Handle proposal expired errors specifically
+      if (errorMessage.includes('proposal expired')) {
+        console.log('⏰ WalletConnect proposal expired - cleaning up...');
+        event.preventDefault();
+        
+        // Clear expired WalletConnect data
+        try {
+          Object.keys(localStorage).forEach(key => {
+            if (key.includes('wc@2') || 
+                key.includes('@walletconnect') || 
+                key.includes('appkit-')) {
+              try {
+                const data = localStorage.getItem(key);
+                if (data) {
+                  const parsed = JSON.parse(data);
+                  // Only remove if it's actually expired or has a proposal
+                  if (parsed.expiry || parsed.proposal) {
+                    console.log('🧹 Removing expired proposal data:', key);
+                    localStorage.removeItem(key);
+                  }
+                }
+              } catch {
+                // If parse fails, remove it anyway
+                localStorage.removeItem(key);
+              }
+            }
+          });
+          
+          // Show user-friendly toast notification
+          toast.error('Connection Timeout', {
+            description: 'The connection request expired. Please try connecting again and approve more quickly in your Safe wallet.',
+            duration: 6000,
+          });
+          
+        } catch (err) {
+          console.warn('Failed to clean up expired proposal:', err);
+        }
+        return;
+      }
+      
+      // Suppress other wallet connection related errors
       const walletErrorPatterns = [
         'ethereum',
-        'proposal expired',
         'session expired',
         'connection expired',
         'walletconnect',
