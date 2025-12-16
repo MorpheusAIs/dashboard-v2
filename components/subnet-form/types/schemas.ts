@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { zeroAddress, isAddress } from "viem";
 import { Option } from "@/components/ui/multiple-selector";
 import { arbitrum, base, baseSepolia } from 'wagmi/chains';
 
@@ -18,25 +17,12 @@ export const FORM_STEPS = [
   { id: 2, title: "Project & Metadata", description: "Add descriptive info", fields: ["metadata", "projectOffChain"] as const },
 ];
 
-// Regular expression for Ethereum addresses
-const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
-
 // Step 1: Pool Configuration Schema
 export const subnetContractSchema = z.object({
   name: z.string().min(1, "Subnet name is required"),
   minStake: z.number().min(0, "Minimum stake must be a non-negative number"),
-  // Fee and Treasury are used in V4 contracts (both Base and Base Sepolia)
-  fee: z.number().min(0, "Fee must be non-negative").max(10000, "Fee cannot exceed 100% (10000 basis points)").optional(),
-  feeTreasury: z.string()
-    // .min(1, "Fee Treasury address is required") // Optional, so min(1) doesn't make sense here
-    .regex(ETH_ADDRESS_REGEX, "Invalid Ethereum address format")
-    .refine((val) => val !== zeroAddress, "Fee Treasury cannot be the zero address")
-    .refine((val) => isAddress(val), "Invalid Ethereum address checksum")
-    .optional(), 
-  startsAt: z.date({ required_error: "Stake start date is required" }),
   withdrawLockPeriod: z.number().min(1, "Withdraw lock period must be at least 1"),
   withdrawLockUnit: z.enum(["hours", "days"]),
-  maxClaimLockEnd: z.date({ required_error: "Max claim lock end date is required" }),
   networkChainId: z.number({ required_error: "Please select a network" }),
 });
 
@@ -56,12 +42,11 @@ export const metadataContractSchema = z.object({
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens")
   ]).optional(), 
   description: z.string()
-    // .min(10, "Description must be at least 10 characters") // Temp remove min
-    .max(800, "Description must be 800 characters or less")
-    .optional(), // Temp make optional
-  website: z.string().url("Please enter a valid URL")
-    // .min(1, "Project URL is required") // Temp remove min
-    .optional(), // Temp make optional
+    .min(60, "Description must be at least 60 characters")
+    .max(800, "Description must be 800 characters or less"),
+  website: z.string()
+    .min(1, "Project URL is required")
+    .url("Please enter a valid URL"),
   image: z.union([z.literal(''), z.string().url("Please enter a valid URL for the logo")]).optional(),
 });
 
@@ -105,14 +90,8 @@ export const formSchema = z.object({
     name: z.string().min(1, "Subnet name is required."),
     networkChainId: z.number(),
     minStake: z.number().min(0, "Minimum stake must be non-negative."),
-    fee: z.number().optional(),
-    feeTreasury: z.string().optional(),
     withdrawLockPeriod: z.number().min(1, "Withdraw lock period is required."),
     withdrawLockUnit: z.enum(["days", "hours"]),
-    startsAt: z.date().refine(date => date.getTime() > new Date().getTime() - 24*60*60*1000, { // Allow selection of 'today', hook ensures future
-        message: "Start date should be today or in the future."
-    }),
-    maxClaimLockEnd: z.date(),
   }),
   builderPool: z.object({ // For mainnet-specific fields that differ from 'subnet'
     name: z.string().optional(), // Made optional - validation handled in superRefine
@@ -129,36 +108,6 @@ export const formSchema = z.object({
       ctx.addIssue({
         path: ["subnet", "withdrawLockPeriod"],
         message: "Withdraw lock period must be at least 7 days for mainnet.",
-        code: z.ZodIssueCode.custom,
-      });
-    }
-  }
-
-  // Validate maxClaimLockEnd is after startsAt
-  if (data.subnet.maxClaimLockEnd.getTime() <= data.subnet.startsAt.getTime()) {
-    ctx.addIssue({
-      path: ["subnet", "maxClaimLockEnd"],
-      message: "Claim lock end date must be after the start date.",
-      code: z.ZodIssueCode.custom,
-    });
-  }
-
-  // Conditional validation for V4 networks (Base and Base Sepolia)
-  // Both Base and Base Sepolia use BuildersV4 contracts and require description
-  const isV4Network = data.subnet.networkChainId === base.id || data.subnet.networkChainId === baseSepolia.id;
-  
-  if (isV4Network) {
-    // V4 networks: require description with minimum length
-    if (!data.metadata.description || data.metadata.description.trim().length === 0) {
-      ctx.addIssue({
-        path: ["metadata", "description"],
-        message: "Description is required for Base and Base Sepolia networks.",
-        code: z.ZodIssueCode.custom,
-      });
-    } else if (data.metadata.description.trim().length < 10) {
-      ctx.addIssue({
-        path: ["metadata", "description"],
-        message: "Description must be at least 10 characters.",
         code: z.ZodIssueCode.custom,
       });
     }

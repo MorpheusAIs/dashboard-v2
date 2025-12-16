@@ -150,6 +150,9 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
               <FormControl>
                 <Input id="metadata.website" type="url" placeholder="https://yourproject.com" {...field} />
               </FormControl>
+              <FormDescription>
+                Your project&apos;s website URL (required).
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -190,18 +193,18 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           render={({ field }) => (
             <FormItem>
               <FormLabel htmlFor="metadata.description">
-                Description{isV4Network ? ' *' : ''}
+                Description *
               </FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Textarea id="metadata.description" placeholder="Describe this subnet (max 200 characters)." {...field} rows={4} maxLength={200} />
+                  <Textarea id="metadata.description" placeholder="Describe this subnet (min 20, max 200 characters)." {...field} rows={4} maxLength={200} />
                   <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-background/80 px-1 rounded">
                     {(field.value || '').length}/200
                   </div>
                 </div>
               </FormControl>
               <FormDescription>
-                {isV4Network ? 'Required for Base and Base Sepolia networks.' : 'Optional description of your subnet.'}
+                A brief description of your subnet (required, minimum 20 characters).
               </FormDescription>
               <FormMessage />
             </FormItem>

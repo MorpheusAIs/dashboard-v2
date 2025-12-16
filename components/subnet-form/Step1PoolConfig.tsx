@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { format } from "date-fns";
-import { CalendarIcon, Wallet } from "lucide-react";
 import { useFormContext, useWatch } from "react-hook-form";
-import { cn } from "@/lib/utils";
-import { BaseSepoliaIcon } from './icons/base-sepolia-icon';
-import { zeroAddress } from 'viem';
-import { useAccount } from 'wagmi';
 import { baseSepolia, base } from 'wagmi/chains';
 import { useNetwork } from "@/context/network-context";
 import { useBuilders } from "@/context/builders-context";
@@ -18,19 +12,13 @@ import {
   FormDescription,
   FormMessage,
 } from "@/components/ui/form";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BaseIcon } from "@/components/network-icons";
+import { BaseSepoliaIcon } from './icons/base-sepolia-icon';
+import { Input } from "@/components/ui/input";
 
 interface Step1PoolConfigProps {
   isSubmitting: boolean;
@@ -39,11 +27,8 @@ interface Step1PoolConfigProps {
 }
 
 export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, tokenSymbol, onValidationChange }) => {
-  const [startTimePopoverOpen, setStartTimePopoverOpen] = useState(false);
-  const [claimLockEndsPopoverOpen, setClaimLockEndsPopoverOpen] = useState(false);
   const [subnetNameError, setSubnetNameError] = useState<string | null>(null);
   const form = useFormContext();
-  const { address } = useAccount();
   const { currentChainId } = useNetwork();
   const { builders } = useBuilders();
 
@@ -221,63 +206,10 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
         />
       )}
 
-      {/* Fee and Fee Treasury - Both Base and Base Sepolia use V4 contracts */}
+      {/* Withdraw Lock Section for V4 networks (Base and Base Sepolia) - Period and Unit Selection */}
       {isV4Network && (
         <>
-          <FormField
-            control={form.control}
-            name="subnet.fee"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel htmlFor="subnet.fee">% Emission Rate</FormLabel>
-                <FormControl>
-                  <NumberInput
-                    id="subnet.fee"
-                    min={0} max={100} step={0.01}
-                    value={field.value / 100} 
-                    onValueChange={(value) => field.onChange(Math.round(value * 100))}
-                  />
-                </FormControl>
-                <FormDescription>Note: Stored but may not be used by contract.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField // Fee Treasury - V4 networks (both Base and Base Sepolia)
-            control={form.control}
-            name="subnet.feeTreasury"
-            render={({ field }) => (
-              <FormItem className="mt-4"> {/* Added margin for spacing */}
-                <FormLabel htmlFor="subnet.feeTreasury">Treasury Address</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Input
-                      id="subnet.feeTreasury"
-                      placeholder="0x..."
-                      {...field}
-                      value={field.value === zeroAddress || field.value === undefined ? '' : field.value}
-                      className="pr-32"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center text-xs h-8 px-2"
-                      onClick={() => { if (address) field.onChange(address); }}
-                      disabled={!address || isSubmitting}
-                    >
-                      <Wallet className="mr-1 h-3 w-3" />
-                      Use your address
-                    </Button>
-                  </div>
-                </FormControl>
-                <FormDescription>Note: Stored but may not be used by contract.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {/* Withdraw Lock Section for V4 networks (Base and Base Sepolia) - Period and Unit Selection */}
-          <div className="flex gap-4 items-end mt-4"> {/* Added margin for spacing */}
+          <div className="flex gap-4 items-end">
             <FormField
               control={form.control}
               name="subnet.withdrawLockPeriod"
@@ -328,73 +260,6 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
           </div>
         </>
       )}
-
-      {/* Common Form Description for Withdraw Lock Period */}
-      {/* <FormDescription className="mt-2">
-        All deposits are locked after each deposit action.
-      </FormDescription> */}
-
-      {/* Dates (remains the same) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="subnet.startsAt"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Stake Start Time</FormLabel>
-              <Popover open={startTimePopoverOpen} onOpenChange={setStartTimePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button type="button" variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                      {field.value ? format(field.value, "PPP") : <span>Pick start date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single" selected={field.value}
-                    onSelect={(date) => { if (date) field.onChange(date); setStartTimePopoverOpen(false); }}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormDescription>When deposits become active.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="subnet.maxClaimLockEnd"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Claim Lock End</FormLabel>
-              <Popover open={claimLockEndsPopoverOpen} onOpenChange={setClaimLockEndsPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button type="button" variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                      {field.value ? format(field.value, "PPP") : <span>Pick lock end date</span>}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single" selected={field.value}
-                    onSelect={(date) => { if (date) field.onChange(date); setClaimLockEndsPopoverOpen(false); }}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0)) || (form.getValues("subnet.startsAt") && date < form.getValues("subnet.startsAt"))}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormDescription>End date for potential claim locking.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
     </fieldset>
   );
 };

@@ -52,13 +52,9 @@ export default function NewSubnetPage() {
       subnet: {
         name: "",
         minStake: 0.001,
-        fee: 0,
-        feeTreasury: undefined as unknown as `0x${string}` | undefined,
         networkChainId: getInitialNetworkId(),
         withdrawLockPeriod: 7,
         withdrawLockUnit: "days",
-        startsAt: new Date(),
-        maxClaimLockEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
       },
       builderPool: {
         name: "",
@@ -131,25 +127,14 @@ export default function NewSubnetPage() {
     let fieldsToValidate: string[] = [];
 
     if (currentStep === 1) {
-      // Define base fields common to both networks for Step 1 validation
-      const baseStep1Fields = [
-        "subnet.networkChainId",
-        "subnet.startsAt",
-        "subnet.withdrawLockPeriod",
-        "subnet.withdrawLockUnit",
-        "subnet.maxClaimLockEnd"
-      ];
-
       // Both Base and Base Sepolia use V4 contracts with the same structure
       fieldsToValidate = [
-        ...baseStep1Fields,
-        "subnet.name", // V4 name field
-        "subnet.minStake", // V4 stake field
-        "subnet.fee", // V4 fee field (both Base and Base Sepolia)
-        "subnet.feeTreasury", // V4 treasury field (both Base and Base Sepolia)
+        "subnet.networkChainId",
+        "subnet.name",
+        "subnet.minStake",
+        "subnet.withdrawLockPeriod",
+        "subnet.withdrawLockUnit",
       ];
-      // Filter out any potential duplicates if base fields somehow overlap
-      fieldsToValidate = Array.from(new Set(fieldsToValidate));
     } else {
       // Explicitly list fields for Step 2 validation
       // Both Base and Base Sepolia use V4 contracts with the same fields
