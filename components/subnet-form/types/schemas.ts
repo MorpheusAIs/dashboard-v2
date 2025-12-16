@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Option } from "@/components/ui/multiple-selector";
-import { arbitrum, base, baseSepolia } from 'wagmi/chains';
+import { arbitrum, base } from 'wagmi/chains';
 
 // Constants for form options
 export const REWARD_OPTIONS: Option[] = [
