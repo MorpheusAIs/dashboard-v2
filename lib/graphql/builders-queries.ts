@@ -4,7 +4,7 @@ import { gql } from '@apollo/client';
 
 // Builder Project Fragment
 export const BUILDER_PROJECT_FRAGMENT = gql`
-  fragment BuilderProject on BuildersProject {
+  fragment BuilderProject on buildersProject {
     admin
     claimLockEnd
     id
@@ -91,14 +91,16 @@ export const GET_BUILDERS_PROJECT = gql`
 
 export const GET_ACCOUNT_USER_BUILDERS_PROJECTS = gql`
   ${BUILDER_PROJECT_FRAGMENT}
-  query getAccountUserBuildersProjects($address: Bytes = "") {
+  query getAccountUserBuildersProjects($address: String = "") {
     buildersUsers(where: { address: $address }) {
-      address
-      id
-      lastStake
-      staked
-      buildersProject {
-        ...BuilderProject
+      items {
+        address
+        id
+        lastStake
+        staked
+        buildersProject {
+          ...BuilderProject
+        }
       }
     }
   }
@@ -106,24 +108,30 @@ export const GET_ACCOUNT_USER_BUILDERS_PROJECTS = gql`
 
 export const GET_BUILDERS_PROJECT_USERS = gql`
   query getBuildersProjectUsers(
-    $first: Int = 5
-    $skip: Int = 0
-    $buildersProjectId: Bytes = ""
+    $limit: Int = 5
+    $after: String
+    $buildersProjectId: String = ""
     $orderBy: String = "staked"
     $orderDirection: String = "desc"
   ) {
     buildersUsers(
-      first: $first
-      skip: $skip
-      where: { buildersProject_: {id: $buildersProjectId} }
+      limit: $limit
+      after: $after
+      where: { buildersProjectId: $buildersProjectId }
       orderBy: $orderBy
       orderDirection: $orderDirection
     ) {
-      address
-      id
-      staked
-      lastStake
-      __typename
+      items {
+        address
+        id
+        staked
+        lastStake
+        __typename
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
     }
   }
 `;
@@ -141,21 +149,21 @@ export const GET_BUILDERS_COUNTERS = gql`
 export const COMBINED_BUILDERS_LIST = gql`
   ${BUILDER_PROJECT_FRAGMENT}
   query combinedBuildersList(
-    $first: Int = 1000
-    $skip: Int = 0
+    $limit: Int = 1000
     $orderBy: BuildersProject_orderBy
     $orderDirection: OrderDirection
     $usersOrderBy: BuildersUser_orderBy
     $usersDirection: OrderDirection
-    $address: Bytes = ""
+    $address: String = ""
   ) {
     buildersProjects(
-      first: $first
-      skip: $skip
+      limit: $limit
       orderBy: $orderBy
       orderDirection: $orderDirection
     ) {
-      ...BuilderProject
+      items {
+        ...BuilderProject
+      }
     }
 
     buildersUsers(
@@ -163,12 +171,14 @@ export const COMBINED_BUILDERS_LIST = gql`
       orderDirection: $usersDirection
       where: {address: $address}
     ) {
-      address
-      id
-      lastStake
-      staked
-      buildersProject {
-        ...BuilderProject
+      items {
+        address
+        id
+        lastStake
+        staked
+        buildersProject {
+          ...BuilderProject
+        }
       }
     }
 
@@ -183,41 +193,42 @@ export const COMBINED_BUILDERS_LIST = gql`
 export const COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS = gql`
   ${BUILDER_PROJECT_FRAGMENT}
   query combinedBuildersListFilteredByPredefinedBuilders(
-    $first: Int = 1000,
+    $limit: Int = 1000,
     $orderBy: String,
     $orderDirection: String,
     $usersOrderBy: String,
     $usersDirection: String,
-    $name_in: [String!] = "",
     $address: String = ""
   ) {
     buildersProjects(
-      first: $first
+      limit: $limit
       orderBy: $orderBy
       orderDirection: $orderDirection
-      where: {name_in: $name_in}
     ) {
-      ...BuilderProject
-      __typename
+      items {
+        ...BuilderProject
+        __typename
+      }
     }
 
     buildersUsers(
       orderBy: $usersOrderBy
       orderDirection: $usersDirection
       where: {
-        address: $address,
-        buildersProject_: {name_in: $name_in}
+        address: $address
       }
     ) {
-      address
-      id
-      lastStake
-      staked
-      buildersProject {
-        ...BuilderProject
+      items {
+        address
+        id
+        lastStake
+        staked
+        buildersProject {
+          ...BuilderProject
+          __typename
+        }
         __typename
       }
-      __typename
     }
   }
 `;

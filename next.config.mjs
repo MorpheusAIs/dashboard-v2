@@ -34,6 +34,7 @@ const nextConfig = {
       config.devtool = 'hidden-source-map';
     }
 
+
     return config
   },
   // Configure build output directory

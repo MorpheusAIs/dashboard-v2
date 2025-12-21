@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
 // Define types for the compute subnets data
 interface Subnet {
@@ -286,7 +287,7 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
       const maxRetries = 1; // Only retry once
       
       const makeApiCall = async () => {
-        const response = await fetch('https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest', {
+        const response = await fetch(SUBGRAPH_ENDPOINTS.Arbitrum, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

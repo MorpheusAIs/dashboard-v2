@@ -31,6 +31,7 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUrlParams } from '@/lib/utils/url-params';
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Type for user in formatStakingEntry
 type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
@@ -871,17 +872,128 @@ export default function BuilderPage() {
   // Add state for network switch notification
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
   
-  // Loading state for the page should consider builder loading first
-  if (isLoading) { // This isLoading is from useBuilders()
-    return <div className="p-8">Loading builder details...</div>;
+  // Determine if we should show skeleton loading state
+  // Show skeleton if: loading, no builder, or no subnetId
+  const showSkeleton = isLoading || !builder || !subnetId;
+  
+  // Show skeleton loading state instead of error messages
+  if (showSkeleton) {
+    const builderName = builder?.name;
+    
+    return (
+      <div className="page-container">
+        <div className="max-w-5xl mx-auto space-y-8">
+          {/* Builder Header Skeleton */}
+          <div className="space-y-4">
+            {/* Mobile Layout Skeleton */}
+            <div className="sm:hidden space-y-4">
+              <div className="flex items-center gap-4">
+                <Skeleton className="size-16 sm:size-24 rounded-xl" />
+                {builderName ? (
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-100 flex-1">{builderName}</h1>
+                ) : (
+                  <Skeleton className="h-7 w-48 flex-1" />
+                )}
+              </div>
+              <Skeleton className="h-6 w-full max-w-md" />
+            </div>
+            
+            {/* Desktop Layout Skeleton */}
+            <div className="hidden sm:flex items-start gap-6">
+              <Skeleton className="size-24 rounded-xl flex-shrink-0" />
+              <div className="flex-1 space-y-4">
+                {builderName ? (
+                  <h1 className="text-2xl font-bold text-gray-100 mb-2">{builderName}</h1>
+                ) : (
+                  <Skeleton className="h-8 w-64" />
+                )}
+                <Skeleton className="h-6 w-80" />
+              </div>
+            </div>
+          </div>
+
+          {/* Staking Stats Skeleton */}
+          <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4`}>
+            <MetricCardMinimal
+              title="Total Staked"
+              isLoading={true}
+              disableGlow={false}
+            />
+            <MetricCardMinimal
+              title="Total Claimed"
+              isLoading={true}
+              disableGlow={false}
+            />
+            <MetricCardMinimal
+              title="Cumulative stakers"
+              isLoading={true}
+              disableGlow={false}
+            />
+            <MetricCardMinimal
+              title="Lock Period"
+              isLoading={true}
+              disableGlow={false}
+            />
+          </div>
+
+          {/* Staking Actions Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="relative">
+              <StakingFormCard
+                title="Stake MOR"
+                value=""
+                onStake={() => {}}
+                onAmountChange={() => {}}
+                maxAmount={0}
+                tokenSymbol="MOR"
+                disableStaking={true}
+                buttonText="Stake MOR"
+              />
+            </div>
+            <div className="relative">
+              <WithdrawalPositionCard
+                userStakedAmount={0}
+                timeUntilUnlock=""
+                onWithdraw={() => {}}
+                disableWithdraw={true}
+                withdrawButtonText="Withdraw MOR"
+                tokenSymbol="MOR"
+                compactMode={true}
+              />
+            </div>
+          </div>
+
+          {/* Staking Table Skeleton */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-bold">Active staking addresses</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StakingTable
+                entries={[]}
+                isLoading={true}
+                error={null}
+                sortColumn="amount"
+                sortDirection="desc"
+                onSort={() => {}}
+                currentPage={1}
+                totalPages={1}
+                onPreviousPage={() => {}}
+                onNextPage={() => {}}
+                hideColumns={['claimed', 'fee']}
+                getExplorerUrl={getExplorerUrl}
+                network={networksToDisplay[0] || 'Base'}
+                formatDate={formatDate}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   if (buildersError) {
     return <div className="p-8 text-red-500">Error loading builder: {buildersError.message}</div>;
-  }
-
-  if (!builder) {
-    return <div className="p-8">Builder not found</div>;
   }
 
   return (

@@ -82,7 +82,7 @@ export interface BuildersCounter {
 
 // Query response types
 export interface GetBuildersProjectsResponse {
-  buildersProjects: BuilderProject[];
+  buildersProjects: { items: BuilderProject[] };
 }
 
 export interface GetBuildersProjectResponse {
@@ -90,11 +90,17 @@ export interface GetBuildersProjectResponse {
 }
 
 export interface GetAccountUserBuildersProjectsResponse {
-  buildersUsers: BuilderUser[];
+  buildersUsers: { items: BuilderUser[] };
 }
 
 export interface GetBuildersProjectUsersResponse {
-  buildersUsers: BuilderUser[];
+  buildersUsers: { 
+    items: BuilderUser[];
+    pageInfo?: {
+      endCursor?: string;
+      hasNextPage?: boolean;
+    };
+  };
 }
 
 export interface GetBuildersCountersResponse {
@@ -102,14 +108,14 @@ export interface GetBuildersCountersResponse {
 }
 
 export interface CombinedBuildersListResponse {
-  buildersProjects: BuilderProject[];
-  buildersUsers: BuilderUser[];
+  buildersProjects: { items: BuilderProject[] };
+  buildersUsers: { items: BuilderUser[] };
   counters: BuildersCounter[];
 }
 
 export interface CombinedBuildersListFilteredByPredefinedBuildersResponse {
-  buildersProjects: BuilderProject[];
-  buildersUsers: BuilderUser[];
+  buildersProjects: { items: BuilderProject[] };
+  buildersUsers: { items: BuilderUser[] };
 }
 
 // Query variables types
@@ -129,14 +135,13 @@ export interface GetAccountUserBuildersProjectsVariables {
 }
 
 export interface GetBuildersProjectUsersVariables {
-  first?: number;
-  skip?: number;
+  limit?: number;
+  after?: string;
   buildersProjectId: string;
 }
 
 export interface CombinedBuildersListVariables {
-  first?: number;
-  skip?: number;
+  limit?: number;
   orderBy?: BuildersProject_OrderBy;
   orderDirection?: OrderDirection;
   usersOrderBy?: BuildersUser_OrderBy;
@@ -145,11 +150,11 @@ export interface CombinedBuildersListVariables {
 }
 
 export interface CombinedBuildersListFilteredByPredefinedBuildersVariables {
+  limit?: number;
   orderBy?: string;
   usersOrderBy?: string;
   usersDirection?: string;
   orderDirection?: string;
-  name_in?: string[];
   address?: string;
 }
 
