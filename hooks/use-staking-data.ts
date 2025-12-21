@@ -239,11 +239,11 @@ export function useStakingData({
           throw new Error(response.errors[0].message);
         }
         
-        if (!response.data?.buildersProjects?.length) {
+        if (!response.data?.buildersProjects?.items?.length) {
           return null;
         }
         
-        const project = response.data.buildersProjects[0];
+        const project = response.data.buildersProjects.items[0];
         // Update total items count
         if (project.totalUsers) {
           setPagination(prev => ({
@@ -352,8 +352,8 @@ export function useStakingData({
             { id: projectIdToUse }
           );
           
-          if (builderResponse.data?.buildersProjects?.[0]) {
-            const totalUsers = parseInt(builderResponse.data.buildersProjects[0].totalUsers || '0');
+          if (builderResponse.data?.buildersProjects?.items?.[0]) {
+            const totalUsers = parseInt(builderResponse.data.buildersProjects.items[0].totalUsers || '0');
             console.log(`[useStakingData] Found builder with totalUsers: ${totalUsers}`);
             
             // Calculate total pages
