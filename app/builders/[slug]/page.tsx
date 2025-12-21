@@ -161,13 +161,14 @@ export default function BuilderPage() {
         // Extract network from slug if present
         // Check for network suffixes: -base-sepolia, -base, or -arbitrum
         // Order matters: check -base-sepolia before -base to avoid false matches
-        const hasNetworkSuffix = slug.includes('-base-sepolia') || slug.includes('-base') || slug.includes('-arbitrum');
+        // Use endsWith() to match the $ anchored regex used for removal
+        const hasNetworkSuffix = slug.endsWith('-base-sepolia') || slug.endsWith('-base') || slug.endsWith('-arbitrum');
         let network: string | undefined = undefined;
-        if (slug.includes('-base-sepolia')) {
+        if (slug.endsWith('-base-sepolia')) {
           network = 'Base Sepolia';
-        } else if (slug.includes('-base')) {
+        } else if (slug.endsWith('-base')) {
           network = 'Base';
-        } else if (slug.includes('-arbitrum')) {
+        } else if (slug.endsWith('-arbitrum')) {
           network = 'Arbitrum';
         }
         
@@ -175,11 +176,11 @@ export default function BuilderPage() {
         // Handle -base-sepolia (two hyphens) specially
         let slugWithoutNetwork = slug;
         if (hasNetworkSuffix) {
-          if (slug.includes('-base-sepolia')) {
+          if (slug.endsWith('-base-sepolia')) {
             slugWithoutNetwork = slug.replace(/-base-sepolia$/, '');
-          } else if (slug.includes('-base')) {
+          } else if (slug.endsWith('-base')) {
             slugWithoutNetwork = slug.replace(/-base$/, '');
-          } else if (slug.includes('-arbitrum')) {
+          } else if (slug.endsWith('-arbitrum')) {
             slugWithoutNetwork = slug.replace(/-arbitrum$/, '');
           }
         }
