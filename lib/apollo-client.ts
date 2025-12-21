@@ -2,16 +2,17 @@
 
 import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
-// Define the network endpoints for different chains
+// Use the shared endpoint configuration
 const NETWORK_ENDPOINTS = {
-  Arbitrum: 'https://ponder-builders-v4-arbitrum.up.railway.app',
+  Arbitrum: SUBGRAPH_ENDPOINTS.Arbitrum,
   // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility.
-  ArbitrumSepolia: 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
-  Base: 'https://ponder-builders-v4-base.up.railway.app',
-  BaseSepolia: 'https://builders-base-sepolia.up.railway.app/graphql',
+  ArbitrumSepolia: SUBGRAPH_ENDPOINTS.ArbitrumSepolia,
+  Base: SUBGRAPH_ENDPOINTS.Base,
+  BaseSepolia: SUBGRAPH_ENDPOINTS.BaseSepolia,
   // Capital v2 subgraph endpoints
-  CapitalV2Sepolia: 'https://api.studio.thegraph.com/query/73688/morpheus-ethereum-sepolia/version/latest',
+  CapitalV2Sepolia: SUBGRAPH_ENDPOINTS.CapitalV2Sepolia,
 };
 
 // Error handling link

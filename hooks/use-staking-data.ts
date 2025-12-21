@@ -14,6 +14,7 @@ import {
   GET_PROJECT_USERS_PAGINATED_BASE_MAINNET,
   GET_PROJECT_USERS_PAGINATED_ARBITRUM_MAINNET
 } from '@/lib/graphql/builders-queries';
+import { USE_GOLDSKY_V1_DATA } from '@/app/config/subgraph-endpoints';
 
 export interface StakingPaginationState {
   currentPage: number;
@@ -267,9 +268,9 @@ export function useStakingData({
     // We should set loading to true on initial load, even if we're already loading
     // This fixes the issue where tables are stuck in loading state
     setIsLoading(true);
+    setError(null); // Clear any previous errors when starting a new fetch
     
     try {
-      setError(null); // Clear any previous errors when starting a new fetch
       
       // For compute projects, we need a projectId
       if (isComputeProject && !id) {
@@ -474,8 +475,114 @@ export function useStakingData({
           // BuildersV4 schema (Base Sepolia, Base Mainnet, Arbitrum Mainnet)
           console.log(`[useStakingData] Using BuildersV4 schema for chainId: ${chainId}`);
           
-          try {
-            if (pagination.currentPage === 1) {
+          // Check if we should use Goldsky API routes
+          const networkName = chainId === base.id ? 'base' : chainId === arbitrum.id ? 'arbitrum' : 'base';
+          
+          if (USE_GOLDSKY_V1_DATA && (chainId === base.id || chainId === arbitrum.id)) {
+            // Use Goldsky API routes for mainnet
+            console.log(`[useStakingData] Using Goldsky API routes for projectId: ${projectIdToUse}`);
+            
+            try {
+              if (pagination.currentPage === 1) {
+                // Page 1: Fetch project details and first page of users
+                const [projectResponse, usersResponse] = await Promise.all([
+                  fetch(`/api/builders/goldsky/${projectIdToUse}?network=${networkName}`),
+                  fetch(`/api/builders/goldsky/${projectIdToUse}/users?network=${networkName}&limit=${pagination.pageSize}&offset=0`)
+                ]);
+
+                if (!projectResponse.ok || !usersResponse.ok) {
+                  throw new Error(`Failed to fetch Goldsky data: project=${projectResponse.status}, users=${usersResponse.status}`);
+                }
+
+                const projectData = await projectResponse.json();
+                const usersData = await usersResponse.json();
+
+                const project = projectData.buildersProject;
+                if (!project) {
+                  throw new Error("No project data returned from Goldsky API");
+                }
+
+                // Update pagination with total count
+                const totalUsers = usersData.buildersUsers?.totalCount || parseInt(project.totalUsers || '0', 10);
+                const totalPages = Math.max(1, Math.ceil(totalUsers / pagination.pageSize));
+                
+                setPagination(prev => ({
+                  ...prev,
+                  totalItems: totalUsers,
+                  totalPages: totalPages
+                }));
+                
+                // Format users from API response
+                const users = usersData.buildersUsers?.items || [];
+                const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
+                  if (formatEntryFunc) {
+                    return formatEntryFunc(user as any);
+                  }
+                  return {
+                    address: user.address,
+                    displayAddress: formatAddress(user.address),
+                    amount: parseFloat(user.staked || '0') / 1e18,
+                    timestamp: parseInt(user.lastStake || '0'),
+                  };
+                }).filter((entry: { amount: number }) => entry.amount > 0);
+                
+                // Cache and set entries
+                setCachedPages(prev => ({
+                  ...prev,
+                  1: formattedEntries
+                }));
+                setEntries(formattedEntries);
+                
+                console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from Goldsky API`);
+              } else {
+                // Page > 1: Use paginated users query
+                const offset = (pagination.currentPage - 1) * pagination.pageSize;
+                const limit = pagination.pageSize;
+                
+                console.log(`[useStakingData] Fetching paginated users from Goldsky: offset=${offset}, limit=${limit}`);
+                
+                const usersResponse = await fetch(
+                  `/api/builders/goldsky/${projectIdToUse}/users?network=${networkName}&limit=${limit}&offset=${offset}`
+                );
+
+                if (!usersResponse.ok) {
+                  throw new Error(`Failed to fetch Goldsky users: ${usersResponse.status}`);
+                }
+
+                const usersData = await usersResponse.json();
+                const users = usersData.buildersUsers?.items || [];
+                
+                const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
+                  if (formatEntryFunc) {
+                    return formatEntryFunc(user as any);
+                  }
+                  return {
+                    address: user.address,
+                    displayAddress: formatAddress(user.address),
+                    amount: parseFloat(user.staked || '0') / 1e18,
+                    timestamp: parseInt(user.lastStake || '0'),
+                  };
+                }).filter((entry: { amount: number }) => entry.amount > 0);
+                
+                // Cache and set entries
+                setCachedPages(prev => ({
+                  ...prev,
+                  [pagination.currentPage]: formattedEntries
+                }));
+                setEntries(formattedEntries);
+                
+                console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from Goldsky paginated users API`);
+              }
+            } catch (error) {
+              console.error('[useStakingData] Error fetching from Goldsky API:', error);
+              setError(error instanceof Error ? error : new Error('Failed to fetch staking data'));
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Use direct Ponder V4 GraphQL queries
+            try {
+              if (pagination.currentPage === 1) {
               // Page 1: Use project details query with first 10 users
               console.log(`[useStakingData] Fetching project details with first 10 users for projectId: ${projectIdToUse}`);
               
@@ -590,13 +697,14 @@ export function useStakingData({
               setEntries(formattedEntries);
               
               console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from paginated query`);
+              }
+            } catch (error) {
+              console.error(`[useStakingData] Error fetching BuildersV4 data:`, error);
+              setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
+              setEntries([]);
+            } finally {
+              setIsLoading(false);
             }
-          } catch (error) {
-            console.error(`[useStakingData] Error fetching BuildersV4 data:`, error);
-            setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
-            setEntries([]);
-          } finally {
-            setIsLoading(false);
           }
           
           return; // Exit early for BuildersV4
@@ -604,196 +712,202 @@ export function useStakingData({
         
         // Legacy testnet builder subnet query (for non-BuildersV4 testnets)
         if (isTestnet) {
-        // Testnet builder subnet query
-        const response = await fetchGraphQL<BuilderSubnetResponse>(
-          endpoint,
-          queryFunction || "getBuilderSubnetUsers",
-          queryDocument || GET_BUILDER_SUBNET_USERS,
-          {
-            first: pagination.pageSize,
-            skip,
-            builderSubnetId: projectIdToUse,
-            orderBy: 'staked',
-            orderDirection: 'desc'
-          }
-        );
-        
-        if (!response.data) {
-          throw new Error("No data returned from API");
-        }
-        
-        console.log('[useStakingData] [Testnet] Builder subnet users data raw response:', response);
-        
-        // Format the data using provided formatter or default
-        const formattedEntries = (response.data?.builderUsers || []).map((user: BuilderSubnetUser) => {
-          if (formatEntryFunc) {
-            return formatEntryFunc(user);
-          }
-          
-          // Default formatter
-          return {
-            address: user.address,
-            displayAddress: formatAddress(user.address),
-            amount: parseFloat(user.staked || '0') / 10**18,
-            timestamp: parseInt(user.lastStake || '0'),
-          };
-        }).filter(entry => entry.amount > 0); // Filter out entries with zero amount
-        
-        console.log('[useStakingData] [Testnet] Formatted entries (after filtering zeros):', formattedEntries);
-        
-        // Update cache and state
-        setCachedPages(prev => ({
-          ...prev,
-          [pagination.currentPage]: formattedEntries
-        }));
-        
-        setEntries(formattedEntries);
-      } else {
-        // Legacy mainnet builders project query (for non-BuildersV4 networks)
-        console.log(`[useStakingData] Using legacy query for projectId: ${projectIdToUse}`);
-        console.log(`[useStakingData] Pagination state for query: page=${pagination.currentPage}, pageSize=${pagination.pageSize}, skip=${skip}`);
-
-        // Function to format and filter entries
-        const formatAndFilterEntries = (users: (BuilderSubnetUser | BuildersUser | SubnetUser)[], source: string) => {
-          console.log(`[useStakingData] ${source}: Processing ${users.length} raw entries`);
-          
-          // First filter out zero staked entries
-          const nonZeroUsers = users.filter(user => {
-            const isZeroStaked = user.staked === "0";
-            if (isZeroStaked) {
-              console.log(`[useStakingData] ${source}: Filtering out zero-staked address ${user.address}`);
-            }
-            return !isZeroStaked;
-          });
-          
-          console.log(`[useStakingData] ${source}: ${users.length - nonZeroUsers.length} zero-staked entries filtered out, ${nonZeroUsers.length} remaining`);
-          
-          // Then format the remaining entries
-          const formatted = nonZeroUsers.map(user => {
-            if (formatEntryFunc) {
-              return formatEntryFunc(user);
+          // Testnet builder subnet query
+          try {
+            const response = await fetchGraphQL<BuilderSubnetResponse>(
+              endpoint,
+              queryFunction || "getBuilderSubnetUsers",
+              queryDocument || GET_BUILDER_SUBNET_USERS,
+              {
+                first: pagination.pageSize,
+                skip,
+                builderSubnetId: projectIdToUse,
+                orderBy: 'staked',
+                orderDirection: 'desc'
+              }
+            );
+            
+            if (!response.data) {
+              throw new Error("No data returned from API");
             }
             
-            // Default formatter
-            return {
-              address: user.address,
-              displayAddress: formatAddress(user.address),
-              amount: parseFloat(user.staked || '0') / 10**18,
-              // Handle lastStake based on user type
-              timestamp: 'lastStake' in user ? parseInt(user.lastStake || '0') : 0,
-            };
-          });
-          
-          // Additional check for any zero amounts after formatting
-          const finalFiltered = formatted.filter(entry => {
-            const isZeroAmount = entry.amount === 0;
-            if (isZeroAmount) {
-              console.log(`[useStakingData] ${source}: Found zero amount after formatting for address ${entry.address}`);
-            }
-            return !isZeroAmount;
-          });
-          
-          console.log(`[useStakingData] ${source}: Final formatted entries: ${finalFiltered.length}`);
-          return finalFiltered;
-        };
-
-        // Function to fetch a specific page of data for mainnet
-        const fetchMainnetPageData = async (pageNumber: number, pageSize: number) => {
-          const skip = (pageNumber - 1) * pageSize;
-          
-          const response = await fetchGraphQL<BuildersGraphQLResponse>(
-            endpoint,
-            queryFunction || "getBuildersProjectUsers",
-            queryDocument || GET_BUILDERS_PROJECT_USERS,
-            {
-              first: pageSize,
-              skip,
-              buildersProjectId: projectIdToUse,
-              orderBy: 'staked',
-              orderDirection: 'desc'
-            }
-          );
-          
-          if (!response.data?.buildersUsers) {
-            throw new Error("No data returned from API");
-          }
-          
-          console.log('[useStakingData] Mainnet raw response with ordered data:', response.data.buildersUsers);
-          return response.data.buildersUsers;
-        };
-
-        // Function to fetch a specific page of data for testnet
-        const fetchTestnetPageData = async (pageNumber: number, pageSize: number) => {
-          const skip = (pageNumber - 1) * pageSize;
-          
-          const response = await fetchGraphQL<BuilderSubnetResponse>(
-            endpoint,
-            queryFunction || "getBuilderSubnetUsers",
-            queryDocument || GET_BUILDER_SUBNET_USERS,
-            {
-              first: pageSize,
-              skip,
-              builderSubnetId: projectIdToUse,
-              orderBy: 'staked',
-              orderDirection: 'desc'
-            }
-          );
-          
-          if (!response.data?.builderUsers) {
-            throw new Error("No data returned from API");
-          }
-          
-          console.log('[useStakingData] Testnet raw response with ordered data:', response.data.builderUsers);
-          return response.data.builderUsers;
-        };
-
-        // Mainnet or testnet query with prefetching
-        try {
-          console.log(`[useStakingData] Starting ${isTestnet ? 'testnet' : 'mainnet'} fetch for page ${pagination.currentPage}`);
-          
-          // Fetch current page and next page in parallel
-          const fetchFunc = isTestnet ? fetchTestnetPageData : fetchMainnetPageData;
-          const [currentPageUsers, nextPageUsers] = await Promise.all([
-            fetchFunc(pagination.currentPage, pagination.pageSize),
-            pagination.currentPage === 1 ? fetchFunc(2, pagination.pageSize) : Promise.resolve([])
-          ]);
-          
-          // Process current page
-          const currentPageEntries = formatAndFilterEntries(currentPageUsers, 'Current Page');
-          
-          // Update current page in cache and state
-          setCachedPages(prev => ({
-            ...prev,
-            [pagination.currentPage]: currentPageEntries
-          }));
-          setEntries(currentPageEntries);
-          
-          // If we're on page 1, process and cache next page
-          if (pagination.currentPage === 1 && nextPageUsers.length > 0) {
-            const nextPageEntries = formatAndFilterEntries(nextPageUsers, 'Next Page');
+            console.log('[useStakingData] [Testnet] Builder subnet users data raw response:', response);
             
-            // Cache next page
+            // Format the data using provided formatter or default
+            const formattedEntries = (response.data?.builderUsers || []).map((user: BuilderSubnetUser) => {
+              if (formatEntryFunc) {
+                return formatEntryFunc(user);
+              }
+              
+              // Default formatter
+              return {
+                address: user.address,
+                displayAddress: formatAddress(user.address),
+                amount: parseFloat(user.staked || '0') / 10**18,
+                timestamp: parseInt(user.lastStake || '0'),
+              };
+            }).filter(entry => entry.amount > 0); // Filter out entries with zero amount
+            
+            console.log('[useStakingData] [Testnet] Formatted entries (after filtering zeros):', formattedEntries);
+            
+            // Update cache and state
             setCachedPages(prev => ({
               ...prev,
-              2: nextPageEntries
+              [pagination.currentPage]: formattedEntries
             }));
             
-            // Update pagination if we have more data
-            if (nextPageEntries.length > 0) {
-              setPagination(prev => ({
-                ...prev,
-                totalPages: Math.max(prev.totalPages, 2)
-              }));
+            setEntries(formattedEntries);
+          } catch (error) {
+            console.error(`[useStakingData] Error fetching testnet data:`, error);
+            setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
+            setEntries([]);
+          }
+        } else {
+          // Legacy mainnet builders project query (for non-BuildersV4 networks)
+          console.log(`[useStakingData] Using legacy query for projectId: ${projectIdToUse}`);
+          console.log(`[useStakingData] Pagination state for query: page=${pagination.currentPage}, pageSize=${pagination.pageSize}, skip=${skip}`);
+
+          // Function to format and filter entries
+          const formatAndFilterEntries = (users: (BuilderSubnetUser | BuildersUser | SubnetUser)[], source: string) => {
+            console.log(`[useStakingData] ${source}: Processing ${users.length} raw entries`);
+            
+            // First filter out zero staked entries
+            const nonZeroUsers = users.filter(user => {
+              const isZeroStaked = user.staked === "0";
+              if (isZeroStaked) {
+                console.log(`[useStakingData] ${source}: Filtering out zero-staked address ${user.address}`);
+              }
+              return !isZeroStaked;
+            });
+            
+            console.log(`[useStakingData] ${source}: ${users.length - nonZeroUsers.length} zero-staked entries filtered out, ${nonZeroUsers.length} remaining`);
+            
+            // Then format the remaining entries
+            const formatted = nonZeroUsers.map(user => {
+              if (formatEntryFunc) {
+                return formatEntryFunc(user);
+              }
+              
+              // Default formatter
+              return {
+                address: user.address,
+                displayAddress: formatAddress(user.address),
+                amount: parseFloat(user.staked || '0') / 10**18,
+                // Handle lastStake based on user type
+                timestamp: 'lastStake' in user ? parseInt(user.lastStake || '0') : 0,
+              };
+            });
+            
+            // Additional check for any zero amounts after formatting
+            const finalFiltered = formatted.filter(entry => {
+              const isZeroAmount = entry.amount === 0;
+              if (isZeroAmount) {
+                console.log(`[useStakingData] ${source}: Found zero amount after formatting for address ${entry.address}`);
+              }
+              return !isZeroAmount;
+            });
+            
+            console.log(`[useStakingData] ${source}: Final formatted entries: ${finalFiltered.length}`);
+            return finalFiltered;
+          };
+
+          // Function to fetch a specific page of data for mainnet
+          const fetchMainnetPageData = async (pageNumber: number, pageSize: number) => {
+            const skip = (pageNumber - 1) * pageSize;
+            
+            const response = await fetchGraphQL<BuildersGraphQLResponse>(
+              endpoint,
+              queryFunction || "getBuildersProjectUsers",
+              queryDocument || GET_BUILDERS_PROJECT_USERS,
+              {
+                first: pageSize,
+                skip,
+                buildersProjectId: projectIdToUse,
+                orderBy: 'staked',
+                orderDirection: 'desc'
+              }
+            );
+            
+            if (!response.data?.buildersUsers) {
+              throw new Error("No data returned from API");
             }
             
-            console.log(`[useStakingData] Prefetched and cached page 2 with ${nextPageEntries.length} entries`);
+            console.log('[useStakingData] Mainnet raw response with ordered data:', response.data.buildersUsers);
+            return response.data.buildersUsers;
+          };
+
+          // Function to fetch a specific page of data for testnet
+          const fetchTestnetPageData = async (pageNumber: number, pageSize: number) => {
+            const skip = (pageNumber - 1) * pageSize;
+            
+            const response = await fetchGraphQL<BuilderSubnetResponse>(
+              endpoint,
+              queryFunction || "getBuilderSubnetUsers",
+              queryDocument || GET_BUILDER_SUBNET_USERS,
+              {
+                first: pageSize,
+                skip,
+                builderSubnetId: projectIdToUse,
+                orderBy: 'staked',
+                orderDirection: 'desc'
+              }
+            );
+            
+            if (!response.data?.builderUsers) {
+              throw new Error("No data returned from API");
+            }
+            
+            console.log('[useStakingData] Testnet raw response with ordered data:', response.data.builderUsers);
+            return response.data.builderUsers;
+          };
+
+          // Mainnet or testnet query with prefetching
+          try {
+            console.log(`[useStakingData] Starting ${isTestnet ? 'testnet' : 'mainnet'} fetch for page ${pagination.currentPage}`);
+            
+            // Fetch current page and next page in parallel
+            const fetchFunc = isTestnet ? fetchTestnetPageData : fetchMainnetPageData;
+            const [currentPageUsers, nextPageUsers] = await Promise.all([
+              fetchFunc(pagination.currentPage, pagination.pageSize),
+              pagination.currentPage === 1 ? fetchFunc(2, pagination.pageSize) : Promise.resolve([])
+            ]);
+            
+            // Process current page
+            const currentPageEntries = formatAndFilterEntries(currentPageUsers, 'Current Page');
+            
+            // Update current page in cache and state
+            setCachedPages(prev => ({
+              ...prev,
+              [pagination.currentPage]: currentPageEntries
+            }));
+            setEntries(currentPageEntries);
+            
+            // If we're on page 1, process and cache next page
+            if (pagination.currentPage === 1 && nextPageUsers.length > 0) {
+              const nextPageEntries = formatAndFilterEntries(nextPageUsers, 'Next Page');
+              
+              // Cache next page
+              setCachedPages(prev => ({
+                ...prev,
+                2: nextPageEntries
+              }));
+              
+              // Update pagination if we have more data
+              if (nextPageEntries.length > 0) {
+                setPagination(prev => ({
+                  ...prev,
+                  totalPages: Math.max(prev.totalPages, 2)
+                }));
+              }
+              
+              console.log(`[useStakingData] Prefetched and cached page 2 with ${nextPageEntries.length} entries`);
+            }
+            
+          } catch (error) {
+            console.error(`[useStakingData] Error fetching ${isTestnet ? 'testnet' : 'mainnet'} data:`, error);
+            setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
+            setEntries([]);
           }
-          
-        } catch (error) {
-          console.error(`[useStakingData] Error fetching ${isTestnet ? 'testnet' : 'mainnet'} data:`, error);
-          setError(error instanceof Error ? error : new Error("Failed to fetch staking data"));
-          setEntries([]);
-        }
         }
       }
     } catch (error) {

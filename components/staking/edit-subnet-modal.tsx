@@ -54,6 +54,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
   const { rewardTypes, refreshData } = useBuilders();
   const [isLoading, setIsLoading] = useState(false);
   const chainId = useChainId();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { switchToChain } = useNetwork();
   
   // V4 contract write hooks
@@ -256,6 +257,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
         handleClose();
       }, 1000);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isV4, isConfirmed, hash, refreshData, onSave, onRefreshingChange]);
   
   // Handle V4 transaction errors
