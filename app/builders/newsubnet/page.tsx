@@ -97,11 +97,8 @@ export default function NewSubnetPage() {
   } = useSubnetContractInteractions({ 
     selectedChainId,
     onTxSuccess: () => {
-      // Get the subnet name based on network type
-      const isTestnet = selectedChainId === baseSepolia.id;
-      const subnetName = isTestnet 
-        ? form.getValues("subnet.name")
-        : form.getValues("builderPool.name");
+      // Both Base and Base Sepolia use V4 contracts with subnet.name
+      const subnetName = form.getValues("subnet.name");
       
       // Store the new subnet name in localStorage for the builders page to pick up
       if (subnetName) {
