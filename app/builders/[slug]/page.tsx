@@ -309,6 +309,66 @@ export default function BuilderPage() {
     });
   }, [chainId, isTestnet, networksToDisplay, contractAddress]);
   
+  // Get subnet admin address from contract if builder.admin is missing (for newly created subnets)
+  const { data: subnetAdminData } = useReadContract({
+    address: contractAddress,
+    abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+    functionName: isTestnet ? 'subnets' : 'builderPools', // BuildersV4 uses 'subnets', Builders uses 'builderPools'
+    args: subnetId ? [subnetId] : undefined,
+    query: {
+      enabled: !!subnetId && !!contractAddress && (!builder?.admin), // Only fetch if admin is missing
+      staleTime: 5 * 60 * 1000,
+    },
+  });
+  
+  // Extract admin address from contract data
+  const contractAdminAddress = useMemo(() => {
+    if (!subnetAdminData) return null;
+    // BuildersV4 returns [name, admin, ...], Builders returns [name, admin, ...]
+    const admin = Array.isArray(subnetAdminData) ? subnetAdminData[1] : null;
+    return admin ? String(admin).toLowerCase() : null;
+  }, [subnetAdminData]);
+  
+  // Use contract admin if builder.admin is missing
+  const effectiveAdmin = useMemo(() => {
+    return builder?.admin?.toLowerCase() || contractAdminAddress || null;
+  }, [builder?.admin, contractAdminAddress]);
+  
+  // Determine if user is admin for edit button visibility
+  const isUserAdmin = useMemo(() => {
+    const userAddresses = [
+      authUserAddress?.toLowerCase(),
+      userAddress?.toLowerCase()
+    ].filter(Boolean);
+    
+    if (!effectiveAdmin || userAddresses.length === 0) {
+      console.log('[BuilderPage] Edit button check - No admin or user addresses:', {
+        effectiveAdmin,
+        builderAdminFromData: builder?.admin?.toLowerCase(),
+        contractAdminAddress,
+        userAddresses,
+        authUserAddress,
+        userAddress,
+        subnetId
+      });
+      return false;
+    }
+    
+    const isAdmin = userAddresses.some(addr => addr === effectiveAdmin);
+    
+    console.log('[BuilderPage] Edit button check:', {
+      isAdmin,
+      effectiveAdmin,
+      builderAdminFromData: builder?.admin?.toLowerCase(),
+      contractAdminAddress,
+      userAddresses,
+      builderName: builder?.name,
+      subnetId
+    });
+    
+    return isAdmin;
+  }, [effectiveAdmin, authUserAddress, userAddress, builder?.admin, contractAdminAddress, builder?.name, subnetId]);
+
   // Get staker information from the contract
   const { data: stakerData, refetch: refetchStakerDataForUser } = useReadContract({
     address: contractAddress,
@@ -861,7 +921,9 @@ export default function BuilderPage() {
           backButton={true}
           backPath="/builders"
           builder={builder}
-          showEditButton={!!(authUserAddress && builder.admin && authUserAddress.toLowerCase() === builder.admin.toLowerCase())}
+          showEditButton={isUserAdmin}
+          subnetId={subnetId || null}
+          isTestnet={isTestnet}
         />
 
         {/* Staking Stats */}

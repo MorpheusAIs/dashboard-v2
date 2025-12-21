@@ -2,8 +2,8 @@
 
 // GraphQL API endpoints
 export const GRAPHQL_ENDPOINTS = {
-  'Base': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-mainnet-base/api',
-  'Arbitrum': 'https://api.studio.thegraph.com/query/73688/morpheus-mainnet-arbitrum/version/latest',
+  'Base': 'https://ponder-builders-v4-base.up.railway.app',
+  'Arbitrum': 'https://ponder-builders-v4-arbitrum-production.up.railway.app',
   // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility.
   'Arbitrum_Sepolia': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
   'Base_Sepolia': 'http://localhost:42069/graphql',
