@@ -340,8 +340,10 @@ export function useStakingData({
            const getProjectQuery = `
            query getBuildersProjects($id: ID!) {
              buildersProjects(where: {id: $id}) {
-               id
-               totalUsers
+               items {
+                 id
+                 totalUsers
+               }
              }
            }`;
            
