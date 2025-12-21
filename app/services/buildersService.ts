@@ -583,8 +583,8 @@ export const fetchBuildersAPI = async (
         
         if (baseHasUsers || arbitrumHasUsers) {
           // Extract buildersUsers with proper type narrowing
-          const baseUsers = baseHasUsers ? baseData.buildersUsers : [];
-          const arbitrumUsers = arbitrumHasUsers ? arbitrumData.buildersUsers : [];
+          const baseUsers = baseHasUsers ? baseData.buildersUsers.items : [];
+          const arbitrumUsers = arbitrumHasUsers ? arbitrumData.buildersUsers.items : [];
           const allUserStakes = [...baseUsers, ...arbitrumUsers];
 
           mappedBuilders.forEach(builder => {
