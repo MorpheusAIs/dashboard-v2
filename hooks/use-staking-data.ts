@@ -386,7 +386,7 @@ export function useStakingData({
                 ).then(nextPageResponse => {
                   if (nextPageResponse.data?.buildersUsers) {
                     // Format and cache the next page
-                    const formattedNextPageEntries = (nextPageResponse.data.buildersUsers || []).map(user => {
+                    const formattedNextPageEntries = (nextPageResponse.data.buildersUsers?.items || []).map(user => {
                       if (formatEntryFunc) {
                         return formatEntryFunc(user);
                       }
@@ -835,7 +835,7 @@ export function useStakingData({
             }
             
             console.log('[useStakingData] Mainnet raw response with ordered data:', response.data.buildersUsers);
-            return response.data.buildersUsers;
+            return response.data.buildersUsers.items || [];
           };
 
           // Function to fetch a specific page of data for testnet
