@@ -1,14 +1,8 @@
 // GraphQL API client utilities
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
-// GraphQL API endpoints
-export const GRAPHQL_ENDPOINTS = {
-  'Base': 'https://ponder-builders-v4-base.up.railway.app',
-  'Arbitrum': 'https://ponder-builders-v4-arbitrum-production.up.railway.app',
-  // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility.
-  'Arbitrum_Sepolia': 'https://subgraph.satsuma-prod.com/8675f21b07ed/9iqb9f4qcmhosiruyg763--465704/morpheus-arbitrum-sepolia/api',
-  'Base_Sepolia': 'http://localhost:42069/graphql',
-  "Ethereum": "https://api.studio.thegraph.com/query/73688/morpheus-mainnet-v-2/version/latest",
-};
+// Re-export for backwards compatibility
+export const GRAPHQL_ENDPOINTS = SUBGRAPH_ENDPOINTS;
 
 // Define the request cache entry type
 interface RequestCacheEntry<T> {
@@ -26,14 +20,14 @@ export const getEndpointForNetwork = (network: string) => {
   if (network.toLowerCase() === 'base_sepolia' || 
       network.toLowerCase() === 'base sepolia' || 
       network.toLowerCase() === 'basesepolia') {
-    return GRAPHQL_ENDPOINTS.Base_Sepolia;
+    return GRAPHQL_ENDPOINTS.BaseSepolia;
   }
   
   // Check if we're on Arbitrum Sepolia (deprecated, kept for backward compatibility)
   if (network.toLowerCase() === 'arbitrum_sepolia' || 
       network.toLowerCase() === 'arbitrum sepolia' || 
       network.toLowerCase() === 'arbitrumsepolia') {
-    return GRAPHQL_ENDPOINTS.Arbitrum_Sepolia;
+    return GRAPHQL_ENDPOINTS.ArbitrumSepolia;
   }
   
   // Otherwise, use the standard network endpoint if it exists

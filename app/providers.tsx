@@ -1,8 +1,6 @@
 "use client";
 
 import React from 'react';
-// Temporarily disabled useEffect - was only used for Sentry
-// import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Web3Providers } from "@/components/web3-providers";
@@ -31,17 +29,6 @@ export function Providers({
   children: React.ReactNode;
   initialState?: State | undefined; // Changed from any to State | undefined
 }) {
-  // Temporarily disabled Sentry Replay integration to speed up builds
-  // useEffect(() => {
-  //   // Only load in production
-  //   if (process.env.NEXT_PUBLIC_VERCEL_ENV === 'production') {
-  //     // Dynamically load replay only after client has booted
-  //     import('@sentry/nextjs').then((S) => {
-  //       // Only add integration if Replay feature should be active
-  //       S.addIntegration(S.replayIntegration());
-  //     });
-  //   }
-  // }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

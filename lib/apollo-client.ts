@@ -7,7 +7,6 @@ import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 // Use the shared endpoint configuration
 const NETWORK_ENDPOINTS = {
   Arbitrum: SUBGRAPH_ENDPOINTS.Arbitrum,
-  // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility.
   ArbitrumSepolia: SUBGRAPH_ENDPOINTS.ArbitrumSepolia,
   Base: SUBGRAPH_ENDPOINTS.Base,
   BaseSepolia: SUBGRAPH_ENDPOINTS.BaseSepolia,

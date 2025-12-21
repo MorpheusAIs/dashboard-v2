@@ -10,8 +10,6 @@ import { config } from "@/config"
 import { cn } from "@/lib/utils"
 import { Providers } from './providers'
 import { FeaturebaseWidget } from '@/components/featurebase-widget'
-// Temporarily disabled Sentry to speed up builds
-// import * as Sentry from '@sentry/nextjs'
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -37,7 +35,7 @@ export function generateMetadata(): Metadata {
     openGraph: {
       title: "Morpheus Dashboard",
       description: "Enter the Persistent Agentic Compute Delivery Network",
-      url: "https://builders.mor.org/",
+      url: "https://dashboard.mor.org/",
       siteName: "Morpheus Dashboard",
       type: "website",
       locale: "en_US",
@@ -75,10 +73,6 @@ export function generateMetadata(): Metadata {
         "max-snippet": -1,
       },
     },
-    // Temporarily disabled Sentry trace data
-    // other: {
-    //   ...Sentry.getTraceData(),
-    // },
   };
 }
 
