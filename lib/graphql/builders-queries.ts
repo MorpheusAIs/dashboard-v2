@@ -328,7 +328,7 @@ export const GET_PARTICIPATING_BUILDER_SUBNETS = gql`
   }
 `;
 
-// Query to get combined builder subnets (for Arbitrum Sepolia)
+// Query to get combined builder subnets (for Arbitrum Sepolia - deprecated)
 export const COMBINED_BUILDER_SUBNETS = gql`
   ${BUILDER_SUBNET_DEFAULT_FRAGMENT}
   ${BUILDER_USER_DEFAULT_FRAGMENT}
@@ -361,10 +361,279 @@ export const COMBINED_BUILDER_SUBNETS = gql`
         ...BuilderSubnetDefault
       }
     }
-    counters {
+    counters(id: "1") {
       id
       totalSubnets
       totalBuilderProjects
+    }
+  }
+`;
+
+// Query to get combined builders projects (for Base Sepolia - uses BuildersV4 schema)
+export const COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA = gql`
+  query combinedBuildersProjectsBaseSepolia {
+    buildersProjects {
+      items {
+        id
+        name
+        totalStaked
+        totalClaimed
+        totalUsers
+        description
+        website
+        image
+        slug
+        minimalDeposit
+        chainId
+        withdrawLockPeriodAfterDeposit
+      }
+    }
+  }
+`;
+
+// Query to get combined builders projects (for Base Mainnet - uses BuildersV4 schema)
+// This query discovers all subnets (both V1 and V4) but only V4 subnets have metadata populated
+export const COMBINED_BUILDERS_PROJECTS_BASE_MAINNET = gql`
+  query combinedBuildersProjectsBaseMainnet {
+    buildersProjects {
+      items {
+        id
+        name
+        admin
+        totalStaked
+        totalClaimed
+        totalUsers
+        description
+        website
+        image
+        slug
+        minimalDeposit
+        chainId
+        withdrawLockPeriodAfterDeposit
+        startsAt
+        claimLockEnd
+      }
+    }
+  }
+`;
+
+// Query to get combined builders projects (for Arbitrum Mainnet - uses BuildersV4 schema)
+// This query discovers all subnets (both V1 and V4) but only V4 subnets have metadata populated
+export const COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET = gql`
+  query combinedBuildersProjectsArbitrumMainnet {
+    buildersProjects {
+      items {
+        id
+        name
+        admin
+        totalStaked
+        totalClaimed
+        totalUsers
+        description
+        website
+        image
+        slug
+        minimalDeposit
+        chainId
+        withdrawLockPeriodAfterDeposit
+        startsAt
+        claimLockEnd
+      }
+    }
+  }
+`;
+
+// Query to get projects where user has staked (for Base Sepolia - "Staking in" tab)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECTS_FOR_USER_BASE_SEPOLIA = gql`
+  query GetProjectsForUser($userAddress: String!) {
+    buildersUsers(
+      where: { address: $userAddress }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: 100
+    ) {
+      items {
+        project {
+          id
+          name
+          slug
+          description
+          website
+          image
+          admin
+          totalStaked
+          totalUsers
+          minimalDeposit
+          withdrawLockPeriodAfterDeposit
+          startsAt
+          chainId
+          contractAddress
+        }
+        staked
+        lastStake
+        claimLockEnd
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get projects where user has staked (for Base Mainnet - "Staking in" tab)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECTS_FOR_USER_BASE_MAINNET = gql`
+  query GetProjectsForUser($userAddress: String!) {
+    buildersUsers(
+      where: { address: $userAddress }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: 100
+    ) {
+      items {
+        project {
+          id
+          name
+          slug
+          description
+          website
+          image
+          admin
+          totalStaked
+          totalUsers
+          minimalDeposit
+          withdrawLockPeriodAfterDeposit
+          startsAt
+          chainId
+          contractAddress
+        }
+        staked
+        lastStake
+        claimLockEnd
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get projects where user has staked (for Arbitrum Mainnet - "Staking in" tab)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECTS_FOR_USER_ARBITRUM_MAINNET = gql`
+  query GetProjectsForUser($userAddress: String!) {
+    buildersUsers(
+      where: { address: $userAddress }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: 100
+    ) {
+      items {
+        project {
+          id
+          name
+          slug
+          description
+          website
+          image
+          admin
+          totalStaked
+          totalUsers
+          minimalDeposit
+          withdrawLockPeriodAfterDeposit
+          startsAt
+          chainId
+          contractAddress
+        }
+        staked
+        lastStake
+        claimLockEnd
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get projects by admin (for Base Sepolia - "Your Subnets" tab)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECTS_BY_ADMIN_BASE_SEPOLIA = gql`
+  query GetProjectsByAdmin($adminAddress: String!) {
+    buildersProjects(
+      where: { admin: $adminAddress }
+      orderBy: "createdAt"
+      orderDirection: "desc"
+    ) {
+      items {
+        id
+        name
+        admin
+        slug
+        description
+        website
+        image
+        totalStaked
+        totalUsers
+        minimalDeposit
+        withdrawLockPeriodAfterDeposit
+        startsAt
+        chainId
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get projects by admin (for Base Mainnet - "Your Subnets" tab)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECTS_BY_ADMIN_BASE_MAINNET = gql`
+  query GetProjectsByAdmin($adminAddress: String!) {
+    buildersProjects(
+      where: { admin: $adminAddress }
+      orderBy: "createdAt"
+      orderDirection: "desc"
+    ) {
+      items {
+        id
+        name
+        admin
+        slug
+        description
+        website
+        image
+        totalStaked
+        totalUsers
+        minimalDeposit
+        withdrawLockPeriodAfterDeposit
+        startsAt
+        chainId
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get projects by admin (for Arbitrum Mainnet - "Your Subnets" tab)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECTS_BY_ADMIN_ARBITRUM_MAINNET = gql`
+  query GetProjectsByAdmin($adminAddress: String!) {
+    buildersProjects(
+      where: { admin: $adminAddress }
+      orderBy: "createdAt"
+      orderDirection: "desc"
+    ) {
+      items {
+        id
+        name
+        admin
+        slug
+        description
+        website
+        image
+        totalStaked
+        totalUsers
+        minimalDeposit
+        withdrawLockPeriodAfterDeposit
+        startsAt
+        chainId
+      }
+      totalCount
     }
   }
 `;
@@ -424,6 +693,150 @@ export const GET_BUILDER_SUBNET_BY_ID = gql`
     builderSubnet(id: $id) {
       ...BuilderSubnetDefault
       __typename
+    }
+  }
+`;
+
+// Query to get project details with first 10 users (for Base Sepolia - builder detail page)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_WITH_DETAILS_BASE_SEPOLIA = gql`
+  query GetProjectWithDetails($projectId: String!) {
+    buildersProject(id: $projectId) {
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      slug
+      description
+      users(limit: 10, orderBy: "staked", orderDirection: "desc") {
+        items {
+          id
+          address
+          staked
+          lastStake
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+// Query to get project details with first 10 users (for Base Mainnet - builder detail page)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_WITH_DETAILS_BASE_MAINNET = gql`
+  query GetProjectWithDetails($projectId: String!) {
+    buildersProject(id: $projectId) {
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      slug
+      description
+      users(limit: 10, orderBy: "staked", orderDirection: "desc") {
+        items {
+          id
+          address
+          staked
+          lastStake
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+// Query to get project details with first 10 users (for Arbitrum Mainnet - builder detail page)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_WITH_DETAILS_ARBITRUM_MAINNET = gql`
+  query GetProjectWithDetails($projectId: String!) {
+    buildersProject(id: $projectId) {
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      slug
+      description
+      users(limit: 10, orderBy: "staked", orderDirection: "desc") {
+        items {
+          id
+          address
+          staked
+          lastStake
+        }
+        totalCount
+      }
+    }
+  }
+`;
+
+// Query to get paginated users for a project (for Base Sepolia - builder detail page pagination)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_USERS_PAGINATED_BASE_SEPOLIA = gql`
+  query GetProjectUsers($projectId: String!, $limit: Int!, $offset: Int!) {
+    buildersUsers(
+      where: { buildersProjectId: $projectId }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        address
+        staked
+        lastStake
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get paginated users for a project (for Base Mainnet - builder detail page pagination)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_USERS_PAGINATED_BASE_MAINNET = gql`
+  query GetProjectUsers($projectId: String!, $limit: Int!, $offset: Int!) {
+    buildersUsers(
+      where: { buildersProjectId: $projectId }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        address
+        staked
+        lastStake
+      }
+      totalCount
+    }
+  }
+`;
+
+// Query to get paginated users for a project (for Arbitrum Mainnet - builder detail page pagination)
+// Based on BuildersV4 GraphQL schema
+export const GET_PROJECT_USERS_PAGINATED_ARBITRUM_MAINNET = gql`
+  query GetProjectUsers($projectId: String!, $limit: Int!, $offset: Int!) {
+    buildersUsers(
+      where: { buildersProjectId: $projectId }
+      orderBy: "staked"
+      orderDirection: "desc"
+      limit: $limit
+      offset: $offset
+    ) {
+      items {
+        id
+        address
+        staked
+        lastStake
+      }
+      totalCount
     }
   }
 `; 

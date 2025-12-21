@@ -5,6 +5,7 @@ import { useAccount, useReadContract, useChainId } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
 import dynamic from 'next/dynamic'
 import { morTokenContracts } from '@/lib/contracts'
+import { testnetChains } from '@/config/networks'
 
 // Dynamically import NumberFlow with SSR disabled to prevent hydration errors
 const NumberFlow = dynamic(() => import('@number-flow/react'), {
@@ -58,12 +59,25 @@ function useMORBalances(address: `0x${string}` | undefined) {
     account: address
   })
 
+  // @deprecated - Arbitrum Sepolia MOR token (kept for backward compatibility)
   const { data: arbitrumSepoliaBalance, refetch: refetchSepolia } = useReadContract({
-    address: morTokenContracts[421614] as `0x${string}`,
+    address: testnetChains.arbitrumSepolia.contracts?.morToken?.address as `0x${string}`,
     abi: MOR_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     chainId: 421614, // Arbitrum Sepolia
+    account: address,
+    query: {
+      enabled: !!testnetChains.arbitrumSepolia.contracts?.morToken?.address
+    }
+  })
+
+  const { data: baseSepoliaBalance, refetch: refetchBaseSepolia } = useReadContract({
+    address: morTokenContracts[84532] as `0x${string}`,
+    abi: MOR_ABI,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: 84532, // Base Sepolia
     account: address
   })
 
@@ -73,9 +87,10 @@ function useMORBalances(address: `0x${string}` | undefined) {
     await Promise.all([
       refetchArbitrum(),
       refetchBase(),
-      refetchSepolia()
+      refetchSepolia(),
+      refetchBaseSepolia()
     ])
-  }, [refetchArbitrum, refetchBase, refetchSepolia])
+  }, [refetchArbitrum, refetchBase, refetchSepolia, refetchBaseSepolia])
 
   // Set up polling for balance updates instead of watching events
   useEffect(() => {
@@ -108,6 +123,7 @@ function useMORBalances(address: `0x${string}` | undefined) {
     arbitrumBalance,
     baseBalance,
     arbitrumSepoliaBalance,
+    baseSepoliaBalance,
     refreshBalances
   }
 }
@@ -120,7 +136,7 @@ export function MORBalance() {
   // console.log('MORBalance - User address:', address)
   // console.log('MORBalance - MOR contract addresses:', morTokenContracts)
 
-  const { arbitrumBalance, baseBalance, arbitrumSepoliaBalance, refreshBalances } = useMORBalances(address)
+  const { arbitrumBalance, baseBalance, arbitrumSepoliaBalance, baseSepoliaBalance, refreshBalances } = useMORBalances(address)
   
   // console.log('MORBalance - Arbitrum One raw balance:', arbitrumBalance)
   // console.log('MORBalance - Base raw balance:', baseBalance)
@@ -153,7 +169,7 @@ export function MORBalance() {
   //   sepolia: sepoliaFormattedBalance
   // });
 
-  const isTestnet = chainId === 421614 || chainId === 11155111; // Arbitrum Sepolia or Sepolia
+  const isTestnet = chainId === 421614 || chainId === 84532 || chainId === 11155111; // Arbitrum Sepolia, Base Sepolia, or Sepolia
   // console.log('MORBalance - Is testnet:', isTestnet);
 
   if (isTestnet) {
@@ -163,6 +179,11 @@ export function MORBalance() {
           <ArbitrumIcon size={18} className="text-current" /> 
           <span className="text-xs">(Sepolia)</span>
           <NumberFlow value={formatBalance(arbitrumSepoliaBalance)} /> MOR
+        </div>
+        <div className="flex items-center gap-1 transition-all duration-200 hover:scale-110 hover:text-white">
+          <BaseIcon size={18} className="text-current" /> 
+          <span className="text-xs">(Sepolia)</span>
+          <NumberFlow value={formatBalance(baseSepoliaBalance)} /> MOR
         </div>
       </div>
     )

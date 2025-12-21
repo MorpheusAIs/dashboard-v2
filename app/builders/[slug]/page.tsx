@@ -19,10 +19,10 @@ import { useBuilders } from "@/context/builders-context";
 import { useChainId, useAccount, useReadContract } from 'wagmi';
 import { useAuth } from "@/context/auth-context";
 import { useNetwork } from "@/context/network-context";
-import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { baseSepolia, arbitrum, base } from 'wagmi/chains';
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import BuildersAbi from '@/app/abi/Builders.json';
-import BuilderSubnetsV2Abi from '@/app/abi/BuilderSubnetsV2.json';
+import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { useStakingContractInteractions, type UseStakingContractInteractionsProps } from "@/hooks/useStakingContractInteractions";
 import { formatEther, type Address, parseUnits } from "viem";
 import { testnetChains, mainnetChains } from '@/config/networks';
@@ -66,8 +66,8 @@ const getExplorerUrl = (address: string, network?: string): string => {
   switch (network) {
     case 'Arbitrum':
       return `https://arbiscan.io/address/${address}`;
-    case 'Arbitrum Sepolia':
-      return `https://sepolia.arbiscan.io/address/${address}`;
+    case 'Base Sepolia':
+      return `https://sepolia.basescan.org/address/${address}`;
     default:
       return `https://basescan.org/address/${address}`;
   }
@@ -83,7 +83,7 @@ export default function BuilderPage() {
   const chainId = useChainId();
   const { address: userAddress } = useAccount();
   const { userAddress: authUserAddress } = useAuth();
-  const isTestnet = chainId === arbitrumSepolia.id;
+  const isTestnet = chainId === baseSepolia.id;
   const previousIsTestnetRef = useRef<boolean | undefined>(undefined);
   
   const { switchToChain, isNetworkSwitching } = useNetwork();
@@ -159,14 +159,31 @@ export default function BuilderPage() {
         console.log("########## FALLING BACK TO SLUG-BASED MATCHING ##########");
         
         // Extract network from slug if present
-        const hasNetworkSuffix = slug.includes('-base') || slug.includes('-arbitrum');
-        const network = slug.includes('-base') ? 'Base' : 
-                       slug.includes('-arbitrum') ? 'Arbitrum' : undefined;
+        // Check for network suffixes: -base-sepolia, -base, or -arbitrum
+        // Order matters: check -base-sepolia before -base to avoid false matches
+        // Use endsWith() to match the $ anchored regex used for removal
+        const hasNetworkSuffix = slug.endsWith('-base-sepolia') || slug.endsWith('-base') || slug.endsWith('-arbitrum');
+        let network: string | undefined = undefined;
+        if (slug.endsWith('-base-sepolia')) {
+          network = 'Base Sepolia';
+        } else if (slug.endsWith('-base')) {
+          network = 'Base';
+        } else if (slug.endsWith('-arbitrum')) {
+          network = 'Arbitrum';
+        }
         
         // Extract base name without network suffix
-        const slugWithoutNetwork = hasNetworkSuffix 
-          ? slug.substring(0, slug.lastIndexOf('-'))
-          : slug;
+        // Handle -base-sepolia (two hyphens) specially
+        let slugWithoutNetwork = slug;
+        if (hasNetworkSuffix) {
+          if (slug.endsWith('-base-sepolia')) {
+            slugWithoutNetwork = slug.replace(/-base-sepolia$/, '');
+          } else if (slug.endsWith('-base')) {
+            slugWithoutNetwork = slug.replace(/-base$/, '');
+          } else if (slug.endsWith('-arbitrum')) {
+            slugWithoutNetwork = slug.replace(/-arbitrum$/, '');
+          }
+        }
         
         const builderNameFromSlug = slugToBuilderName(slugWithoutNetwork);
         
@@ -174,8 +191,11 @@ export default function BuilderPage() {
         foundBuilder = builders.find(b => {
           const nameMatches = b.name.toLowerCase() === builderNameFromSlug.toLowerCase();
           // If network is specified in the slug, require a network match
+          // Check both b.network and b.networks array for compatibility
           if (network) {
-            return nameMatches && b.network === network;
+            const builderNetworkMatch = b.network === network || 
+                                       (b.networks && b.networks.includes(network));
+            return nameMatches && builderNetworkMatch;
           }
           // Otherwise just match by name
           return nameMatches;
@@ -261,7 +281,7 @@ export default function BuilderPage() {
     // Last resort: fallback to user's wallet network
     if (isTestnet) {
       console.log('[BuilderPage] Fallback to testnet network');
-      return ['Arbitrum Sepolia'];
+      return ['Base Sepolia'];
     } else if (chainId === 42161) {
       console.log('[BuilderPage] Fallback to Arbitrum network');
       return ['Arbitrum'];
@@ -273,7 +293,7 @@ export default function BuilderPage() {
   
   // Get contract address from configuration based on current chain ID
   const contractAddress = useMemo<Address | undefined>(() => {
-    const selectedChain = isTestnet ? testnetChains.arbitrumSepolia : (chainId === 42161 ? mainnetChains.arbitrum : mainnetChains.base);
+    const selectedChain = isTestnet ? testnetChains.baseSepolia : (chainId === 42161 ? mainnetChains.arbitrum : mainnetChains.base);
     return selectedChain.contracts?.builders?.address as Address | undefined;
   }, [isTestnet, chainId]);
   
@@ -284,19 +304,79 @@ export default function BuilderPage() {
       isTestnet,
       networksToDisplay,
       contractAddress,
-      testnetBuildersAddress: testnetChains.arbitrumSepolia.contracts?.builders?.address,
-      testnetTokenAddress: testnetChains.arbitrumSepolia.contracts?.morToken?.address,
+      testnetBuildersAddress: testnetChains.baseSepolia.contracts?.builders?.address,
+      testnetTokenAddress: testnetChains.baseSepolia.contracts?.morToken?.address,
       mainnetBuildersAddress: mainnetChains.base.contracts?.builders?.address,
       mainnetTokenAddress: mainnetChains.base.contracts?.morToken?.address,
     });
   }, [chainId, isTestnet, networksToDisplay, contractAddress]);
   
+  // Get subnet admin address from contract if builder.admin is missing (for newly created subnets)
+  const { data: subnetAdminData } = useReadContract({
+    address: contractAddress,
+    abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+    functionName: isTestnet ? 'subnets' : 'builderPools', // BuildersV4 uses 'subnets', Builders uses 'builderPools'
+    args: subnetId ? [subnetId] : undefined,
+    query: {
+      enabled: !!subnetId && !!contractAddress && (!builder?.admin), // Only fetch if admin is missing
+      staleTime: 5 * 60 * 1000,
+    },
+  });
+  
+  // Extract admin address from contract data
+  const contractAdminAddress = useMemo(() => {
+    if (!subnetAdminData) return null;
+    // BuildersV4 returns [name, admin, ...], Builders returns [name, admin, ...]
+    const admin = Array.isArray(subnetAdminData) ? subnetAdminData[1] : null;
+    return admin ? String(admin).toLowerCase() : null;
+  }, [subnetAdminData]);
+  
+  // Use contract admin if builder.admin is missing
+  const effectiveAdmin = useMemo(() => {
+    return builder?.admin?.toLowerCase() || contractAdminAddress || null;
+  }, [builder?.admin, contractAdminAddress]);
+  
+  // Determine if user is admin for edit button visibility
+  const isUserAdmin = useMemo(() => {
+    const userAddresses = [
+      authUserAddress?.toLowerCase(),
+      userAddress?.toLowerCase()
+    ].filter(Boolean);
+    
+    if (!effectiveAdmin || userAddresses.length === 0) {
+      console.log('[BuilderPage] Edit button check - No admin or user addresses:', {
+        effectiveAdmin,
+        builderAdminFromData: builder?.admin?.toLowerCase(),
+        contractAdminAddress,
+        userAddresses,
+        authUserAddress,
+        userAddress,
+        subnetId
+      });
+      return false;
+    }
+    
+    const isAdmin = userAddresses.some(addr => addr === effectiveAdmin);
+    
+    console.log('[BuilderPage] Edit button check:', {
+      isAdmin,
+      effectiveAdmin,
+      builderAdminFromData: builder?.admin?.toLowerCase(),
+      contractAdminAddress,
+      userAddresses,
+      builderName: builder?.name,
+      subnetId
+    });
+    
+    return isAdmin;
+  }, [effectiveAdmin, authUserAddress, userAddress, builder?.admin, contractAdminAddress, builder?.name, subnetId]);
+
   // Get staker information from the contract
   const { data: stakerData, refetch: refetchStakerDataForUser } = useReadContract({
     address: contractAddress,
-    abi: isTestnet ? BuilderSubnetsV2Abi : BuildersAbi, // Use BuildersAbi for mainnet
-    functionName: isTestnet ? 'stakers' : 'usersData', // Different function name in mainnet contract
-    args: subnetId && userAddress ? [isTestnet ? subnetId : userAddress, isTestnet ? userAddress : subnetId] : undefined, // Different parameter order
+    abi: isTestnet ? BuildersV4Abi : BuildersAbi, // BuildersV4 for testnet, BuildersAbi for mainnet
+    functionName: 'usersData', // Both testnet (BuildersV4) and mainnet use usersData
+    args: subnetId && userAddress ? [userAddress, subnetId] : undefined, // Consistent parameter order: [user, subnetId]
     query: {
       enabled: !!subnetId && !!userAddress && !!contractAddress, // Only enable if all args are present
       staleTime: 5 * 60 * 1000, // 5 minutes
@@ -308,34 +388,23 @@ export default function BuilderPage() {
     console.log("Processing staker data:", { stakerData, isTestnet, userAddress });
     
     if (stakerData) {
-      let staked: bigint;
-      let lastStake: bigint;
+      // BuildersV4 (testnet) and mainnet both use usersData with the same structure:
+      // [lastDeposit, claimLockStart, deposited, virtualDeposited]
+      // [uint128, uint128, uint256, uint256]
+      // Only extract the values we need (index 0 and 2)
+      const stakerArray = stakerData as [bigint, bigint, bigint, bigint];
+      const lastStakeData = stakerArray[0];
+      const depositedData = stakerArray[2];
+      const staked = depositedData;
+      const lastStake = lastStakeData;
       let claimLockEndRaw: bigint;
-
-      if (isTestnet) {
-        // Testnet data structure: [staked, virtualStaked, pendingRewards, rate, lastStake, claimLockEnd]
-        const [stakedData, , , , lastStakeData, claimLockEndData] = stakerData as [bigint, bigint, bigint, bigint, bigint, bigint];
-        staked = stakedData;
-        lastStake = lastStakeData;
-        claimLockEndRaw = claimLockEndData;
-      } else {
-        // Mainnet structure from usersData:
-        // [lastDeposit, claimLockStart, deposited, virtualDeposited]
-        // [uint128, uint128, uint256, uint256]
-        // Only extract the values we need (index 0 and 2)
-        const stakerArray = stakerData as [bigint, bigint, bigint, bigint];
-        const lastStakeData = stakerArray[0];
-        const depositedData = stakerArray[2];
-        staked = depositedData;
-        lastStake = lastStakeData;
-        // For mainnet, calculate claimLockEnd
-        claimLockEndRaw = BigInt(0); // Default to 0
-        if (lastStake !== BigInt(0)) {
-          const lpSeconds = isTestnet
-            ? (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod)
-            : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
-          claimLockEndRaw = BigInt(Number(lastStake) + lpSeconds);
-        }
+      // Calculate claimLockEnd
+      claimLockEndRaw = BigInt(0); // Default to 0
+      if (lastStake !== BigInt(0)) {
+        const lpSeconds = isTestnet
+          ? (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod)
+          : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
+        claimLockEndRaw = BigInt(Number(lastStake) + lpSeconds);
       }
       
       // Determine effective claimLockEnd. If contract returned 0 (or an old value),
@@ -965,7 +1034,9 @@ export default function BuilderPage() {
           backButton={true}
           backPath="/builders"
           builder={builder}
-          showEditButton={!!(authUserAddress && builder.admin && authUserAddress.toLowerCase() === builder.admin.toLowerCase())}
+          showEditButton={isUserAdmin}
+          subnetId={subnetId || null}
+          isTestnet={isTestnet}
         />
 
         {/* Staking Stats */}

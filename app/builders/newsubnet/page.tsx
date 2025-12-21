@@ -24,7 +24,7 @@ import ProgressStepper from "@/components/subnet-form/ProgressStepper";
 import useSubnetContractInteractions from "@/hooks/useSubnetContractInteractions";
 
 // Import network config
-import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { baseSepolia, base } from 'wagmi/chains';
 
 // Import useBalance hook
 import { useBalance } from 'wagmi';
@@ -36,13 +36,13 @@ export default function NewSubnetPage() {
   const { address: connectedAddress } = useAccount();
   const walletChainId = useChainId();
 
-  // Determine the initial network: use wallet network if supported, otherwise default to Arbitrum Sepolia
+  // Determine the initial network: use wallet network if supported, otherwise default to Base Sepolia
   const getInitialNetworkId = () => {
-    const supportedChainIds = [arbitrumSepolia.id, arbitrum.id, base.id] as const;
+    const supportedChainIds = [baseSepolia.id, base.id] as const;
     if (walletChainId && supportedChainIds.includes(walletChainId as typeof supportedChainIds[number])) {
       return walletChainId;
     }
-    return arbitrumSepolia.id; // Fallback to Arbitrum Sepolia
+    return baseSepolia.id; // Fallback to Base Sepolia
   };
 
   // --- Form Setup --- //
@@ -52,13 +52,9 @@ export default function NewSubnetPage() {
       subnet: {
         name: "",
         minStake: 0.001,
-        fee: 0,
-        feeTreasury: undefined as unknown as `0x${string}` | undefined,
         networkChainId: getInitialNetworkId(),
         withdrawLockPeriod: 7,
         withdrawLockUnit: "days",
-        startsAt: new Date(),
-        maxClaimLockEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
       },
       builderPool: {
         name: "",
@@ -101,11 +97,8 @@ export default function NewSubnetPage() {
   } = useSubnetContractInteractions({ 
     selectedChainId,
     onTxSuccess: () => {
-      // Get the subnet name based on network type
-      const isTestnet = selectedChainId === arbitrumSepolia.id;
-      const subnetName = isTestnet 
-        ? form.getValues("subnet.name")
-        : form.getValues("builderPool.name");
+      // Both Base and Base Sepolia use V4 contracts with subnet.name
+      const subnetName = form.getValues("subnet.name");
       
       // Store the new subnet name in localStorage for the builders page to pick up
       if (subnetName) {
@@ -131,39 +124,19 @@ export default function NewSubnetPage() {
     let fieldsToValidate: string[] = [];
 
     if (currentStep === 1) {
-      const isTestnet = form.getValues("subnet.networkChainId") === arbitrumSepolia.id;
-      // Define base fields common to both networks for Step 1 validation
-      const baseStep1Fields = [
+      // Both Base and Base Sepolia use V4 contracts with the same structure
+      fieldsToValidate = [
         "subnet.networkChainId",
-        "subnet.startsAt",
+        "subnet.name",
+        "subnet.minStake",
         "subnet.withdrawLockPeriod",
         "subnet.withdrawLockUnit",
-        "subnet.maxClaimLockEnd"
       ];
-
-      if (isTestnet) {
-        fieldsToValidate = [
-          ...baseStep1Fields,
-          "subnet.name", // Testnet name field
-          "subnet.minStake", // Testnet stake field
-          "subnet.fee", // Testnet only
-          "subnet.feeTreasury" // Testnet only
-        ];
-      } else {
-        // Mainnet uses different names for some fields and omits others
-        fieldsToValidate = [
-          ...baseStep1Fields,
-          // --- IMPORTANT: Map to the names REGISTERED by Step1PoolConfig --- 
-          "builderPool.name", // Mainnet name field (as registered)
-          "builderPool.minimalDeposit" // Mainnet deposit field (as registered)
-          // No fee or treasury for mainnet validation
-        ];
-      }
-      // Filter out any potential duplicates if base fields somehow overlap
-      fieldsToValidate = Array.from(new Set(fieldsToValidate));
     } else {
       // Explicitly list fields for Step 2 validation
-      const isTestnet = form.getValues("subnet.networkChainId") === arbitrumSepolia.id;
+      // Both Base and Base Sepolia use V4 contracts with the same fields
+      const isV4Network = form.getValues("subnet.networkChainId") === base.id || 
+                         form.getValues("subnet.networkChainId") === baseSepolia.id;
       const step2BaseFields = [
         "metadata.description",
         "metadata.website",
@@ -173,8 +146,8 @@ export default function NewSubnetPage() {
         "projectOffChain.twitterLink",
         "projectOffChain.rewards"
       ];
-      if (isTestnet) {
-        fieldsToValidate = [...step2BaseFields, "metadata.slug"]; // Add slug only for testnet
+      if (isV4Network) {
+        fieldsToValidate = [...step2BaseFields, "metadata.slug"]; // Add slug for V4 networks (both Base and Base Sepolia)
       } else {
         fieldsToValidate = [...step2BaseFields];
       }

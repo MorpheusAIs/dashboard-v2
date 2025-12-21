@@ -15,6 +15,47 @@ import { getTokenPrice } from "@/app/services/token-price.service";
 import { type TokenType } from "@/mock-data";
 import { useAvailableAssets } from "@/hooks/use-available-assets";
 
+// Helper function to convert scientific notation to regular decimal string
+// This is needed because parseEther doesn't handle scientific notation
+const convertScientificToDecimal = (value: string | number): string => {
+  if (value === null || value === undefined) {
+    return '0';
+  }
+  
+  const numValue = typeof value === 'number' ? value : parseFloat(String(value));
+  
+  // Handle invalid numbers
+  if (isNaN(numValue) || !isFinite(numValue)) {
+    return '0';
+  }
+  
+  // Handle zero
+  if (numValue === 0) {
+    return '0';
+  }
+  
+  // Convert to string first to check if it's already in scientific notation
+  const strValue = String(value);
+  if (strValue.includes('e') || strValue.includes('E')) {
+    // Number is in scientific notation, convert to fixed decimal
+    // Use toFixed with 18 decimal places (ETH precision) to avoid scientific notation
+    const fixed = numValue.toFixed(18);
+    // Remove trailing zeros but keep at least one digit after decimal if original had decimal
+    return fixed.replace(/\.?0+$/, '') || '0';
+  }
+  
+  // If it's a number type, convert to string with proper formatting
+  if (typeof value === 'number') {
+    // For very small numbers, ensure we don't get scientific notation
+    if (Math.abs(numValue) < 1e-6) {
+      return numValue.toFixed(18).replace(/\.?0+$/, '') || '0';
+    }
+    return numValue.toString();
+  }
+  
+  return strValue;
+};
+
 // Local storage utilities for chart data caching
 const CHART_DATA_CACHE_KEY = 'morpheus-chart-data-cache-v2'; // Updated version for better cache management
 const CACHE_EXPIRY_HOURS = 2; // Cache expires after 2 hours (increased for better persistence)
@@ -365,7 +406,7 @@ export function useCapitalChartData() {
             console.log(`✅ ${batchQuery.asset} batch ${batchCount} received ${dayKeys.length} day snapshots`);
             
             let lastTotalStakedWei = allDataPoints.length > 0 
-              ? ethers.utils.parseEther(allDataPoints[allDataPoints.length - 1].deposits.toString())
+              ? ethers.utils.parseEther(convertScientificToDecimal(allDataPoints[allDataPoints.length - 1].deposits))
               : ethers.BigNumber.from(0);
             
             let hasAnyData = false;

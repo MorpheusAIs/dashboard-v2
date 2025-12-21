@@ -1,9 +1,10 @@
 import Image from "next/image";
 import { NetworkIcon } from '@web3icons/react';
 import { ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { EditSubnetModal } from "./edit-subnet-modal";
 import { Builder } from "@/app/builders/builders-data";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Helper function to extract domain from URL
 const extractDomain = (url: string): string => {
@@ -67,6 +68,8 @@ export interface ProjectHeaderProps {
   children?: React.ReactNode;
   builder?: Builder | null;
   showEditButton?: boolean;
+  subnetId?: string | null;
+  isTestnet?: boolean;
 }
 
 export function ProjectHeader({
@@ -79,17 +82,24 @@ export function ProjectHeader({
   children,
   builder,
   showEditButton = false,
+  subnetId,
+  isTestnet = false,
 }: ProjectHeaderProps) {
-  
-  // Debug log to see the builder data being passed
-  console.log('[ProjectHeader] Builder data:', builder);
-  console.log('[ProjectHeader] Builder ID:', builder?.id);
-  console.log('[ProjectHeader] Show edit button:', showEditButton);
   
   // Track image loading error
   const [imageError, setImageError] = useState(false);
   // Track edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // Track if metadata is refreshing after update
+  const [isMetadataRefreshing, setIsMetadataRefreshing] = useState(false);
+  
+  // Debug log to see the builder data being passed (after state declarations)
+  useEffect(() => {
+    console.log('[ProjectHeader] Builder data:', builder);
+    console.log('[ProjectHeader] Builder ID:', builder?.id);
+    console.log('[ProjectHeader] Show edit button:', showEditButton);
+    console.log('[ProjectHeader] Is metadata refreshing:', isMetadataRefreshing);
+  }, [builder, showEditButton, isMetadataRefreshing]);
   
   // Check if image is valid
   const hasValidImage = (() => {
@@ -151,7 +161,12 @@ export function ProjectHeader({
             </>
           )}
           
-          {website && (
+          {isMetadataRefreshing ? (
+            <>
+              <span className="text-gray-400">|</span>
+              <Skeleton className="h-4 w-24" />
+            </>
+          ) : website ? (
             <>
               <span className="text-gray-400">|</span>
               <a 
@@ -164,15 +179,20 @@ export function ProjectHeader({
                 <ExternalLink className="h-3 w-3" />
               </a>
             </>
-          )}
+          ) : null}
         </div>
         
         {/* Row 3: Description */}
-        {description && (
+        {isMetadataRefreshing ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        ) : description ? (
           <p className="text-gray-400 text-sm">
             {description}
           </p>
-        )}
+        ) : null}
         
         {children}
       </div>
@@ -204,14 +224,14 @@ export function ProjectHeader({
           <div className="flex items-start justify-between">
             <h1 className="text-2xl font-bold text-gray-100 mb-2">{name}</h1>
             
-            {/* {showEditButton && builder && (
+            {showEditButton && builder && (
               <button 
                 onClick={() => setIsEditModalOpen(true)}
                 className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2"
               >
                 Edit subnet
               </button>
-            )} */}
+            )}
           </div>
           
           <div className="flex items-center gap-4 mb-4">
@@ -230,7 +250,12 @@ export function ProjectHeader({
               </>
             )}
             
-            {website && (
+            {isMetadataRefreshing ? (
+              <>
+                <span className="text-gray-400">|</span>
+                <Skeleton className="h-5 w-32" />
+              </>
+            ) : website ? (
               <>
                 <span className="text-gray-400">|</span>
                 <a 
@@ -243,14 +268,20 @@ export function ProjectHeader({
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </>
-            )}
+            ) : null}
           </div>
           
-          {description && (
+          {isMetadataRefreshing ? (
+            <div className="space-y-2 max-w-2xl">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : description ? (
             <p className="text-gray-400 max-w-2xl">
               {description}
             </p>
-          )}
+          ) : null}
           
           {children}
         </div>
@@ -259,8 +290,18 @@ export function ProjectHeader({
       {/* Edit Subnet Modal */}
       <EditSubnetModal
         isOpen={isEditModalOpen}
-        onCloseAction={() => setIsEditModalOpen(false)}
+        onCloseAction={() => {
+          setIsEditModalOpen(false);
+          // Don't reset refreshing state here - let it persist if transaction was confirmed
+          // The modal will handle resetting it when data refresh completes
+        }}
         builder={builder || null}
+        subnetId={subnetId || null}
+        isTestnet={isTestnet}
+        onRefreshingChange={(refreshing) => {
+          console.log('[ProjectHeader] Refreshing state changed:', refreshing);
+          setIsMetadataRefreshing(refreshing);
+        }}
         onSave={() => {
           // The modal will handle refreshing the builders data
           console.log("Subnet metadata updated successfully");

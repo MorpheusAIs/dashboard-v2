@@ -1,11 +1,10 @@
-import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { baseSepolia, base } from 'wagmi/chains';
 import { testnetChains, mainnetChains, ChainConfig } from '@/config/networks';
 import { Address } from 'viem';
 
-// Update SUPPORTED_CHAINS to include all networks
+// Update SUPPORTED_CHAINS - only Base and Base Sepolia supported (both use V4 contracts)
 export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
-  [arbitrumSepolia.id]: testnetChains.arbitrumSepolia,
-  [arbitrum.id]: mainnetChains.arbitrum,
+  [baseSepolia.id]: testnetChains.baseSepolia,
   [base.id]: mainnetChains.base
 };
 

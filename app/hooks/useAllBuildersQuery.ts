@@ -12,7 +12,7 @@ import { BUILDER_BLACKLIST } from '@/config/builders';
 export const useAllBuildersQuery = () => {
   // console.log('[useAllBuildersQuery] Hook initialized');
   
-  const { isTestnet } = useNetworkInfo();
+  const { isTestnet, chainId } = useNetworkInfo();
   const { 
     supabaseBuilders, 
     supabaseBuildersLoaded, 
@@ -36,12 +36,13 @@ export const useAllBuildersQuery = () => {
   //   newlyCreatedNames length: ${newlyCreatedNamesLength}
   // `);
 
-  // Include userAddress, morlordBuilderNames, and newly created subnets in the queryKey for refetching
+  // Include userAddress, morlordBuilderNames, newly created subnets, and chainId in the queryKey for refetching
   const newlyCreatedNames = getNewlyCreatedSubnetNames();
   const queryKey: QueryKey = [
     'builders', 
     { 
       isTestnet, 
+      chainId, // Include chainId so query refetches when switching networks
       supabaseBuildersLoaded, 
       userAddress: isAuthenticated ? userAddress : null,
       morlordBuilderNamesLoaded: !isLoadingMorlordBuilders && !!morlordBuilderNames,
@@ -153,7 +154,8 @@ export const useAllBuildersQuery = () => {
         combinedBuilders, 
         supabaseBuildersLoaded, 
         isAuthenticated ? userAddress : "",
-        getNewlyCreatedSubnetAdmin // Pass the function to get admin addresses for newly created subnets
+        getNewlyCreatedSubnetAdmin, // Pass the function to get admin addresses for newly created subnets
+        chainId // Pass chainId to determine which testnet network to query
       );
       
       // console.log(`[useAllBuildersQuery] fetchBuildersAPI returned ${result.length} builders`);

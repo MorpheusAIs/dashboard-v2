@@ -1,20 +1,20 @@
 import { useChainId } from 'wagmi';
-import { arbitrumSepolia } from 'wagmi/chains';
+import { baseSepolia } from 'wagmi/chains';
 
 export interface NetworkInfo {
   chainId: number | undefined;
   isTestnet: boolean;
-  isArbitrumSepolia: boolean;
+  isBaseSepolia: boolean;
 }
 
 export const useNetworkInfo = (): NetworkInfo => {
   const chainId = useChainId();
-  const isArbitrumSepolia = chainId === arbitrumSepolia.id;
-  const isTestnet = isArbitrumSepolia; // Currently, testnet is only Arbitrum Sepolia
+  const isBaseSepolia = chainId === baseSepolia.id;
+  const isTestnet = isBaseSepolia; // Testnet is Base Sepolia
 
   return {
     chainId,
     isTestnet,
-    isArbitrumSepolia,
+    isBaseSepolia,
   };
 }; 

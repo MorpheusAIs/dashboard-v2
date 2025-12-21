@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { useConfig, useAccount, useConnect, useSwitchChain } from 'wagmi';
-import { arbitrumSepolia, mainnet, arbitrum, base } from 'wagmi/chains';
-import { NetworkEnvironment, apiUrls, getChains, getChainById, getL1Chains, getL2Chains } from '../config/networks';
-import { getWagmiConfig } from '../config';
+import { useAccount, useSwitchChain } from 'wagmi';
+import { baseSepolia, mainnet, arbitrum, base } from 'wagmi/chains';
+import { NetworkEnvironment, apiUrls, getChains, getL1Chains, getL2Chains } from '../config/networks';
 
 interface NetworkContextType {
   environment: NetworkEnvironment;
@@ -44,9 +43,9 @@ export function NetworkProvider({
     try {
       setIsNetworkSwitching(true);
       
-      // If switching to testnet, switch to Arbitrum Sepolia
+      // If switching to testnet, switch to Base Sepolia
       if (newEnvironment === 'testnet') {
-        await switchChain({ chainId: arbitrumSepolia.id });
+        await switchChain({ chainId: baseSepolia.id });
       }
       // If switching to mainnet, keep current chain if it's a mainnet chain, otherwise switch to Arbitrum
       else if (newEnvironment === 'mainnet') {

@@ -3,31 +3,13 @@ import { useAuth } from '@/context/auth-context';
 import { useNetworkInfo } from './useNetworkInfo';
 import { Builder } from '@/app/builders/builders-data';
 import { getClientForNetwork } from '@/lib/apollo-client';
-import { GET_ACCOUNT_USER_BUILDERS_PROJECTS } from '@/lib/graphql/builders-queries';
+import { GET_PROJECTS_FOR_USER_BASE_SEPOLIA, GET_PROJECTS_FOR_USER_BASE_MAINNET, GET_PROJECTS_FOR_USER_ARBITRUM_MAINNET } from '@/lib/graphql/builders-queries';
 import { formatTimePeriod } from "@/app/utils/time-utils";
 import { formatUnits } from 'ethers/lib/utils';
 import { useSupabaseBuilders } from './useSupabaseBuilders';
 import { useBuilders } from '@/context/builders-context';
-
-interface BuilderUser {
-  id: string;
-  address: string;
-  staked: string;
-  lastStake: string;
-  buildersProject: {
-    id: string;
-    name: string;
-    admin: string;
-    minimalDeposit: string;
-    totalStaked: string;
-    totalUsers: string;
-    withdrawLockPeriodAfterDeposit: string;
-    startsAt: string;
-    claimLockEnd?: string;
-    totalClaimed?: string;
-    [key: string]: string | undefined;
-  };
-}
+import { useChainId } from 'wagmi';
+import { baseSepolia } from 'wagmi/chains';
 
 /**
  * Hook to fetch ALL builders where the user has staked tokens
@@ -38,15 +20,28 @@ interface BuilderUser {
 export const useUserStakedBuilders = () => {
   const { userAddress, isAuthenticated } = useAuth();
   const { isTestnet } = useNetworkInfo();
+  const chainId = useChainId();
   const { supabaseBuilders } = useSupabaseBuilders();
   const { builders } = useBuilders();
 
+  const isBaseSepolia = chainId === baseSepolia.id;
+
   // Create a unique query key
-  const queryKey: QueryKey = ['userStakedBuilders', { userAddress, isTestnet, buildersCount: builders?.length || 0 }];
+  const queryKey: QueryKey = ['userStakedBuilders', { userAddress, isTestnet, isBaseSepolia, buildersCount: builders?.length || 0 }];
 
   // The query is enabled only if the user is authenticated and has an address
-  // For testnet, also wait for builders to be loaded
-  const isEnabled = isAuthenticated && !!userAddress && (isTestnet ? !!builders && builders.length > 0 : true);
+  // For testnet, also wait for builders to be loaded (except Base Sepolia which uses direct query)
+  const isEnabled = isAuthenticated && !!userAddress && (isTestnet && !isBaseSepolia ? !!builders && builders.length > 0 : true);
+  
+  console.log('[useUserStakedBuilders] Query enabled:', {
+    isAuthenticated,
+    userAddress,
+    isTestnet,
+    isBaseSepolia,
+    hasBuilders: !!builders,
+    buildersCount: builders?.length || 0,
+    isEnabled
+  });
 
   return useQuery<Builder[], Error>({
     queryKey,
@@ -55,8 +50,104 @@ export const useUserStakedBuilders = () => {
         return [];
       }
 
-      if (isTestnet) {
-        // For testnet, use builders from the context and filter by user stakes
+      if (isTestnet && isBaseSepolia) {
+        // Base Sepolia: Use dedicated GraphQL query
+        console.log('[useUserStakedBuilders] Fetching Base Sepolia staked builders for:', userAddress);
+        
+        const baseSepoliaClient = getClientForNetwork('BaseSepolia');
+        if (!baseSepoliaClient) {
+          throw new Error('Could not get Apollo client for Base Sepolia');
+        }
+
+        const response = await baseSepoliaClient.query<{ buildersUsers?: { items?: Array<{
+          project: {
+            id: string;
+            name: string;
+            slug: string;
+            description: string;
+            website: string;
+            image: string;
+            admin: string;
+            totalStaked: string;
+            totalUsers: string;
+            minimalDeposit: string;
+            withdrawLockPeriodAfterDeposit: string;
+            startsAt: string;
+            chainId: string;
+            contractAddress: string;
+          };
+          staked: string;
+          lastStake: string;
+          claimLockEnd: string;
+        }> } }>({
+          query: GET_PROJECTS_FOR_USER_BASE_SEPOLIA,
+          variables: { userAddress },
+          fetchPolicy: 'no-cache',
+        });
+
+        console.log('[useUserStakedBuilders] Raw GraphQL response:', response);
+        console.log('[useUserStakedBuilders] Response data:', response.data);
+        
+        // Handle both items wrapper and direct array formats
+        const buildersUsers = response.data?.buildersUsers?.items || [];
+        console.log(`[useUserStakedBuilders] Found ${buildersUsers.length} Base Sepolia builders where user has staked`);
+
+        const stakedBuilders: Builder[] = buildersUsers
+          .filter((user) => user.project && parseFloat(user.staked) > 0)
+          .map((user) => {
+            const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
+            const totalStakedInMor = Number(user.project.totalStaked || '0') / 1e18;
+            const minDepositInMor = Number(user.project.minimalDeposit || '0') / 1e18;
+            const lockPeriodSeconds = parseInt(user.project.withdrawLockPeriodAfterDeposit || '0', 10);
+            const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+            const stakingCount = parseInt(user.project.totalUsers || '0', 10);
+
+            const builder: Builder = {
+              id: user.project.id,
+              mainnetProjectId: user.project.id,
+              name: user.project.name,
+              description: user.project.description || '',
+              long_description: user.project.description || '',
+              admin: user.project.admin,
+              networks: ['Base Sepolia'],
+              network: 'Base Sepolia',
+              totalStaked: totalStakedInMor,
+              totalClaimed: 0,
+              minDeposit: minDepositInMor,
+              lockPeriod: lockPeriodFormatted,
+              withdrawLockPeriodRaw: lockPeriodSeconds,
+              stakingCount: stakingCount,
+              userStake: userStakedAmount,
+              website: user.project.website || '',
+              image_src: user.project.image || '',
+              image: user.project.image || '',
+              tags: [],
+              github_url: '',
+              twitter_url: '',
+              discord_url: '',
+              contributors: 0,
+              github_stars: 0,
+              reward_types: [],
+              reward_types_detail: [],
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              startsAt: user.project.startsAt || '',
+              builderUsers: [{
+                id: `${user.project.id}-${userAddress}`,
+                address: userAddress,
+                staked: user.staked,
+                claimed: '0',
+                claimLockEnd: user.claimLockEnd,
+                lastStake: user.lastStake,
+              }],
+            };
+
+            return builder;
+          });
+
+        return stakedBuilders;
+      } else if (isTestnet) {
+        // For other testnets (Arbitrum Sepolia), use builders from the context and filter by user stakes
         console.log('[useUserStakedBuilders] Fetching testnet staked builders for:', userAddress);
         
         if (!builders || builders.length === 0) {
@@ -87,7 +178,7 @@ export const useUserStakedBuilders = () => {
         return userStakedBuilders;
       }
 
-      // Mainnet logic (unchanged)
+      // Mainnet logic: Fetch from both Base and Arbitrum networks
       console.log('[useUserStakedBuilders] Fetching user staked builders for:', userAddress);
 
       const baseClient = getClientForNetwork('Base');
@@ -97,20 +188,61 @@ export const useUserStakedBuilders = () => {
         throw new Error('Could not get Apollo clients for Base or Arbitrum');
       }
 
-      // Fetch from both Base and Arbitrum networks
+      // Fetch from both Base and Arbitrum networks using new queries
       const [baseResponse, arbitrumResponse] = await Promise.all([
-        baseClient.query<{ buildersUsers: { items: BuilderUser[] } }>({
-          query: GET_ACCOUNT_USER_BUILDERS_PROJECTS,
-          variables: { address: userAddress },
+        baseClient.query<{ buildersUsers?: { items?: Array<{
+          project: {
+            id: string;
+            name: string;
+            slug: string;
+            description: string;
+            website: string;
+            image: string;
+            admin: string;
+            totalStaked: string;
+            totalUsers: string;
+            minimalDeposit: string;
+            withdrawLockPeriodAfterDeposit: string;
+            startsAt: string;
+            chainId: string;
+            contractAddress: string;
+          };
+          staked: string;
+          lastStake: string;
+          claimLockEnd: string;
+        }> } }>({
+          query: GET_PROJECTS_FOR_USER_BASE_MAINNET,
+          variables: { userAddress },
           fetchPolicy: 'no-cache',
         }),
-        arbitrumClient.query<{ buildersUsers: { items: BuilderUser[] } }>({
-          query: GET_ACCOUNT_USER_BUILDERS_PROJECTS,
-          variables: { address: userAddress },
+        arbitrumClient.query<{ buildersUsers?: { items?: Array<{
+          project: {
+            id: string;
+            name: string;
+            slug: string;
+            description: string;
+            website: string;
+            image: string;
+            admin: string;
+            totalStaked: string;
+            totalUsers: string;
+            minimalDeposit: string;
+            withdrawLockPeriodAfterDeposit: string;
+            startsAt: string;
+            chainId: string;
+            contractAddress: string;
+          };
+          staked: string;
+          lastStake: string;
+          claimLockEnd: string;
+        }> } }>({
+          query: GET_PROJECTS_FOR_USER_ARBITRUM_MAINNET,
+          variables: { userAddress },
           fetchPolicy: 'no-cache',
         })
       ]);
 
+      // Handle both items wrapper and direct array formats
       const baseBuilderUsers = baseResponse.data?.buildersUsers?.items || [];
       const arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers?.items || [];
 
@@ -119,126 +251,122 @@ export const useUserStakedBuilders = () => {
       const stakedBuilders: Builder[] = [];
 
       // Process Base builders
-      baseBuilderUsers.forEach((user: BuilderUser) => {
-        if (!user.buildersProject) return;
-        
-        const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
-        
-        // Skip if staked amount is zero
-        if (userStakedAmount <= 0) return;
+      baseBuilderUsers
+        .filter((user) => user.project && parseFloat(user.staked) > 0)
+        .forEach((user) => {
+          const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
 
-        // Find corresponding Supabase builder data for metadata
-        const supabaseBuilder = supabaseBuilders?.find(b => 
-          b.name.toLowerCase() === user.buildersProject.name.toLowerCase()
-        );
+          // Find corresponding Supabase builder data for metadata
+          const supabaseBuilder = supabaseBuilders?.find(b => 
+            b.name.toLowerCase() === user.project.name.toLowerCase()
+          );
 
-        const totalStakedInMor = Number(user.buildersProject.totalStaked || '0') / 1e18;
-        const minDepositInMor = Number(user.buildersProject.minimalDeposit || '0') / 1e18;
-        const lockPeriodSeconds = parseInt(user.buildersProject.withdrawLockPeriodAfterDeposit || '0', 10);
-        const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          const totalStakedInMor = Number(user.project.totalStaked || '0') / 1e18;
+          const minDepositInMor = Number(user.project.minimalDeposit || '0') / 1e18;
+          const lockPeriodSeconds = parseInt(user.project.withdrawLockPeriodAfterDeposit || '0', 10);
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          const stakingCount = parseInt(user.project.totalUsers || '0', 10);
 
-        const builder: Builder = {
-          id: user.buildersProject.id,
-          mainnetProjectId: user.buildersProject.id,
-          name: user.buildersProject.name,
-          description: supabaseBuilder?.description || `${user.buildersProject.name} (on Base)`,
-          long_description: supabaseBuilder?.long_description || '',
-          admin: user.buildersProject.admin,
-          networks: ['Base'],
-          network: 'Base',
-          totalStaked: totalStakedInMor,
-          minDeposit: minDepositInMor,
-          lockPeriod: lockPeriodFormatted,
-          withdrawLockPeriodRaw: lockPeriodSeconds,
-          stakingCount: parseInt(user.buildersProject.totalUsers || '0', 10),
-          userStake: userStakedAmount,
-          website: supabaseBuilder?.website || '',
-          image_src: supabaseBuilder?.image_src || '',
-          image: supabaseBuilder?.image_src || '',
-          tags: supabaseBuilder?.tags || [],
-          github_url: supabaseBuilder?.github_url || '',
-          twitter_url: supabaseBuilder?.twitter_url || '',
-          discord_url: supabaseBuilder?.discord_url || '',
-          contributors: supabaseBuilder?.contributors || 0,
-          github_stars: supabaseBuilder?.github_stars || 0,
-          reward_types: supabaseBuilder?.reward_types || ['TBA'],
-          reward_types_detail: supabaseBuilder?.reward_types_detail || [],
-          created_at: supabaseBuilder?.created_at || new Date().toISOString(),
-          updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
-          startsAt: user.buildersProject.startsAt,
-          builderUsers: [{
-            id: user.id,
-            address: user.address,
-            staked: user.staked,
-            claimed: "0",
-            claimLockEnd: user.buildersProject.claimLockEnd || "0",
-            lastStake: user.lastStake,
-          }]
-        };
+          const builder: Builder = {
+            id: user.project.id,
+            mainnetProjectId: user.project.id,
+            name: user.project.name,
+            description: supabaseBuilder?.description || user.project.description || `${user.project.name} (on Base)`,
+            long_description: supabaseBuilder?.long_description || user.project.description || '',
+            admin: user.project.admin,
+            networks: ['Base'],
+            network: 'Base',
+            totalStaked: totalStakedInMor,
+            minDeposit: minDepositInMor,
+            lockPeriod: lockPeriodFormatted,
+            withdrawLockPeriodRaw: lockPeriodSeconds,
+            stakingCount: stakingCount,
+            userStake: userStakedAmount,
+            website: supabaseBuilder?.website || user.project.website || '',
+            image_src: supabaseBuilder?.image_src || user.project.image || '',
+            image: supabaseBuilder?.image_src || user.project.image || '',
+            tags: supabaseBuilder?.tags || [],
+            github_url: supabaseBuilder?.github_url || '',
+            twitter_url: supabaseBuilder?.twitter_url || '',
+            discord_url: supabaseBuilder?.discord_url || '',
+            contributors: supabaseBuilder?.contributors || 0,
+            github_stars: supabaseBuilder?.github_stars || 0,
+            reward_types: [],
+            reward_types_detail: [],
+            created_at: supabaseBuilder?.created_at || new Date().toISOString(),
+            updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
+            startsAt: user.project.startsAt || '',
+            builderUsers: [{
+              id: `${user.project.id}-${userAddress}`,
+              address: userAddress,
+              staked: user.staked,
+              claimed: "0",
+              claimLockEnd: user.claimLockEnd,
+              lastStake: user.lastStake,
+            }]
+          };
 
-        stakedBuilders.push(builder);
-      });
+          stakedBuilders.push(builder);
+        });
 
       // Process Arbitrum builders
-      arbitrumBuilderUsers.forEach((user: BuilderUser) => {
-        if (!user.buildersProject) return;
-        
-        const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
-        
-        // Skip if staked amount is zero
-        if (userStakedAmount <= 0) return;
+      arbitrumBuilderUsers
+        .filter((user) => user.project && parseFloat(user.staked) > 0)
+        .forEach((user) => {
+          const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
 
-        // Find corresponding Supabase builder data for metadata
-        const supabaseBuilder = supabaseBuilders?.find(b => 
-          b.name.toLowerCase() === user.buildersProject.name.toLowerCase()
-        );
+          // Find corresponding Supabase builder data for metadata
+          const supabaseBuilder = supabaseBuilders?.find(b => 
+            b.name.toLowerCase() === user.project.name.toLowerCase()
+          );
 
-        const totalStakedInMor = Number(user.buildersProject.totalStaked || '0') / 1e18;
-        const minDepositInMor = Number(user.buildersProject.minimalDeposit || '0') / 1e18;
-        const lockPeriodSeconds = parseInt(user.buildersProject.withdrawLockPeriodAfterDeposit || '0', 10);
-        const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          const totalStakedInMor = Number(user.project.totalStaked || '0') / 1e18;
+          const minDepositInMor = Number(user.project.minimalDeposit || '0') / 1e18;
+          const lockPeriodSeconds = parseInt(user.project.withdrawLockPeriodAfterDeposit || '0', 10);
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          const stakingCount = parseInt(user.project.totalUsers || '0', 10);
 
-        const builder: Builder = {
-          id: user.buildersProject.id,
-          mainnetProjectId: user.buildersProject.id,
-          name: user.buildersProject.name,
-          description: supabaseBuilder?.description || `${user.buildersProject.name} (on Arbitrum)`,
-          long_description: supabaseBuilder?.long_description || '',
-          admin: user.buildersProject.admin,
-          networks: ['Arbitrum'],
-          network: 'Arbitrum',
-          totalStaked: totalStakedInMor,
-          minDeposit: minDepositInMor,
-          lockPeriod: lockPeriodFormatted,
-          withdrawLockPeriodRaw: lockPeriodSeconds,
-          stakingCount: parseInt(user.buildersProject.totalUsers || '0', 10),
-          userStake: userStakedAmount,
-          website: supabaseBuilder?.website || '',
-          image_src: supabaseBuilder?.image_src || '',
-          image: supabaseBuilder?.image_src || '',
-          tags: supabaseBuilder?.tags || [],
-          github_url: supabaseBuilder?.github_url || '',
-          twitter_url: supabaseBuilder?.twitter_url || '',
-          discord_url: supabaseBuilder?.discord_url || '',
-          contributors: supabaseBuilder?.contributors || 0,
-          github_stars: supabaseBuilder?.github_stars || 0,
-          reward_types: supabaseBuilder?.reward_types || ['TBA'],
-          reward_types_detail: supabaseBuilder?.reward_types_detail || [],
-          created_at: supabaseBuilder?.created_at || new Date().toISOString(),
-          updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
-          startsAt: user.buildersProject.startsAt,
-          builderUsers: [{
-            id: user.id,
-            address: user.address,
-            staked: user.staked,
-            claimed: "0",
-            claimLockEnd: user.buildersProject.claimLockEnd || "0",
-            lastStake: user.lastStake,
-          }]
-        };
+          const builder: Builder = {
+            id: user.project.id,
+            mainnetProjectId: user.project.id,
+            name: user.project.name,
+            description: supabaseBuilder?.description || user.project.description || `${user.project.name} (on Arbitrum)`,
+            long_description: supabaseBuilder?.long_description || user.project.description || '',
+            admin: user.project.admin,
+            networks: ['Arbitrum'],
+            network: 'Arbitrum',
+            totalStaked: totalStakedInMor,
+            minDeposit: minDepositInMor,
+            lockPeriod: lockPeriodFormatted,
+            withdrawLockPeriodRaw: lockPeriodSeconds,
+            stakingCount: stakingCount,
+            userStake: userStakedAmount,
+            website: supabaseBuilder?.website || user.project.website || '',
+            image_src: supabaseBuilder?.image_src || user.project.image || '',
+            image: supabaseBuilder?.image_src || user.project.image || '',
+            tags: supabaseBuilder?.tags || [],
+            github_url: supabaseBuilder?.github_url || '',
+            twitter_url: supabaseBuilder?.twitter_url || '',
+            discord_url: supabaseBuilder?.discord_url || '',
+            contributors: supabaseBuilder?.contributors || 0,
+            github_stars: supabaseBuilder?.github_stars || 0,
+            reward_types: [],
+            reward_types_detail: [],
+            created_at: supabaseBuilder?.created_at || new Date().toISOString(),
+            updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
+            startsAt: user.project.startsAt || '',
+            builderUsers: [{
+              id: `${user.project.id}-${userAddress}`,
+              address: userAddress,
+              staked: user.staked,
+              claimed: "0",
+              claimLockEnd: user.claimLockEnd,
+              lastStake: user.lastStake,
+            }]
+          };
 
-        stakedBuilders.push(builder);
-      });
+          stakedBuilders.push(builder);
+        });
 
       console.log(`[useUserStakedBuilders] Processed ${stakedBuilders.length} total staked builders`);
       return stakedBuilders;

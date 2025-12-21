@@ -1,6 +1,6 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { cookieStorage, createStorage, http } from 'wagmi';
-import { mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
+import { mainnet, arbitrum, base, baseSepolia, arbitrumSepolia, sepolia } from 'wagmi/chains';
 // import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
@@ -21,7 +21,7 @@ const metadata = {
 // Create a function to get the config for a specific environment
 export const getWagmiConfig = () => {
   // Always include all chains Wagmi needs to be aware of
-  const chains = [mainnet, arbitrum, base, arbitrumSepolia, sepolia] as const;
+  const chains = [mainnet, arbitrum, base, baseSepolia, arbitrumSepolia, sepolia] as const;
 
   return defaultWagmiConfig({
     chains,
@@ -36,7 +36,8 @@ export const getWagmiConfig = () => {
       [mainnet.id]: http(alchemyMainnetRpcUrl),
       [arbitrum.id]: http(), // Use default for other chains
       [base.id]: http(),
-      [arbitrumSepolia.id]: http(),
+      [baseSepolia.id]: http(), // Base Sepolia testnet
+      [arbitrumSepolia.id]: http(), // @deprecated - kept for backward compatibility
       [sepolia.id]: http(),
     },
     enableCoinbase: true,
