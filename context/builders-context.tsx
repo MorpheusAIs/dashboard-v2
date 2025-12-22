@@ -5,6 +5,9 @@ import { Builder } from '@/app/builders/builders-data';
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { useAllBuildersQuery } from '@/app/hooks/useAllBuildersQuery';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSupabaseBuilders } from '@/app/hooks/useSupabaseBuilders';
+import { useMorlordBuilders } from '@/app/hooks/useMorlordBuilders';
+import { useNetworkInfo } from '@/app/hooks/useNetworkInfo';
 
 interface BuildersContextType {
   builders: Builder[];
@@ -35,6 +38,9 @@ const BuildersContext = createContext<BuildersContextType | undefined>(undefined
 
 export function BuildersProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const { isTestnet } = useNetworkInfo();
+  const { supabaseBuildersLoaded } = useSupabaseBuilders();
+  const { isLoading: isLoadingMorlordBuilders } = useMorlordBuilders();
 
   const { 
     data: allBuildersData,
@@ -43,6 +49,25 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   } = useAllBuildersQuery();
 
   const builders = useMemo(() => allBuildersData || [], [allBuildersData]);
+
+  // Calculate if the query is enabled (same logic as in useAllBuildersQuery)
+  const isQueryEnabled = useMemo(() => {
+    return isTestnet ? true : (supabaseBuildersLoaded && !isLoadingMorlordBuilders);
+  }, [isTestnet, supabaseBuildersLoaded, isLoadingMorlordBuilders]);
+
+  // Calculate combined loading state:
+  // - Show loading if the query is actually loading, OR
+  // - Show loading if the query is disabled (waiting for dependencies)
+  const isLoading = useMemo(() => {
+    if (isLoadingBuilders) {
+      return true;
+    }
+    // If query is disabled and we haven't loaded data yet, show loading state
+    if (!isQueryEnabled && !allBuildersData) {
+      return true;
+    }
+    return false;
+  }, [isLoadingBuilders, isQueryEnabled, allBuildersData]);
 
   const [sortColumn, setSortColumn] = useState<string | null>('totalStaked');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>('desc');
@@ -151,7 +176,7 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     <BuildersContext.Provider
       value={{
         builders,
-        isLoading: isLoadingBuilders,
+        isLoading,
         error: buildersError,
         sortColumn,
         sortDirection,

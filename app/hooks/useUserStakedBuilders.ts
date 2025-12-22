@@ -10,6 +10,7 @@ import { useSupabaseBuilders } from './useSupabaseBuilders';
 import { useBuilders } from '@/context/builders-context';
 import { useChainId } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
+import { USE_GOLDSKY_V1_DATA } from '@/app/config/subgraph-endpoints';
 
 /**
  * Hook to fetch ALL builders where the user has staked tokens
@@ -181,70 +182,135 @@ export const useUserStakedBuilders = () => {
       // Mainnet logic: Fetch from both Base and Arbitrum networks
       console.log('[useUserStakedBuilders] Fetching user staked builders for:', userAddress);
 
-      const baseClient = getClientForNetwork('Base');
-      const arbitrumClient = getClientForNetwork('Arbitrum');
+      let baseBuilderUsers: Array<{
+        project: {
+          id: string;
+          name: string;
+          slug: string;
+          description: string;
+          website: string;
+          image: string;
+          admin: string;
+          totalStaked: string;
+          totalUsers: string;
+          minimalDeposit: string;
+          withdrawLockPeriodAfterDeposit: string;
+          startsAt: string;
+          chainId: string;
+          contractAddress: string;
+        };
+        staked: string;
+        lastStake: string;
+        claimLockEnd: string;
+      }> = [];
+      
+      let arbitrumBuilderUsers: Array<{
+        project: {
+          id: string;
+          name: string;
+          slug: string;
+          description: string;
+          website: string;
+          image: string;
+          admin: string;
+          totalStaked: string;
+          totalUsers: string;
+          minimalDeposit: string;
+          withdrawLockPeriodAfterDeposit: string;
+          startsAt: string;
+          chainId: string;
+          contractAddress: string;
+        };
+        staked: string;
+        lastStake: string;
+        claimLockEnd: string;
+      }> = [];
 
-      if (!baseClient || !arbitrumClient) {
-        throw new Error('Could not get Apollo clients for Base or Arbitrum');
+      if (USE_GOLDSKY_V1_DATA) {
+        // Use Goldsky API routes (server-side extracted and transformed data)
+        console.log('[useUserStakedBuilders] Mainnet: Using Goldsky V1 data via API routes');
+        
+        const [baseApiResponse, arbitrumApiResponse] = await Promise.all([
+          fetch(`/api/builders/goldsky/user-staked/base?userAddress=${encodeURIComponent(userAddress)}`),
+          fetch(`/api/builders/goldsky/user-staked/arbitrum?userAddress=${encodeURIComponent(userAddress)}`)
+        ]);
+
+        if (!baseApiResponse.ok || !arbitrumApiResponse.ok) {
+          throw new Error(`Failed to fetch Goldsky user staked builders data: Base=${baseApiResponse.status}, Arbitrum=${arbitrumApiResponse.status}`);
+        }
+
+        const baseData = await baseApiResponse.json();
+        const arbitrumData = await arbitrumApiResponse.json();
+
+        baseBuilderUsers = baseData.buildersUsers?.items || [];
+        arbitrumBuilderUsers = arbitrumData.buildersUsers?.items || [];
+      } else {
+        // Use direct Ponder V4 GraphQL queries
+        const baseClient = getClientForNetwork('Base');
+        const arbitrumClient = getClientForNetwork('Arbitrum');
+
+        if (!baseClient || !arbitrumClient) {
+          throw new Error('Could not get Apollo clients for Base or Arbitrum');
+        }
+
+        // Fetch from both Base and Arbitrum networks using new queries
+        const [baseResponse, arbitrumResponse] = await Promise.all([
+          baseClient.query<{ buildersUsers?: { items?: Array<{
+            project: {
+              id: string;
+              name: string;
+              slug: string;
+              description: string;
+              website: string;
+              image: string;
+              admin: string;
+              totalStaked: string;
+              totalUsers: string;
+              minimalDeposit: string;
+              withdrawLockPeriodAfterDeposit: string;
+              startsAt: string;
+              chainId: string;
+              contractAddress: string;
+            };
+            staked: string;
+            lastStake: string;
+            claimLockEnd: string;
+          }> } }>({
+            query: GET_PROJECTS_FOR_USER_BASE_MAINNET,
+            variables: { userAddress },
+            fetchPolicy: 'no-cache',
+          }),
+          arbitrumClient.query<{ buildersUsers?: { items?: Array<{
+            project: {
+              id: string;
+              name: string;
+              slug: string;
+              description: string;
+              website: string;
+              image: string;
+              admin: string;
+              totalStaked: string;
+              totalUsers: string;
+              minimalDeposit: string;
+              withdrawLockPeriodAfterDeposit: string;
+              startsAt: string;
+              chainId: string;
+              contractAddress: string;
+            };
+            staked: string;
+            lastStake: string;
+            claimLockEnd: string;
+          }> } }>({
+            query: GET_PROJECTS_FOR_USER_ARBITRUM_MAINNET,
+            variables: { userAddress },
+            fetchPolicy: 'no-cache',
+          })
+        ]);
+
+        // Handle both items wrapper and direct array formats
+        baseBuilderUsers = baseResponse.data?.buildersUsers?.items || [];
+        arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers?.items || [];
       }
-
-      // Fetch from both Base and Arbitrum networks using new queries
-      const [baseResponse, arbitrumResponse] = await Promise.all([
-        baseClient.query<{ buildersUsers?: { items?: Array<{
-          project: {
-            id: string;
-            name: string;
-            slug: string;
-            description: string;
-            website: string;
-            image: string;
-            admin: string;
-            totalStaked: string;
-            totalUsers: string;
-            minimalDeposit: string;
-            withdrawLockPeriodAfterDeposit: string;
-            startsAt: string;
-            chainId: string;
-            contractAddress: string;
-          };
-          staked: string;
-          lastStake: string;
-          claimLockEnd: string;
-        }> } }>({
-          query: GET_PROJECTS_FOR_USER_BASE_MAINNET,
-          variables: { userAddress },
-          fetchPolicy: 'no-cache',
-        }),
-        arbitrumClient.query<{ buildersUsers?: { items?: Array<{
-          project: {
-            id: string;
-            name: string;
-            slug: string;
-            description: string;
-            website: string;
-            image: string;
-            admin: string;
-            totalStaked: string;
-            totalUsers: string;
-            minimalDeposit: string;
-            withdrawLockPeriodAfterDeposit: string;
-            startsAt: string;
-            chainId: string;
-            contractAddress: string;
-          };
-          staked: string;
-          lastStake: string;
-          claimLockEnd: string;
-        }> } }>({
-          query: GET_PROJECTS_FOR_USER_ARBITRUM_MAINNET,
-          variables: { userAddress },
-          fetchPolicy: 'no-cache',
-        })
-      ]);
-
-      // Handle both items wrapper and direct array formats
-      const baseBuilderUsers = baseResponse.data?.buildersUsers?.items || [];
-      const arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers?.items || [];
 
       console.log(`[useUserStakedBuilders] Found ${baseBuilderUsers.length} Base builders and ${arbitrumBuilderUsers.length} Arbitrum builders`);
 

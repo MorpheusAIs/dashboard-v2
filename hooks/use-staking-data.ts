@@ -96,10 +96,21 @@ export function useStakingData({
   const chainId = useChainId();
   const isTestnet = providedIsTestnet !== undefined ? providedIsTestnet : chainId === baseSepolia.id;
   
-  // Determine if we're using BuildersV4 schema (Base Sepolia, Base Mainnet, Arbitrum Mainnet)
-  const isBuildersV4 = useMemo(() => {
-    return chainId === baseSepolia.id || chainId === base.id || chainId === arbitrum.id;
-  }, [chainId]);
+  /**
+   * Helper function to detect if a project is V4 (has on-chain metadata) or V1 (missing metadata)
+   * V4 projects will have metadata fields populated (description, website, image, slug)
+   * V1 projects discovered via V4 query will have these fields empty/null
+   */
+  const isV4Project = useCallback((project: { slug?: string; description?: string; website?: string; image?: string } | null): boolean => {
+    if (!project) return false;
+    // V4 projects have metadata fields populated
+    return !!(
+      project.description || 
+      project.website || 
+      project.image || 
+      project.slug
+    );
+  }, []);
   
   // Get the appropriate Apollo client and queries for BuildersV4 networks
   const getBuildersV4Config = useCallback(() => {
@@ -470,12 +481,15 @@ export function useStakingData({
         
         setEntries(formattedEntries);
       } else {
-        // Check if we're using BuildersV4 schema (must check before isTestnet since Base Sepolia is testnet)
+        // Check if we're on a chain that supports BuildersV4 schema (Base Sepolia, Base Mainnet, Arbitrum Mainnet)
+        // Note: On Base/Arbitrum mainnet, there can be both V1 subnets (old, no metadata) and V4 subnets (new, has metadata)
+        // We use BuildersV4 queries for all subnets on these chains, but detect V1 vs V4 after fetching project data
         const buildersV4Config = getBuildersV4Config();
         
         if (buildersV4Config && buildersV4Config.client) {
-          // BuildersV4 schema (Base Sepolia, Base Mainnet, Arbitrum Mainnet)
-          console.log(`[useStakingData] Using BuildersV4 schema for chainId: ${chainId}`);
+          // BuildersV4 schema queries work for both V1 and V4 subnets on these chains
+          // V1 subnets will have empty metadata fields and need Supabase metadata lookup
+          console.log(`[useStakingData] Using BuildersV4 schema queries for chainId: ${chainId} (will detect V1 vs V4 after fetching project data)`);
           
           // Check if we should use Goldsky API routes
           const networkName = chainId === base.id ? 'base' : chainId === arbitrum.id ? 'arbitrum' : 'base';
@@ -504,6 +518,14 @@ export function useStakingData({
                   throw new Error("No project data returned from Goldsky API");
                 }
 
+                // Detect if this is a V4 project (has metadata) or V1 project (needs Supabase metadata lookup)
+                const projectIsV4 = isV4Project(project);
+                if (!projectIsV4) {
+                  console.log(`[useStakingData] Detected V1 subnet "${project.name}" (no metadata fields). Supabase metadata lookup needed for full project details.`);
+                } else {
+                  console.log(`[useStakingData] Detected V4 subnet "${project.name}" (has on-chain metadata).`);
+                }
+
                 // Update pagination with total count
                 const totalUsers = usersData.buildersUsers?.totalCount || parseInt(project.totalUsers || '0', 10);
                 const totalPages = Math.max(1, Math.ceil(totalUsers / pagination.pageSize));
@@ -518,7 +540,14 @@ export function useStakingData({
                 const users = usersData.buildersUsers?.items || [];
                 const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
                   if (formatEntryFunc) {
-                    return formatEntryFunc(user as any);
+                    // Cast to BuildersUser (id may be missing but formatEntryFunc doesn't require it)
+                    const buildersUser: BuildersUser = {
+                      id: user.address, // Use address as id fallback
+                      address: user.address,
+                      staked: user.staked,
+                      lastStake: user.lastStake,
+                    };
+                    return formatEntryFunc(buildersUser);
                   }
                   return {
                     address: user.address,
@@ -556,7 +585,14 @@ export function useStakingData({
                 
                 const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
                   if (formatEntryFunc) {
-                    return formatEntryFunc(user as any);
+                    // Cast to BuildersUser (id may be missing but formatEntryFunc doesn't require it)
+                    const buildersUser: BuildersUser = {
+                      id: user.address, // Use address as id fallback
+                      address: user.address,
+                      staked: user.staked,
+                      lastStake: user.lastStake,
+                    };
+                    return formatEntryFunc(buildersUser);
                   }
                   return {
                     address: user.address,
@@ -617,6 +653,14 @@ export function useStakingData({
               const project = projectResponse.data?.buildersProject;
               if (!project) {
                 throw new Error("No project data returned from API");
+              }
+              
+              // Detect if this is a V4 project (has metadata) or V1 project (needs Supabase metadata lookup)
+              const projectIsV4 = isV4Project(project);
+              if (!projectIsV4) {
+                console.log(`[useStakingData] Detected V1 subnet "${project.name}" (no metadata fields). Supabase metadata lookup needed for full project details.`);
+              } else {
+                console.log(`[useStakingData] Detected V4 subnet "${project.name}" (has on-chain metadata).`);
               }
               
               // Update pagination with total count
@@ -932,7 +976,8 @@ export function useStakingData({
     formatAddress,
     isComputeProject,
     isTestnet,
-    fetchProjectIdByName
+    fetchProjectIdByName,
+    isV4Project
   ]);
 
   // Define the refresh function to explicitly trigger data fetching

@@ -109,3 +109,144 @@ export function isV4Response(
     'items' in (response as V4BuildersResponse).buildersProjects
   );
 }
+
+/**
+ * V1 response structure for user staked builders from Goldsky subgraph
+ * Goldsky uses "builderUsers" and returns flat array
+ */
+export interface V1UserStakedBuildersResponse {
+  builderUsers: Array<{
+    id: string;
+    address: string;
+    deposited: string; // Goldsky uses "deposited" instead of "staked"
+    builderSubnet: {
+      id: string;
+      name: string;
+      admin: string;
+      minimalDeposit: string;
+      totalStaked: string;
+      totalUsers: string;
+      totalClaimed: string;
+      withdrawLockPeriodAfterDeposit: string;
+      slug: string;
+      description: string;
+      website: string;
+      image: string;
+    };
+  }>;
+}
+
+/**
+ * V4 response structure expected by frontend for user staked builders
+ */
+export interface V4UserStakedBuildersResponse {
+  buildersUsers: {
+    items: Array<{
+      project: BuilderProject;
+      staked: string;
+      lastStake: string;
+      claimLockEnd: string;
+    }>;
+    totalCount: number;
+  };
+}
+
+/**
+ * Transforms V1 user staked builders response to V4 format
+ */
+export function transformV1UserStakedBuildersToV4(
+  v1Response: V1UserStakedBuildersResponse,
+  chainId: number
+): V4UserStakedBuildersResponse {
+  // Handle empty or missing response
+  if (!v1Response || !v1Response.builderUsers || !Array.isArray(v1Response.builderUsers)) {
+    console.warn('[transformV1UserStakedBuildersToV4] Empty or invalid response:', v1Response);
+    return {
+      buildersUsers: {
+        items: [],
+        totalCount: 0,
+      },
+    };
+  }
+
+  const transformedItems = v1Response.builderUsers
+    .filter((user) => user && user.builderSubnet) // Filter out invalid entries
+    .map((user) => {
+      const project = transformV1ProjectToV4(user.builderSubnet, chainId);
+      
+      return {
+        project,
+        staked: user.deposited, // Map deposited -> staked
+        lastStake: '0', // Goldsky doesn't have this field
+        claimLockEnd: '0', // Goldsky doesn't have this field
+      };
+    });
+
+  return {
+    buildersUsers: {
+      items: transformedItems,
+      totalCount: transformedItems.length,
+    },
+  };
+}
+
+/**
+ * V1 response structure for user admin subnets from Goldsky subgraph
+ * Goldsky uses "builderSubnets" and returns flat array
+ */
+export interface V1UserAdminSubnetsResponse {
+  builderSubnets: Array<{
+    id: string;
+    name: string;
+    admin: string;
+    minimalDeposit: string;
+    totalStaked: string;
+    totalUsers: string;
+    totalClaimed: string;
+    withdrawLockPeriodAfterDeposit: string;
+    slug: string;
+    description: string;
+    website: string;
+    image: string;
+  }>;
+}
+
+/**
+ * V4 response structure expected by frontend for user admin subnets
+ */
+export interface V4UserAdminSubnetsResponse {
+  buildersProjects: {
+    items: BuilderProject[];
+    totalCount: number;
+  };
+}
+
+/**
+ * Transforms V1 user admin subnets response to V4 format
+ */
+export function transformV1UserAdminSubnetsToV4(
+  v1Response: V1UserAdminSubnetsResponse,
+  chainId: number
+): V4UserAdminSubnetsResponse {
+  // Handle empty or missing response
+  if (!v1Response || !v1Response.builderSubnets || !Array.isArray(v1Response.builderSubnets)) {
+    console.warn('[transformV1UserAdminSubnetsToV4] Empty or invalid response:', v1Response);
+    return {
+      buildersProjects: {
+        items: [],
+        totalCount: 0,
+      },
+    };
+  }
+
+  const transformedProjects = v1Response.builderSubnets
+    .filter((project) => project && project.id) // Filter out invalid entries
+    .map((project) => transformV1ProjectToV4(project, chainId));
+
+  return {
+    buildersProjects: {
+      items: transformedProjects,
+      totalCount: transformedProjects.length,
+    },
+  };
+}

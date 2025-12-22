@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Option } from "@/components/ui/multiple-selector";
-import { arbitrum, base } from 'wagmi/chains';
+import { base, baseSepolia } from 'wagmi/chains';
 
 // Constants for form options
 export const REWARD_OPTIONS: Option[] = [
@@ -26,10 +26,11 @@ export const subnetContractSchema = z.object({
   networkChainId: z.number({ required_error: "Please select a network" }),
 });
 
-// Optional Step 1 extension for Mainnet: Builder Pool Configuration
+// Legacy schema - kept for backward compatibility but not used for v4 contracts
+// V4 contracts (Base and Base Sepolia) use subnet.name and subnet.minStake directly
 export const builderPoolSchema = z.object({
-  name: z.string().min(1, "Pool name is required").optional(), // Optional if subnet.name is used as fallback
-  minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // Optional if subnet.minStake is used
+  name: z.string().min(1, "Pool name is required").optional(), // Not used for v4 contracts
+  minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // Not used for v4 contracts
 });
 
 // Step 2: Project Metadata Schema
@@ -93,55 +94,34 @@ export const formSchema = z.object({
     withdrawLockPeriod: z.number().min(1, "Withdraw lock period is required."),
     withdrawLockUnit: z.enum(["days", "hours"]),
   }),
-  builderPool: z.object({ // For mainnet-specific fields that differ from 'subnet'
-    name: z.string().optional(), // Made optional - validation handled in superRefine
-    minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // Made optional - validation handled in superRefine
+  builderPool: z.object({ // Legacy fields - not used for v4 contracts (Base and Base Sepolia)
+    name: z.string().optional(), // V4 contracts use subnet.name instead
+    minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // V4 contracts use subnet.minStake instead
   }).optional(), 
   metadata: metadataContractSchema,
   projectOffChain: projectOffChainSchema,
 }).superRefine((data, ctx) => {
-  // Cross-field validation for withdrawLockPeriod on mainnet
-  if (data.subnet.networkChainId === arbitrum.id || data.subnet.networkChainId === base.id) {
+  // V4 contracts: Both Base and Base Sepolia use subnet.name and subnet.minStake
+  // No longer support Arbitrum mainnet - only Base and Base Sepolia with v4 contracts
+  
+  // Cross-field validation for withdrawLockPeriod on v4 networks
+  // Apply 1 hour minimum to both Base mainnet and Base Sepolia testnet
+  if (data.subnet.networkChainId === base.id || data.subnet.networkChainId === baseSepolia.id) {
     const withdrawLockSeconds = calculateSecondsForLockPeriod(data.subnet.withdrawLockPeriod, data.subnet.withdrawLockUnit);
-    // Assuming minimalWithdrawLockPeriod on chain is 604800 (7 days)
-    if (withdrawLockSeconds < 604800) {
+    // Assuming minimalWithdrawLockPeriod on chain is 3600 (1 hour)
+    if (withdrawLockSeconds < 3600) {
+      const networkName = data.subnet.networkChainId === base.id ? 'Base mainnet' : 'Base Sepolia';
       ctx.addIssue({
         path: ["subnet", "withdrawLockPeriod"],
-        message: "Withdraw lock period must be at least 7 days for mainnet.",
+        message: `Withdraw lock period must be at least 1 hour for ${networkName}.`,
         code: z.ZodIssueCode.custom,
       });
     }
   }
 
-  // Conditional validation for mainnet vs testnet names if they use different fields
-  // This example assumes 'subnet.name' is used for testnet and 'builderPool.name' for mainnet.
-  // If you use a single 'name' field in the form that maps to different contract fields, adjust accordingly.
-  if (data.subnet.networkChainId === arbitrum.id || data.subnet.networkChainId === base.id) {
-      // Mainnet validation: require builderPool fields
-      if (!data.builderPool?.name || data.builderPool.name.trim() === "") {
-          ctx.addIssue({
-            path: ["builderPool", "name"], // Path to the mainnet name field
-            message: "Pool name is required for mainnet.",
-            code: z.ZodIssueCode.custom,
-          });
-      }
-      if (data.builderPool?.minimalDeposit === undefined || data.builderPool.minimalDeposit < 0) {
-          ctx.addIssue({
-            path: ["builderPool", "minimalDeposit"], // Path to the mainnet deposit field
-            message: "Minimal deposit is required for mainnet.",
-            code: z.ZodIssueCode.custom,
-          });
-      }
-  } else { // Testnet
-      // Testnet validation: require subnet fields  
-      if (!data.subnet.name || data.subnet.name.trim() === "") {
-           ctx.addIssue({
-            path: ["subnet", "name"], // Path to the testnet name field
-            message: "Subnet name is required for testnet.",
-            code: z.ZodIssueCode.custom,
-          });
-      }
-  }
+  // V4 networks (Base and Base Sepolia) use subnet.name and subnet.minStake
+  // No need to validate builderPool fields for v4 contracts
+  // subnet.name is already validated in the base schema, so no additional validation needed here
 });
 
 // Helper function (if not already available to your Zod schema)

@@ -327,14 +327,18 @@ export const useSubnetContractInteractions = ({
       isWritePending,
       isWriteTxSuccess,
       isWriteTxError,
+      isWriteTxLoading,
       writeTxResult,
       hasSubmittedFormData: !!submittedFormData,
       onTxSuccessExists: !!onTxSuccess
     });
     
-    if (isWritePending && !isWriteTxSuccess && !writeError && !isWriteTxError) {
-      showEnhancedLoadingToast("Confirm creation in wallet...", "subnet-tx");
+    // Show loading toast when transaction is pending (user needs to sign) or when transaction hash is received
+    if ((isWritePending || (writeTxResult && isWriteTxLoading)) && !isWriteTxSuccess && !writeError && !isWriteTxError) {
+      const message = isWritePending ? "Confirm creation in wallet..." : "Creating subnet...";
+      showEnhancedLoadingToast(message, "subnet-tx");
     }
+    
     if (isWriteTxSuccess) {
       console.log("[useSubnetContractInteractions] Transaction successful! Processing...");
       toast.dismiss("subnet-tx");
@@ -346,7 +350,7 @@ export const useSubnetContractInteractions = ({
 
       resetWriteContract();
       
-      // IMMEDIATELY populate cache before redirect
+      // IMMEDIATELY populate cache before redirect (only for mainnet)
       const isMainnet = selectedChainId === base.id;
       console.log("[useSubnetContractInteractions] Is mainnet?", isMainnet, "Selected chain:", selectedChainId);
       
@@ -366,14 +370,17 @@ export const useSubnetContractInteractions = ({
         }
       }
       
-      // Call onTxSuccess (redirect) after cache is populated
+      // Call onTxSuccess (redirect) - works for both Base and Base Sepolia
       if (onTxSuccess) {
-        console.log("[useSubnetContractInteractions] Transaction successful, calling onTxSuccess with cache populated");
+        console.log("[useSubnetContractInteractions] Transaction successful, calling onTxSuccess");
         
+        // Use a shorter delay for both networks since we want immediate feedback
         setTimeout(() => {
-          console.log("[useSubnetContractInteractions] Executing redirect without localStorage refresh flag");
+          console.log("[useSubnetContractInteractions] Executing redirect");
           onTxSuccess();
-        }, isMainnet ? 1000 : 3000); // Shorter delay since cache is already populated
+        }, 1500); // Consistent delay for both networks
+      } else {
+        console.warn("[useSubnetContractInteractions] onTxSuccess callback not provided - redirect will not happen");
       }
     }
     if (writeError) {
@@ -387,7 +394,7 @@ export const useSubnetContractInteractions = ({
       setSubmittedFormData(null); // Clear form data on error
     }
     // Add handler for transaction error/timeout
-    if (isWriteTxError || (writeTxResult && !isWriteTxLoading && !isWriteTxSuccess)) {
+    if (isWriteTxError || (writeTxResult && !isWriteTxLoading && !isWriteTxSuccess && !isWritePending)) {
       toast.dismiss("subnet-tx");
       toast.error("Transaction Failed or Timed Out", { 
         id: "subnet-tx", 
@@ -404,7 +411,7 @@ export const useSubnetContractInteractions = ({
       });
       resetWriteContract();
     }
-  }, [isWritePending, isWriteTxSuccess, isWriteTxError, writeTxResult, isWriteTxLoading, writeError, selectedChainId, resetWriteContract, onTxSuccess, showEnhancedLoadingToast]);
+  }, [isWritePending, isWriteTxSuccess, isWriteTxError, isWriteTxLoading, writeTxResult, writeError, selectedChainId, resetWriteContract, onTxSuccess, showEnhancedLoadingToast, submittedFormData, connectedAddress, addNewlyCreatedSubnet, getNetworkName]);
 
   // Effect to handle Supabase insertion after successful transaction
   useEffect(() => {

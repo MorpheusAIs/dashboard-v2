@@ -8,6 +8,7 @@ import { formatTimePeriod } from "@/app/utils/time-utils";
 import { useChainId } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { useBuilders } from '@/context/builders-context';
+import { USE_GOLDSKY_V1_DATA } from '@/app/config/subgraph-endpoints';
 
 /**
  * Hook to fetch subnets where the user is the admin
@@ -133,58 +134,111 @@ export const useUserAdminSubnets = () => {
         // Mainnet: Fetch from both Base and Arbitrum networks
         console.log('[useUserAdminSubnets] Fetching mainnet admin subnets for:', userAddress);
 
-        const baseClient = getClientForNetwork('Base');
-        const arbitrumClient = getClientForNetwork('Arbitrum');
+        let baseProjects: Array<{
+          id: string;
+          name: string;
+          admin: string;
+          slug: string;
+          description: string;
+          website: string;
+          image: string;
+          totalStaked: string;
+          totalUsers: string;
+          minimalDeposit: string;
+          withdrawLockPeriodAfterDeposit: string;
+          startsAt: string;
+          chainId: string;
+        }> = [];
+        
+        let arbitrumProjects: Array<{
+          id: string;
+          name: string;
+          admin: string;
+          slug: string;
+          description: string;
+          website: string;
+          image: string;
+          totalStaked: string;
+          totalUsers: string;
+          minimalDeposit: string;
+          withdrawLockPeriodAfterDeposit: string;
+          startsAt: string;
+          chainId: string;
+        }> = [];
 
-        if (!baseClient || !arbitrumClient) {
-          throw new Error('Could not get Apollo clients for Base or Arbitrum');
+        if (USE_GOLDSKY_V1_DATA) {
+          // Use Goldsky API routes (server-side extracted and transformed data)
+          console.log('[useUserAdminSubnets] Mainnet: Using Goldsky V1 data via API routes');
+          
+          const [baseApiResponse, arbitrumApiResponse] = await Promise.all([
+            fetch(`/api/builders/goldsky/user-admin/base?adminAddress=${encodeURIComponent(userAddress)}`),
+            fetch(`/api/builders/goldsky/user-admin/arbitrum?adminAddress=${encodeURIComponent(userAddress)}`)
+          ]);
+
+          if (!baseApiResponse.ok || !arbitrumApiResponse.ok) {
+            throw new Error(`Failed to fetch Goldsky user admin subnets data: Base=${baseApiResponse.status}, Arbitrum=${arbitrumApiResponse.status}`);
+          }
+
+          const baseData = await baseApiResponse.json();
+          const arbitrumData = await arbitrumApiResponse.json();
+
+          baseProjects = baseData.buildersProjects?.items || [];
+          arbitrumProjects = arbitrumData.buildersProjects?.items || [];
+        } else {
+          // Use direct Ponder V4 GraphQL queries
+          const baseClient = getClientForNetwork('Base');
+          const arbitrumClient = getClientForNetwork('Arbitrum');
+
+          if (!baseClient || !arbitrumClient) {
+            throw new Error('Could not get Apollo clients for Base or Arbitrum');
+          }
+
+          // Fetch from both Base and Arbitrum networks
+          const [baseResponse, arbitrumResponse] = await Promise.all([
+            baseClient.query<{ buildersProjects?: { items?: Array<{
+              id: string;
+              name: string;
+              admin: string;
+              slug: string;
+              description: string;
+              website: string;
+              image: string;
+              totalStaked: string;
+              totalUsers: string;
+              minimalDeposit: string;
+              withdrawLockPeriodAfterDeposit: string;
+              startsAt: string;
+              chainId: string;
+            }> } }>({
+              query: GET_PROJECTS_BY_ADMIN_BASE_MAINNET,
+              variables: { adminAddress: userAddress },
+              fetchPolicy: 'no-cache',
+            }),
+            arbitrumClient.query<{ buildersProjects?: { items?: Array<{
+              id: string;
+              name: string;
+              admin: string;
+              slug: string;
+              description: string;
+              website: string;
+              image: string;
+              totalStaked: string;
+              totalUsers: string;
+              minimalDeposit: string;
+              withdrawLockPeriodAfterDeposit: string;
+              startsAt: string;
+              chainId: string;
+            }> } }>({
+              query: GET_PROJECTS_BY_ADMIN_ARBITRUM_MAINNET,
+              variables: { adminAddress: userAddress },
+              fetchPolicy: 'no-cache',
+            })
+          ]);
+
+          // Handle both items wrapper and direct array formats
+          baseProjects = baseResponse.data?.buildersProjects?.items || [];
+          arbitrumProjects = arbitrumResponse.data?.buildersProjects?.items || [];
         }
-
-        // Fetch from both Base and Arbitrum networks
-        const [baseResponse, arbitrumResponse] = await Promise.all([
-          baseClient.query<{ buildersProjects?: { items?: Array<{
-            id: string;
-            name: string;
-            admin: string;
-            slug: string;
-            description: string;
-            website: string;
-            image: string;
-            totalStaked: string;
-            totalUsers: string;
-            minimalDeposit: string;
-            withdrawLockPeriodAfterDeposit: string;
-            startsAt: string;
-            chainId: string;
-          }> } }>({
-            query: GET_PROJECTS_BY_ADMIN_BASE_MAINNET,
-            variables: { adminAddress: userAddress },
-            fetchPolicy: 'no-cache',
-          }),
-          arbitrumClient.query<{ buildersProjects?: { items?: Array<{
-            id: string;
-            name: string;
-            admin: string;
-            slug: string;
-            description: string;
-            website: string;
-            image: string;
-            totalStaked: string;
-            totalUsers: string;
-            minimalDeposit: string;
-            withdrawLockPeriodAfterDeposit: string;
-            startsAt: string;
-            chainId: string;
-          }> } }>({
-            query: GET_PROJECTS_BY_ADMIN_ARBITRUM_MAINNET,
-            variables: { adminAddress: userAddress },
-            fetchPolicy: 'no-cache',
-          })
-        ]);
-
-        // Handle both items wrapper and direct array formats
-        const baseProjects = baseResponse.data?.buildersProjects?.items || [];
-        const arbitrumProjects = arbitrumResponse.data?.buildersProjects?.items || [];
 
         console.log(`[useUserAdminSubnets] Found ${baseProjects.length} Base admin subnets and ${arbitrumProjects.length} Arbitrum admin subnets`);
 
