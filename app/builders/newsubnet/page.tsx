@@ -36,13 +36,13 @@ export default function NewSubnetPage() {
   const { address: connectedAddress } = useAccount();
   const walletChainId = useChainId();
 
-  // Determine the initial network: use wallet network if supported, otherwise default to Base Sepolia
+  // Determine the initial network: use wallet network if supported, otherwise default to Base mainnet
   const getInitialNetworkId = () => {
     const supportedChainIds = [baseSepolia.id, base.id] as const;
     if (walletChainId && supportedChainIds.includes(walletChainId as typeof supportedChainIds[number])) {
       return walletChainId;
     }
-    return baseSepolia.id; // Fallback to Base Sepolia
+    return base.id; // Fallback to Base mainnet
   };
 
   // --- Form Setup --- //
