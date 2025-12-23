@@ -103,12 +103,12 @@ function useMORBalances(address: `0x${string}` | undefined) {
       return
     }
 
-    // Poll for balance updates every 15 seconds
+    // Poll for balance updates every 30 seconds
     // This is more reliable than event watching with RPC providers that don't support filters
     intervalRef.current = setInterval(() => {
       // console.log('MORBalance - Polling for balance updates...')
       refreshBalances()
-    }, 15000) // 15 seconds
+    }, 30000) // 30 seconds
 
     // Cleanup interval on unmount or address change
     return () => {
