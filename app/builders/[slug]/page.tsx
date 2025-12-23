@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Builder } from "../builders-data";
@@ -1135,7 +1136,20 @@ export default function BuilderPage() {
                     ? `Please switch to ${networksToDisplay[0]} network to stake` 
                     : needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
                     ? `You need to approve ${tokenSymbol} spending first`
-                    : `Warning: You don't have enough ${tokenSymbol}`
+                    : (() => {
+                        const isBaseMainnet = !isTestnet && networksToDisplay[0] === 'Base';
+                        if (isBaseMainnet) {
+                          return (
+                            <>
+                              Warning: You don't have enough {tokenSymbol}.{" "}
+                              <Link href="/bridge-mor" className="underline hover:text-emerald-400 transition-colors">
+                                Bridge more tokens
+                              </Link>
+                            </>
+                          );
+                        }
+                        return `Warning: You don't have enough ${tokenSymbol}`;
+                      })()
                 }
               />
               <GlowingEffect 

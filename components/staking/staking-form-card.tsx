@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, ReactNode } from "react";
 import {
   Card,
   CardContent,
@@ -20,7 +20,7 @@ export interface StakingFormCardProps {
   minDeposit?: number;
   disableStaking?: boolean;
   showWarning?: boolean;
-  warningMessage?: string;
+  warningMessage?: string | ReactNode;
   tokenSymbol?: string;
   value?: string;
 }
