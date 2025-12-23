@@ -3,10 +3,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAccount, useChainId, useReadContract } from "wagmi";
-import { arbitrum, base } from "wagmi/chains";
+import { arbitrum } from "wagmi/chains";
 import { morTokenContracts } from "@/lib/contracts";
 import { formatEther } from "viem";
-import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 import { BridgeFormCard } from "@/components/bridge/bridge-form-card";
 import { useNetwork } from "@/context/network-context";
 import { Alert, AlertDescription } from "@/components/ui/alert";
