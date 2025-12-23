@@ -527,7 +527,8 @@ export function useStakingData({
                 }
 
                 // Update pagination with total count
-                const totalUsers = usersData.buildersUsers?.totalCount || parseInt(project.totalUsers || '0', 10);
+                // V4 API returns totalCount as a separate field, not nested in buildersUsers
+                const totalUsers = usersData.totalCount || parseInt(project.totalUsers || '0', 10);
                 const totalPages = Math.max(1, Math.ceil(totalUsers / pagination.pageSize));
                 
                 setPagination(prev => ({
@@ -537,7 +538,8 @@ export function useStakingData({
                 }));
                 
                 // Format users from API response
-                const users = usersData.buildersUsers?.items || [];
+                // V4 API returns buildersUsers as array (not wrapped in items)
+                const users = usersData.buildersUsers || [];
                 const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
                   if (formatEntryFunc) {
                     // Cast to BuildersUser (id may be missing but formatEntryFunc doesn't require it)
@@ -581,7 +583,8 @@ export function useStakingData({
                 }
 
                 const usersData = await usersResponse.json();
-                const users = usersData.buildersUsers?.items || [];
+                // V4 API returns buildersUsers as array (not wrapped in items)
+                const users = usersData.buildersUsers || [];
                 
                 const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
                   if (formatEntryFunc) {

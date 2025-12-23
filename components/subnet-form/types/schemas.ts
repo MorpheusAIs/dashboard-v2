@@ -14,15 +14,14 @@ export const REWARD_OPTIONS: Option[] = [
 
 export const FORM_STEPS = [
   { id: 1, title: "Pool Configuration", description: "Define core pool parameters", fields: ["subnet"] as const },
-  { id: 2, title: "Project & Metadata", description: "Add descriptive info", fields: ["metadata", "projectOffChain"] as const },
+  { id: 2, title: "Project Metadata", description: "Add project information", fields: ["metadata"] as const },
 ];
 
 // Step 1: Pool Configuration Schema
 export const subnetContractSchema = z.object({
   name: z.string().min(1, "Subnet name is required"),
   minStake: z.number().min(0, "Minimum stake must be a non-negative number"),
-  withdrawLockPeriod: z.number().min(1, "Withdraw lock period must be at least 1"),
-  withdrawLockUnit: z.enum(["hours", "days"]),
+  withdrawLockPeriod: z.number().min(7, "Withdraw lock period must be at least 7 days"),
   networkChainId: z.number({ required_error: "Please select a network" }),
 });
 
@@ -91,29 +90,29 @@ export const formSchema = z.object({
     name: z.string().min(1, "Subnet name is required."),
     networkChainId: z.number(),
     minStake: z.number().min(0, "Minimum stake must be non-negative."),
-    withdrawLockPeriod: z.number().min(1, "Withdraw lock period is required."),
-    withdrawLockUnit: z.enum(["days", "hours"]),
+    withdrawLockPeriod: z.number().min(7, "Withdraw lock period must be at least 7 days."),
   }),
   builderPool: z.object({ // Legacy fields - not used for v4 contracts (Base and Base Sepolia)
     name: z.string().optional(), // V4 contracts use subnet.name instead
     minimalDeposit: z.number().min(0, "Minimal deposit must be non-negative").optional(), // V4 contracts use subnet.minStake instead
-  }).optional(), 
+  }).optional(),
   metadata: metadataContractSchema,
-  projectOffChain: projectOffChainSchema,
+  // projectOffChain is no longer required for v4 contracts since metadata is stored on-chain
+  projectOffChain: projectOffChainSchema.optional(),
 }).superRefine((data, ctx) => {
   // V4 contracts: Both Base and Base Sepolia use subnet.name and subnet.minStake
   // No longer support Arbitrum mainnet - only Base and Base Sepolia with v4 contracts
   
   // Cross-field validation for withdrawLockPeriod on v4 networks
-  // Apply 1 hour minimum to both Base mainnet and Base Sepolia testnet
+  // Apply 7 day minimum for both Base mainnet and Base Sepolia testnet
   if (data.subnet.networkChainId === base.id || data.subnet.networkChainId === baseSepolia.id) {
-    const withdrawLockSeconds = calculateSecondsForLockPeriod(data.subnet.withdrawLockPeriod, data.subnet.withdrawLockUnit);
-    // Assuming minimalWithdrawLockPeriod on chain is 3600 (1 hour)
-    if (withdrawLockSeconds < 3600) {
+    const withdrawLockSeconds = data.subnet.withdrawLockPeriod * 86400; // Convert days to seconds
+    // Minimum is 7 days = 604800 seconds
+    if (withdrawLockSeconds < 604800) {
       const networkName = data.subnet.networkChainId === base.id ? 'Base mainnet' : 'Base Sepolia';
       ctx.addIssue({
         path: ["subnet", "withdrawLockPeriod"],
-        message: `Withdraw lock period must be at least 1 hour for ${networkName}.`,
+        message: `Withdraw lock period must be at least 7 days for ${networkName}.`,
         code: z.ZodIssueCode.custom,
       });
     }
@@ -124,12 +123,6 @@ export const formSchema = z.object({
   // subnet.name is already validated in the base schema, so no additional validation needed here
 });
 
-// Helper function (if not already available to your Zod schema)
-const calculateSecondsForLockPeriod = (period: number, unit: "hours" | "days"): number => {
-  const secondsInHour = 3600;
-  const secondsInDay = 86400;
-  return unit === "hours" ? period * secondsInHour : period * secondsInDay;
-};
 
 // Type for form data
 export type FormData = z.infer<typeof formSchema>; 

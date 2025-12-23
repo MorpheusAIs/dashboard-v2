@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
-import {
-  transformV1UserAdminSubnetsToV4,
-  V1UserAdminSubnetsResponse,
-  CHAIN_IDS,
-} from '@/lib/utils/goldsky-v1-to-v4-adapter';
+import { CHAIN_IDS } from '@/lib/utils/goldsky-v4-adapter';
+
+// Force this route to be dynamic
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
- * API route to fetch subnets where a user is the admin from Goldsky
+ * API route to fetch subnets where a user is the admin from Goldsky V4
  * Used for the "Your Subnets" table
  */
 export async function GET(
@@ -37,10 +37,10 @@ export async function GET(
 
     const networkLower = network.toLowerCase();
     
-    // Get the appropriate Goldsky endpoint
+    // Get the appropriate Goldsky V4 endpoint
     const endpoint = networkLower === 'arbitrum' 
-      ? SUBGRAPH_ENDPOINTS.GoldskyArbitrum
-      : SUBGRAPH_ENDPOINTS.GoldskyBase;
+      ? SUBGRAPH_ENDPOINTS.GoldskyArbitrumV4
+      : SUBGRAPH_ENDPOINTS.GoldskyBaseV4;
     
     const chainId = networkLower === 'arbitrum' 
       ? CHAIN_IDS.Arbitrum
@@ -51,16 +51,13 @@ export async function GET(
       ? adminAddress.toLowerCase() 
       : `0x${adminAddress.toLowerCase()}`;
 
-    console.log(`[Goldsky API User Admin Subnets] Fetching for network: ${networkLower}, address: ${formattedAddress}`);
+    console.log(`[Goldsky V4 API User Admin Subnets] Fetching for network: ${networkLower}, address: ${formattedAddress}`);
 
-    // Goldsky query - uses builderSubnets filtered by admin
-    // NOTE: Goldsky uses testnet-style schema names for mainnet:
-    // - "builderSubnets" (not "buildersProjects")
-    // - "builderUsers" (not "buildersUsers")
-    // - "deposited" (not "staked")
+    // V4 query - uses buildersProjects filtered by admin
+    // V4 uses standard mainnet schema (buildersProjects, not builderSubnets)
     const query = `
       query GetUserAdminSubnets($adminAddress: Bytes!) {
-        builderSubnets(
+        buildersProjects(
           first: 1000
           where: { admin: $adminAddress }
           orderBy: totalStaked
@@ -74,10 +71,8 @@ export async function GET(
           totalUsers
           totalClaimed
           withdrawLockPeriodAfterDeposit
-          slug
-          description
-          website
-          image
+          startsAt
+          claimLockEnd
         }
       }
     `;
@@ -108,17 +103,26 @@ export async function GET(
       throw new Error(`GraphQL errors: ${JSON.stringify(result.errors, null, 2)}`);
     }
 
-    console.log(`[Goldsky API User Admin Subnets] Raw response data:`, JSON.stringify(result.data, null, 2));
-    console.log(`[Goldsky API User Admin Subnets] Found ${result.data?.builderSubnets?.length || 0} builderSubnets`);
+    console.log(`[Goldsky V4 API User Admin Subnets] Raw response data:`, JSON.stringify(result.data, null, 2));
+    console.log(`[Goldsky V4 API User Admin Subnets] Found ${result.data?.buildersProjects?.length || 0} buildersProjects`);
 
-    // Transform Goldsky V1 response to V4 format
-    const v1Response = result.data as V1UserAdminSubnetsResponse;
-    const v4Response = transformV1UserAdminSubnetsToV4(v1Response, chainId);
+    // V4 response is already in the correct format - just add network metadata
+    const buildersProjects = result.data?.buildersProjects || [];
+    const networkName = networkLower === 'arbitrum' ? 'Arbitrum' : 'Base';
     
-    console.log(`[Goldsky API User Admin Subnets] Transformed to ${v4Response.buildersProjects.items.length} items`);
+    // Add network and chainId to each project
+    const enrichedProjects = buildersProjects.map((project: { id: string; name: string; admin: string; minimalDeposit: string; totalStaked: string; totalUsers: string; totalClaimed: string; withdrawLockPeriodAfterDeposit: string; startsAt: string; claimLockEnd: string; }) => ({
+      ...project,
+      network: networkName,
+      chainId: chainId,
+    }));
+    
+    console.log(`[Goldsky V4 API User Admin Subnets] Returning ${enrichedProjects.length} items`);
 
     return NextResponse.json(
-      v4Response,
+      {
+        buildersProjects: enrichedProjects,
+      },
       {
         status: 200,
         headers: {
@@ -128,14 +132,11 @@ export async function GET(
       }
     );
   } catch (error) {
-    console.error('[Goldsky API User Admin Subnets] Error fetching user admin subnets:', error);
+    console.error('[Goldsky V4 API User Admin Subnets] Error fetching user admin subnets:', error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Unknown error occurred',
-        buildersProjects: {
-          items: [],
-          totalCount: 0,
-        },
+        buildersProjects: [],
       },
       {
         status: 500,
@@ -146,3 +147,4 @@ export async function GET(
     );
   }
 }
+

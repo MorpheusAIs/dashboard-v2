@@ -5,10 +5,11 @@ import { onError } from '@apollo/client/link/error';
 import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
 // Use the shared endpoint configuration
+// For Base and Arbitrum mainnet, use Goldsky V4 endpoints
 const NETWORK_ENDPOINTS = {
-  Arbitrum: SUBGRAPH_ENDPOINTS.Arbitrum,
+  Arbitrum: SUBGRAPH_ENDPOINTS.GoldskyArbitrumV4,
   ArbitrumSepolia: SUBGRAPH_ENDPOINTS.ArbitrumSepolia,
-  Base: SUBGRAPH_ENDPOINTS.Base,
+  Base: SUBGRAPH_ENDPOINTS.GoldskyBaseV4,
   BaseSepolia: SUBGRAPH_ENDPOINTS.BaseSepolia,
   // Capital v2 subgraph endpoints
   CapitalV2Sepolia: SUBGRAPH_ENDPOINTS.CapitalV2Sepolia,

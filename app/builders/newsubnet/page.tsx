@@ -54,7 +54,6 @@ export default function NewSubnetPage() {
         minStake: 0.001,
         networkChainId: getInitialNetworkId(),
         withdrawLockPeriod: 7,
-        withdrawLockUnit: "days",
       },
       builderPool: {
         name: "",
@@ -130,7 +129,6 @@ export default function NewSubnetPage() {
         "subnet.name",
         "subnet.minStake",
         "subnet.withdrawLockPeriod",
-        "subnet.withdrawLockUnit",
       ];
     } else {
       // Explicitly list fields for Step 2 validation

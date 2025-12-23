@@ -864,6 +864,17 @@ export default function BuildersPage() {
     ParamConverters.string.deserialize
   );
 
+  // Initialize tab from URL parameter
+  useInitStateFromUrl(
+    'tab',
+    (value) => {
+      if (value !== '' && ['builders', 'participating', 'subnets'].includes(value)) {
+        setActiveTab(value);
+      }
+    },
+    ParamConverters.string.deserialize
+  );
+
   // Define state for participating tab filters
   const [participatingNameFilter, setParticipatingNameFilter] = useState("");
   const [participatingNetworkFilter, setParticipatingNetworkFilter] = useState("all");

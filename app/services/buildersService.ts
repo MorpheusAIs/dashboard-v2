@@ -267,8 +267,8 @@ export const fetchBuildersAPI = async (
       
       // console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
       
-      let baseResponse: { data: { buildersProjects?: { items?: BuilderProject[] } } };
-      let arbitrumResponse: { data: { buildersProjects?: { items?: BuilderProject[] } } };
+      let baseResponse: { data: { buildersProjects?: BuilderProject[] | { items?: BuilderProject[] } } };
+      let arbitrumResponse: { data: { buildersProjects?: BuilderProject[] | { items?: BuilderProject[] } } };
 
       if (USE_GOLDSKY_V1_DATA) {
         // Use Goldsky API routes (server-side extracted and transformed data)
@@ -289,7 +289,7 @@ export const fetchBuildersAPI = async (
         baseResponse = { data: baseData };
         arbitrumResponse = { data: arbitrumData };
       } else {
-        // Use direct Ponder V4 GraphQL queries
+        // Use direct Goldsky V4 GraphQL queries
         const baseClient = getClientForNetwork('Base');
         const arbitrumClient = getClientForNetwork('Arbitrum');
         
@@ -297,14 +297,14 @@ export const fetchBuildersAPI = async (
           throw new Error(`[API] Could not get Apollo clients for Base or Arbitrum`);
         }
         
-        console.log('[API] Mainnet: Fetching on-chain data from Ponder V4 subgraphs.');
+        console.log('[API] Mainnet: Fetching on-chain data from Goldsky V4 subgraphs.');
         
         const [baseQueryResult, arbitrumQueryResult] = await Promise.all([
-          baseClient.query<{ buildersProjects?: { items?: BuilderProject[] } }>({
+          baseClient.query<{ buildersProjects?: BuilderProject[] }>({
             query: COMBINED_BUILDERS_PROJECTS_BASE_MAINNET,
             fetchPolicy: 'no-cache',
           }),
-          arbitrumClient.query<{ buildersProjects?: { items?: BuilderProject[] } }>({
+          arbitrumClient.query<{ buildersProjects?: BuilderProject[] }>({
             query: COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET,
             fetchPolicy: 'no-cache',
           })
@@ -316,9 +316,9 @@ export const fetchBuildersAPI = async (
 
       // Type guard to check if response has buildersUsers (V1 query)
       const hasBuildersUsers = (
-        data: { buildersProjects?: { items?: BuilderProject[] } } | CombinedBuildersListFilteredByPredefinedBuildersResponse
+        data: unknown
       ): data is CombinedBuildersListFilteredByPredefinedBuildersResponse => {
-        return 'buildersUsers' in data;
+        return typeof data === 'object' && data !== null && 'buildersUsers' in data;
       };
 
       // Helper function to normalize GraphQL names back to Morlord API names
@@ -329,8 +329,9 @@ export const fetchBuildersAPI = async (
         return graphqlName;
       };
 
-      // Process Base projects - V4 format (nested items structure) from either Goldsky API or Ponder
-      const baseV4Projects = baseResponse.data?.buildersProjects?.items || [];
+      // Process Base projects - handle both array (Goldsky V4) or items wrapper (legacy)
+      const baseProjectsRaw = baseResponse.data?.buildersProjects;
+      const baseV4Projects = Array.isArray(baseProjectsRaw) ? baseProjectsRaw : (baseProjectsRaw?.items || []);
       
       const baseProjects = baseV4Projects.map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
@@ -354,8 +355,9 @@ export const fetchBuildersAPI = async (
         };
       });
       
-      // Process Arbitrum projects - V4 format (nested items structure) from either Goldsky API or Ponder
-      const arbitrumV4Projects = arbitrumResponse.data?.buildersProjects?.items || [];
+      // Process Arbitrum projects - handle both array (Goldsky V4) or items wrapper (legacy)
+      const arbitrumProjectsRaw = arbitrumResponse.data?.buildersProjects;
+      const arbitrumV4Projects = Array.isArray(arbitrumProjectsRaw) ? arbitrumProjectsRaw : (arbitrumProjectsRaw?.items || []);
       
       const arbitrumProjects = arbitrumV4Projects.map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;

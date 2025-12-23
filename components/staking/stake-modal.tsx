@@ -12,6 +12,7 @@ import { Builder } from "@/app/builders/builders-data";
 import { baseSepolia, arbitrum, base } from 'wagmi/chains';
 import { morTokenContracts } from '@/lib/contracts';
 import { useNetwork } from "@/context/network-context";
+import Link from "next/link";
 
 // MOR Token ABI for balance checking
 const MOR_ABI = [{
@@ -201,9 +202,32 @@ export function StakeModal({
     // Check balance - this is most important and should show regardless of network
     if (effectiveTokenBalance !== undefined && amount > parseFloat(formatEther(effectiveTokenBalance))) {
       const currentBalance = parseFloat(formatEther(effectiveTokenBalance));
+      const isBaseMainnet = !isTestnet && targetNetworkInfo.networkName === 'Base';
+      
       if (currentBalance === 0) {
+        if (isBaseMainnet) {
+          return (
+            <>
+              You don`&apos;`t have any {tokenSymbol} on {targetNetworkInfo.networkName}.{" "}
+              <Link href="/bridge-mor" className="underline hover:text-emerald-400 transition-colors">
+                Bridge tokens
+              </Link>{" "}
+              or use a different network.
+            </>
+          );
+        }
         return `You don't have any ${tokenSymbol} on ${targetNetworkInfo.networkName}. You may need to bridge tokens or use a different network.`;
       } else {
+        if (isBaseMainnet) {
+          return (
+            <>
+              Insufficient balance: You have {currentBalance.toFixed(4)} {tokenSymbol} on {targetNetworkInfo.networkName} but need {amount} {tokenSymbol}.{" "}
+              <Link href="/bridge-mor" className="underline hover:text-emerald-400 transition-colors">
+                Bridge more tokens
+              </Link>
+            </>
+          );
+        }
         return `Insufficient balance: You have ${currentBalance.toFixed(4)} ${tokenSymbol} on ${targetNetworkInfo.networkName} but need ${amount} ${tokenSymbol}`;
       }
     }
@@ -219,7 +243,7 @@ export function StakeModal({
     }
     
     return "";
-  }, [stakeAmount, chainId, targetNetworkInfo, needsApproval, tokenSymbol, effectiveTokenBalance, selectedBuilder]);
+  }, [stakeAmount, chainId, targetNetworkInfo, needsApproval, tokenSymbol, effectiveTokenBalance, selectedBuilder, isTestnet]);
 
   // Check approval status when amount changes
   useEffect(() => {
@@ -241,7 +265,11 @@ export function StakeModal({
     setFormError(null);
 
     if (!isValidForSubmission) {
-      setFormError(warningMessage || "Invalid amount");
+      // Convert warningMessage to string if it's JSX
+      const errorMessage = typeof warningMessage === 'string' 
+        ? warningMessage 
+        : "Invalid amount";
+      setFormError(errorMessage);
       return;
     }
 

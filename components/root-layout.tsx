@@ -16,10 +16,10 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 // import { usePathname } from "next/navigation"
+import Link from "next/link"
 import { useChainId } from 'wagmi'
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
-import { CowSwapModal } from "./cowswap-modal"
 import { MyBalanceModal } from "./my-balance-modal"
 // import { builders } from "@/app/builders/builders-data"
 
@@ -75,9 +75,14 @@ export function RootLayoutContent({
                 <div className="sm:hidden">
                   <MyBalanceModal />
                 </div>
-                {/* Desktop: Show CowSwapModal */}
+                {/* Desktop: Show Bridge MOR Link */}
                 <div className="hidden sm:block">
-                  <CowSwapModal />
+                  <Link 
+                    href="/bridge-mor"
+                    className="copy-button-base text-sm px-4 py-1 hover:shadow-lg hover:shadow-emerald-500/20 hover:scale-105 transition-all duration-300"
+                  >
+                    Bridge MOR
+                  </Link>
                 </div>
               </>
             )}

@@ -106,32 +106,32 @@ export const GET_ACCOUNT_USER_BUILDERS_PROJECTS = gql`
   }
 `;
 
+// V4-compatible query using first/skip pagination
+// Note: BuildersUser in v4 does NOT have 'claimed' or 'claimLockEnd' fields
 export const GET_BUILDERS_PROJECT_USERS = gql`
   query getBuildersProjectUsers(
-    $limit: Int = 5
-    $after: String
-    $buildersProjectId: String = ""
-    $orderBy: String = "staked"
-    $orderDirection: String = "desc"
+    $first: Int = 50
+    $skip: Int = 0
+    $buildersProjectId: Bytes!
+    $orderBy: BuildersUser_orderBy = staked
+    $orderDirection: OrderDirection = desc
   ) {
     buildersUsers(
-      limit: $limit
-      after: $after
-      where: { buildersProjectId: $buildersProjectId }
+      first: $first
+      skip: $skip
+      where: { buildersProject_: { id: $buildersProjectId } }
       orderBy: $orderBy
       orderDirection: $orderDirection
     ) {
-      items {
-        address
+      address
+      id
+      staked
+      lastStake
+      buildersProject {
         id
-        staked
-        lastStake
-        __typename
+        name
       }
-      pageInfo {
-        endCursor
-        hasNextPage
-      }
+      __typename
     }
   }
 `;
@@ -391,54 +391,50 @@ export const COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA = gql`
   }
 `;
 
-// Query to get combined builders projects (for Base Mainnet - uses BuildersV4 schema)
-// This query discovers all subnets (both V1 and V4) but only V4 subnets have metadata populated
+// Query to get combined builders projects (for Base Mainnet - uses Goldsky V4 schema)
+// Goldsky V4 returns array directly (no items wrapper)
 export const COMBINED_BUILDERS_PROJECTS_BASE_MAINNET = gql`
   query combinedBuildersProjectsBaseMainnet {
-    buildersProjects {
-      items {
-        id
-        name
-        admin
-        totalStaked
-        totalClaimed
-        totalUsers
-        description
-        website
-        image
-        slug
-        minimalDeposit
-        chainId
-        withdrawLockPeriodAfterDeposit
-        startsAt
-        claimLockEnd
-      }
+    buildersProjects(
+      first: 1000
+      orderBy: totalStaked
+      orderDirection: desc
+    ) {
+      id
+      name
+      admin
+      totalStaked
+      totalClaimed
+      totalUsers
+      minimalDeposit
+      withdrawLockPeriodAfterDeposit
+      startsAt
+      claimLockEnd
+      __typename
     }
   }
 `;
 
-// Query to get combined builders projects (for Arbitrum Mainnet - uses BuildersV4 schema)
-// This query discovers all subnets (both V1 and V4) but only V4 subnets have metadata populated
+// Query to get combined builders projects (for Arbitrum Mainnet - uses Goldsky V4 schema)
+// Goldsky V4 returns array directly (no items wrapper)
 export const COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET = gql`
   query combinedBuildersProjectsArbitrumMainnet {
-    buildersProjects {
-      items {
-        id
-        name
-        admin
-        totalStaked
-        totalClaimed
-        totalUsers
-        description
-        website
-        image
-        slug
-        minimalDeposit
-        chainId
-        withdrawLockPeriodAfterDeposit
-        startsAt
-        claimLockEnd
-      }
+    buildersProjects(
+      first: 1000
+      orderBy: totalStaked
+      orderDirection: desc
+    ) {
+      id
+      name
+      admin
+      totalStaked
+      totalClaimed
+      totalUsers
+      minimalDeposit
+      withdrawLockPeriodAfterDeposit
+      startsAt
+      claimLockEnd
+      __typename
     }
   }
 `;
@@ -480,73 +476,59 @@ export const GET_PROJECTS_FOR_USER_BASE_SEPOLIA = gql`
 `;
 
 // Query to get projects where user has staked (for Base Mainnet - "Staking in" tab)
-// Based on BuildersV4 GraphQL schema
+// V4-compatible - no claimLockEnd on BuildersUser
 export const GET_PROJECTS_FOR_USER_BASE_MAINNET = gql`
-  query GetProjectsForUser($userAddress: String!) {
+  query GetProjectsForUser($userAddress: Bytes!) {
     buildersUsers(
-      where: { address: $userAddress }
-      orderBy: "staked"
-      orderDirection: "desc"
-      limit: 100
+      where: { address: $userAddress, staked_gt: "0" }
+      orderBy: staked
+      orderDirection: desc
+      first: 100
     ) {
-      items {
-        project {
-          id
-          name
-          slug
-          description
-          website
-          image
-          admin
-          totalStaked
-          totalUsers
-          minimalDeposit
-          withdrawLockPeriodAfterDeposit
-          startsAt
-          chainId
-          contractAddress
-        }
-        staked
-        lastStake
+      address
+      staked
+      lastStake
+      buildersProject {
+        id
+        name
+        admin
+        totalStaked
+        totalUsers
+        minimalDeposit
+        withdrawLockPeriodAfterDeposit
+        startsAt
         claimLockEnd
       }
-      totalCount
+      __typename
     }
   }
 `;
 
 // Query to get projects where user has staked (for Arbitrum Mainnet - "Staking in" tab)
-// Based on BuildersV4 GraphQL schema
+// V4-compatible - no claimLockEnd on BuildersUser
 export const GET_PROJECTS_FOR_USER_ARBITRUM_MAINNET = gql`
-  query GetProjectsForUser($userAddress: String!) {
+  query GetProjectsForUser($userAddress: Bytes!) {
     buildersUsers(
-      where: { address: $userAddress }
-      orderBy: "staked"
-      orderDirection: "desc"
-      limit: 100
+      where: { address: $userAddress, staked_gt: "0" }
+      orderBy: staked
+      orderDirection: desc
+      first: 100
     ) {
-      items {
-        project {
-          id
-          name
-          slug
-          description
-          website
-          image
-          admin
-          totalStaked
-          totalUsers
-          minimalDeposit
-          withdrawLockPeriodAfterDeposit
-          startsAt
-          chainId
-          contractAddress
-        }
-        staked
-        lastStake
+      address
+      staked
+      lastStake
+      buildersProject {
+        id
+        name
+        admin
+        totalStaked
+        totalUsers
+        minimalDeposit
+        withdrawLockPeriodAfterDeposit
+        startsAt
         claimLockEnd
       }
-      totalCount
+      __typename
     }
   }
 `;
@@ -581,59 +563,51 @@ export const GET_PROJECTS_BY_ADMIN_BASE_SEPOLIA = gql`
 `;
 
 // Query to get projects by admin (for Base Mainnet - "Your Subnets" tab)
-// Based on BuildersV4 GraphQL schema
+// V4-compatible with standard mainnet schema
 export const GET_PROJECTS_BY_ADMIN_BASE_MAINNET = gql`
-  query GetProjectsByAdmin($adminAddress: String!) {
+  query GetProjectsByAdmin($adminAddress: Bytes!) {
     buildersProjects(
       where: { admin: $adminAddress }
-      orderBy: "createdAt"
-      orderDirection: "desc"
+      orderBy: startsAt
+      orderDirection: desc
+      first: 1000
     ) {
-      items {
-        id
-        name
-        admin
-        slug
-        description
-        website
-        image
-        totalStaked
-        totalUsers
-        minimalDeposit
-        withdrawLockPeriodAfterDeposit
-        startsAt
-        chainId
-      }
-      totalCount
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      minimalDeposit
+      withdrawLockPeriodAfterDeposit
+      startsAt
+      claimLockEnd
+      __typename
     }
   }
 `;
 
 // Query to get projects by admin (for Arbitrum Mainnet - "Your Subnets" tab)
-// Based on BuildersV4 GraphQL schema
+// V4-compatible with standard mainnet schema
 export const GET_PROJECTS_BY_ADMIN_ARBITRUM_MAINNET = gql`
-  query GetProjectsByAdmin($adminAddress: String!) {
+  query GetProjectsByAdmin($adminAddress: Bytes!) {
     buildersProjects(
       where: { admin: $adminAddress }
-      orderBy: "createdAt"
-      orderDirection: "desc"
+      orderBy: startsAt
+      orderDirection: desc
+      first: 1000
     ) {
-      items {
-        id
-        name
-        admin
-        slug
-        description
-        website
-        image
-        totalStaked
-        totalUsers
-        minimalDeposit
-        withdrawLockPeriodAfterDeposit
-        startsAt
-        chainId
-      }
-      totalCount
+      id
+      name
+      admin
+      totalStaked
+      totalUsers
+      totalClaimed
+      minimalDeposit
+      withdrawLockPeriodAfterDeposit
+      startsAt
+      claimLockEnd
+      __typename
     }
   }
 `;

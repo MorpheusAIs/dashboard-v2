@@ -183,47 +183,39 @@ export const useUserStakedBuilders = () => {
       console.log('[useUserStakedBuilders] Fetching user staked builders for:', userAddress);
 
       let baseBuilderUsers: Array<{
-        project: {
+        buildersProject: {
           id: string;
           name: string;
-          slug: string;
-          description: string;
-          website: string;
-          image: string;
           admin: string;
           totalStaked: string;
           totalUsers: string;
+          totalClaimed: string;
           minimalDeposit: string;
           withdrawLockPeriodAfterDeposit: string;
           startsAt: string;
-          chainId: string;
-          contractAddress: string;
+          claimLockEnd: string;
         };
+        address: string;
         staked: string;
         lastStake: string;
-        claimLockEnd: string;
       }> = [];
       
       let arbitrumBuilderUsers: Array<{
-        project: {
+        buildersProject: {
           id: string;
           name: string;
-          slug: string;
-          description: string;
-          website: string;
-          image: string;
           admin: string;
           totalStaked: string;
           totalUsers: string;
+          totalClaimed: string;
           minimalDeposit: string;
           withdrawLockPeriodAfterDeposit: string;
           startsAt: string;
-          chainId: string;
-          contractAddress: string;
+          claimLockEnd: string;
         };
+        address: string;
         staked: string;
         lastStake: string;
-        claimLockEnd: string;
       }> = [];
 
       if (USE_GOLDSKY_V1_DATA) {
@@ -242,8 +234,8 @@ export const useUserStakedBuilders = () => {
         const baseData = await baseApiResponse.json();
         const arbitrumData = await arbitrumApiResponse.json();
 
-        baseBuilderUsers = baseData.buildersUsers?.items || [];
-        arbitrumBuilderUsers = arbitrumData.buildersUsers?.items || [];
+        baseBuilderUsers = baseData.buildersUsers || [];
+        arbitrumBuilderUsers = arbitrumData.buildersUsers || [];
       } else {
         // Use direct Ponder V4 GraphQL queries
         const baseClient = getClientForNetwork('Base');
@@ -253,63 +245,56 @@ export const useUserStakedBuilders = () => {
           throw new Error('Could not get Apollo clients for Base or Arbitrum');
         }
 
-        // Fetch from both Base and Arbitrum networks using new queries
+        // Fetch from both Base and Arbitrum networks using V4 queries
+        // V4 queries return buildersUsers as direct array (not items wrapper)
         const [baseResponse, arbitrumResponse] = await Promise.all([
-          baseClient.query<{ buildersUsers?: { items?: Array<{
-            project: {
+          baseClient.query<{ buildersUsers?: Array<{
+            buildersProject: {
               id: string;
               name: string;
-              slug: string;
-              description: string;
-              website: string;
-              image: string;
               admin: string;
               totalStaked: string;
               totalUsers: string;
+              totalClaimed: string;
               minimalDeposit: string;
               withdrawLockPeriodAfterDeposit: string;
               startsAt: string;
-              chainId: string;
-              contractAddress: string;
+              claimLockEnd: string;
             };
+            address: string;
             staked: string;
             lastStake: string;
-            claimLockEnd: string;
-          }> } }>({
+          }> }>({
             query: GET_PROJECTS_FOR_USER_BASE_MAINNET,
             variables: { userAddress },
             fetchPolicy: 'no-cache',
           }),
-          arbitrumClient.query<{ buildersUsers?: { items?: Array<{
-            project: {
+          arbitrumClient.query<{ buildersUsers?: Array<{
+            buildersProject: {
               id: string;
               name: string;
-              slug: string;
-              description: string;
-              website: string;
-              image: string;
               admin: string;
               totalStaked: string;
               totalUsers: string;
+              totalClaimed: string;
               minimalDeposit: string;
               withdrawLockPeriodAfterDeposit: string;
               startsAt: string;
-              chainId: string;
-              contractAddress: string;
+              claimLockEnd: string;
             };
+            address: string;
             staked: string;
             lastStake: string;
-            claimLockEnd: string;
-          }> } }>({
+          }> }>({
             query: GET_PROJECTS_FOR_USER_ARBITRUM_MAINNET,
             variables: { userAddress },
             fetchPolicy: 'no-cache',
           })
         ]);
 
-        // Handle both items wrapper and direct array formats
-        baseBuilderUsers = baseResponse.data?.buildersUsers?.items || [];
-        arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers?.items || [];
+        // V4 returns buildersUsers as direct array
+        baseBuilderUsers = baseResponse.data?.buildersUsers || [];
+        arbitrumBuilderUsers = arbitrumResponse.data?.buildersUsers || [];
       }
 
       console.log(`[useUserStakedBuilders] Found ${baseBuilderUsers.length} Base builders and ${arbitrumBuilderUsers.length} Arbitrum builders`);
@@ -318,39 +303,41 @@ export const useUserStakedBuilders = () => {
 
       // Process Base builders
       baseBuilderUsers
-        .filter((user) => user.project && parseFloat(user.staked) > 0)
+        .filter((user) => user.buildersProject && parseFloat(user.staked) > 0)
         .forEach((user) => {
           const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
 
           // Find corresponding Supabase builder data for metadata
           const supabaseBuilder = supabaseBuilders?.find(b => 
-            b.name.toLowerCase() === user.project.name.toLowerCase()
+            b.name.toLowerCase() === user.buildersProject.name.toLowerCase()
           );
 
-          const totalStakedInMor = Number(user.project.totalStaked || '0') / 1e18;
-          const minDepositInMor = Number(user.project.minimalDeposit || '0') / 1e18;
-          const lockPeriodSeconds = parseInt(user.project.withdrawLockPeriodAfterDeposit || '0', 10);
+          const totalStakedInMor = Number(user.buildersProject.totalStaked || '0') / 1e18;
+          const totalClaimedInMor = Number(user.buildersProject.totalClaimed || '0') / 1e18;
+          const minDepositInMor = Number(user.buildersProject.minimalDeposit || '0') / 1e18;
+          const lockPeriodSeconds = parseInt(user.buildersProject.withdrawLockPeriodAfterDeposit || '0', 10);
           const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
-          const stakingCount = parseInt(user.project.totalUsers || '0', 10);
+          const stakingCount = parseInt(user.buildersProject.totalUsers || '0', 10);
 
           const builder: Builder = {
-            id: user.project.id,
-            mainnetProjectId: user.project.id,
-            name: user.project.name,
-            description: supabaseBuilder?.description || user.project.description || `${user.project.name} (on Base)`,
-            long_description: supabaseBuilder?.long_description || user.project.description || '',
-            admin: user.project.admin,
+            id: user.buildersProject.id,
+            mainnetProjectId: user.buildersProject.id,
+            name: user.buildersProject.name,
+            description: supabaseBuilder?.description || `${user.buildersProject.name} (on Base)`,
+            long_description: supabaseBuilder?.long_description || '',
+            admin: user.buildersProject.admin,
             networks: ['Base'],
             network: 'Base',
             totalStaked: totalStakedInMor,
+            totalClaimed: totalClaimedInMor,
             minDeposit: minDepositInMor,
             lockPeriod: lockPeriodFormatted,
             withdrawLockPeriodRaw: lockPeriodSeconds,
             stakingCount: stakingCount,
             userStake: userStakedAmount,
-            website: supabaseBuilder?.website || user.project.website || '',
-            image_src: supabaseBuilder?.image_src || user.project.image || '',
-            image: supabaseBuilder?.image_src || user.project.image || '',
+            website: supabaseBuilder?.website || '',
+            image_src: supabaseBuilder?.image_src || '',
+            image: supabaseBuilder?.image_src || '',
             tags: supabaseBuilder?.tags || [],
             github_url: supabaseBuilder?.github_url || '',
             twitter_url: supabaseBuilder?.twitter_url || '',
@@ -361,13 +348,13 @@ export const useUserStakedBuilders = () => {
             reward_types_detail: [],
             created_at: supabaseBuilder?.created_at || new Date().toISOString(),
             updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
-            startsAt: user.project.startsAt || '',
+            startsAt: user.buildersProject.startsAt || '',
             builderUsers: [{
-              id: `${user.project.id}-${userAddress}`,
+              id: `${user.buildersProject.id}-${userAddress}`,
               address: userAddress,
               staked: user.staked,
               claimed: "0",
-              claimLockEnd: user.claimLockEnd,
+              claimLockEnd: String(Number(user.lastStake) + lockPeriodSeconds),
               lastStake: user.lastStake,
             }]
           };
@@ -377,39 +364,41 @@ export const useUserStakedBuilders = () => {
 
       // Process Arbitrum builders
       arbitrumBuilderUsers
-        .filter((user) => user.project && parseFloat(user.staked) > 0)
+        .filter((user) => user.buildersProject && parseFloat(user.staked) > 0)
         .forEach((user) => {
           const userStakedAmount = parseFloat(formatUnits(user.staked, 18));
 
           // Find corresponding Supabase builder data for metadata
           const supabaseBuilder = supabaseBuilders?.find(b => 
-            b.name.toLowerCase() === user.project.name.toLowerCase()
+            b.name.toLowerCase() === user.buildersProject.name.toLowerCase()
           );
 
-          const totalStakedInMor = Number(user.project.totalStaked || '0') / 1e18;
-          const minDepositInMor = Number(user.project.minimalDeposit || '0') / 1e18;
-          const lockPeriodSeconds = parseInt(user.project.withdrawLockPeriodAfterDeposit || '0', 10);
+          const totalStakedInMor = Number(user.buildersProject.totalStaked || '0') / 1e18;
+          const totalClaimedInMor = Number(user.buildersProject.totalClaimed || '0') / 1e18;
+          const minDepositInMor = Number(user.buildersProject.minimalDeposit || '0') / 1e18;
+          const lockPeriodSeconds = parseInt(user.buildersProject.withdrawLockPeriodAfterDeposit || '0', 10);
           const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
-          const stakingCount = parseInt(user.project.totalUsers || '0', 10);
+          const stakingCount = parseInt(user.buildersProject.totalUsers || '0', 10);
 
           const builder: Builder = {
-            id: user.project.id,
-            mainnetProjectId: user.project.id,
-            name: user.project.name,
-            description: supabaseBuilder?.description || user.project.description || `${user.project.name} (on Arbitrum)`,
-            long_description: supabaseBuilder?.long_description || user.project.description || '',
-            admin: user.project.admin,
+            id: user.buildersProject.id,
+            mainnetProjectId: user.buildersProject.id,
+            name: user.buildersProject.name,
+            description: supabaseBuilder?.description || `${user.buildersProject.name} (on Arbitrum)`,
+            long_description: supabaseBuilder?.long_description || '',
+            admin: user.buildersProject.admin,
             networks: ['Arbitrum'],
             network: 'Arbitrum',
             totalStaked: totalStakedInMor,
+            totalClaimed: totalClaimedInMor,
             minDeposit: minDepositInMor,
             lockPeriod: lockPeriodFormatted,
             withdrawLockPeriodRaw: lockPeriodSeconds,
             stakingCount: stakingCount,
             userStake: userStakedAmount,
-            website: supabaseBuilder?.website || user.project.website || '',
-            image_src: supabaseBuilder?.image_src || user.project.image || '',
-            image: supabaseBuilder?.image_src || user.project.image || '',
+            website: supabaseBuilder?.website || '',
+            image_src: supabaseBuilder?.image_src || '',
+            image: supabaseBuilder?.image_src || '',
             tags: supabaseBuilder?.tags || [],
             github_url: supabaseBuilder?.github_url || '',
             twitter_url: supabaseBuilder?.twitter_url || '',
@@ -420,13 +409,13 @@ export const useUserStakedBuilders = () => {
             reward_types_detail: [],
             created_at: supabaseBuilder?.created_at || new Date().toISOString(),
             updated_at: supabaseBuilder?.updated_at || new Date().toISOString(),
-            startsAt: user.project.startsAt || '',
+            startsAt: user.buildersProject.startsAt || '',
             builderUsers: [{
-              id: `${user.project.id}-${userAddress}`,
+              id: `${user.buildersProject.id}-${userAddress}`,
               address: userAddress,
               staked: user.staked,
               claimed: "0",
-              claimLockEnd: user.claimLockEnd,
+              claimLockEnd: String(Number(user.lastStake) + lockPeriodSeconds),
               lastStake: user.lastStake,
             }]
           };

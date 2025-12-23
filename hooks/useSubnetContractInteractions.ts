@@ -86,12 +86,6 @@ export const useSubnetContractInteractions = ({
     }
   }, [connectedAddress, selectedChainId]);
 
-  const calculateSecondsForLockPeriod = (period: number, unit: "hours" | "days"): bigint => {
-    const secondsInHour = BigInt(3600);
-    const secondsInDay = BigInt(86400);
-    const bnPeriod = BigInt(period);
-    return unit === "hours" ? bnPeriod * secondsInHour : bnPeriod * secondsInDay;
-  };
 
   const formatCreationFee = useCallback(() => {
     if (creationFee === undefined) return "Loading...";
@@ -136,27 +130,44 @@ export const useSubnetContractInteractions = ({
   const { data: writeTxResult, writeContract, isPending: isWritePending, error: writeError, reset: resetWriteContract } = useWriteContract({
     mutation: {
       onError: (error) => {
-        console.error("Detailed contract write error:", error);
+        console.error("[SubnetCreation] Detailed contract write error:", error);
+        console.error("[SubnetCreation] Error type:", error?.constructor?.name);
+        console.error("[SubnetCreation] Error stack:", error?.stack);
+        console.error("[SubnetCreation] Selected chain ID:", selectedChainId);
+        console.error("[SubnetCreation] Builder contract address:", builderContractAddress);
+        console.error("[SubnetCreation] Connected address:", connectedAddress);
+        console.error("[SubnetCreation] Is correct network:", isCorrectNetwork());
+
         let errorMessage = "Unknown error";
-        
+
         if (error instanceof Error) {
           errorMessage = error.message;
-          
+          console.error("[SubnetCreation] Raw error message:", errorMessage);
+
           // Try to extract the revert reason if available
           const revertMatch = errorMessage.match(/reverted with reason string '([^']*)'/);
           if (revertMatch && revertMatch[1]) {
             errorMessage = `Contract reverted: ${revertMatch[1]}`;
+            console.error("[SubnetCreation] Extracted revert reason:", revertMatch[1]);
           }
-          
+
           // Extract gas errors
           if (errorMessage.includes("gas")) {
             errorMessage = "Transaction would exceed gas limits. The contract function may be failing or incompatible.";
+            console.error("[SubnetCreation] Gas-related error detected");
+          }
+
+          // Check for common RPC errors
+          if (errorMessage.includes("Internal JSON-RPC error")) {
+            errorMessage = "Network RPC error. This may be due to network congestion or a temporary issue. Please try again.";
+            console.error("[SubnetCreation] Internal JSON-RPC error detected");
           }
         }
-        
-        toast.error("Contract Interaction Failed", { 
-          id: "subnet-tx", 
-          description: errorMessage 
+
+        toast.error("Contract Interaction Failed", {
+          id: "subnet-tx",
+          description: errorMessage,
+          duration: 10000, // Show for 10 seconds instead of default
         });
       }
     }
@@ -183,9 +194,10 @@ export const useSubnetContractInteractions = ({
           }
         }
         
-        toast.error("Token Approval Failed", { 
-          id: "approval-tx", 
-          description: errorMessage 
+        toast.error("Token Approval Failed", {
+          id: "approval-tx",
+          description: errorMessage,
+          duration: 10000, // Show for 10 seconds instead of default
         });
       }
     }
@@ -389,16 +401,21 @@ export const useSubnetContractInteractions = ({
       let displayError = errorMsg.split('(')[0].trim();
       const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
       if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
-      toast.error("Subnet Creation Failed", { id: "subnet-tx", description: displayError });
+      toast.error("Subnet Creation Failed", {
+        id: "subnet-tx",
+        description: displayError,
+        duration: 15000, // Show for 15 seconds for critical errors
+      });
       resetWriteContract();
       setSubmittedFormData(null); // Clear form data on error
     }
     // Add handler for transaction error/timeout
     if (isWriteTxError || (writeTxResult && !isWriteTxLoading && !isWriteTxSuccess && !isWritePending)) {
       toast.dismiss("subnet-tx");
-      toast.error("Transaction Failed or Timed Out", { 
-        id: "subnet-tx", 
+      toast.error("Transaction Failed or Timed Out", {
+        id: "subnet-tx",
         description: "The transaction may still be pending on the network. Check your wallet or block explorer for status.",
+        duration: 20000, // Show for 20 seconds for timeout errors
         action: {
           label: "View on Explorer",
           onClick: () => {
@@ -413,23 +430,34 @@ export const useSubnetContractInteractions = ({
     }
   }, [isWritePending, isWriteTxSuccess, isWriteTxError, isWriteTxLoading, writeTxResult, writeError, selectedChainId, resetWriteContract, onTxSuccess, showEnhancedLoadingToast, submittedFormData, connectedAddress, addNewlyCreatedSubnet, getNetworkName]);
 
-  // Effect to handle Supabase insertion after successful transaction
+  // Effect to handle Supabase insertion after successful transaction (only for non-v4 networks)
   useEffect(() => {
     console.log("[useSubnetContractInteractions] Supabase insertion effect triggered:", {
       isWriteTxSuccess,
       hasSubmittedFormData: !!submittedFormData,
       writeTxResult,
-      onTxSuccessExists: !!onTxSuccess
+      onTxSuccessExists: !!onTxSuccess,
+      selectedChainId
     });
-    
+
     const insertIntoSupabase = async () => {
       if (isWriteTxSuccess && submittedFormData && writeTxResult) {
-        const isMainnet = selectedChainId === base.id;
-        console.log(`[useSubnetContractInteractions] Transaction successful (Tx: ${writeTxResult}). Checking if mainnet for Supabase insert...`, { selectedChainId, isMainnet });
+        const isV4Network = selectedChainId === base.id || selectedChainId === baseSepolia.id;
+        console.log(`[useSubnetContractInteractions] Transaction successful (Tx: ${writeTxResult}). Checking network type...`, { selectedChainId, isV4Network });
 
+        // Skip Supabase insertion for v4 networks (Base and Base Sepolia) since metadata is stored on-chain
+        if (isV4Network) {
+          console.log("[useSubnetContractInteractions] V4 network detected - skipping Supabase insertion (metadata stored on-chain)");
+          // Clear submitted data - redirect already happened immediately after transaction
+          setSubmittedFormData(null);
+          return;
+        }
+
+        // Legacy Supabase insertion for non-v4 networks (if any exist in the future)
+        const isMainnet = selectedChainId === base.id; // This will be false for v4 networks
         if (isMainnet) {
           const networkName = getNetworkName(selectedChainId);
-          console.log(`[useSubnetContractInteractions] Mainnet detected (${networkName}). Preparing data for Supabase...`);
+          console.log(`[useSubnetContractInteractions] Legacy mainnet detected (${networkName}). Preparing data for Supabase...`);
 
           const newBuilderData: Partial<BuilderDB> = {
             name: submittedFormData.subnet.name,
@@ -438,10 +466,10 @@ export const useSubnetContractInteractions = ({
             long_description: submittedFormData.metadata.description || null, // Use description as long description for now
             image_src: submittedFormData.metadata.image || null,
             website: submittedFormData.metadata.website || null,
-            discord_url: submittedFormData.projectOffChain.discordLink || null,
-            twitter_url: submittedFormData.projectOffChain.twitterLink || null,
+            discord_url: submittedFormData.projectOffChain?.discordLink || null,
+            twitter_url: submittedFormData.projectOffChain?.twitterLink || null,
             // Assuming 'rewards' in projectOffChain maps to reward_types
-            reward_types: submittedFormData.projectOffChain.rewards?.map(r => r.value) || [], 
+            reward_types: submittedFormData.projectOffChain?.rewards?.map(r => r.value) || [],
             // Default other fields as they are not in the form
             tags: [],
             github_url: null,
@@ -455,13 +483,13 @@ export const useSubnetContractInteractions = ({
           try {
             toast.info("Syncing project details with database...", { id: "supabase-sync" });
             await BuildersService.addBuilder(newBuilderData);
-            toast.success("Project details synced successfully!", { 
+            toast.success("Project details synced successfully!", {
               id: "supabase-sync"
             });
-            
+
             // Cache was already populated before redirect, so no need to add again
             console.log("[useSubnetContractInteractions] Supabase insertion successful, cache already populated");
-            
+
           } catch (dbError) {
             console.error("[useSubnetContractInteractions] Supabase insertion failed:", dbError);
             toast.error("Failed to sync project details with database", { id: "supabase-sync" });
@@ -600,23 +628,32 @@ export const useSubnetContractInteractions = ({
   }, [isCorrectNetwork, tokenAddress, connectedAddress, builderContractAddress, writeApprove, creationFee, selectedChainId]);
 
   const handleCreateSubnet = async (formData: FormData) => {
-    console.log("[useSubnetContractInteractions] handleCreateSubnet called with data:", formData);
-    console.log("[useSubnetContractInteractions] Current selectedChainId:", selectedChainId);
-    
+    console.log("[SubnetCreation] handleCreateSubnet called with data:", formData);
+    console.log("[SubnetCreation] Current selectedChainId:", selectedChainId);
+    console.log("[SubnetCreation] Connected address:", connectedAddress);
+    console.log("[SubnetCreation] Is correct network:", isCorrectNetwork());
+    console.log("[SubnetCreation] Builder contract address:", builderContractAddress);
+    console.log("[SubnetCreation] Creation fee:", creationFee?.toString());
+    console.log("[SubnetCreation] Token address:", tokenAddress);
+    console.log("[SubnetCreation] Token symbol:", tokenSymbol);
+    console.log("[SubnetCreation] Needs approval:", needsApproval);
+
     // Store form data for later use (mainly for Supabase insertion on mainnet)
     setSubmittedFormData(formData);
-    console.log("[useSubnetContractInteractions] Form data stored for later use");
+    console.log("[SubnetCreation] Form data stored for later use");
 
     const isV4Network = selectedChainId === base.id || selectedChainId === baseSepolia.id;
     const isTestnet = selectedChainId === baseSepolia.id;
-    console.log("[useSubnetContractInteractions] Is V4 network?", isV4Network, "Is testnet?", isTestnet);
+    console.log("[SubnetCreation] Is V4 network?", isV4Network, "Is testnet?", isTestnet);
 
     if (!connectedAddress || !isCorrectNetwork()) {
+      console.error("[SubnetCreation] Cannot proceed: connectedAddress or network issue");
       toast.error("Cannot create builder subnet: Wallet or network issue.");
       return;
     }
 
     if (!builderContractAddress) {
+      console.error("[SubnetCreation] Builder contract address not found");
       toast.error("Builder contract address not found. Please check network configuration.");
       return;
     }
@@ -632,10 +669,7 @@ export const useSubnetContractInteractions = ({
         name: subnetName,
         admin: connectedAddress as `0x${string}`,
         unusedStorage1_V4Update: BigInt(0), // Set to 0 as unused
-        withdrawLockPeriodAfterDeposit: calculateSecondsForLockPeriod(
-          formData.subnet.withdrawLockPeriod,
-          formData.subnet.withdrawLockUnit
-        ),
+        withdrawLockPeriodAfterDeposit: BigInt(formData.subnet.withdrawLockPeriod * 86400), // Convert days to seconds
         unusedStorage2_V4Update: BigInt(0), // Set to 0 as unused
         minimalDeposit: parseEther((formData.subnet.minStake || 0.001).toString()),
         claimAdmin: connectedAddress as `0x${string}`, // Use connected address as claim admin
@@ -650,15 +684,41 @@ export const useSubnetContractInteractions = ({
       };
 
       const networkName = isTestnet ? "Base Sepolia" : "Base";
-      console.log(`Creating subnet (${networkName} - BuildersV4) with DYNAMIC parameters:`, subnetStruct, metadataStruct);
+      console.log(`[SubnetCreation] Creating subnet (${networkName} - BuildersV4) with DYNAMIC parameters:`, {
+        subnetStruct,
+        metadataStruct,
+        builderContractAddress,
+        selectedChainId
+      });
+
+      // Pre-flight checks
+      if (creationFee && creationFee > BigInt(0) && needsApproval) {
+        console.error("[SubnetCreation] Attempting to create subnet without proper approval. Creation fee:", creationFee.toString(), "Allowance:", allowance?.toString());
+        toast.error("Token approval required. Please approve the token first.");
+        return;
+      }
+
+      console.log("[SubnetCreation] Pre-flight checks passed. Proceeding with transaction...");
+
+      console.log("[SubnetCreation] Calling writeContract with config:", {
+        address: builderContractAddress,
+        functionName: 'createSubnet',
+        chainId: selectedChainId,
+        hasArgs: true,
+        gasLimit: selectedChainId === base.id ? "1000000" : "auto"
+      });
 
       writeContract({
         address: builderContractAddress,
-        abi: BuildersV4Abi, 
+        abi: BuildersV4Abi,
         functionName: 'createSubnet',
         args: [subnetStruct, metadataStruct],
         chainId: selectedChainId,
+        // Add explicit gas limit for Base mainnet to prevent estimation issues
+        gas: selectedChainId === base.id ? BigInt(1000000) : undefined,
       });
+
+      console.log("[SubnetCreation] writeContract called successfully, waiting for user confirmation...");
 
     } catch (error) {
       console.error("Error preparing createSubnet/createBuilderPool transaction:", error);

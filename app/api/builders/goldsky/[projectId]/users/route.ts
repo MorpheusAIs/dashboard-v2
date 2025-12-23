@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
+// Force this route to be dynamic
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
- * API route to fetch users for a specific builder project from Goldsky
- * Queries Goldsky directly for user data (since user data changes frequently)
+ * API route to fetch users for a specific builder project from Goldsky V4
+ * Queries Goldsky V4 directly for user data with pagination support
  */
 export async function GET(
   request: Request,
@@ -26,25 +30,28 @@ export async function GET(
     const limit = parseInt(url.searchParams.get('limit') || '10', 10);
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     
-    // Get the appropriate Goldsky endpoint
+    // Get the appropriate Goldsky V4 endpoint
     const endpoint = networkLower === 'arbitrum' 
-      ? SUBGRAPH_ENDPOINTS.GoldskyArbitrum
-      : SUBGRAPH_ENDPOINTS.GoldskyBase;
+      ? SUBGRAPH_ENDPOINTS.GoldskyArbitrumV4
+      : SUBGRAPH_ENDPOINTS.GoldskyBaseV4;
 
-    // Goldsky query - uses builderSubnet instead of buildersProject
-    // Note: Goldsky uses "deposited" instead of "staked"
+    console.log(`[Goldsky V4 API Users] Fetching users for project ${projectId} on ${networkLower}, limit=${limit}, skip=${offset}`);
+
+    // V4 query - uses buildersProject (mainnet schema)
+    // V4 uses "staked" not "deposited", and has "lastStake"
     const query = `
-      query GetBuilderUsers($subnetId: Bytes!, $first: Int!, $skip: Int!) {
-        builderUsers(
+      query GetBuilderUsers($projectId: Bytes!, $first: Int!, $skip: Int!) {
+        buildersUsers(
           first: $first
           skip: $skip
-          where: { builderSubnet_: { id: $subnetId } }
-          orderBy: deposited
+          where: { buildersProject_: { id: $projectId } }
+          orderBy: staked
           orderDirection: desc
         ) {
           id
           address
-          deposited
+          staked
+          lastStake
         }
       }
     `;
@@ -57,7 +64,7 @@ export async function GET(
       body: JSON.stringify({
         query,
         variables: {
-          subnetId: projectId,
+          projectId: projectId,
           first: limit,
           skip: offset,
         },
@@ -71,28 +78,21 @@ export async function GET(
     const result = await response.json();
 
     if (result.errors) {
+      console.error('[Goldsky V4 API Users] GraphQL errors:', result.errors);
       throw new Error(`GraphQL errors: ${JSON.stringify(result.errors, null, 2)}`);
     }
 
-    // Transform Goldsky response to V4 format
-    // Goldsky uses "deposited" instead of "staked", and doesn't have "lastStake"
-    const users = (result.data?.builderUsers || []).map((user: {
-      id: string;
-      address: string;
-      deposited: string;
-    }) => ({
-      id: user.id,
-      address: user.address,
-      staked: user.deposited, // Map deposited -> staked
-      lastStake: '0', // Goldsky doesn't have this field
-    }));
+    // V4 response already has correct field names (staked, lastStake)
+    const users = result.data?.buildersUsers || [];
 
-    // Get total count - we need to query separately since Goldsky doesn't return totalCount
+    console.log(`[Goldsky V4 API Users] Found ${users.length} users`);
+
+    // Get total count for pagination - query first 1000 to get count
     const countQuery = `
-      query GetBuilderUsersCount($subnetId: Bytes!) {
-        builderUsers(
+      query GetBuilderUsersCount($projectId: Bytes!) {
+        buildersUsers(
           first: 1000
-          where: { builderSubnet_: { id: $subnetId } }
+          where: { buildersProject_: { id: $projectId } }
         ) {
           id
         }
@@ -107,20 +107,20 @@ export async function GET(
       body: JSON.stringify({
         query: countQuery,
         variables: {
-          subnetId: projectId,
+          projectId: projectId,
         },
       }),
     });
 
     const countResult = await countResponse.json();
-    const totalCount = countResult.data?.builderUsers?.length || 0;
+    const totalCount = countResult.data?.buildersUsers?.length || 0;
+    
+    console.log(`[Goldsky V4 API Users] Total count: ${totalCount}`);
 
     return NextResponse.json(
       {
-        buildersUsers: {
-          items: users,
-          totalCount,
-        },
+        buildersUsers: users,
+        totalCount: totalCount,
       },
       {
         status: 200,
@@ -131,13 +131,11 @@ export async function GET(
       }
     );
   } catch (error) {
-    console.error('[Goldsky API Users] Error fetching users:', error);
+    console.error('[Goldsky V4 API Users] Error fetching users:', error);
     return NextResponse.json(
       {
-        buildersUsers: {
-          items: [],
-          totalCount: 0,
-        },
+        buildersUsers: [],
+        totalCount: 0,
         error: 'Failed to load users data',
       },
       {
