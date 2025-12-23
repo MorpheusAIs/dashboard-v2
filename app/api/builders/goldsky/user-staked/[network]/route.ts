@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
-import {
-  transformV1UserStakedBuildersToV4,
-  V1UserStakedBuildersResponse,
-  CHAIN_IDS,
-} from '@/lib/utils/goldsky-v1-to-v4-adapter';
+import { CHAIN_IDS } from '@/lib/utils/goldsky-v4-adapter';
+
+// Force this route to be dynamic
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
- * API route to fetch builders where a user has staked from Goldsky
+ * API route to fetch builders where a user has staked from Goldsky V4
  * Used for the "Staking in" table
  */
 export async function GET(
@@ -37,10 +37,10 @@ export async function GET(
 
     const networkLower = network.toLowerCase();
     
-    // Get the appropriate Goldsky endpoint
+    // Get the appropriate Goldsky V4 endpoint
     const endpoint = networkLower === 'arbitrum' 
-      ? SUBGRAPH_ENDPOINTS.GoldskyArbitrum
-      : SUBGRAPH_ENDPOINTS.GoldskyBase;
+      ? SUBGRAPH_ENDPOINTS.GoldskyArbitrumV4
+      : SUBGRAPH_ENDPOINTS.GoldskyBaseV4;
     
     const chainId = networkLower === 'arbitrum' 
       ? CHAIN_IDS.Arbitrum
@@ -51,25 +51,27 @@ export async function GET(
       ? userAddress.toLowerCase() 
       : `0x${userAddress.toLowerCase()}`;
 
-    console.log(`[Goldsky API User Staked Builders] Fetching for network: ${networkLower}, address: ${formattedAddress}`);
+    console.log(`[Goldsky V4 API User Staked Builders] Fetching for network: ${networkLower}, address: ${formattedAddress}`);
 
-    // Goldsky query - uses builderUsers with builderSubnet relation
-    // NOTE: Goldsky uses testnet-style schema names for mainnet:
-    // - "builderUsers" (not "buildersUsers")
-    // - "builderSubnet" (not "buildersProject")
-    // - "deposited" (not "staked")
+    // V4 query - uses buildersUsers with buildersProject relation
+    // V4 uses standard mainnet schema:
+    // - "buildersUsers" (mainnet style)
+    // - "buildersProject" (mainnet style)
+    // - "staked" (not "deposited")
+    // - NO "claimed" or "claimLockEnd" on BuildersUser
     const query = `
       query GetUserStakedBuilders($userAddress: Bytes!) {
-        builderUsers(
+        buildersUsers(
           first: 1000
-          where: { address: $userAddress, deposited_gt: "0" }
-          orderBy: deposited
+          where: { address: $userAddress, staked_gt: "0" }
+          orderBy: staked
           orderDirection: desc
         ) {
           id
           address
-          deposited
-          builderSubnet {
+          staked
+          lastStake
+          buildersProject {
             id
             name
             admin
@@ -78,10 +80,8 @@ export async function GET(
             totalUsers
             totalClaimed
             withdrawLockPeriodAfterDeposit
-            slug
-            description
-            website
-            image
+            startsAt
+            claimLockEnd
           }
         }
       }
@@ -113,17 +113,29 @@ export async function GET(
       throw new Error(`GraphQL errors: ${JSON.stringify(result.errors, null, 2)}`);
     }
 
-    console.log(`[Goldsky API User Staked Builders] Raw response data:`, JSON.stringify(result.data, null, 2));
-    console.log(`[Goldsky API User Staked Builders] Found ${result.data?.builderUsers?.length || 0} builderUsers`);
+    console.log(`[Goldsky V4 API User Staked Builders] Raw response data:`, JSON.stringify(result.data, null, 2));
+    console.log(`[Goldsky V4 API User Staked Builders] Found ${result.data?.buildersUsers?.length || 0} buildersUsers`);
 
-    // Transform Goldsky V1 response to V4 format
-    const v1Response = result.data as V1UserStakedBuildersResponse;
-    const v4Response = transformV1UserStakedBuildersToV4(v1Response, chainId);
+    // V4 response is already in the correct format - just add network metadata
+    const buildersUsers = result.data?.buildersUsers || [];
+    const networkName = networkLower === 'arbitrum' ? 'Arbitrum' : 'Base';
     
-    console.log(`[Goldsky API User Staked Builders] Transformed to ${v4Response.buildersUsers.items.length} items`);
+    // Add network and chainId to each user's project
+    const enrichedUsers = buildersUsers.map((user: { buildersProject: { id: string; name: string; admin: string; minimalDeposit: string; totalStaked: string; totalUsers: string; totalClaimed: string; withdrawLockPeriodAfterDeposit: string; startsAt: string; claimLockEnd: string; }; id: string; address: string; staked: string; lastStake: string; }) => ({
+      ...user,
+      buildersProject: user.buildersProject ? {
+        ...user.buildersProject,
+        network: networkName,
+        chainId: chainId,
+      } : undefined,
+    }));
+    
+    console.log(`[Goldsky V4 API User Staked Builders] Returning ${enrichedUsers.length} items`);
 
     return NextResponse.json(
-      v4Response,
+      {
+        buildersUsers: enrichedUsers,
+      },
       {
         status: 200,
         headers: {
@@ -133,14 +145,11 @@ export async function GET(
       }
     );
   } catch (error) {
-    console.error('[Goldsky API User Staked Builders] Error fetching user staked builders:', error);
+    console.error('[Goldsky V4 API User Staked Builders] Error fetching user staked builders:', error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Unknown error occurred',
-        buildersUsers: {
-          items: [],
-          totalCount: 0,
-        },
+        buildersUsers: [],
       },
       {
         status: 500,
@@ -151,3 +160,4 @@ export async function GET(
     );
   }
 }
+

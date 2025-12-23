@@ -3,6 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { V4BuildersResponse } from '@/lib/utils/goldsky-v1-to-v4-adapter';
 
+// Force this route to be dynamic
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * API route to serve transformed Goldsky V1 data for Arbitrum network
  * Reads from static JSON file generated at build time

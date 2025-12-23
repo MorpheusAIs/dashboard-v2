@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import * as fs from 'fs';
-import * as path from 'path';
-import { V4BuildersResponse } from '@/lib/utils/goldsky-v1-to-v4-adapter';
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
+
+// Force this route to be dynamic
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 /**
- * API route to serve individual builder project data from Goldsky
- * Filters the static JSON data by project ID
+ * API route to fetch individual builder project data from Goldsky V4
+ * Queries Goldsky V4 endpoint directly for real-time data
  */
 export async function GET(
   request: Request,
@@ -26,68 +28,81 @@ export async function GET(
     const network = url.searchParams.get('network') || 'base';
     const networkLower = network.toLowerCase();
     
-    // Normalize projectId (remove 0x prefix if present for comparison)
-    const normalizedProjectId = projectId.toLowerCase();
-    
-    const filePath = path.join(
-      process.cwd(),
-      'public',
-      'data',
-      `goldsky-builders-${networkLower === 'arbitrum' ? 'arbitrum' : 'base'}.json`
-    );
+    // Get the appropriate Goldsky V4 endpoint
+    const endpoint = networkLower === 'arbitrum' 
+      ? SUBGRAPH_ENDPOINTS.GoldskyArbitrumV4
+      : SUBGRAPH_ENDPOINTS.GoldskyBaseV4;
 
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      console.warn(
-        `[Goldsky API] File not found: ${filePath}. Returning empty response.`
-      );
-      return NextResponse.json(
-        {
-          buildersProject: null,
-        },
-        {
-          status: 200,
-          headers: {
-            'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
-          },
+    console.log(`[Goldsky V4 API Project] Fetching project ${projectId} from ${networkLower}`);
+
+    // V4 query - fetch single project by ID
+    const query = `
+      query GetProjectDetails($projectId: Bytes!) {
+        buildersProjects(
+          where: { id: $projectId }
+          first: 1
+        ) {
+          id
+          name
+          admin
+          totalStaked
+          totalUsers
+          totalClaimed
+          minimalDeposit
+          withdrawLockPeriodAfterDeposit
+          startsAt
+          claimLockEnd
         }
-      );
+      }
+    `;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          projectId: projectId,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
     }
 
-    // Read and parse JSON file
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const data = JSON.parse(fileContent) as V4BuildersResponse & {
-      _metadata?: {
-        generatedAt: string;
-        sourceEndpoint: string;
-        network: string;
-        chainId: number;
-        version: string;
-        projectCount: number;
-      };
-    };
+    const result = await response.json();
 
-    // Find project by ID (case-insensitive comparison)
-    const project = data.buildersProjects.items.find(
-      (p) => p.id.toLowerCase() === normalizedProjectId
-    );
+    if (result.errors) {
+      console.error('[Goldsky V4 API Project] GraphQL errors:', result.errors);
+      throw new Error(`GraphQL errors: ${JSON.stringify(result.errors, null, 2)}`);
+    }
+
+    // V4 returns buildersProjects as array
+    const projects = result.data?.buildersProjects || [];
+    const project = projects.length > 0 ? projects[0] : null;
 
     if (!project) {
+      console.log(`[Goldsky V4 API Project] Project not found: ${projectId}`);
       return NextResponse.json(
         {
           buildersProject: null,
         },
         {
-          status: 200,
+          status: 404,
           headers: {
-            'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+            'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
           },
         }
       );
     }
 
-    // Return project in V4 format (matching GET_PROJECT_WITH_DETAILS queries)
-    // Note: Goldsky doesn't have user data, so users will be empty
+    console.log(`[Goldsky V4 API Project] Found project: ${project.name}`);
+
+    // Return project in V4 format (matching expected structure)
+    // Note: Users are fetched separately via the /users endpoint
     return NextResponse.json(
       {
         buildersProject: {
@@ -101,13 +116,13 @@ export async function GET(
       {
         status: 200,
         headers: {
-          'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+          'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
           'Content-Type': 'application/json',
         },
       }
     );
   } catch (error) {
-    console.error('[Goldsky API] Error reading builders data:', error);
+    console.error('[Goldsky V4 API Project] Error fetching project:', error);
     return NextResponse.json(
       {
         buildersProject: null,

@@ -37,36 +37,37 @@ export const GET_BUILDER_SUBNET_BY_NAME = `
   }
 `;
 
+// V4 query - uses first/skip pagination for Goldsky V4 compatibility
+// Note: V4 schema does NOT have 'claimed' or 'claimLockEnd' on BuildersUser
 export const GET_BUILDERS_PROJECT_USERS = `
   query getBuildersProjectUsers(
-    $limit: Int = 50
-    $after: String
-    $buildersProjectId: String = ""
-    $orderBy: String = "staked"
-    $orderDirection: String = "desc"
+    $first: Int = 50
+    $skip: Int = 0
+    $buildersProjectId: Bytes!
+    $orderBy: BuildersUser_orderBy = staked
+    $orderDirection: OrderDirection = desc
   ) {
     buildersUsers(
-      limit: $limit
-      after: $after
-      where: { buildersProjectId: $buildersProjectId }
+      first: $first
+      skip: $skip
+      where: { buildersProject_: { id: $buildersProjectId } }
       orderBy: $orderBy
       orderDirection: $orderDirection
     ) {
-      items {
-        address
+      address
+      id
+      staked
+      lastStake
+      buildersProject {
         id
-        staked
-        lastStake
+        name
       }
-      pageInfo {
-        endCursor
-        hasNextPage
-      }
+      __typename
     }
   }
 `;
 
-// New query to get builder subnet users for testnet
+// Testnet query - for builder subnet users (testnet only - keeps claimed/claimLockEnd)
 export const GET_BUILDER_SUBNET_USERS = `
   query getBuilderSubnetUsers(
     $first: Int = 50
@@ -92,18 +93,26 @@ export const GET_BUILDER_SUBNET_USERS = `
   }
 `;
 
-// Use this query to get all builders projects (like in query.json)
+// V4 query to get all builders projects - uses first/skip for Goldsky V4
 export const GET_ALL_BUILDERS_PROJECTS = `
-  query getAllBuildersProjects($limit: Int = 5) {
-    buildersProjects(limit: $limit) {
-      items {
-        id
-        name
-        minimalDeposit
-        totalStaked
-        totalUsers
-        withdrawLockPeriodAfterDeposit
-      }
+  query getAllBuildersProjects($first: Int = 1000, $skip: Int = 0) {
+    buildersProjects(
+      first: $first
+      skip: $skip
+      orderBy: totalStaked
+      orderDirection: desc
+    ) {
+      id
+      name
+      admin
+      minimalDeposit
+      totalStaked
+      totalUsers
+      totalClaimed
+      startsAt
+      withdrawLockPeriodAfterDeposit
+      claimLockEnd
+      __typename
     }
   }
 `; 

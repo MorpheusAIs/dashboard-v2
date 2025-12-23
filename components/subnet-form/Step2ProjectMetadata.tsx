@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useFormContext, useWatch } from "react-hook-form";
-import MultipleSelector from "@/components/ui/multiple-selector";
-import { REWARD_OPTIONS } from './types/schemas';
 import { cn } from "@/lib/utils";
 import { baseSepolia, base } from 'wagmi/chains';
 
@@ -119,11 +117,12 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
 
   return (
     <fieldset disabled={isSubmitting} className="space-y-6 p-6 border border-gray-100/30 rounded-lg">
-      <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">Project & Metadata</legend>
-      
+      <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">Project Metadata</legend>
+
       {/* Contract Metadata */}
-      <div className="space-y-4 pb-4 border-b border-gray-100/20">
+      <div className="space-y-4 pb-4">
         <h3 className="text-lg font-medium text-gray-100">Project Information</h3>
+        <p className="text-sm text-gray-400 pb-2">This information will be stored on-chain with your subnet.</p>
         {/* Conditionally render Slug field for V4 networks (Base and Base Sepolia) */}
         {isV4Network && (
           <FormField
@@ -206,67 +205,6 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
               <FormDescription>
                 A brief description of your subnet (required, minimum 60 characters).
               </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-
-      {/* Additional Project Info */}
-      <div className="space-y-4 pt-4">
-        <h3 className="text-lg font-medium text-gray-100">Additional Project Info</h3>
-        <p className="text-sm text-gray-400 pb-2">* Mainnet only: Must fill in at least one contact field (stored off-chain).</p>
-        <FormField
-          control={form.control} name="projectOffChain.email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel htmlFor="projectOffChain.email">Contact Email</FormLabel>
-              <FormControl>
-                <Input id="projectOffChain.email" type="email" placeholder="contact@yourproject.com" {...field} value={field.value ?? ''}/>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control} name="projectOffChain.discordLink"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel htmlFor="projectOffChain.discordLink">Discord Link</FormLabel>
-              <FormControl>
-                <Input id="projectOffChain.discordLink" placeholder="https://discord.gg/yourserver" {...field} value={field.value ?? ''}/>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control} name="projectOffChain.twitterLink"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel htmlFor="projectOffChain.twitterLink">X (Twitter) Link</FormLabel>
-              <FormControl>
-                <Input id="projectOffChain.twitterLink" placeholder="https://x.com/yourproject" {...field} value={field.value ?? ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control} name="projectOffChain.rewards"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Potential Rewards for Stakers</FormLabel>
-              <FormControl>
-                <MultipleSelector
-                  value={field.value}
-                  defaultOptions={REWARD_OPTIONS}
-                  placeholder="Select potential rewards (optional)..."
-                  emptyIndicator={<p className="text-center text-sm text-gray-500">No reward types available.</p>}
-                  onChange={field.onChange}
-                />
-              </FormControl>
-              <FormDescription>For informational purposes.</FormDescription>
               <FormMessage />
             </FormItem>
           )}

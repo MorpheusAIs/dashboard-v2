@@ -391,30 +391,41 @@ export default function BuilderPage() {
       // BuildersV4 (testnet) and mainnet both use usersData with the same structure:
       // [lastDeposit, claimLockStart, deposited, virtualDeposited]
       // [uint128, uint128, uint256, uint256]
-      // Only extract the values we need (index 0 and 2)
       const stakerArray = stakerData as [bigint, bigint, bigint, bigint];
-      const lastStakeData = stakerArray[0];
-      const depositedData = stakerArray[2];
+      const lastStakeData = stakerArray[0]; // lastDeposit timestamp
+      const claimLockStartData = stakerArray[1]; // claimLockStart timestamp from contract
+      const depositedData = stakerArray[2]; // staked amount
       const staked = depositedData;
       const lastStake = lastStakeData;
-      let claimLockEndRaw: bigint;
-      // Calculate claimLockEnd
-      claimLockEndRaw = BigInt(0); // Default to 0
-      if (lastStake !== BigInt(0)) {
+      
+      // Use claimLockStart from contract if available, otherwise calculate
+      let effectiveClaimLockEnd: bigint;
+      
+      if (claimLockStartData !== BigInt(0)) {
+        // Contract provides claimLockStart - use it to calculate claimLockEnd
         const lpSeconds = isTestnet
           ? (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod)
           : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
-        claimLockEndRaw = BigInt(Number(lastStake) + lpSeconds);
-      }
-      
-      // Determine effective claimLockEnd. If contract returned 0 (or an old value),
-      // fallback to lastStake + appropriate lock period based on network
-      let effectiveClaimLockEnd = claimLockEndRaw;
-      if (claimLockEndRaw === BigInt(0) || Number(claimLockEndRaw) < Number(lastStake)) {
+        effectiveClaimLockEnd = BigInt(Number(claimLockStartData) + lpSeconds);
+        console.log("Using claimLockStart from contract:", {
+          claimLockStart: claimLockStartData.toString(),
+          lockPeriod: lpSeconds,
+          calculatedClaimLockEnd: effectiveClaimLockEnd.toString()
+        });
+      } else if (lastStake !== BigInt(0)) {
+        // Fallback: calculate from lastStake
         const lpSeconds = isTestnet
           ? (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod)
           : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
         effectiveClaimLockEnd = BigInt(Number(lastStake) + lpSeconds);
+        console.log("Calculating claimLockEnd from lastStake:", {
+          lastStake: lastStake.toString(),
+          lockPeriod: lpSeconds,
+          calculatedClaimLockEnd: effectiveClaimLockEnd.toString()
+        });
+      } else {
+        // No stake data available
+        effectiveClaimLockEnd = BigInt(0);
       }
       
       setRawStakedAmount(staked); // Store the raw bigint value

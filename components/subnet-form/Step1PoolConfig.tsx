@@ -12,8 +12,6 @@ import {
   FormDescription,
   FormMessage,
 } from "@/components/ui/form";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BaseIcon } from "@/components/network-icons";
@@ -206,59 +204,29 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
         />
       )}
 
-      {/* Withdraw Lock Section for V4 networks (Base and Base Sepolia) - Period and Unit Selection */}
+      {/* Withdraw Lock Section for V4 networks (Base and Base Sepolia) */}
       {isV4Network && (
-        <>
-          <div className="flex gap-4 items-end">
-            <FormField
-              control={form.control}
-              name="subnet.withdrawLockPeriod"
-              render={({ field }) => (
-                <FormItem className="flex-grow">
-                  <FormLabel htmlFor="subnet.withdrawLockPeriod">Withdraw Lock Period</FormLabel>
-                  <FormControl>
-                    <NumberInput 
-                      id="subnet.withdrawLockPeriod" 
-                      min={minWithdrawLockPeriodValue} // This will be 1
-                      value={field.value} 
-                      onValueChange={field.onChange} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField // Radio Group for unit selection - V4 networks (Base and Base Sepolia)
-              control={form.control}
-              name="subnet.withdrawLockUnit"
-              render={({ field }) => (
-                <FormItem className="pb-2.5">
-                  <FormLabel className="sr-only">Withdraw lock unit</FormLabel>
-                  <FormControl>
-                    <RadioGroup 
-                      className="flex space-x-4" 
-                      value={field.value} 
-                      onValueChange={field.onChange} 
-                      aria-label="Withdraw lock unit"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="days" id="days-radio" />
-                        <Label htmlFor="days-radio">Days</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="hours" id="hours-radio" />
-                        <Label htmlFor="hours-radio">Hours</Label>
-                      </div>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormDescription className="mt-2">
-                    All deposits are locked after each deposit action.
-                  </FormDescription>
-                </FormItem>
-              )}
-            />
-          </div>
-        </>
+        <FormField
+          control={form.control}
+          name="subnet.withdrawLockPeriod"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel htmlFor="subnet.withdrawLockPeriod">Withdraw Lock Period (Days)</FormLabel>
+              <FormControl>
+                <NumberInput
+                  id="subnet.withdrawLockPeriod"
+                  min={7}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                />
+              </FormControl>
+              <FormDescription>
+                Minimum 7 days. All deposits are locked after each deposit action.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       )}
     </fieldset>
   );

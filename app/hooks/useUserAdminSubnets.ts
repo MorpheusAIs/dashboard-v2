@@ -138,32 +138,26 @@ export const useUserAdminSubnets = () => {
           id: string;
           name: string;
           admin: string;
-          slug: string;
-          description: string;
-          website: string;
-          image: string;
           totalStaked: string;
           totalUsers: string;
+          totalClaimed: string;
           minimalDeposit: string;
           withdrawLockPeriodAfterDeposit: string;
           startsAt: string;
-          chainId: string;
+          claimLockEnd: string;
         }> = [];
         
         let arbitrumProjects: Array<{
           id: string;
           name: string;
           admin: string;
-          slug: string;
-          description: string;
-          website: string;
-          image: string;
           totalStaked: string;
           totalUsers: string;
+          totalClaimed: string;
           minimalDeposit: string;
           withdrawLockPeriodAfterDeposit: string;
           startsAt: string;
-          chainId: string;
+          claimLockEnd: string;
         }> = [];
 
         if (USE_GOLDSKY_V1_DATA) {
@@ -182,8 +176,8 @@ export const useUserAdminSubnets = () => {
           const baseData = await baseApiResponse.json();
           const arbitrumData = await arbitrumApiResponse.json();
 
-          baseProjects = baseData.buildersProjects?.items || [];
-          arbitrumProjects = arbitrumData.buildersProjects?.items || [];
+          baseProjects = baseData.buildersProjects || [];
+          arbitrumProjects = arbitrumData.buildersProjects || [];
         } else {
           // Use direct Ponder V4 GraphQL queries
           const baseClient = getClientForNetwork('Base');
@@ -195,49 +189,43 @@ export const useUserAdminSubnets = () => {
 
           // Fetch from both Base and Arbitrum networks
           const [baseResponse, arbitrumResponse] = await Promise.all([
-            baseClient.query<{ buildersProjects?: { items?: Array<{
+            baseClient.query<{ buildersProjects?: Array<{
               id: string;
               name: string;
               admin: string;
-              slug: string;
-              description: string;
-              website: string;
-              image: string;
               totalStaked: string;
               totalUsers: string;
+              totalClaimed: string;
               minimalDeposit: string;
               withdrawLockPeriodAfterDeposit: string;
               startsAt: string;
-              chainId: string;
-            }> } }>({
+              claimLockEnd: string;
+            }> }>({
               query: GET_PROJECTS_BY_ADMIN_BASE_MAINNET,
               variables: { adminAddress: userAddress },
               fetchPolicy: 'no-cache',
             }),
-            arbitrumClient.query<{ buildersProjects?: { items?: Array<{
+            arbitrumClient.query<{ buildersProjects?: Array<{
               id: string;
               name: string;
               admin: string;
-              slug: string;
-              description: string;
-              website: string;
-              image: string;
               totalStaked: string;
               totalUsers: string;
+              totalClaimed: string;
               minimalDeposit: string;
               withdrawLockPeriodAfterDeposit: string;
               startsAt: string;
-              chainId: string;
-            }> } }>({
+              claimLockEnd: string;
+            }> }>({
               query: GET_PROJECTS_BY_ADMIN_ARBITRUM_MAINNET,
               variables: { adminAddress: userAddress },
               fetchPolicy: 'no-cache',
             })
           ]);
 
-          // Handle both items wrapper and direct array formats
-          baseProjects = baseResponse.data?.buildersProjects?.items || [];
-          arbitrumProjects = arbitrumResponse.data?.buildersProjects?.items || [];
+          // V4 returns buildersProjects as direct array
+          baseProjects = baseResponse.data?.buildersProjects || [];
+          arbitrumProjects = arbitrumResponse.data?.buildersProjects || [];
         }
 
         console.log(`[useUserAdminSubnets] Found ${baseProjects.length} Base admin subnets and ${arbitrumProjects.length} Arbitrum admin subnets`);
@@ -247,6 +235,7 @@ export const useUserAdminSubnets = () => {
         // Process Base projects
         baseProjects.forEach((project) => {
           const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
+          const totalClaimedInMor = Number(project.totalClaimed || '0') / 1e18;
           const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
           const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
           const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
@@ -256,20 +245,20 @@ export const useUserAdminSubnets = () => {
             id: project.id,
             mainnetProjectId: project.id,
             name: project.name,
-            description: project.description || '',
-            long_description: project.description || '',
+            description: '',
+            long_description: '',
             admin: project.admin || userAddress,
             networks: ['Base'],
             network: 'Base',
             totalStaked: totalStakedInMor,
-            totalClaimed: 0,
+            totalClaimed: totalClaimedInMor,
             minDeposit: minDepositInMor,
             lockPeriod: lockPeriodFormatted,
             withdrawLockPeriodRaw: lockPeriodSeconds,
             stakingCount: stakingCount,
-            website: project.website || '',
-            image_src: project.image || '',
-            image: project.image || '',
+            website: '',
+            image_src: '',
+            image: '',
             tags: [],
             github_url: '',
             twitter_url: '',
@@ -289,6 +278,7 @@ export const useUserAdminSubnets = () => {
         // Process Arbitrum projects
         arbitrumProjects.forEach((project) => {
           const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
+          const totalClaimedInMor = Number(project.totalClaimed || '0') / 1e18;
           const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
           const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
           const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
@@ -298,20 +288,20 @@ export const useUserAdminSubnets = () => {
             id: project.id,
             mainnetProjectId: project.id,
             name: project.name,
-            description: project.description || '',
-            long_description: project.description || '',
+            description: '',
+            long_description: '',
             admin: project.admin || userAddress,
             networks: ['Arbitrum'],
             network: 'Arbitrum',
             totalStaked: totalStakedInMor,
-            totalClaimed: 0,
+            totalClaimed: totalClaimedInMor,
             minDeposit: minDepositInMor,
             lockPeriod: lockPeriodFormatted,
             withdrawLockPeriodRaw: lockPeriodSeconds,
             stakingCount: stakingCount,
-            website: project.website || '',
-            image_src: project.image || '',
-            image: project.image || '',
+            website: '',
+            image_src: '',
+            image: '',
             tags: [],
             github_url: '',
             twitter_url: '',
