@@ -265,7 +265,11 @@ export function StakeModal({
     setFormError(null);
 
     if (!isValidForSubmission) {
-      setFormError(warningMessage || "Invalid amount");
+      // Convert warningMessage to string if it's JSX
+      const errorMessage = typeof warningMessage === 'string' 
+        ? warningMessage 
+        : "Invalid amount";
+      setFormError(errorMessage);
       return;
     }
 

@@ -20,7 +20,6 @@ import Link from "next/link"
 import { useChainId } from 'wagmi'
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
-import { CowSwapModal } from "./cowswap-modal"
 import { MyBalanceModal } from "./my-balance-modal"
 // import { builders } from "@/app/builders/builders-data"
 

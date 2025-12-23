@@ -1141,7 +1141,7 @@ export default function BuilderPage() {
                         if (isBaseMainnet) {
                           return (
                             <>
-                              Warning: You don't have enough {tokenSymbol}.{" "}
+                              Warning: You don&apos;t have enough {tokenSymbol}.{" "}
                               <Link href="/bridge-mor" className="underline hover:text-emerald-400 transition-colors">
                                 Bridge more tokens
                               </Link>

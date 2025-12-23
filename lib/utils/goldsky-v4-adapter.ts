@@ -95,7 +95,7 @@ export function transformV4ProjectToBuilder(
     minDeposit: minDepositInMor,
     lockPeriod: lockPeriodFormatted,
     withdrawLockPeriodRaw: lockPeriodSeconds,
-    withdrawLockPeriodAfterDeposit: lockPeriodSeconds,
+    withdrawLockPeriodAfterDeposit: lockPeriodSeconds.toString(),
     stakingCount: stakingCount,
     website: supabaseMetadata?.website || '',
     image_src: supabaseMetadata?.image_src || '',
@@ -186,4 +186,5 @@ export function isV4Project(project: Partial<V4BuildersProject>): boolean {
   // V4 projects have startsAt and claimLockEnd fields
   return !!(project.startsAt || project.claimLockEnd);
 }
+
 
