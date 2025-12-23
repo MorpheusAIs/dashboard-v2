@@ -480,3 +480,22 @@ body {
 .error-toast-description {
   @apply text-gray-300;
 }
+
+/* Custom success toast styling with green shadow */
+.bridge-success-toast,
+[data-sonner-toast][data-type="success"].bridge-success-toast {
+  background-color: black !important;
+  color: white !important;
+  border: 2px solid rgba(16, 185, 129, 0.5) !important;
+  box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.4), 0 8px 10px -6px rgba(16, 185, 129, 0.3), 0 0 20px rgba(16, 185, 129, 0.2) !important;
+}
+
+.bridge-success-toast [data-description],
+[data-sonner-toast][data-type="success"].bridge-success-toast [data-description] {
+  color: #d1d5db !important;
+}
+
+.bridge-success-toast [data-close-button],
+[data-sonner-toast][data-type="success"].bridge-success-toast [data-close-button] {
+  color: white !important;
+}
