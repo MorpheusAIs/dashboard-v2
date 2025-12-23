@@ -12,7 +12,7 @@ const NumberFlow = dynamic(() => import('@number-flow/react'), {
   ssr: false,
   loading: () => <span>—</span>
 })
-import { CowSwapModal } from './cowswap-modal'
+import Link from 'next/link'
 import { Eye } from 'lucide-react'
 import { getTokenPrice } from '@/app/services/token-price.service'
 import {
@@ -189,11 +189,14 @@ export function MyBalanceModal() {
               {/* Divider */}
               {/* <hr className="border-gray-700" /> */}
 
-              {/* Buy MOR Button */}
+              {/* Bridge MOR Button */}
               <div className="flex justify-center">
-                <div className="[&>button]:text-base [&>button]:px-6 [&>button]:py-2">
-                  <CowSwapModal />
-                </div>
+                <Link 
+                  href="/bridge-mor"
+                  className="copy-button-base text-base px-6 py-2"
+                >
+                  Bridge MOR
+                </Link>
               </div>
             </div>
           </DialogContent>
