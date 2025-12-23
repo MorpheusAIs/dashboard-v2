@@ -94,10 +94,6 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
     }
   }, [currentChainId, lastWalletChainId, form]);
 
-  // Determine the minimum value for the withdrawLockPeriod input
-  // Both Base and Base Sepolia use V4 contracts, so same validation rules apply
-  const minWithdrawLockPeriodValue = 1; // Can be 1 day or 1 hour for both networks
-
   // Effect to adjust withdrawLockPeriod when network changes
   useEffect(() => {
     const currentWithdrawLockPeriod = form.getValues("subnet.withdrawLockPeriod");
