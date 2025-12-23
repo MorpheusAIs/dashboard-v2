@@ -16,11 +16,18 @@ const DEBOUNCE_TIME = 2000; // 2 seconds debounce time
 
 // Utility function to get the current endpoint for a network
 export const getEndpointForNetwork = (network: string) => {
-  // Check if we're on Arbitrum Sepolia
+  // Check if we're on Base Sepolia
+  if (network.toLowerCase() === 'base_sepolia' || 
+      network.toLowerCase() === 'base sepolia' || 
+      network.toLowerCase() === 'basesepolia') {
+    return GRAPHQL_ENDPOINTS.BaseSepolia;
+  }
+  
+  // Check if we're on Arbitrum Sepolia (deprecated, kept for backward compatibility)
   if (network.toLowerCase() === 'arbitrum_sepolia' || 
       network.toLowerCase() === 'arbitrum sepolia' || 
       network.toLowerCase() === 'arbitrumsepolia') {
-    return GRAPHQL_ENDPOINTS.Arbitrum_Sepolia;
+    return GRAPHQL_ENDPOINTS.ArbitrumSepolia;
   }
   
   // Otherwise, use the standard network endpoint if it exists

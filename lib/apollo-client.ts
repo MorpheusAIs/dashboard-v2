@@ -7,8 +7,10 @@ import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 // Use the shared endpoint configuration
 const NETWORK_ENDPOINTS = {
   Arbitrum: SUBGRAPH_ENDPOINTS.Arbitrum,
-  ArbitrumSepolia: SUBGRAPH_ENDPOINTS.Arbitrum_Sepolia,
+  ArbitrumSepolia: SUBGRAPH_ENDPOINTS.ArbitrumSepolia,
   Base: SUBGRAPH_ENDPOINTS.Base,
+  BaseSepolia: SUBGRAPH_ENDPOINTS.BaseSepolia,
+  // Capital v2 subgraph endpoints
   CapitalV2Sepolia: SUBGRAPH_ENDPOINTS.CapitalV2Sepolia,
 };
 
@@ -44,6 +46,7 @@ export const apolloClients = {
       },
     },
   }),
+  // @deprecated - Arbitrum Sepolia Apollo client. No longer used for Builders V4.
   ArbitrumSepolia: new ApolloClient({
     link: from([
       errorLink,
@@ -65,6 +68,22 @@ export const apolloClients = {
       errorLink,
       new HttpLink({
         uri: NETWORK_ENDPOINTS.Base,
+      }),
+    ]),
+    cache: new InMemoryCache(),
+    queryDeduplication: false,
+    defaultOptions: {
+      query: {
+        fetchPolicy: 'no-cache',
+        errorPolicy: 'all',
+      },
+    },
+  }),
+  BaseSepolia: new ApolloClient({
+    link: from([
+      errorLink,
+      new HttpLink({
+        uri: NETWORK_ENDPOINTS.BaseSepolia,
       }),
     ]),
     cache: new InMemoryCache(),

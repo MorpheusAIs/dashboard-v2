@@ -1,0 +1,1030 @@
+[{
+	"inputs": [],
+	"stateMutability": "nonpayable",
+	"type": "constructor"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "address",
+		"name": "previousAdmin",
+		"type": "address"
+	}, {
+		"indexed": false,
+		"internalType": "address",
+		"name": "newAdmin",
+		"type": "address"
+	}],
+	"name": "AdminChanged",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}, {
+		"indexed": false,
+		"internalType": "address",
+		"name": "receiver",
+		"type": "address"
+	}, {
+		"indexed": false,
+		"internalType": "uint256",
+		"name": "amount",
+		"type": "uint256"
+	}],
+	"name": "AdminClaimed",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "address",
+		"name": "beacon",
+		"type": "address"
+	}],
+	"name": "BeaconUpgraded",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "address",
+		"name": "buildersTreasury",
+		"type": "address"
+	}],
+	"name": "BuildersTreasurySet",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "address",
+		"name": "feeConfig",
+		"type": "address"
+	}],
+	"name": "FeeConfigSet",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "address",
+		"name": "user",
+		"type": "address"
+	}, {
+		"indexed": true,
+		"internalType": "bytes32",
+		"name": "operation",
+		"type": "bytes32"
+	}, {
+		"indexed": false,
+		"internalType": "uint256",
+		"name": "amount",
+		"type": "uint256"
+	}, {
+		"indexed": false,
+		"internalType": "address",
+		"name": "treasury",
+		"type": "address"
+	}],
+	"name": "FeePaid",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "uint8",
+		"name": "version",
+		"type": "uint8"
+	}],
+	"name": "Initialized",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "uint256",
+		"name": "minimalWithdrawLockPeriod",
+		"type": "uint256"
+	}],
+	"name": "MinimalWithdrawLockPeriodSet",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "address",
+		"name": "networkShareOwner",
+		"type": "address"
+	}],
+	"name": "NetworkShareOwnerSet",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "uint256",
+		"name": "networkShare",
+		"type": "uint256"
+	}],
+	"name": "NetworkShareSet",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "address",
+		"name": "previousOwner",
+		"type": "address"
+	}, {
+		"indexed": true,
+		"internalType": "address",
+		"name": "newOwner",
+		"type": "address"
+	}],
+	"name": "OwnershipTransferred",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "address",
+		"name": "rewardPool",
+		"type": "address"
+	}],
+	"name": "RewardPoolSet",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}, {
+		"components": [{
+			"internalType": "string",
+			"name": "name",
+			"type": "string"
+		}, {
+			"internalType": "address",
+			"name": "admin",
+			"type": "address"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage1_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "withdrawLockPeriodAfterDeposit",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage2_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint256",
+			"name": "minimalDeposit",
+			"type": "uint256"
+		}, {
+			"internalType": "address",
+			"name": "claimAdmin",
+			"type": "address"
+		}],
+		"indexed": false,
+		"internalType": "struct IBuildersV4.Subnet",
+		"name": "subnet",
+		"type": "tuple"
+	}],
+	"name": "SubnetCreated",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": false,
+		"internalType": "uint256",
+		"name": "subnetCreationFeeAmount",
+		"type": "uint256"
+	}],
+	"name": "SubnetCreationFeeAmountSet",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}, {
+		"components": [{
+			"internalType": "string",
+			"name": "name",
+			"type": "string"
+		}, {
+			"internalType": "address",
+			"name": "admin",
+			"type": "address"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage1_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "withdrawLockPeriodAfterDeposit",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage2_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint256",
+			"name": "minimalDeposit",
+			"type": "uint256"
+		}, {
+			"internalType": "address",
+			"name": "claimAdmin",
+			"type": "address"
+		}],
+		"indexed": false,
+		"internalType": "struct IBuildersV4.Subnet",
+		"name": "subnet",
+		"type": "tuple"
+	}],
+	"name": "SubnetEdited",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}, {
+		"components": [{
+			"internalType": "string",
+			"name": "slug",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "description",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "website",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "image",
+			"type": "string"
+		}],
+		"indexed": false,
+		"internalType": "struct IBuildersV4.SubnetMetadata",
+		"name": "metadata_",
+		"type": "tuple"
+	}],
+	"name": "SubnetMetadataEdited",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "address",
+		"name": "implementation",
+		"type": "address"
+	}],
+	"name": "Upgraded",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}, {
+		"indexed": true,
+		"internalType": "address",
+		"name": "user",
+		"type": "address"
+	}, {
+		"indexed": false,
+		"internalType": "uint256",
+		"name": "amount",
+		"type": "uint256"
+	}],
+	"name": "UserDeposited",
+	"type": "event"
+}, {
+	"anonymous": false,
+	"inputs": [{
+		"indexed": true,
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}, {
+		"indexed": true,
+		"internalType": "address",
+		"name": "user",
+		"type": "address"
+	}, {
+		"indexed": false,
+		"internalType": "uint256",
+		"name": "amount",
+		"type": "uint256"
+	}],
+	"name": "UserWithdrawn",
+	"type": "event"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "depositToken_",
+		"type": "address"
+	}, {
+		"internalType": "address",
+		"name": "feeConfig_",
+		"type": "address"
+	}, {
+		"internalType": "address",
+		"name": "treasury_",
+		"type": "address"
+	}, {
+		"internalType": "address",
+		"name": "rewardPool_",
+		"type": "address"
+	}, {
+		"internalType": "address",
+		"name": "networkShareOwner_",
+		"type": "address"
+	}, {
+		"internalType": "uint256",
+		"name": "minimalWithdrawLockPeriod_",
+		"type": "uint256"
+	}],
+	"name": "BuildersV4_init",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "FEE_CLAIM_OPERATION",
+	"outputs": [{
+		"internalType": "bytes32",
+		"name": "",
+		"type": "bytes32"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "FEE_SUBNET_CREATE",
+	"outputs": [{
+		"internalType": "bytes32",
+		"name": "",
+		"type": "bytes32"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "allSubnetsData",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "unusedStorage1_V4Update",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "rate",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "totalDeposited",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "unusedStorage2_V4Update",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "allSubnetsDataV4",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "distributedRewards",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "undistributedRewards",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "claimedRewards",
+		"type": "uint256"
+	}, {
+		"internalType": "uint128",
+		"name": "lastUpdate",
+		"type": "uint128"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "buildersTreasury",
+	"outputs": [{
+		"internalType": "address",
+		"name": "",
+		"type": "address"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}, {
+		"internalType": "address",
+		"name": "receiver_",
+		"type": "address"
+	}],
+	"name": "claim",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"components": [{
+			"internalType": "string",
+			"name": "name",
+			"type": "string"
+		}, {
+			"internalType": "address",
+			"name": "admin",
+			"type": "address"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage1_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "withdrawLockPeriodAfterDeposit",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage2_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint256",
+			"name": "minimalDeposit",
+			"type": "uint256"
+		}, {
+			"internalType": "address",
+			"name": "claimAdmin",
+			"type": "address"
+		}],
+		"internalType": "struct IBuildersV4.Subnet",
+		"name": "subnet_",
+		"type": "tuple"
+	}, {
+		"components": [{
+			"internalType": "string",
+			"name": "slug",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "description",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "website",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "image",
+			"type": "string"
+		}],
+		"internalType": "struct IBuildersV4.SubnetMetadata",
+		"name": "metadata_",
+		"type": "tuple"
+	}],
+	"name": "createSubnet",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}, {
+		"internalType": "uint256",
+		"name": "amount_",
+		"type": "uint256"
+	}],
+	"name": "deposit",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "depositToken",
+	"outputs": [{
+		"internalType": "address",
+		"name": "",
+		"type": "address"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}, {
+		"components": [{
+			"internalType": "string",
+			"name": "name",
+			"type": "string"
+		}, {
+			"internalType": "address",
+			"name": "admin",
+			"type": "address"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage1_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "withdrawLockPeriodAfterDeposit",
+			"type": "uint128"
+		}, {
+			"internalType": "uint128",
+			"name": "unusedStorage2_V4Update",
+			"type": "uint128"
+		}, {
+			"internalType": "uint256",
+			"name": "minimalDeposit",
+			"type": "uint256"
+		}, {
+			"internalType": "address",
+			"name": "claimAdmin",
+			"type": "address"
+		}],
+		"internalType": "struct IBuildersV4.Subnet",
+		"name": "newSubnet_",
+		"type": "tuple"
+	}],
+	"name": "editSubnet",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}, {
+		"components": [{
+			"internalType": "string",
+			"name": "slug",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "description",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "website",
+			"type": "string"
+		}, {
+			"internalType": "string",
+			"name": "image",
+			"type": "string"
+		}],
+		"internalType": "struct IBuildersV4.SubnetMetadata",
+		"name": "metadata_",
+		"type": "tuple"
+	}],
+	"name": "editSubnetMetadata",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "feeConfig",
+	"outputs": [{
+		"internalType": "address",
+		"name": "",
+		"type": "address"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}],
+	"name": "getCurrentSubnetRewards",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "getCurrentSubnetsRewards",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "string",
+		"name": "subnetName_",
+		"type": "string"
+	}],
+	"name": "getSubnetId",
+	"outputs": [{
+		"internalType": "bytes32",
+		"name": "",
+		"type": "bytes32"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "string",
+		"name": "subnetName_",
+		"type": "string"
+	}],
+	"name": "getSubnetIdOld",
+	"outputs": [{
+		"internalType": "bytes32",
+		"name": "",
+		"type": "bytes32"
+	}],
+	"stateMutability": "pure",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "minimalWithdrawLockPeriod",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "networkShare",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "networkShareOwner",
+	"outputs": [{
+		"internalType": "address",
+		"name": "",
+		"type": "address"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "owner",
+	"outputs": [{
+		"internalType": "address",
+		"name": "",
+		"type": "address"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "proxiableUUID",
+	"outputs": [{
+		"internalType": "bytes32",
+		"name": "",
+		"type": "bytes32"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "renounceOwnership",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "rewardPool",
+	"outputs": [{
+		"internalType": "address",
+		"name": "",
+		"type": "address"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "treasury_",
+		"type": "address"
+	}],
+	"name": "setBuildersTreasury",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "feeConfig_",
+		"type": "address"
+	}],
+	"name": "setFeeConfig",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "uint256",
+		"name": "minimalWithdrawLockPeriod_",
+		"type": "uint256"
+	}],
+	"name": "setMinimalWithdrawLockPeriod",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "uint256",
+		"name": "networkShare_",
+		"type": "uint256"
+	}],
+	"name": "setNetworkShare",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "networkShareOwner_",
+		"type": "address"
+	}],
+	"name": "setNetworkShareOwner",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "rewardPool_",
+		"type": "address"
+	}],
+	"name": "setRewardPool",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "uint256",
+		"name": "subnetCreationFeeAmount_",
+		"type": "uint256"
+	}],
+	"name": "setSubnetCreationFeeAmount",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "subnetCreationFeeAmount",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}],
+	"name": "subnets",
+	"outputs": [{
+		"internalType": "string",
+		"name": "name",
+		"type": "string"
+	}, {
+		"internalType": "address",
+		"name": "admin",
+		"type": "address"
+	}, {
+		"internalType": "uint128",
+		"name": "unusedStorage1_V4Update",
+		"type": "uint128"
+	}, {
+		"internalType": "uint128",
+		"name": "withdrawLockPeriodAfterDeposit",
+		"type": "uint128"
+	}, {
+		"internalType": "uint128",
+		"name": "unusedStorage2_V4Update",
+		"type": "uint128"
+	}, {
+		"internalType": "uint256",
+		"name": "minimalDeposit",
+		"type": "uint256"
+	}, {
+		"internalType": "address",
+		"name": "claimAdmin",
+		"type": "address"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}],
+	"name": "subnetsData",
+	"outputs": [{
+		"internalType": "uint128",
+		"name": "unusedStorage1_V4Update",
+		"type": "uint128"
+	}, {
+		"internalType": "uint256",
+		"name": "deposited",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "unusedStorage2_V4Update",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "rate",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "pendingRewards",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}],
+	"name": "subnetsMetadata",
+	"outputs": [{
+		"internalType": "string",
+		"name": "slug",
+		"type": "string"
+	}, {
+		"internalType": "string",
+		"name": "description",
+		"type": "string"
+	}, {
+		"internalType": "string",
+		"name": "website",
+		"type": "string"
+	}, {
+		"internalType": "string",
+		"name": "image",
+		"type": "string"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes4",
+		"name": "interfaceId_",
+		"type": "bytes4"
+	}],
+	"name": "supportsInterface",
+	"outputs": [{
+		"internalType": "bool",
+		"name": "",
+		"type": "bool"
+	}],
+	"stateMutability": "pure",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "newOwner",
+		"type": "address"
+	}],
+	"name": "transferOwnership",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "unusedStorage1_V4Update",
+	"outputs": [{
+		"internalType": "uint128",
+		"name": "",
+		"type": "uint128"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "newImplementation",
+		"type": "address"
+	}],
+	"name": "upgradeTo",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "newImplementation",
+		"type": "address"
+	}, {
+		"internalType": "bytes",
+		"name": "data",
+		"type": "bytes"
+	}],
+	"name": "upgradeToAndCall",
+	"outputs": [],
+	"stateMutability": "payable",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "address",
+		"name": "user",
+		"type": "address"
+	}, {
+		"internalType": "bytes32",
+		"name": "subnetId",
+		"type": "bytes32"
+	}],
+	"name": "usersData",
+	"outputs": [{
+		"internalType": "uint128",
+		"name": "lastDeposit",
+		"type": "uint128"
+	}, {
+		"internalType": "uint128",
+		"name": "unusedStorage1_V4Update",
+		"type": "uint128"
+	}, {
+		"internalType": "uint256",
+		"name": "deposited",
+		"type": "uint256"
+	}, {
+		"internalType": "uint256",
+		"name": "unusedStorage2_V4Update",
+		"type": "uint256"
+	}],
+	"stateMutability": "view",
+	"type": "function"
+}, {
+	"inputs": [],
+	"name": "version",
+	"outputs": [{
+		"internalType": "uint256",
+		"name": "",
+		"type": "uint256"
+	}],
+	"stateMutability": "pure",
+	"type": "function"
+}, {
+	"inputs": [{
+		"internalType": "bytes32",
+		"name": "subnetId_",
+		"type": "bytes32"
+	}, {
+		"internalType": "uint256",
+		"name": "amount_",
+		"type": "uint256"
+	}],
+	"name": "withdraw",
+	"outputs": [],
+	"stateMutability": "nonpayable",
+	"type": "function"
+}]

@@ -109,6 +109,7 @@ export function isV4Response(
     'items' in (response as V4BuildersResponse).buildersProjects
   );
 }
+<<<<<<< HEAD
 
 /**
  * V1 response structure for user staked builders from Goldsky subgraph
@@ -250,3 +251,5 @@ export function transformV1UserAdminSubnetsToV4(
     },
   };
 }
+=======
+>>>>>>> origin/feature/implement-builders-v4

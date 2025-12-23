@@ -435,7 +435,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     return networkEnv === 'mainnet' ? mainnetChains.mainnet.id : testnetChains.sepolia.id;
   }, [networkEnv]);
   const l2ChainId = useMemo(() => {
-    return networkEnv === 'mainnet' ? mainnetChains.arbitrum.id : testnetChains.arbitrumSepolia.id;
+    return networkEnv === 'mainnet' ? mainnetChains.arbitrum.id : testnetChains.baseSepolia.id;
   }, [networkEnv]);
 
   // V2 Contract addresses - now unified across all networks

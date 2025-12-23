@@ -3,7 +3,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { REWARD_OPTIONS } from './types/schemas';
 import { cn } from "@/lib/utils";
-import { arbitrumSepolia } from 'wagmi/chains'; // Import arbitrumSepolia
+import { baseSepolia, base } from 'wagmi/chains';
 
 
 import {
@@ -40,9 +40,9 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
   // State to track the image URL validation status
   const [imageUrlError, setImageUrlError] = useState<string | null>(null);
   
-  // Get selected network ID and determine if it's testnet
+  // Get selected network ID
   const selectedChainId = useWatch({ control: form.control, name: "subnet.networkChainId" });
-  const isTestnet = selectedChainId === arbitrumSepolia.id;
+  const isV4Network = selectedChainId === base.id || selectedChainId === baseSepolia.id; // Both Base and Base Sepolia use V4 contracts
   
   // Watch for changes to the subnet name field
   const subnetName = useWatch({
@@ -51,10 +51,10 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
     defaultValue: "",
   });
   
-  // Auto-generate slug when subnet name changes - ONLY ON TESTNET
+  // Auto-generate slug when subnet name changes - Required for V4 networks (Base and Base Sepolia)
   useEffect(() => {
-    // Only run this effect if on testnet
-    if (!isTestnet) return;
+    // Only run this effect if on V4 network (Base or Base Sepolia)
+    if (!isV4Network) return;
     
     // Only proceed if there's a subnet name and it's different from the last one we processed
     if (subnetName && subnetName !== lastProcessedNameRef.current) {
@@ -73,7 +73,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
         });
       }
     }
-  }, [subnetName, form, isTestnet]); // Add isTestnet to dependency array
+  }, [subnetName, form, isV4Network]); // Auto-generate slug for V4 networks
 
   // Function to validate image URL
   const validateImageUrl = (url: string) => {
@@ -124,8 +124,8 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
       {/* Contract Metadata */}
       <div className="space-y-4 pb-4 border-b border-gray-100/20">
         <h3 className="text-lg font-medium text-gray-100">Project Information</h3>
-        {/* Conditionally render Slug field only on testnet */}
-        {isTestnet && (
+        {/* Conditionally render Slug field for V4 networks (Base and Base Sepolia) */}
+        {isV4Network && (
           <FormField
             control={form.control} name="metadata.slug"
             render={({ field }) => (
@@ -150,6 +150,9 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
               <FormControl>
                 <Input id="metadata.website" type="url" placeholder="https://yourproject.com" {...field} />
               </FormControl>
+              <FormDescription>
+                Your project&apos;s website URL (required).
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -189,15 +192,20 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
           control={form.control} name="metadata.description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="metadata.description">Description</FormLabel>
+              <FormLabel htmlFor="metadata.description">
+                Description *
+              </FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Textarea id="metadata.description" placeholder="Describe this subnet (max 200 characters)." {...field} rows={4} maxLength={200} />
+                  <Textarea id="metadata.description" placeholder="Describe this subnet (min 60, max 200 characters)." {...field} rows={4} maxLength={200} />
                   <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-background/80 px-1 rounded">
                     {(field.value || '').length}/200
                   </div>
                 </div>
               </FormControl>
+              <FormDescription>
+                A brief description of your subnet (required, minimum 60 characters).
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

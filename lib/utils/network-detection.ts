@@ -3,31 +3,15 @@ import { GET_BUILDERS_PROJECT } from '@/lib/graphql/builders-queries';
 import { GetBuildersProjectResponse } from '@/lib/types/graphql';
 
 // Networks supported by the application
-export type SupportedNetwork = 'Arbitrum' | 'Base' | 'Arbitrum_Sepolia';
+export type SupportedNetwork = 'Arbitrum' | 'Base' | 'Base_Sepolia';
 
 /**
- * Detects which network a builder belongs to by querying both networks' subgraphs
+ * Detects which network a builder belongs to by querying networks' subgraphs
  * @param builderId The ID of the builder to check
  * @returns The network the builder belongs to, or null if not found
  */
 export async function detectBuilderNetwork(builderId: string): Promise<SupportedNetwork | null> {
-  // Try Arbitrum first
-  try {
-    const { data } = await apolloClients.Arbitrum.query<GetBuildersProjectResponse>({
-      query: GET_BUILDERS_PROJECT,
-      variables: { id: builderId },
-      fetchPolicy: 'no-cache',
-    });
-    
-    if (data?.buildersProject) {
-      console.log(`Builder ${builderId} found on Arbitrum`);
-      return 'Arbitrum';
-    }
-  } catch (error) {
-    console.error(`Error querying Arbitrum for builder ${builderId}:`, error);
-  }
-  
-  // Try Base next
+  // Try Base first
   try {
     const { data } = await apolloClients.Base.query<GetBuildersProjectResponse>({
       query: GET_BUILDERS_PROJECT,
@@ -43,20 +27,20 @@ export async function detectBuilderNetwork(builderId: string): Promise<Supported
     console.error(`Error querying Base for builder ${builderId}:`, error);
   }
   
-  // Try Arbitrum Sepolia
+  // Try Base Sepolia
   try {
-    const { data } = await apolloClients.ArbitrumSepolia.query<GetBuildersProjectResponse>({
+    const { data } = await apolloClients.BaseSepolia.query<GetBuildersProjectResponse>({
       query: GET_BUILDERS_PROJECT,
       variables: { id: builderId },
       fetchPolicy: 'no-cache',
     });
     
     if (data?.buildersProject) {
-      console.log(`Builder ${builderId} found on Arbitrum Sepolia`);
-      return 'Arbitrum_Sepolia';
+      console.log(`Builder ${builderId} found on Base Sepolia`);
+      return 'Base_Sepolia';
     }
   } catch (error) {
-    console.error(`Error querying Arbitrum Sepolia for builder ${builderId}:`, error);
+    console.error(`Error querying Base Sepolia for builder ${builderId}:`, error);
   }
   
   // If we get here, the builder wasn't found on any network

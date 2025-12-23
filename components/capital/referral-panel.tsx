@@ -39,6 +39,8 @@ export function ReferralPanel() {
   const [currentDomain, setCurrentDomain] = useState('');
   const [showClaimDialog, setShowClaimDialog] = useState(false);
   const [isHoveringEarnText, setIsHoveringEarnText] = useState(false);
+  const [showHowToReferDialog, setShowHowToReferDialog] = useState(false);
+  const [showHowDoIEarnDialog, setShowHowDoIEarnDialog] = useState(false);
 
   // Set current domain after component mounts (client-side only)
   useEffect(() => {
@@ -50,18 +52,46 @@ export function ReferralPanel() {
     ? `${currentDomain}/capital?referrer=${userAddress}`
     : "";
 
-  // Copy to clipboard function
+  // Copy to clipboard function with fallback
   const handleCopyReferralLink = async () => {
     if (!referralLink) return;
     
     setIsCopying(true);
     try {
-      await navigator.clipboard.writeText(referralLink);
-      toast.success("Referral link copied to clipboard");
-    } catch {
-      toast.error("Failed to copy referral link");
+      // Try modern clipboard API first
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(referralLink);
+        toast.success("Referral link copied to clipboard");
+      } else {
+        // Fallback for older browsers or non-secure contexts
+        const textArea = document.createElement("textarea");
+        textArea.value = referralLink;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) {
+            toast.success("Referral link copied to clipboard");
+          } else {
+            throw new Error("Copy command failed");
+          }
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to copy referral link:", error);
+      toast.error("Failed to copy referral link. Please select and copy manually.");
     } finally {
-      setIsCopying(false);
+      // Always reset copying state after a short delay to show feedback
+      setTimeout(() => {
+        setIsCopying(false);
+      }, 500);
     }
   };
 
@@ -160,7 +190,7 @@ export function ReferralPanel() {
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-3">
                 <h2 className="text-2xl font-bold text-white">Referrals</h2>
-                <Dialog>
+                <Dialog open={showHowDoIEarnDialog} onOpenChange={setShowHowDoIEarnDialog}>
                   <DialogTrigger asChild>
                     <LiquidButton size="sm" variant="ghost" className="rounded-lg">
                       How do I earn?
@@ -189,10 +219,8 @@ export function ReferralPanel() {
                       </Accordion>
                     </div>
                     <DialogFooter>
-                      <DialogClose asChild>
-                        <button className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors">
-                          I understand
-                        </button>
+                      <DialogClose className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors">
+                        I understand
                       </DialogClose>
                     </DialogFooter>
                   </DialogContent>
@@ -252,19 +280,41 @@ export function ReferralPanel() {
                 <div className={`card-minimal group relative p-4 h-full flex flex-col justify-center transition-all duration-300 ${
                   isHoveringEarnText ? 'ring-2 ring-emerald-400 ring-opacity-75 animate-pulse' : ''
                 }`}>
-                  <div className="text-sm text-gray-400 mb-2">My Referral Link</div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-gray-200 truncate flex-1 font-mono text-sm">
-                      {userAddress ? referralLink : "Connect wallet to generate link"}
-                    </div>
+                  <div className="text-sm text-gray-400 mb-2 flex items-center justify-between">
+                    <span>My Referral Link</span>
                     {userAddress && (
                       <button
-                        onClick={handleCopyReferralLink}
-                        disabled={isCopying}
-                        className="text-emerald-400 hover:text-emerald-300 transition-colors text-sm font-medium whitespace-nowrap"
+                        type="button"
+                        onClick={() => setShowHowToReferDialog(true)}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2"
                       >
-                        {isCopying ? "Copying..." : "Copy"}
+                        How to refer
                       </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {userAddress ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={referralLink}
+                            className="text-gray-200 flex-1 font-mono text-xs bg-white/[0.05] border border-white/[0.1] rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 cursor-text"
+                            onClick={(e) => e.currentTarget.select()}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCopyReferralLink}
+                            disabled={isCopying}
+                            className="text-emerald-400 hover:text-emerald-300 transition-colors text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isCopying ? "Copying..." : "Copy"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-gray-400 text-sm">Connect wallet to generate link</div>
                     )}
                   </div>
                 </div>
@@ -308,6 +358,38 @@ export function ReferralPanel() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* How to Refer Dialog */}
+      <Dialog open={showHowToReferDialog} onOpenChange={setShowHowToReferDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>How do referrals work?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-muted-foreground text-sm">
+              Earn MOR rewards by referring people to deposit assets. Your rewards are based on a tier system where you earn a percentage of MOR emissions from the virtual staked assets of your referrals.
+            </p>
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="tiers" className="border-0">
+                <AccordionTrigger className="text-sm font-medium justify-start p-0 hover:no-underline">
+                  See Referral Tiers
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-muted-foreground space-y-1 pb-0">
+                  <div>• 1 stETH = 3%</div>
+                  <div>• 2.5 stETH = 5%</div>
+                  <div>• 25 stETH = 10%</div>
+                  <div>• 62.5 stETH = 15%</div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
+          <DialogFooter>
+            <DialogClose className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors">
+              I understand
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

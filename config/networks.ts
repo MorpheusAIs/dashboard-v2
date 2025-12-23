@@ -1,4 +1,4 @@
-import { arbitrum, arbitrumSepolia, base, mainnet, sepolia } from 'wagmi/chains';
+import { arbitrum, arbitrumSepolia, base, baseSepolia, mainnet, sepolia } from 'wagmi/chains';
 import type { Chain, ChainContract } from 'viem';
 import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
@@ -110,6 +110,7 @@ export const testnetChains: Record<string, ChainConfig> = {
     isL1: true,
     layerZeroEndpointId: 10161,
   },
+  // @deprecated - Arbitrum Sepolia is no longer used for Builders V4. Kept for backward compatibility with other features.
   arbitrumSepolia: {
     ...arbitrumSepolia,
     rpcUrls: {
@@ -128,6 +129,23 @@ export const testnetChains: Record<string, ChainConfig> = {
     },
     isL2: true,
     layerZeroEndpointId: 10231,
+  },
+  baseSepolia: {
+    ...baseSepolia,
+    rpcUrls: {
+      default: {
+        http: ensureStringArray(baseSepolia.rpcUrls.default.http)
+      },
+      public: {
+        http: ensureStringArray(baseSepolia.rpcUrls.default.http)
+      }
+    },
+    contracts: {
+      morToken: toContract('0x5c80ddd187054e1e4abbffcd750498e81d34ffa3'),
+      builders: toContract('0x6C3401D71CEd4b4fEFD1033EA5F83e9B3E7e4381'),
+      rewardPoolV2: toContract('0x10777866547c53CBD69b02c5c76369d7e24e7b10')
+    },
+    isL2: true
   }
 };
 

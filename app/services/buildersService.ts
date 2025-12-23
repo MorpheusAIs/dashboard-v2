@@ -1,7 +1,9 @@
 import { getClientForNetwork } from '@/lib/apollo-client';
 import { 
-  COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
-  COMBINED_BUILDER_SUBNETS
+  COMBINED_BUILDER_SUBNETS,
+  COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA,
+  COMBINED_BUILDERS_PROJECTS_BASE_MAINNET,
+  COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET
 } from '@/lib/graphql/builders-queries';
 import { 
   BuilderProject, 
@@ -11,6 +13,22 @@ import {
 import { Builder, mergeBuilderData } from '@/app/builders/builders-data'; // Assuming mergeBuilderData is needed and correctly typed
 import { BuilderDB } from '@/app/lib/supabase'; // Assuming BuilderDB type is correctly defined/imported
 import { formatTimePeriod } from "@/app/utils/time-utils";
+import { USE_GOLDSKY_V1_DATA } from '@/app/config/subgraph-endpoints';
+
+/**
+ * Helper function to detect if a subnet is V4 (has on-chain metadata) or V1 (missing metadata)
+ * V4 subnets will have metadata fields populated (description, website, image, slug)
+ * V1 subnets discovered via V4 query will have these fields empty/null
+ */
+function isV4Subnet(project: BuilderProject): boolean {
+  // V4 subnets have metadata fields populated
+  return !!(
+    project.description || 
+    project.website || 
+    project.image || 
+    project.slug
+  );
+}
 
 // Interface for the structure of subnet data from the testnet query
 interface TestnetSubnet {
@@ -45,7 +63,8 @@ export const fetchBuildersAPI = async (
   supabaseBuilders: BuilderDB[] | null, 
   supabaseBuildersLoaded: boolean, 
   userAddress?: string | null, // Added userAddress as an optional parameter
-  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null // Function to get admin address for newly created subnets
+  getNewlyCreatedSubnetAdmin?: (subnetName: string) => string | null, // Function to get admin address for newly created subnets
+  chainId?: number // Optional chainId to determine which testnet network to query
 ): Promise<Builder[]> => {
   // console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
   // console.log('!!!!!!!!!! fetchBuildersAPI HAS BEEN CALLED !!!!!!!!!!');
@@ -56,74 +75,121 @@ export const fetchBuildersAPI = async (
     let combinedProjects: BuilderProject[] = [];
 
     if (isTestnet) {
-      const networkString = 'ArbitrumSepolia';
-      console.log(`[API] Fetching all subnet data from ${networkString} network.`);
+      // Determine which testnet network to query based on chainId
+      // Base Sepolia (84532) uses BuildersV4 schema (like mainnet), Arbitrum Sepolia uses old schema
+      const isBaseSepolia = chainId === 84532;
+      const networkString = isBaseSepolia ? 'BaseSepolia' : 'ArbitrumSepolia';
+      const networkName = isBaseSepolia ? 'Base Sepolia' : 'Arbitrum Sepolia';
+      
+      console.log(`[API] Fetching all subnet data from ${networkString} network (${networkName}).`);
       const client = getClientForNetwork(networkString);
       if (!client) {
         throw new Error(`[API] Could not get Apollo client for network: ${networkString}`);
       }
       
-      const testnetVariables = {
-        first: 100, // Consider making this configurable or fetching all
-        skip: 0,
-        orderBy: 'totalStaked',
-        orderDirection: OrderDirection.Desc, // Make sure OrderDirection is correctly imported or defined
-        usersOrderBy: 'builderSubnet__totalStaked',
-        usersDirection: OrderDirection.Asc,
-        builderSubnetName: "", 
-        address: "" 
-      };
-      
-      console.log(`[API Testnet Query] Variables for ${networkString}:`, testnetVariables);
-      const response = await client.query<{ builderSubnets?: TestnetSubnet[] }>({ // Typed response
-        query: COMBINED_BUILDER_SUBNETS,
-        variables: testnetVariables,
-        fetchPolicy: 'no-cache',
-      });
-      
-      console.log(`[API Testnet] Received response with ${response.data?.builderSubnets?.length || 0} subnets`);
-      
-      combinedProjects = (response.data?.builderSubnets || []).map((subnet: TestnetSubnet): BuilderProject => {
-        const totalStakedRaw = subnet.totalStaked || '0';
-        const totalStakedInMor = Number(totalStakedRaw) / 1e18;
-        const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
-        const totalClaimedRaw = subnet.totalClaimed || '0';
-        const totalClaimedInMor = Number(totalClaimedRaw) / 1e18;
+      if (isBaseSepolia) {
+        // Base Sepolia uses BuildersV4 schema with items structure
+        console.log(`[API Base Sepolia Query] Fetching projects...`);
+        const response = await client.query<{ buildersProjects?: { items?: BuilderProject[] } }>({
+          query: COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA,
+          fetchPolicy: 'no-cache',
+        });
         
-        const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
-          ? subnet.builderUsers.length 
-          : parseInt(subnet.totalUsers || '0', 10);
+        const projects = response.data?.buildersProjects?.items || [];
+        console.log(`[API Base Sepolia] Received response with ${projects.length} projects`);
         
-        const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
-        const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
-        
-        const project: BuilderProject = {
-          id: subnet.id,
-          name: subnet.name,
-          description: subnet.description || '',
-          admin: subnet.owner, 
-          networks: ['Arbitrum Sepolia'],
-          network: 'Arbitrum Sepolia',
-          totalStaked: totalStakedInMor.toString(), 
-          minDeposit: minStakeInMor, 
-          minimalDeposit: subnet.minStake, 
-          lockPeriod: lockPeriodFormatted,
-          stakingCount: stakingCount,
-          totalUsers: subnet.totalUsers,
-          website: subnet.website || '',
-          image: subnet.image || '',
-          totalStakedFormatted: totalStakedInMor,
-          totalClaimedFormatted: totalClaimedInMor,
-          startsAt: subnet.startsAt,
-          claimLockEnd: subnet.maxClaimLockEnd,
-          withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake, 
-          totalClaimed: totalClaimedInMor.toString(),
-          builderUsers: subnet.builderUsers,
+        combinedProjects = projects.map((project: BuilderProject): BuilderProject => {
+          const totalStakedRaw = project.totalStaked || '0';
+          const totalStakedInMor = Number(totalStakedRaw) / 1e18;
+          const minStakeInMor = Number(project.minimalDeposit || '0') / 1e18;
+          const totalClaimedRaw = project.totalClaimed || '0';
+          const totalClaimedInMor = Number(totalClaimedRaw) / 1e18;
+          
+          const stakingCount = parseInt(project.totalUsers || '0', 10);
+          const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          
+          return {
+            ...project,
+            admin: project.admin || '', // May not be in response, set default
+            networks: [networkName],
+            network: networkName,
+            totalStaked: totalStakedInMor.toString(),
+            minDeposit: minStakeInMor,
+            minimalDeposit: project.minimalDeposit,
+            lockPeriod: lockPeriodFormatted,
+            stakingCount: stakingCount,
+            totalStakedFormatted: totalStakedInMor,
+            totalClaimedFormatted: totalClaimedInMor,
+            totalClaimed: totalClaimedInMor.toString(),
+            startsAt: project.startsAt || '',
+            claimLockEnd: project.claimLockEnd || '',
+            builderUsers: [], // User stakes would need a separate query if needed
+          };
+        });
+      } else {
+        // Arbitrum Sepolia uses old schema (deprecated)
+        const testnetVariables = {
+          first: 100,
+          skip: 0,
+          orderBy: 'totalStaked',
+          orderDirection: OrderDirection.Desc,
+          usersOrderBy: 'builderSubnet__totalStaked',
+          usersDirection: OrderDirection.Asc,
+          builderSubnetName: "", 
+          address: "" 
         };
+        
+        console.log(`[API Arbitrum Sepolia Query] Variables:`, testnetVariables);
+        const response = await client.query<{ builderSubnets?: TestnetSubnet[] }>({
+          query: COMBINED_BUILDER_SUBNETS,
+          variables: testnetVariables,
+          fetchPolicy: 'no-cache',
+        });
+        
+        console.log(`[API Arbitrum Sepolia] Received response with ${response.data?.builderSubnets?.length || 0} subnets`);
+      
+        combinedProjects = (response.data?.builderSubnets || []).map((subnet: TestnetSubnet): BuilderProject => {
+          const totalStakedRaw = subnet.totalStaked || '0';
+          const totalStakedInMor = Number(totalStakedRaw) / 1e18;
+          const minStakeInMor = Number(subnet.minStake || '0') / 1e18;
+          const totalClaimedRaw = subnet.totalClaimed || '0';
+          const totalClaimedInMor = Number(totalClaimedRaw) / 1e18;
+          
+          const stakingCount = subnet.builderUsers && subnet.builderUsers.length > 0 
+            ? subnet.builderUsers.length 
+            : parseInt(subnet.totalUsers || '0', 10);
+          
+          const lockPeriodSeconds = parseInt(subnet.withdrawLockPeriodAfterStake || '0', 10);
+          const lockPeriodFormatted = formatTimePeriod(lockPeriodSeconds);
+          
+          const project: BuilderProject = {
+            id: subnet.id,
+            name: subnet.name,
+            description: subnet.description || '',
+            admin: subnet.owner, 
+            networks: [networkName],
+            network: networkName,
+            totalStaked: totalStakedInMor.toString(), 
+            minDeposit: minStakeInMor, 
+            minimalDeposit: subnet.minStake, 
+            lockPeriod: lockPeriodFormatted,
+            stakingCount: stakingCount,
+            totalUsers: subnet.totalUsers,
+            website: subnet.website || '',
+            image: subnet.image || '',
+            totalStakedFormatted: totalStakedInMor,
+            totalClaimedFormatted: totalClaimedInMor,
+            startsAt: subnet.startsAt,
+            claimLockEnd: subnet.maxClaimLockEnd,
+            withdrawLockPeriodAfterDeposit: subnet.withdrawLockPeriodAfterStake, 
+            totalClaimed: totalClaimedInMor.toString(),
+            builderUsers: subnet.builderUsers,
+          };
 
-
-        return project;
-      });
+          return project;
+        });
+      }
       
       // To correctly pass lockPeriodSeconds for each project to the final mapping stage,
       // we need to associate it with the project. We can return an array of [project, lockPeriodSeconds] tuples.
@@ -134,7 +200,7 @@ export const fetchBuildersAPI = async (
 
       // Return mapped Builder array for testnet
       return combinedProjects.map((project): Builder => {
-        const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterStake || project.withdrawLockPeriodAfterDeposit || '0', 10);
+        const lockPeriodSeconds = parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10);
         const startsAtString = project.startsAt;
         return {
           id: project.id,
@@ -143,8 +209,8 @@ export const fetchBuildersAPI = async (
           description: project.description || '',
           long_description: project.description || '',
           admin: project.admin as string, 
-          networks: project.networks || ['Arbitrum Sepolia'],
-          network: project.network || 'Arbitrum Sepolia',
+          networks: project.networks || [networkName],
+          network: project.network || networkName,
           totalStaked: project.totalStakedFormatted !== undefined ? project.totalStakedFormatted : parseFloat(project.totalStaked || '0'),
           totalClaimed: project.totalClaimedFormatted !== undefined ? project.totalClaimedFormatted : parseFloat(project.totalClaimed || '0'),
           minDeposit: project.minDeposit !== undefined ? project.minDeposit : parseFloat(project.minimalDeposit || '0') / 1e18,
@@ -174,38 +240,86 @@ export const fetchBuildersAPI = async (
         return [];
       }
       
-      const commonVariables = {
-        limit: 1000,
-        orderBy: "totalStaked",
-        orderDirection: OrderDirection.Desc,
-        usersOrderBy: "staked",
-        usersDirection: OrderDirection.Asc,
-        address: userAddress || ""
+      // FIXED: Use ALL builders (including Morlord-only ones), not just original Supabase
+      let builderNames = supabaseBuilders.map(b => b.name);
+      
+      // FIX: Handle name mismatch between Morlord API and GraphQL subgraphs
+      // Morlord API uses "Protection and Capital Incentive" 
+      // But Arbitrum GraphQL uses "Protection and Capital Incentives Program"
+      const nameMapping: Record<string, string[]> = {
+        "Protection and Capital Incentive": [
+          "Protection and Capital Incentive", // Base version
+          "Protection and Capital Incentives Program" // Arbitrum version  
+        ]
       };
-
-      const baseClient = getClientForNetwork('Base');
-      const arbitrumClient = getClientForNetwork('Arbitrum');
       
-      if (!baseClient || !arbitrumClient) {
-        throw new Error(`[API] Could not get Apollo clients for Base or Arbitrum`);
+      // Expand builder names to include GraphQL variations
+      const expandedBuilderNames: string[] = [];
+      builderNames.forEach(name => {
+        expandedBuilderNames.push(name);
+        if (nameMapping[name]) {
+          expandedBuilderNames.push(...nameMapping[name]);
+        }
+      });
+      
+      // Remove duplicates
+      builderNames = Array.from(new Set(expandedBuilderNames));
+      
+      // console.log(`[API] Mainnet: Using ${builderNames.length} builder names for filtering (includes name variations).`);
+      
+      let baseResponse: { data: { buildersProjects?: { items?: BuilderProject[] } } };
+      let arbitrumResponse: { data: { buildersProjects?: { items?: BuilderProject[] } } };
+
+      if (USE_GOLDSKY_V1_DATA) {
+        // Use Goldsky API routes (server-side extracted and transformed data)
+        console.log('[API] Mainnet: Using Goldsky V1 data via API routes');
+        
+        const [baseApiResponse, arbitrumApiResponse] = await Promise.all([
+          fetch('/api/builders/goldsky/base'),
+          fetch('/api/builders/goldsky/arbitrum')
+        ]);
+
+        if (!baseApiResponse.ok || !arbitrumApiResponse.ok) {
+          throw new Error(`[API] Failed to fetch Goldsky data: Base=${baseApiResponse.status}, Arbitrum=${arbitrumApiResponse.status}`);
+        }
+
+        const baseData = await baseApiResponse.json();
+        const arbitrumData = await arbitrumApiResponse.json();
+
+        baseResponse = { data: baseData };
+        arbitrumResponse = { data: arbitrumData };
+      } else {
+        // Use direct Ponder V4 GraphQL queries
+        const baseClient = getClientForNetwork('Base');
+        const arbitrumClient = getClientForNetwork('Arbitrum');
+        
+        if (!baseClient || !arbitrumClient) {
+          throw new Error(`[API] Could not get Apollo clients for Base or Arbitrum`);
+        }
+        
+        console.log('[API] Mainnet: Fetching on-chain data from Ponder V4 subgraphs.');
+        
+        const [baseQueryResult, arbitrumQueryResult] = await Promise.all([
+          baseClient.query<{ buildersProjects?: { items?: BuilderProject[] } }>({
+            query: COMBINED_BUILDERS_PROJECTS_BASE_MAINNET,
+            fetchPolicy: 'no-cache',
+          }),
+          arbitrumClient.query<{ buildersProjects?: { items?: BuilderProject[] } }>({
+            query: COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET,
+            fetchPolicy: 'no-cache',
+          })
+        ]);
+
+        baseResponse = baseQueryResult;
+        arbitrumResponse = arbitrumQueryResult;
       }
-      
-      // console.log('[API] Mainnet: Fetching on-chain data from Base and Arbitrum.');
-      
-      const [baseResponse, arbitrumResponse] = await Promise.all([
-        baseClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
-          query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
-          variables: commonVariables,
-          fetchPolicy: 'no-cache',
-        }),
-        arbitrumClient.query<CombinedBuildersListFilteredByPredefinedBuildersResponse>({
-          query: COMBINED_BUILDERS_LIST_FILTERED_BY_PREDEFINED_BUILDERS,
-          variables: commonVariables,
-          fetchPolicy: 'no-cache',
-        })
-      ]);
 
-
+      // Type guard to check if response has buildersUsers (V1 query)
+      const hasBuildersUsers = (
+        data: { buildersProjects?: { items?: BuilderProject[] } } | CombinedBuildersListFilteredByPredefinedBuildersResponse
+      ): data is CombinedBuildersListFilteredByPredefinedBuildersResponse => {
+        return 'buildersUsers' in data;
+      };
 
       // Helper function to normalize GraphQL names back to Morlord API names
       const normalizeBuilderName = (graphqlName: string): string => {
@@ -215,16 +329,15 @@ export const fetchBuildersAPI = async (
         return graphqlName;
       };
 
-      const baseProjects = (baseResponse.data?.buildersProjects?.items || []).map((project): BuilderProject => {
-
-
+      // Process Base projects - V4 format (nested items structure) from either Goldsky API or Ponder
+      const baseV4Projects = baseResponse.data?.buildersProjects?.items || [];
+      
+      const baseProjects = baseV4Projects.map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
         const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
         const totalClaimedInMor = Number(project.totalClaimed || '0') / 1e18;
-
-
-
-        const projectData = {
+        
+        return {
           ...project,
           name: normalizeBuilderName(project.name), // Normalize the name
           startsAt: typeof project.startsAt === 'string' ? project.startsAt : '',
@@ -239,17 +352,16 @@ export const fetchBuildersAPI = async (
           totalClaimed: totalClaimedInMor.toString(),
           mainnetProjectId: project.id,
         };
-
-
-        return projectData;
       });
       
-      const arbitrumProjects = (arbitrumResponse.data?.buildersProjects?.items || []).map((project): BuilderProject => {
+      // Process Arbitrum projects - V4 format (nested items structure) from either Goldsky API or Ponder
+      const arbitrumV4Projects = arbitrumResponse.data?.buildersProjects?.items || [];
+      
+      const arbitrumProjects = arbitrumV4Projects.map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
         const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
         const totalClaimedInMor = Number(project.totalClaimed || '0') / 1e18;
-        const lockPeriodFormatted = formatTimePeriod(parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10));
-
+        
         return {
           ...project,
           name: normalizeBuilderName(project.name), // Normalize the name
@@ -258,7 +370,7 @@ export const fetchBuildersAPI = async (
           networks: ['Arbitrum'],
           network: 'Arbitrum',
           stakingCount: parseInt(project.totalUsers || '0', 10),
-          lockPeriod: lockPeriodFormatted,
+          lockPeriod: formatTimePeriod(parseInt(project.withdrawLockPeriodAfterDeposit || '0', 10)),
           minDeposit: minDepositInMor,
           totalStakedFormatted: totalStakedInMor,
           totalClaimedFormatted: totalClaimedInMor,
@@ -297,45 +409,86 @@ export const fetchBuildersAPI = async (
       
       // First process all combined projects to create builder objects
       combinedProjects.forEach(onChainProject => {
-
-
+        // Detect if subnet is V4 (has metadata) or V1 (missing metadata)
+        // When using Goldsky API, data is already transformed to V4 format but may lack metadata
+        // When using Ponder V4 queries, check if metadata fields are populated
+        const subnetIsV4 = isV4Subnet(onChainProject);
+        
         const matchingSupabaseBuilder = supabaseBuilders.find(b => b.name === onChainProject.name);
         
         if (matchingSupabaseBuilder) {
           const mainnetLockPeriodSeconds = parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10);
           
-
-
-          const builder = mergeBuilderData(matchingSupabaseBuilder, {
-            id: onChainProject.id,
-            totalStaked: onChainProject.totalStakedFormatted !== undefined 
-              ? onChainProject.totalStakedFormatted 
-              : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0,
-            totalClaimed: onChainProject.totalClaimedFormatted !== undefined 
-              ? onChainProject.totalClaimedFormatted 
-              : parseFloat(onChainProject.totalClaimed || '0') / 1e18 || 0,
-            minimalDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0,
-            withdrawLockPeriodAfterDeposit: mainnetLockPeriodSeconds,
-            withdrawLockPeriodRaw: mainnetLockPeriodSeconds,
-            stakingCount: onChainProject.stakingCount || 0,
-            lockPeriod: onChainProject.lockPeriod || '',
-            network: onChainProject.network || 'Unknown',
-            networks: onChainProject.networks || ['Unknown'],
-            admin: onChainProject.admin,
-            image: onChainProject.image,
-            website: onChainProject.website,
-            startsAt: onChainProject.startsAt,
-          });
-
-
-          
-          // Add a unique identifier for duplicate builders across networks
-          if (duplicateBuilderNames.includes(onChainProject.name)) {
-            // Append network to the ID to make it unique
-            builder.id = `${builder.id}-${onChainProject.network?.toLowerCase()}`;
+          // For V4 subnets: Use on-chain metadata as primary source, optionally enrich with Supabase
+          // For V1 subnets: Merge on-chain data with Supabase metadata
+          if (subnetIsV4) {
+            // V4 subnet: Use on-chain metadata, enrich with Supabase extended metadata
+            const builder = mergeBuilderData(matchingSupabaseBuilder, {
+              id: onChainProject.id,
+              totalStaked: onChainProject.totalStakedFormatted !== undefined 
+                ? onChainProject.totalStakedFormatted 
+                : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0,
+              totalClaimed: onChainProject.totalClaimedFormatted !== undefined 
+                ? onChainProject.totalClaimedFormatted 
+                : parseFloat(onChainProject.totalClaimed || '0') / 1e18 || 0,
+              minimalDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0,
+              withdrawLockPeriodAfterDeposit: mainnetLockPeriodSeconds,
+              withdrawLockPeriodRaw: mainnetLockPeriodSeconds,
+              stakingCount: onChainProject.stakingCount || 0,
+              lockPeriod: onChainProject.lockPeriod || '',
+              network: onChainProject.network || 'Unknown',
+              networks: onChainProject.networks || ['Unknown'],
+              admin: onChainProject.admin,
+              // V4: Use on-chain metadata (description, website, image, slug)
+              image: onChainProject.image || matchingSupabaseBuilder.image_src || undefined,
+              website: onChainProject.website || matchingSupabaseBuilder.website || undefined,
+              description: onChainProject.description || matchingSupabaseBuilder.description || undefined,
+              startsAt: onChainProject.startsAt,
+            });
+            
+            // Add slug if available (V4-only field)
+            if (onChainProject.slug) {
+              builder.slug = onChainProject.slug;
+            }
+            
+            // Add a unique identifier for duplicate builders across networks
+            if (duplicateBuilderNames.includes(onChainProject.name)) {
+              builder.id = `${builder.id}-${onChainProject.network?.toLowerCase()}`;
+            }
+            
+            mappedBuilders.push(builder);
+          } else {
+            // V1 subnet: Merge on-chain data with Supabase metadata
+            const builder = mergeBuilderData(matchingSupabaseBuilder, {
+              id: onChainProject.id,
+              totalStaked: onChainProject.totalStakedFormatted !== undefined 
+                ? onChainProject.totalStakedFormatted 
+                : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0,
+              totalClaimed: onChainProject.totalClaimedFormatted !== undefined 
+                ? onChainProject.totalClaimedFormatted 
+                : parseFloat(onChainProject.totalClaimed || '0') / 1e18 || 0,
+              minimalDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0,
+              withdrawLockPeriodAfterDeposit: mainnetLockPeriodSeconds,
+              withdrawLockPeriodRaw: mainnetLockPeriodSeconds,
+              stakingCount: onChainProject.stakingCount || 0,
+              lockPeriod: onChainProject.lockPeriod || '',
+              network: onChainProject.network || 'Unknown',
+              networks: onChainProject.networks || ['Unknown'],
+              admin: onChainProject.admin,
+              // V1: Use Supabase metadata (image_src, website, description from Supabase)
+              image: matchingSupabaseBuilder.image_src || onChainProject.image || undefined,
+              website: matchingSupabaseBuilder.website || onChainProject.website || undefined,
+              startsAt: onChainProject.startsAt,
+            });
+            
+            // Add a unique identifier for duplicate builders across networks
+            if (duplicateBuilderNames.includes(onChainProject.name)) {
+              // Append network to the ID to make it unique
+              builder.id = `${builder.id}-${onChainProject.network?.toLowerCase()}`;
+            }
+            
+            mappedBuilders.push(builder);
           }
-          
-          mappedBuilders.push(builder);
         } else {
           // This is an on-chain builder that doesn't exist in Supabase
           // Create a minimal builder object
@@ -421,28 +574,36 @@ export const fetchBuildersAPI = async (
       // console.log("[fetchBuildersAPI Mainnet] Finished creating builders list. Count:", mappedBuilders.length);
 
       // Populate builderUsers for mainnet if userAddress was provided
-      if (userAddress && (baseResponse.data?.buildersUsers?.items || arbitrumResponse.data?.buildersUsers?.items)) {
-        const allUserStakes = [
-          ...(baseResponse.data?.buildersUsers?.items || []),
-          ...(arbitrumResponse.data?.buildersUsers?.items || [])
-        ];
+      // Note: Only V1 queries return buildersUsers; V4 queries don't include this data
+      if (userAddress && baseResponse.data && arbitrumResponse.data) {
+        const baseData = baseResponse.data;
+        const arbitrumData = arbitrumResponse.data;
+        const baseHasUsers = hasBuildersUsers(baseData);
+        const arbitrumHasUsers = hasBuildersUsers(arbitrumData);
+        
+        if (baseHasUsers || arbitrumHasUsers) {
+          // Extract buildersUsers with proper type narrowing
+          const baseUsers = baseHasUsers ? baseData.buildersUsers.items : [];
+          const arbitrumUsers = arbitrumHasUsers ? arbitrumData.buildersUsers.items : [];
+          const allUserStakes = [...baseUsers, ...arbitrumUsers];
 
-        mappedBuilders.forEach(builder => {
-          const userStakesForThisBuilder = allUserStakes.filter(
-            stake => stake.buildersProject?.id === builder.mainnetProjectId || stake.buildersProject?.name === builder.name
-          );
+          mappedBuilders.forEach(builder => {
+            const userStakesForThisBuilder = allUserStakes.filter(
+              stake => stake.buildersProject?.id === builder.mainnetProjectId || stake.buildersProject?.name === builder.name
+            );
 
-          if (userStakesForThisBuilder.length > 0) {
-            builder.builderUsers = userStakesForThisBuilder.map(stake => ({
-              id: stake.id,
-              address: stake.address,
-              staked: stake.staked,
-              claimed: "0",
-              claimLockEnd: "0",
-              lastStake: stake.lastStake,
-            }));
-          }
-        });
+            if (userStakesForThisBuilder.length > 0) {
+              builder.builderUsers = userStakesForThisBuilder.map(stake => ({
+                id: stake.id,
+                address: stake.address,
+                staked: stake.staked,
+                claimed: "0",
+                claimLockEnd: "0",
+                lastStake: stake.lastStake,
+              }));
+            }
+          });
+        }
       }
       
 

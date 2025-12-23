@@ -9,7 +9,7 @@ import { useStakingContractInteractions } from "@/hooks/useStakingContractIntera
 import { formatEther } from "viem";
 import { useChainId, useReadContract, useAccount } from "wagmi";
 import { Builder } from "@/app/builders/builders-data";
-import { arbitrumSepolia, arbitrum, base } from 'wagmi/chains';
+import { baseSepolia, arbitrum, base } from 'wagmi/chains';
 import { morTokenContracts } from '@/lib/contracts';
 import { useNetwork } from "@/context/network-context";
 
@@ -40,14 +40,14 @@ export function StakeModal({
   const { switchToChain } = useNetwork();
   
   // Determine if we're on testnet
-  const isTestnet = chainId === arbitrumSepolia.id;
+  const isTestnet = chainId === baseSepolia.id;
   
   // Determine target network and chainId based on selectedBuilder
   const targetNetworkInfo = useMemo(() => {
     if (!selectedBuilder) return { chainId: base.id, networkName: 'Base' }; // Default to Base when no builder selected
 
     if (isTestnet) {
-      return { chainId: arbitrumSepolia.id, networkName: 'Arbitrum Sepolia' };
+      return { chainId: baseSepolia.id, networkName: 'Base Sepolia' };
     }
 
     // For mainnet, check the builder's primary network
@@ -97,12 +97,12 @@ export function StakeModal({
     }
   });
 
-  const { data: arbitrumSepoliaBalance } = useReadContract({
-    address: morTokenContracts[421614] as `0x${string}`,
+  const { data: baseSepoliaBalance } = useReadContract({
+    address: morTokenContracts[84532] as `0x${string}`,
     abi: MOR_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-    chainId: 421614, // Arbitrum Sepolia
+    chainId: 84532, // Base Sepolia
     query: {
       enabled: !!address && isOpen
     }
@@ -114,11 +114,11 @@ export function StakeModal({
       return arbitrumBalance;
     } else if (targetNetworkInfo.chainId === base.id) {
       return baseBalance;
-    } else if (targetNetworkInfo.chainId === arbitrumSepolia.id) {
-      return arbitrumSepoliaBalance;
+    } else if (targetNetworkInfo.chainId === baseSepolia.id) {
+      return baseSepoliaBalance;
     }
     return undefined;
-  }, [targetNetworkInfo.chainId, arbitrumBalance, baseBalance, arbitrumSepoliaBalance]);
+  }, [targetNetworkInfo.chainId, arbitrumBalance, baseBalance, baseSepoliaBalance]);
   
   // Use the staking hook
   const {

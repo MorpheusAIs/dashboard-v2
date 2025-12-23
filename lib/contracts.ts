@@ -55,8 +55,8 @@ export const builderContracts = {
   42161: mainnetChains.arbitrum.contracts?.builders?.address || '',
   // Base
   8453: mainnetChains.base.contracts?.builders?.address || '',
-  // Arbitrum Sepolia (testnet)
-  421614: testnetChains.arbitrumSepolia.contracts?.builders?.address || '',
+  // Base Sepolia (testnet)
+  84532: testnetChains.baseSepolia.contracts?.builders?.address || '',
 };
 
 // MOR token addresses by chain ID - derived from networks.ts for single source of truth
@@ -65,7 +65,9 @@ export const morTokenContracts = {
   42161: mainnetChains.arbitrum.contracts?.morToken?.address || '',
   // Base
   8453: mainnetChains.base.contracts?.morToken?.address || '',
-  // Arbitrum Sepolia (testnet)
+  // Base Sepolia (testnet)
+  84532: testnetChains.baseSepolia.contracts?.morToken?.address || '',
+  // Arbitrum Sepolia (testnet) - @deprecated but kept for backward compatibility
   421614: testnetChains.arbitrumSepolia.contracts?.morToken?.address || '',
 } as const;
 
