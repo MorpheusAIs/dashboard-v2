@@ -1,17 +1,16 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAccount, useChainId, useReadContract } from "wagmi";
 import { arbitrum, base } from "wagmi/chains";
 import { morTokenContracts } from "@/lib/contracts";
-import { formatEther, parseUnits, type Address } from "viem";
+import { formatEther } from "viem";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 import { BridgeFormCard } from "@/components/bridge/bridge-form-card";
 import { useNetwork } from "@/context/network-context";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 
 // MOR Token ABI for balance checking and bridging
 const MOR_ABI = [
@@ -33,24 +32,53 @@ const LAYERZERO_ENDPOINTS = {
 export default function BridgeMorPage() {
   const { address } = useAccount();
   const chainId = useChainId();
-  const { switchToChain } = useNetwork();
+  const { switchToChain, isNetworkSwitching } = useNetwork();
+  const networkSwitchAttempted = useRef(false);
 
-  // Default to Arbitrum -> Base
-  const [fromChain, setFromChain] = useState<"arbitrum" | "base">("arbitrum");
-  const [toChain, setToChain] = useState<"arbitrum" | "base">("base");
+  // Fixed: Only Arbitrum -> Base bridging
+  const fromChain = "arbitrum" as const;
+  const toChain = "base" as const;
   const [bridgeAmount, setBridgeAmount] = useState<string>("");
   const [recipientAddress, setRecipientAddress] = useState<string>("");
 
-  // Get source chain ID
-  const sourceChainId = fromChain === "arbitrum" ? arbitrum.id : base.id;
-  const destinationChainId = toChain === "arbitrum" ? arbitrum.id : base.id;
+  // Get source chain ID (always Arbitrum)
+  const sourceChainId = arbitrum.id;
+  const destinationEid = LAYERZERO_ENDPOINTS.BASE;
 
-  // Get LayerZero endpoint ID for destination
-  const destinationEid = useMemo(() => {
-    return toChain === "arbitrum" ? LAYERZERO_ENDPOINTS.ARBITRUM : LAYERZERO_ENDPOINTS.BASE;
-  }, [toChain]);
+  // Auto-switch to Arbitrum One when page loads
+  useEffect(() => {
+    // Only switch if:
+    // 1. Wallet is connected
+    // 2. Not already on Arbitrum One
+    // 3. Haven't attempted switch yet
+    // 4. Not currently switching
+    if (
+      address &&
+      chainId !== undefined &&
+      chainId !== sourceChainId &&
+      !networkSwitchAttempted.current &&
+      !isNetworkSwitching
+    ) {
+      networkSwitchAttempted.current = true;
+      
+      // Small delay to ensure page is loaded
+      const timer = setTimeout(() => {
+        switchToChain(sourceChainId).catch((error) => {
+          console.error("Failed to auto-switch to Arbitrum One:", error);
+          networkSwitchAttempted.current = false; // Reset on error so user can try again
+        });
+      }, 500);
 
-  // Fetch balances from both networks
+      return () => clearTimeout(timer);
+    }
+    
+    // Reset the flag when successfully on Arbitrum One
+    if (chainId === sourceChainId) {
+      networkSwitchAttempted.current = false;
+    }
+  }, [address, chainId, sourceChainId, switchToChain, isNetworkSwitching]);
+
+  // Fetch Arbitrum balance (source chain)
   const { data: arbitrumBalance, refetch: refetchArbitrum } = useReadContract({
     address: morTokenContracts[42161] as `0x${string}`,
     abi: MOR_ABI,
@@ -62,31 +90,11 @@ export default function BridgeMorPage() {
     },
   });
 
-  const { data: baseBalance, refetch: refetchBase } = useReadContract({
-    address: morTokenContracts[8453] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    chainId: 8453,
-    query: {
-      enabled: !!address,
-    },
-  });
-
-  // Get current balance for source chain
-  const sourceBalance = useMemo(() => {
-    if (fromChain === "arbitrum") {
-      return arbitrumBalance;
-    } else {
-      return baseBalance;
-    }
-  }, [fromChain, arbitrumBalance, baseBalance]);
-
   // Format balance for display
   const formattedBalance = useMemo(() => {
-    if (!sourceBalance) return 0;
-    return parseFloat(formatEther(sourceBalance));
-  }, [sourceBalance]);
+    if (!arbitrumBalance) return 0;
+    return parseFloat(formatEther(arbitrumBalance));
+  }, [arbitrumBalance]);
 
   // Update recipient address when wallet connects
   useEffect(() => {
@@ -107,10 +115,9 @@ export default function BridgeMorPage() {
   // Handle successful bridge
   const handleBridgeSuccess = () => {
     setBridgeAmount("");
-    // Refetch balances after a delay
+    // Refetch Arbitrum balance after a delay
     setTimeout(() => {
       refetchArbitrum();
-      refetchBase();
     }, 3000);
   };
 
@@ -119,96 +126,16 @@ export default function BridgeMorPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Bridge MOR Tokens</h1>
         <p className="text-gray-400">
-          Transfer MOR tokens between Arbitrum One and Base using LayerZero
+          Transfer MOR tokens from Arbitrum One to Base using LayerZero
         </p>
       </div>
-
-      {/* Network Selection */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Select Networks</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            {/* From Chain */}
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">From</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setFromChain("arbitrum");
-                    setToChain("base");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-colors ${
-                    fromChain === "arbitrum"
-                      ? "border-emerald-500 bg-emerald-500/10"
-                      : "border-gray-700 hover:border-gray-600"
-                  }`}
-                >
-                  <ArbitrumIcon size={20} />
-                  <span>Arbitrum One</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setFromChain("base");
-                    setToChain("arbitrum");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-colors ${
-                    fromChain === "base"
-                      ? "border-emerald-500 bg-emerald-500/10"
-                      : "border-gray-700 hover:border-gray-600"
-                  }`}
-                >
-                  <BaseIcon size={20} />
-                  <span>Base</span>
-                </button>
-              </div>
-            </div>
-
-            {/* To Chain */}
-            <div className="space-y-2">
-              <label className="text-sm text-gray-400">To</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setToChain("arbitrum");
-                    setFromChain("base");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-colors ${
-                    toChain === "arbitrum"
-                      ? "border-emerald-500 bg-emerald-500/10"
-                      : "border-gray-700 hover:border-gray-600"
-                  }`}
-                >
-                  <ArbitrumIcon size={20} />
-                  <span>Arbitrum One</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setToChain("base");
-                    setFromChain("arbitrum");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-colors ${
-                    toChain === "base"
-                      ? "border-emerald-500 bg-emerald-500/10"
-                      : "border-gray-700 hover:border-gray-600"
-                  }`}
-                >
-                  <BaseIcon size={20} />
-                  <span>Base</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Network Switch Alert */}
       {address && !isCorrectNetwork && (
         <Alert className="mb-6 border-yellow-500/50 bg-yellow-500/10">
           <AlertCircle className="h-4 w-4 text-yellow-500" />
           <AlertDescription className="text-yellow-400">
-            Please switch to {fromChain === "arbitrum" ? "Arbitrum One" : "Base"} network to bridge tokens.
+            Please switch to Arbitrum One network to bridge tokens.
             <button
               onClick={handleChainSwitch}
               className="ml-2 underline hover:no-underline"
@@ -224,7 +151,6 @@ export default function BridgeMorPage() {
         fromChain={fromChain}
         toChain={toChain}
         sourceChainId={sourceChainId}
-        destinationChainId={destinationChainId}
         destinationEid={destinationEid}
         balance={formattedBalance}
         bridgeAmount={bridgeAmount}
@@ -242,16 +168,16 @@ export default function BridgeMorPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-gray-400">
           <p>
-            • Bridge transfers typically complete in 5-15 minutes
+            • Bridge transfers typically complete in 2-5 minutes
           </p>
           <p>
-            • Tokens are burned on the source chain and minted on the destination chain
+            • Tokens are burned on Arbitrum One and minted on Base
           </p>
           <p>
-            • You need a small amount of native ETH for LayerZero gas fees
+            • You need a small amount of Arbitrum ETH for LayerZero gas fees - not Ethereum mainnet ETH
           </p>
           <p>
-            • Make sure you&apos;re connected to the source network before bridging
+            • Make sure you&apos;re connected to Arbitrum One network before bridging
           </p>
         </CardContent>
       </Card>
