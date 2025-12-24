@@ -3,7 +3,6 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { baseSepolia, base } from 'wagmi/chains';
 import { useNetwork } from "@/context/network-context";
 import { useBuilders } from "@/context/builders-context";
-import { useAccount } from 'wagmi';
 import { isAddress } from 'viem';
 
 import {

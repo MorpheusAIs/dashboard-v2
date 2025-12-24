@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useBuilders } from "@/context/builders-context";
 import { Builder, isV4Builder } from "@/app/builders/builders-data";
 import { toast } from "sonner";
-import { useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract, useAccount } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract } from "wagmi";
 import { Address, isAddress } from "viem";
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { testnetChains, mainnetChains } from '@/config/networks';
