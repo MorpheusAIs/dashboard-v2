@@ -877,6 +877,7 @@ export const useStakingContractInteractions = ({
     checkAndUpdateApprovalNeeded,
     // Refetch functions
     refetchClaimableAmount,
+    refetchAllowance,
   };
 };
 
