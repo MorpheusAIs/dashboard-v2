@@ -280,11 +280,31 @@ export const fetchBuildersAPI = async (
         ]);
 
         if (!baseApiResponse.ok || !arbitrumApiResponse.ok) {
+          const baseErrorText = baseApiResponse.ok ? '' : await baseApiResponse.text();
+          const arbitrumErrorText = arbitrumApiResponse.ok ? '' : await arbitrumApiResponse.text();
+          console.error(`[API] Failed to fetch Goldsky data: Base=${baseApiResponse.status}, Arbitrum=${arbitrumApiResponse.status}`);
+          console.error(`[API] Base error: ${baseErrorText}`);
+          console.error(`[API] Arbitrum error: ${arbitrumErrorText}`);
           throw new Error(`[API] Failed to fetch Goldsky data: Base=${baseApiResponse.status}, Arbitrum=${arbitrumApiResponse.status}`);
         }
 
         const baseData = await baseApiResponse.json();
         const arbitrumData = await arbitrumApiResponse.json();
+
+        // Check for error fields in the response even if status is 200
+        if (baseData.error) {
+          console.error('[API] Base API route returned error:', baseData.error);
+          throw new Error(`[API] Base Goldsky query failed: ${baseData.error}`);
+        }
+        if (arbitrumData.error) {
+          console.error('[API] Arbitrum API route returned error:', arbitrumData.error);
+          throw new Error(`[API] Arbitrum Goldsky query failed: ${arbitrumData.error}`);
+        }
+
+        // Log the number of projects fetched for debugging
+        const baseProjectsCount = baseData.buildersProjects?.length || 0;
+        const arbitrumProjectsCount = arbitrumData.buildersProjects?.length || 0;
+        console.log(`[API] Fetched ${baseProjectsCount} Base projects and ${arbitrumProjectsCount} Arbitrum projects from Goldsky API routes`);
 
         baseResponse = { data: baseData };
         arbitrumResponse = { data: arbitrumData };
@@ -333,6 +353,15 @@ export const fetchBuildersAPI = async (
       const baseProjectsRaw = baseResponse.data?.buildersProjects;
       const baseV4Projects = Array.isArray(baseProjectsRaw) ? baseProjectsRaw : (baseProjectsRaw?.items || []);
       
+      if (baseV4Projects.length === 0) {
+        console.warn('[API] Warning: No Base projects found in Goldsky response. Response structure:', {
+          hasData: !!baseResponse.data,
+          buildersProjectsType: typeof baseProjectsRaw,
+          isArray: Array.isArray(baseProjectsRaw),
+          rawValue: baseProjectsRaw
+        });
+      }
+      
       const baseProjects = baseV4Projects.map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;
         const minDepositInMor = Number(project.minimalDeposit || '0') / 1e18;
@@ -358,6 +387,15 @@ export const fetchBuildersAPI = async (
       // Process Arbitrum projects - handle both array (Goldsky V4) or items wrapper (legacy)
       const arbitrumProjectsRaw = arbitrumResponse.data?.buildersProjects;
       const arbitrumV4Projects = Array.isArray(arbitrumProjectsRaw) ? arbitrumProjectsRaw : (arbitrumProjectsRaw?.items || []);
+      
+      if (arbitrumV4Projects.length === 0) {
+        console.warn('[API] Warning: No Arbitrum projects found in Goldsky response. Response structure:', {
+          hasData: !!arbitrumResponse.data,
+          buildersProjectsType: typeof arbitrumProjectsRaw,
+          isArray: Array.isArray(arbitrumProjectsRaw),
+          rawValue: arbitrumProjectsRaw
+        });
+      }
       
       const arbitrumProjects = arbitrumV4Projects.map((project): BuilderProject => {
         const totalStakedInMor = Number(project.totalStaked || '0') / 1e18;

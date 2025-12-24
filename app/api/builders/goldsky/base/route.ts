@@ -51,14 +51,24 @@ export async function GET() {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[Goldsky V4 API Base] HTTP error: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+      console.error(`[Goldsky V4 API Base] Endpoint: ${endpoint}`);
+      console.error(`[Goldsky V4 API Base] Query: ${query}`);
+      throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}. Response: ${errorText}`);
     }
 
     const result = await response.json();
 
     if (result.errors) {
       console.error('[Goldsky V4 API Base] GraphQL errors:', JSON.stringify(result.errors, null, 2));
+      console.error(`[Goldsky V4 API Base] Endpoint: ${endpoint}`);
+      console.error(`[Goldsky V4 API Base] Query: ${query}`);
       throw new Error(`GraphQL errors: ${JSON.stringify(result.errors, null, 2)}`);
+    }
+
+    // Check if data is missing or malformed
+    if (!result.data) {
+      console.error('[Goldsky V4 API Base] No data field in response:', JSON.stringify(result, null, 2));
+      throw new Error('GraphQL response missing data field');
     }
 
     // V4 returns buildersProjects as direct array
