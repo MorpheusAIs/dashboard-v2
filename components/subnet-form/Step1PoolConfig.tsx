@@ -32,7 +32,6 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   const form = useFormContext();
   const { currentChainId } = useNetwork();
   const { builders } = useBuilders();
-  const { address: connectedAddress } = useAccount();
 
   const selectedChainId = form.watch("subnet.networkChainId");
   // Both Base mainnet and Base Sepolia use V4 contracts with the same structure

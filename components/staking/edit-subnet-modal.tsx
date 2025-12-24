@@ -10,7 +10,7 @@ import { useBuilders } from "@/context/builders-context";
 import { Builder, isV4Builder } from "@/app/builders/builders-data";
 import { toast } from "sonner";
 import { useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract, useAccount } from "wagmi";
-import { Address, isAddress, formatEther, parseEther } from "viem";
+import { Address, isAddress } from "viem";
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { testnetChains, mainnetChains } from '@/config/networks';
 import { useNetwork } from "@/context/network-context";
@@ -123,8 +123,6 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
   const [websiteError, setWebsiteError] = useState(false);
   const [imageSrcError, setImageSrcError] = useState(false);
   const [claimAdminError, setClaimAdminError] = useState(false);
-  
-  const { address: connectedAddress } = useAccount();
   
   // Ref to track which transaction hash we've already processed (prevent duplicate toasts)
   const processedTxHashRef = useRef<string | null>(null);

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Builder } from '@/app/builders/builders-data';
 import { useNetworkInfo } from './useNetworkInfo';
-import { base, arbitrum } from 'wagmi/chains';
+import { arbitrum } from 'wagmi/chains';
 import { useChainId } from 'wagmi';
 import { formatTimePeriod } from '@/app/utils/time-utils';
 
