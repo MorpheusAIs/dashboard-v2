@@ -101,3 +101,4 @@ From introspection:
 2. Calculate user claim lock end from `lastStake + withdrawLockPeriodAfterDeposit`
 3. Update UI to reflect that individual user claim amounts are not tracked in v4
 
+

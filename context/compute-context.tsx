@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
@@ -167,6 +168,10 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
 
   // Get URL params hook once at the component level
   const urlParams = useUrlParams();
+  
+  // Check if we're on a compute page
+  const pathname = usePathname();
+  const isComputePage = pathname?.startsWith('/compute') ?? false;
   
   // Convert raw subnets to UI-friendly format
   const subnets = useMemo<UISubnet[]>(() => {
@@ -415,10 +420,15 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
     await fetchData();
   };
   
-  // Initial data fetch
+  // Initial data fetch - only fetch when on a compute page
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (isComputePage) {
+      fetchData();
+    } else {
+      // Don't fetch on non-compute pages to avoid CORS errors
+      setIsLoading(false);
+    }
+  }, [isComputePage]);
   
   return (
     <ComputeContext.Provider

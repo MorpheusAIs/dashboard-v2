@@ -54,6 +54,7 @@ export default function NewSubnetPage() {
         minStake: 0.001,
         networkChainId: getInitialNetworkId(),
         withdrawLockPeriod: 7,
+        claimAdmin: connectedAddress || "",
       },
       builderPool: {
         name: "",
@@ -64,6 +65,13 @@ export default function NewSubnetPage() {
     },
     mode: "onChange",
   });
+
+  // Update claimAdmin default value when connectedAddress changes
+  useEffect(() => {
+    if (connectedAddress && !form.getValues("subnet.claimAdmin")) {
+      form.setValue("subnet.claimAdmin", connectedAddress);
+    }
+  }, [connectedAddress, form]);
 
     // Get the selected chain ID from the form
   const selectedChainId = form.watch("subnet.networkChainId");
@@ -129,6 +137,7 @@ export default function NewSubnetPage() {
         "subnet.name",
         "subnet.minStake",
         "subnet.withdrawLockPeriod",
+        "subnet.claimAdmin",
       ];
     } else {
       // Explicitly list fields for Step 2 validation

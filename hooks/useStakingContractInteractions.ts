@@ -5,7 +5,7 @@ import { parseEther, formatEther, Address, isAddress } from 'viem';
 import { toast } from "sonner";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
-import { baseSepolia } from 'wagmi/chains';
+import { baseSepolia, base, arbitrum } from 'wagmi/chains';
 
 // Import the ABIs
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
@@ -47,14 +47,19 @@ export const useStakingContractInteractions = ({
   // Determine if we're using testnet
   const isTestnet = networkChainId === baseSepolia.id;
   
+  // Determine if we're using BuildersV4 (testnet, Base mainnet, or Arbitrum mainnet)
+  const isBuildersV4 = isTestnet || networkChainId === base.id || networkChainId === arbitrum.id;
+  
   // Helper Functions
   const isCorrectNetwork = useCallback(() => {
     return typeof walletChainId === 'number' && walletChainId === networkChainId;
   }, [walletChainId, networkChainId]);
 
   const getAbi = useCallback(() => {
-    return isTestnet ? BuildersV4Abi : BuilderSubnetsAbi;
-  }, [isTestnet]);
+    // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) uses BuildersV4Abi
+    // Legacy mainnet networks use BuilderSubnetsAbi
+    return isBuildersV4 ? BuildersV4Abi : BuilderSubnetsAbi;
+  }, [isBuildersV4]);
 
   const getNetworkName = useCallback((chainId: number): string => {
     const chain = getChainById(chainId, isTestnet ? 'testnet' : 'mainnet');
@@ -191,12 +196,13 @@ export const useStakingContractInteractions = ({
     }
   });
 
-  // Get claimable amount - BuildersV4 uses getCurrentBuilderReward like mainnet
+  // Get claimable amount - BuildersV4 uses getCurrentSubnetRewards, Builders uses getCurrentBuilderReward
+  // Base and Arbitrum mainnet now use BuildersV4, so they use getCurrentSubnetRewards
   const { data: claimableAmountData, refetch: refetchClaimableAmount, isFetching: isFetchingClaimableAmount } = useReadContract({
     address: contractAddress,
-    abi: isTestnet ? BuildersV4Abi : BuildersAbi,
-    functionName: 'getCurrentBuilderReward',
-    args: [subnetId!], // Both testnet and mainnet use: getCurrentBuilderReward(builderPoolId)
+    abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
+    functionName: isBuildersV4 ? 'getCurrentSubnetRewards' : 'getCurrentBuilderReward',
+    args: [subnetId!], // Both testnet and mainnet take subnetId/builderPoolId as single argument
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!contractAddress && !!subnetId && !!connectedAddress,
@@ -725,10 +731,10 @@ export const useStakingContractInteractions = ({
         networkName
       });
       
-      // Both testnet (BuildersV4) and mainnet use deposit(bytes32,uint256)
+      // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) and legacy Builders use deposit(bytes32,uint256)
       writeStake({
         address: contractAddress,
-        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
         functionName: 'deposit',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
@@ -776,11 +782,11 @@ export const useStakingContractInteractions = ({
         networkName
       });
       
-      // Both testnet (BuildersV4) and mainnet contracts use the same withdraw interface
+      // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) and legacy Builders use the same withdraw interface
       // withdraw(bytes32 subnetId_, uint256 amount_)
       writeWithdraw({
         address: contractAddress,
-        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
         functionName: 'withdraw',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
@@ -825,11 +831,11 @@ export const useStakingContractInteractions = ({
         connectedAddress
       });
       
-      // Both testnet (BuildersV4) and mainnet use the same claim signature
+      // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) and legacy Builders use the same claim signature
       // claim(bytes32 subnetId_, address receiver_)
       writeClaim({
         address: contractAddress,
-        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
         functionName: 'claim',
         args: [subnetId, connectedAddress],
         chainId: networkChainId,
