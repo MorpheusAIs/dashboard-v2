@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 'wagmi';
-import { parseEther, formatEther, Address, isAddress } from 'viem';
+import { parseEther, formatEther, Address, isAddress, maxUint256 } from 'viem';
 import { toast } from "sonner";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
@@ -594,23 +594,19 @@ export const useStakingContractInteractions = ({
         return false;
       }
       
-      // If no allowance data yet, wait for it
+      // If no allowance data yet, don't assume approval is needed - wait for data to load
+      // This prevents false positives when user types a number before allowance loads
       if (allowance === undefined || !tokenAddress || !contractAddress) {
         const missingData = [];
         if (allowance === undefined) missingData.push("allowance");
         if (!tokenAddress) missingData.push("tokenAddress");
         if (!contractAddress) missingData.push("contractAddress");
         
-        console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}`);
+        console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}. Not assuming approval needed.`);
         
-        // IMPORTANT: For mainnet, assume approval is needed when data is missing
-        if (!isTestnet) {
-          console.log("Mainnet with missing data - assuming approval needed");
-          setNeedsApproval(true);
-          return true;
-        }
-        
-        return true; // Assume approval needed while loading
+        // Don't set needsApproval to true when data is missing - wait for it to load
+        // This prevents the button from switching to "Approve" prematurely
+        return false; // Return false to indicate we're waiting, not that approval is needed
       }
       
       const parsedAmount = parseEther(stakeAmount);
@@ -635,7 +631,9 @@ export const useStakingContractInteractions = ({
       return approvalNeeded;
     } catch (error) {
       console.error("Error checking approval:", error);
-      return true; // Assume approval needed on error
+      // On error, don't assume approval is needed - let the user try staking
+      // The contract will reject if approval is actually needed
+      return false;
     }
   }, [allowance, tokenAddress, contractAddress, networkChainId, isTestnet]);
 
@@ -664,15 +662,17 @@ export const useStakingContractInteractions = ({
       // Parse the amount to approve
       const parsedAmount = parseEther(amount);
       
-      // Use exact amount requested by user for all networks
-      const approvalAmount = parsedAmount;
+      // Use max uint256 for better UX - user only needs to approve once
+      // This is standard practice in most DeFi applications
+      const approvalAmount = maxUint256;
       
-      console.log(`Using exact approval amount:`, {
+      console.log(`Using max approval amount for better UX:`, {
         requestedAmount: formatEther(parsedAmount),
-        approvalAmount: formatEther(approvalAmount)
+        approvalAmount: "max uint256 (unlimited)",
+        note: "User will only need to approve once"
       });
       
-      console.log(`Requesting approval for ${formatEther(approvalAmount)} ${tokenSymbol} to ${contractAddress}`);
+      console.log(`Requesting unlimited approval for ${tokenSymbol} to ${contractAddress}`);
       console.log("Using token contract:", tokenAddress);
 
       writeApprove({
