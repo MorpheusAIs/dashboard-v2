@@ -712,18 +712,6 @@ export default function BuildersPage() {
           </span>
         ),
       },
-      {
-        id: "startsAt",
-        header: "Starts at",
-        accessorKey: "startsAt",
-        cell: (subnet) => (
-           <span className="text-gray-300">
-            {subnet.startsAt 
-              ? new Date(Number(subnet.startsAt) * 1000).toLocaleDateString() 
-              : '—'}
-          </span>
-        ),
-      },
       // {
       //   id: "unlockIn_subnets",
       //   header: "Claim unlocks in",
