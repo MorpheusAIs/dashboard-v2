@@ -557,7 +557,25 @@ export default function BuilderPage() {
   useEffect(() => {
     if (refreshStakingDataRef.current) {
       console.log("[BuilderPage] Calling refreshStakingEntries due to ref. hookProjectId:", hookProjectId);
-      refreshStakingEntries();
+      
+      // Refresh multiple times to ensure we get updated data from blockchain
+      const refreshMultipleTimes = () => {
+        // First immediate refresh
+        refreshStakingEntries();
+        
+        // Then refresh again after delays
+        setTimeout(() => {
+          console.log(`Refreshing staking entries (attempt 2/3)...`);
+          refreshStakingEntries();
+        }, 2000);
+        
+        setTimeout(() => {
+          console.log(`Refreshing staking entries (attempt 3/3)...`);
+          refreshStakingEntries();
+        }, 4000);
+      };
+      
+      refreshMultipleTimes();
       refreshStakingDataRef.current = false; 
     }
   }, [refreshStakingEntries, hookProjectId]); // Added hookProjectId as a dep, though refreshStakingEntries is main trigger
@@ -579,7 +597,8 @@ export default function BuilderPage() {
   // Create a ref to store the approval refresh function
   const refreshApprovalRef = useRef<((amount: string) => Promise<boolean> | boolean) | null>(null);
   // Create a ref to store the allowance refetch function
-  const refetchAllowanceRef = useRef<(() => Promise<void>) | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const refetchAllowanceRef = useRef<(() => Promise<any>) | null>(null);
   
   // Staking hook
   const stakingContractHookProps: UseStakingContractInteractionsProps = useMemo(() => ({
@@ -612,15 +631,23 @@ export default function BuilderPage() {
       // Refresh single builder metrics immediately (for mainnet)
       // This is more efficient than refreshing all builders
       if (!isTestnet && refetchSingleBuilder) {
-        setTimeout(() => {
-          console.log("Refreshing single builder metrics after successful transaction...");
-          queryClient.invalidateQueries({ queryKey: ['singleBuilder', singleBuilderProjectId] });
-          refetchSingleBuilder().then(() => {
-            console.log("Successfully refreshed single builder metrics after transaction");
-          }).catch((error: unknown) => {
-            console.error("Error refreshing single builder metrics:", error);
-          });
-        }, 2000); // 2 second delay to allow blockchain state to propagate
+        // Invalidate immediately to mark data as stale
+        queryClient.invalidateQueries({ queryKey: ['singleBuilder', singleBuilderProjectId] });
+        
+        // Then refetch multiple times to ensure we get updated data
+        const refetchMetrics = async () => {
+          for (let i = 0; i < 3; i++) {
+            await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1))); // 2s, 4s, 6s
+            console.log(`Refreshing single builder metrics (attempt ${i + 1}/3)...`);
+            try {
+              await refetchSingleBuilder();
+              console.log(`Successfully refreshed single builder metrics (attempt ${i + 1}/3)`);
+            } catch (error: unknown) {
+              console.error(`Error refreshing single builder metrics (attempt ${i + 1}/3):`, error);
+            }
+          }
+        };
+        refetchMetrics();
       }
       
       // Refresh builders data to update totalStaked amounts in "Your Subnets" table
