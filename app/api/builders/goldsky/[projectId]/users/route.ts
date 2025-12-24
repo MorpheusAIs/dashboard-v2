@@ -72,14 +72,28 @@ export async function GET(
     });
 
     if (!response.ok) {
-      throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`[Goldsky V4 API Users] HTTP error: ${response.status} ${response.statusText}`, errorText);
+      console.error(`[Goldsky V4 API Users] Endpoint: ${endpoint}`);
+      console.error(`[Goldsky V4 API Users] Query: ${query}`);
+      console.error(`[Goldsky V4 API Users] Variables:`, { projectId, first: limit, skip: offset });
+      throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}. Response: ${errorText}`);
     }
 
     const result = await response.json();
 
     if (result.errors) {
-      console.error('[Goldsky V4 API Users] GraphQL errors:', result.errors);
+      console.error('[Goldsky V4 API Users] GraphQL errors:', JSON.stringify(result.errors, null, 2));
+      console.error(`[Goldsky V4 API Users] Endpoint: ${endpoint}`);
+      console.error(`[Goldsky V4 API Users] Query: ${query}`);
+      console.error(`[Goldsky V4 API Users] Variables:`, { projectId, first: limit, skip: offset });
       throw new Error(`GraphQL errors: ${JSON.stringify(result.errors, null, 2)}`);
+    }
+
+    // Check if data is missing or malformed
+    if (!result.data) {
+      console.error('[Goldsky V4 API Users] No data field in response:', JSON.stringify(result, null, 2));
+      throw new Error('GraphQL response missing data field');
     }
 
     // V4 response already has correct field names (staked, lastStake)
@@ -112,8 +126,20 @@ export async function GET(
       }),
     });
 
+    if (!countResponse.ok) {
+      const countErrorText = await countResponse.text();
+      console.error(`[Goldsky V4 API Users] Count query HTTP error: ${countResponse.status} ${countResponse.statusText}`, countErrorText);
+      // Don't throw - use users.length as fallback
+    }
+
     const countResult = await countResponse.json();
-    const totalCount = countResult.data?.buildersUsers?.length || 0;
+    
+    if (countResult.errors) {
+      console.error('[Goldsky V4 API Users] Count query GraphQL errors:', JSON.stringify(countResult.errors, null, 2));
+      // Don't throw - use users.length as fallback
+    }
+    
+    const totalCount = countResult.data?.buildersUsers?.length || users.length;
     
     console.log(`[Goldsky V4 API Users] Total count: ${totalCount}`);
 

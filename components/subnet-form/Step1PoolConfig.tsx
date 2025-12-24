@@ -3,6 +3,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { baseSepolia, base } from 'wagmi/chains';
 import { useNetwork } from "@/context/network-context";
 import { useBuilders } from "@/context/builders-context";
+import { isAddress } from 'viem';
 
 import {
   FormField,
@@ -26,6 +27,7 @@ interface Step1PoolConfigProps {
 
 export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, tokenSymbol, onValidationChange }) => {
   const [subnetNameError, setSubnetNameError] = useState<string | null>(null);
+  const [claimAdminError, setClaimAdminError] = useState<string | null>(null);
   const form = useFormContext();
   const { currentChainId } = useNetwork();
   const { builders } = useBuilders();
@@ -219,6 +221,55 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
               <FormDescription>
                 Minimum 7 days. All deposits are locked after each deposit action.
               </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {/* Claim Admin Address Section for V4 networks (Base and Base Sepolia) */}
+      {isV4Network && (
+        <FormField
+          control={form.control}
+          name="subnet.claimAdmin"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel htmlFor="subnet.claimAdmin">Claim Admin Address</FormLabel>
+              <FormControl>
+                <Input
+                  id="subnet.claimAdmin"
+                  placeholder="0x..."
+                  {...field}
+                  className={claimAdminError ? "border-red-500" : undefined}
+                  onChange={(e) => {
+                    const value = e.target.value.trim();
+                    field.onChange(value);
+                    // Validate address format
+                    if (value && !isAddress(value)) {
+                      setClaimAdminError("Please enter a valid Ethereum address");
+                    } else {
+                      setClaimAdminError(null);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    field.onBlur();
+                    const value = e.target.value.trim();
+                    if (value && !isAddress(value)) {
+                      setClaimAdminError("Please enter a valid Ethereum address");
+                    } else {
+                      setClaimAdminError(null);
+                    }
+                  }}
+                />
+              </FormControl>
+              <FormDescription>
+                This address can claim the Subnet rewards on behalf of the admin. Defaults to your connected wallet address.
+              </FormDescription>
+              {claimAdminError && (
+                <FormDescription className="text-red-500">
+                  {claimAdminError}
+                </FormDescription>
+              )}
               <FormMessage />
             </FormItem>
           )}

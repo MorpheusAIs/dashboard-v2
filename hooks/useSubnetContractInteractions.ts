@@ -665,6 +665,10 @@ export const useSubnetContractInteractions = ({
 
       // BuildersV4 Subnet struct: name, admin, unusedStorage1_V4Update, withdrawLockPeriodAfterDeposit, 
       // unusedStorage2_V4Update, minimalDeposit, claimAdmin
+      const claimAdminAddress = formData.subnet.claimAdmin && isAddress(formData.subnet.claimAdmin) 
+        ? formData.subnet.claimAdmin as `0x${string}`
+        : connectedAddress as `0x${string}`; // Fallback to connected address if invalid
+      
       const subnetStruct = {
         name: subnetName,
         admin: connectedAddress as `0x${string}`,
@@ -672,7 +676,7 @@ export const useSubnetContractInteractions = ({
         withdrawLockPeriodAfterDeposit: BigInt(formData.subnet.withdrawLockPeriod * 86400), // Convert days to seconds
         unusedStorage2_V4Update: BigInt(0), // Set to 0 as unused
         minimalDeposit: parseEther((formData.subnet.minStake || 0.001).toString()),
-        claimAdmin: connectedAddress as `0x${string}`, // Use connected address as claim admin
+        claimAdmin: claimAdminAddress,
       };
 
       // BuildersV4 SubnetMetadata struct: slug, description, website, image

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 'wagmi';
-import { parseEther, formatEther, Address, isAddress } from 'viem';
+import { parseEther, formatEther, Address, isAddress, maxUint256 } from 'viem';
 import { toast } from "sonner";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
-import { baseSepolia } from 'wagmi/chains';
+import { baseSepolia, base, arbitrum } from 'wagmi/chains';
 
 // Import the ABIs
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
@@ -47,14 +47,19 @@ export const useStakingContractInteractions = ({
   // Determine if we're using testnet
   const isTestnet = networkChainId === baseSepolia.id;
   
+  // Determine if we're using BuildersV4 (testnet, Base mainnet, or Arbitrum mainnet)
+  const isBuildersV4 = isTestnet || networkChainId === base.id || networkChainId === arbitrum.id;
+  
   // Helper Functions
   const isCorrectNetwork = useCallback(() => {
     return typeof walletChainId === 'number' && walletChainId === networkChainId;
   }, [walletChainId, networkChainId]);
 
   const getAbi = useCallback(() => {
-    return isTestnet ? BuildersV4Abi : BuilderSubnetsAbi;
-  }, [isTestnet]);
+    // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) uses BuildersV4Abi
+    // Legacy mainnet networks use BuilderSubnetsAbi
+    return isBuildersV4 ? BuildersV4Abi : BuilderSubnetsAbi;
+  }, [isBuildersV4]);
 
   const getNetworkName = useCallback((chainId: number): string => {
     const chain = getChainById(chainId, isTestnet ? 'testnet' : 'mainnet');
@@ -191,12 +196,13 @@ export const useStakingContractInteractions = ({
     }
   });
 
-  // Get claimable amount - BuildersV4 uses getCurrentBuilderReward like mainnet
+  // Get claimable amount - BuildersV4 uses getCurrentSubnetRewards, Builders uses getCurrentBuilderReward
+  // Base and Arbitrum mainnet now use BuildersV4, so they use getCurrentSubnetRewards
   const { data: claimableAmountData, refetch: refetchClaimableAmount, isFetching: isFetchingClaimableAmount } = useReadContract({
     address: contractAddress,
-    abi: isTestnet ? BuildersV4Abi : BuildersAbi,
-    functionName: 'getCurrentBuilderReward',
-    args: [subnetId!], // Both testnet and mainnet use: getCurrentBuilderReward(builderPoolId)
+    abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
+    functionName: isBuildersV4 ? 'getCurrentSubnetRewards' : 'getCurrentBuilderReward',
+    args: [subnetId!], // Both testnet and mainnet take subnetId/builderPoolId as single argument
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!contractAddress && !!subnetId && !!connectedAddress,
@@ -588,23 +594,19 @@ export const useStakingContractInteractions = ({
         return false;
       }
       
-      // If no allowance data yet, wait for it
+      // If no allowance data yet, don't assume approval is needed - wait for data to load
+      // This prevents false positives when user types a number before allowance loads
       if (allowance === undefined || !tokenAddress || !contractAddress) {
         const missingData = [];
         if (allowance === undefined) missingData.push("allowance");
         if (!tokenAddress) missingData.push("tokenAddress");
         if (!contractAddress) missingData.push("contractAddress");
         
-        console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}`);
+        console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}. Not assuming approval needed.`);
         
-        // IMPORTANT: For mainnet, assume approval is needed when data is missing
-        if (!isTestnet) {
-          console.log("Mainnet with missing data - assuming approval needed");
-          setNeedsApproval(true);
-          return true;
-        }
-        
-        return true; // Assume approval needed while loading
+        // Don't set needsApproval to true when data is missing - wait for it to load
+        // This prevents the button from switching to "Approve" prematurely
+        return false; // Return false to indicate we're waiting, not that approval is needed
       }
       
       const parsedAmount = parseEther(stakeAmount);
@@ -629,7 +631,9 @@ export const useStakingContractInteractions = ({
       return approvalNeeded;
     } catch (error) {
       console.error("Error checking approval:", error);
-      return true; // Assume approval needed on error
+      // On error, don't assume approval is needed - let the user try staking
+      // The contract will reject if approval is actually needed
+      return false;
     }
   }, [allowance, tokenAddress, contractAddress, networkChainId, isTestnet]);
 
@@ -658,15 +662,17 @@ export const useStakingContractInteractions = ({
       // Parse the amount to approve
       const parsedAmount = parseEther(amount);
       
-      // Use exact amount requested by user for all networks
-      const approvalAmount = parsedAmount;
+      // Use max uint256 for better UX - user only needs to approve once
+      // This is standard practice in most DeFi applications
+      const approvalAmount = maxUint256;
       
-      console.log(`Using exact approval amount:`, {
+      console.log(`Using max approval amount for better UX:`, {
         requestedAmount: formatEther(parsedAmount),
-        approvalAmount: formatEther(approvalAmount)
+        approvalAmount: "max uint256 (unlimited)",
+        note: "User will only need to approve once"
       });
       
-      console.log(`Requesting approval for ${formatEther(approvalAmount)} ${tokenSymbol} to ${contractAddress}`);
+      console.log(`Requesting unlimited approval for ${tokenSymbol} to ${contractAddress}`);
       console.log("Using token contract:", tokenAddress);
 
       writeApprove({
@@ -725,10 +731,10 @@ export const useStakingContractInteractions = ({
         networkName
       });
       
-      // Both testnet (BuildersV4) and mainnet use deposit(bytes32,uint256)
+      // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) and legacy Builders use deposit(bytes32,uint256)
       writeStake({
         address: contractAddress,
-        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
         functionName: 'deposit',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
@@ -776,11 +782,11 @@ export const useStakingContractInteractions = ({
         networkName
       });
       
-      // Both testnet (BuildersV4) and mainnet contracts use the same withdraw interface
+      // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) and legacy Builders use the same withdraw interface
       // withdraw(bytes32 subnetId_, uint256 amount_)
       writeWithdraw({
         address: contractAddress,
-        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
         functionName: 'withdraw',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
@@ -825,11 +831,11 @@ export const useStakingContractInteractions = ({
         connectedAddress
       });
       
-      // Both testnet (BuildersV4) and mainnet use the same claim signature
+      // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) and legacy Builders use the same claim signature
       // claim(bytes32 subnetId_, address receiver_)
       writeClaim({
         address: contractAddress,
-        abi: isTestnet ? BuildersV4Abi : BuildersAbi,
+        abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
         functionName: 'claim',
         args: [subnetId, connectedAddress],
         chainId: networkChainId,
@@ -871,6 +877,7 @@ export const useStakingContractInteractions = ({
     checkAndUpdateApprovalNeeded,
     // Refetch functions
     refetchClaimableAmount,
+    refetchAllowance,
   };
 };
 

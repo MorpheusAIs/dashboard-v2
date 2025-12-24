@@ -60,21 +60,16 @@ export interface ChainConfig extends Omit<Chain, 'rpcUrls'> {
   layerZeroEndpointId?: number;
 }
 
-// Mainnet RPC configurations for better reliability
-const mainnetRpcUrls = [
-  process.env.NEXT_PUBLIC_ALCHEMY_MAINNET_RPC_URL || ''
-];
+// Infura RPC URLs
+const INFURA_API_KEY = process.env.NEXT_PUBLIC_INFURA_API_KEY;
 
-// Helper to ensure string arrays for RPC URLs
-const ensureStringArray = (urlOrUrls: string | readonly string[] | unknown): string[] => {
-  if (typeof urlOrUrls === 'string') {
-    return [urlOrUrls];
-  }
-  if (Array.isArray(urlOrUrls)) {
-    return [...urlOrUrls] as string[];
-  }
-  return [];
-};
+if (!process.env.NEXT_PUBLIC_INFURA_API_KEY) {
+  console.warn('NEXT_PUBLIC_INFURA_API_KEY is not defined. Using default Infura endpoint.');
+}
+
+const mainnetRpcUrls = [
+  `https://mainnet.infura.io/v3/${INFURA_API_KEY}`
+];
 
 // Helper to convert address to ChainContract
 const toContract = (address: string): ChainContract => ({ address: address as `0x${string}` });
@@ -85,10 +80,10 @@ export const testnetChains: Record<string, ChainConfig> = {
     ...sepolia,
     rpcUrls: {
       default: {
-        http: ensureStringArray(sepolia.rpcUrls.default.http)
+        http: [`https://sepolia.infura.io/v3/${INFURA_API_KEY}`]
       },
       public: {
-        http: ensureStringArray(sepolia.rpcUrls.default.http)
+        http: [`https://sepolia.infura.io/v3/${INFURA_API_KEY}`]
       }
     },
     contracts: {
@@ -115,10 +110,10 @@ export const testnetChains: Record<string, ChainConfig> = {
     ...arbitrumSepolia,
     rpcUrls: {
       default: {
-        http: ['https://sepolia-rollup.arbitrum.io/rpc']
+        http: [`https://arbitrum-sepolia.infura.io/v3/${INFURA_API_KEY}`]
       },
       public: {
-        http: ['https://sepolia-rollup.arbitrum.io/rpc']
+        http: [`https://arbitrum-sepolia.infura.io/v3/${INFURA_API_KEY}`]
       }
     },
     contracts: {
@@ -134,10 +129,10 @@ export const testnetChains: Record<string, ChainConfig> = {
     ...baseSepolia,
     rpcUrls: {
       default: {
-        http: ensureStringArray(baseSepolia.rpcUrls.default.http)
+        http: [`https://base-sepolia.infura.io/v3/${INFURA_API_KEY}`]
       },
       public: {
-        http: ensureStringArray(baseSepolia.rpcUrls.default.http)
+        http: [`https://base-sepolia.infura.io/v3/${INFURA_API_KEY}`]
       }
     },
     contracts: {
@@ -187,10 +182,10 @@ export const mainnetChains: Record<string, ChainConfig> = {
     ...arbitrum,
     rpcUrls: {
       default: {
-        http: ['https://arbitrum-one.publicnode.com']
+        http: [`https://arbitrum-mainnet.infura.io/v3/${INFURA_API_KEY}`]
       },
       public: {
-        http: ['https://arbitrum-one.publicnode.com']
+        http: [`https://arbitrum-mainnet.infura.io/v3/${INFURA_API_KEY}`]
       }
     },
     contracts: {
@@ -206,10 +201,10 @@ export const mainnetChains: Record<string, ChainConfig> = {
     ...base,
     rpcUrls: {
       default: {
-        http: ensureStringArray(base.rpcUrls.default.http)
+        http: [`https://base-mainnet.infura.io/v3/${INFURA_API_KEY}`]
       },
       public: {
-        http: ensureStringArray(base.rpcUrls.default.http)
+        http: [`https://base-mainnet.infura.io/v3/${INFURA_API_KEY}`]
       }
     },
     contracts: {

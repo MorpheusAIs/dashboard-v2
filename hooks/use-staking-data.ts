@@ -507,16 +507,34 @@ export function useStakingData({
                 ]);
 
                 if (!projectResponse.ok || !usersResponse.ok) {
+                  const projectErrorText = projectResponse.ok ? '' : await projectResponse.text();
+                  const usersErrorText = usersResponse.ok ? '' : await usersResponse.text();
+                  console.error(`[useStakingData] Failed to fetch Goldsky data: project=${projectResponse.status}, users=${usersResponse.status}`);
+                  console.error(`[useStakingData] Project error: ${projectErrorText}`);
+                  console.error(`[useStakingData] Users error: ${usersErrorText}`);
                   throw new Error(`Failed to fetch Goldsky data: project=${projectResponse.status}, users=${usersResponse.status}`);
                 }
 
                 const projectData = await projectResponse.json();
                 const usersData = await usersResponse.json();
 
+                // Check for error fields in responses
+                if (projectData.error) {
+                  console.error('[useStakingData] Project API route returned error:', projectData.error);
+                  throw new Error(`Project Goldsky query failed: ${projectData.error}`);
+                }
+                if (usersData.error) {
+                  console.error('[useStakingData] Users API route returned error:', usersData.error);
+                  throw new Error(`Users Goldsky query failed: ${usersData.error}`);
+                }
+
                 const project = projectData.buildersProject;
                 if (!project) {
+                  console.error('[useStakingData] No project data in response:', projectData);
                   throw new Error("No project data returned from Goldsky API");
                 }
+                
+                console.log(`[useStakingData] Successfully fetched project: ${project.name}, totalUsers: ${project.totalUsers}`);
 
                 // Detect if this is a V4 project (has metadata) or V1 project (needs Supabase metadata lookup)
                 const projectIsV4 = isV4Project(project);
@@ -540,6 +558,15 @@ export function useStakingData({
                 // Format users from API response
                 // V4 API returns buildersUsers as array (not wrapped in items)
                 const users = usersData.buildersUsers || [];
+                
+                if (users.length === 0) {
+                  console.warn(`[useStakingData] Warning: No users found for project ${projectIdToUse} on ${networkName}. Response:`, {
+                    usersData,
+                    totalCount: usersData.totalCount,
+                    projectTotalUsers: project.totalUsers
+                  });
+                }
+                
                 const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
                   if (formatEntryFunc) {
                     // Cast to BuildersUser (id may be missing but formatEntryFunc doesn't require it)
@@ -559,6 +586,10 @@ export function useStakingData({
                   };
                 }).filter((entry: { amount: number }) => entry.amount > 0);
                 
+                if (formattedEntries.length === 0 && users.length > 0) {
+                  console.warn(`[useStakingData] Warning: All ${users.length} users were filtered out (zero staked amounts). Sample user:`, users[0]);
+                }
+                
                 // Cache and set entries
                 setCachedPages(prev => ({
                   ...prev,
@@ -566,7 +597,7 @@ export function useStakingData({
                 }));
                 setEntries(formattedEntries);
                 
-                console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from Goldsky API`);
+                console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from Goldsky API (from ${users.length} raw users)`);
               } else {
                 // Page > 1: Use paginated users query
                 const offset = (pagination.currentPage - 1) * pagination.pageSize;
@@ -579,12 +610,32 @@ export function useStakingData({
                 );
 
                 if (!usersResponse.ok) {
+                  const usersErrorText = await usersResponse.text();
+                  console.error(`[useStakingData] Failed to fetch Goldsky users: ${usersResponse.status}`, usersErrorText);
                   throw new Error(`Failed to fetch Goldsky users: ${usersResponse.status}`);
                 }
 
                 const usersData = await usersResponse.json();
+                
+                // Check for error fields in response
+                if (usersData.error) {
+                  console.error('[useStakingData] Users API route returned error:', usersData.error);
+                  throw new Error(`Users Goldsky query failed: ${usersData.error}`);
+                }
+                
                 // V4 API returns buildersUsers as array (not wrapped in items)
                 const users = usersData.buildersUsers || [];
+                
+                console.log(`[useStakingData] Successfully fetched ${users.length} users (page ${pagination.currentPage})`);
+                
+                if (users.length === 0) {
+                  console.warn(`[useStakingData] Warning: No users found for project ${projectIdToUse} on page ${pagination.currentPage}. Response:`, {
+                    usersData,
+                    totalCount: usersData.totalCount,
+                    offset: (pagination.currentPage - 1) * pagination.pageSize,
+                    limit: pagination.pageSize
+                  });
+                }
                 
                 const formattedEntries = users.map((user: { address: string; staked: string; lastStake: string }) => {
                   if (formatEntryFunc) {
@@ -605,6 +656,10 @@ export function useStakingData({
                   };
                 }).filter((entry: { amount: number }) => entry.amount > 0);
                 
+                if (formattedEntries.length === 0 && users.length > 0) {
+                  console.warn(`[useStakingData] Warning: All ${users.length} users were filtered out (zero staked amounts). Sample user:`, users[0]);
+                }
+                
                 // Cache and set entries
                 setCachedPages(prev => ({
                   ...prev,
@@ -612,7 +667,7 @@ export function useStakingData({
                 }));
                 setEntries(formattedEntries);
                 
-                console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from Goldsky paginated users API`);
+                console.log(`[useStakingData] Loaded ${formattedEntries.length} entries from Goldsky paginated users API (from ${users.length} raw users)`);
               }
             } catch (error) {
               console.error('[useStakingData] Error fetching from Goldsky API:', error);

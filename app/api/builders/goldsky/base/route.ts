@@ -1,82 +1,103 @@
 import { NextResponse } from 'next/server';
-import * as fs from 'fs';
-import * as path from 'path';
-import { V4BuildersResponse } from '@/lib/utils/goldsky-v1-to-v4-adapter';
+import { SUBGRAPH_ENDPOINTS } from '@/app/config/subgraph-endpoints';
 
 // Force this route to be dynamic
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * API route to serve transformed Goldsky V1 data for Base network
- * Reads from static JSON file generated at build time
+ * API route to fetch builders projects from Goldsky V4 for Base network
+ * Queries Goldsky V4 directly for real-time data
  */
 export async function GET() {
   try {
-    const filePath = path.join(
-      process.cwd(),
-      'public',
-      'data',
-      'goldsky-builders-base.json'
-    );
+    const endpoint = SUBGRAPH_ENDPOINTS.GoldskyBaseV4;
+    
+    console.log(`[Goldsky V4 API Base] Fetching builders projects from ${endpoint}`);
 
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      console.warn(
-        `[Goldsky API Base] File not found: ${filePath}. Returning empty response.`
-      );
-      return NextResponse.json(
-        {
-          buildersProjects: {
-            items: [],
-          },
-        },
-        {
-          status: 200,
-          headers: {
-            'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
-          },
+    // V4 query - fetch all builders projects
+    const query = `
+      query combinedBuildersProjectsBaseMainnet {
+        buildersProjects(
+          first: 1000
+          orderBy: totalStaked
+          orderDirection: desc
+        ) {
+          id
+          name
+          admin
+          totalStaked
+          totalClaimed
+          totalUsers
+          minimalDeposit
+          withdrawLockPeriodAfterDeposit
+          startsAt
+          claimLockEnd
+          __typename
         }
-      );
-    }
+      }
+    `;
 
-    // Read and parse JSON file
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    const data = JSON.parse(fileContent) as V4BuildersResponse & {
-      _metadata?: {
-        generatedAt: string;
-        sourceEndpoint: string;
-        network: string;
-        chainId: number;
-        version: string;
-        projectCount: number;
-      };
-    };
-
-    // Remove metadata before returning (metadata is only used for build-time tracking)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { _metadata, ...responseData } = data;
-
-    return NextResponse.json(responseData, {
-      status: 200,
+    const response = await fetch(endpoint, {
+      method: 'POST',
       headers: {
-        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        query,
+      }),
     });
-  } catch (error) {
-    console.error('[Goldsky API Base] Error reading builders data:', error);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Goldsky V4 API Base] HTTP error: ${response.status} ${response.statusText}`, errorText);
+      console.error(`[Goldsky V4 API Base] Endpoint: ${endpoint}`);
+      console.error(`[Goldsky V4 API Base] Query: ${query}`);
+      throw new Error(`GraphQL request failed: ${response.status} ${response.statusText}. Response: ${errorText}`);
+    }
+
+    const result = await response.json();
+
+    if (result.errors) {
+      console.error('[Goldsky V4 API Base] GraphQL errors:', JSON.stringify(result.errors, null, 2));
+      console.error(`[Goldsky V4 API Base] Endpoint: ${endpoint}`);
+      console.error(`[Goldsky V4 API Base] Query: ${query}`);
+      throw new Error(`GraphQL errors: ${JSON.stringify(result.errors, null, 2)}`);
+    }
+
+    // Check if data is missing or malformed
+    if (!result.data) {
+      console.error('[Goldsky V4 API Base] No data field in response:', JSON.stringify(result, null, 2));
+      throw new Error('GraphQL response missing data field');
+    }
+
+    // V4 returns buildersProjects as direct array
+    const buildersProjects = result.data?.buildersProjects || [];
+    console.log(`[Goldsky V4 API Base] Found ${buildersProjects.length} builders projects`);
+
     return NextResponse.json(
       {
-        buildersProjects: {
-          items: [],
+        buildersProjects,
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+          'Content-Type': 'application/json',
         },
-        error: 'Failed to load builders data',
+      }
+    );
+  } catch (error) {
+    console.error('[Goldsky V4 API Base] Error fetching builders projects:', error);
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        buildersProjects: [],
       },
       {
         status: 500,
         headers: {
-          'Cache-Control': 'no-cache',
+          'Content-Type': 'application/json',
         },
       }
     );

@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
-    "generate:goldsky-data": "tsx scripts/generate-goldsky-builders-data.ts",
-    "build": "npm run generate:goldsky-data && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },

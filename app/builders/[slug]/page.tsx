@@ -33,6 +33,8 @@ import { Button } from "@/components/ui/button";
 import { useUrlParams } from '@/lib/utils/url-params';
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSingleBuilder } from "@/app/hooks/useSingleBuilder";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Type for user in formatStakingEntry
 type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
@@ -86,6 +88,7 @@ export default function BuilderPage() {
   const { userAddress: authUserAddress } = useAuth();
   const isTestnet = chainId === baseSepolia.id;
   const previousIsTestnetRef = useRef<boolean | undefined>(undefined);
+  const queryClient = useQueryClient();
   
   const { switchToChain, isNetworkSwitching } = useNetwork();
   
@@ -291,6 +294,46 @@ export default function BuilderPage() {
       return ['Base'];
     }
   }, [getParam, builder, isTestnet, chainId]);
+
+  // Fetch single builder data for real-time metrics updates
+  const singleBuilderProjectId = useMemo(() => {
+    if (isTestnet) return null; // useSingleBuilder doesn't support testnet
+    return hookProjectId || null;
+  }, [isTestnet, hookProjectId]);
+
+  // Determine network for single builder query
+  const singleBuilderNetwork = useMemo(() => {
+    if (!networksToDisplay || networksToDisplay.length === 0) return undefined;
+    const network = networksToDisplay[0];
+    if (!network) return undefined;
+    return network.toLowerCase();
+  }, [networksToDisplay]);
+
+  const { 
+    data: singleBuilderData, 
+    refetch: refetchSingleBuilder,
+    isLoading: isLoadingSingleBuilder 
+  } = useSingleBuilder({ 
+    projectId: singleBuilderProjectId || undefined,
+    network: singleBuilderNetwork
+  });
+
+  // Merge single builder metrics into the current builder state
+  const builderWithUpdatedMetrics = useMemo(() => {
+    if (!builder) return null;
+    
+    // If we have fresh single builder data, use it to update metrics
+    if (singleBuilderData && !isTestnet) {
+      return {
+        ...builder,
+        totalStaked: singleBuilderData.totalStaked ?? builder.totalStaked,
+        totalClaimed: singleBuilderData.totalClaimed ?? builder.totalClaimed,
+        stakingCount: singleBuilderData.stakingCount ?? builder.stakingCount,
+      };
+    }
+    
+    return builder;
+  }, [builder, singleBuilderData, isTestnet]);
   
   // Get contract address from configuration based on current chain ID
   const contractAddress = useMemo<Address | undefined>(() => {
@@ -514,7 +557,25 @@ export default function BuilderPage() {
   useEffect(() => {
     if (refreshStakingDataRef.current) {
       console.log("[BuilderPage] Calling refreshStakingEntries due to ref. hookProjectId:", hookProjectId);
-      refreshStakingEntries();
+      
+      // Refresh multiple times to ensure we get updated data from blockchain
+      const refreshMultipleTimes = () => {
+        // First immediate refresh
+        refreshStakingEntries();
+        
+        // Then refresh again after delays
+        setTimeout(() => {
+          console.log(`Refreshing staking entries (attempt 2/3)...`);
+          refreshStakingEntries();
+        }, 2000);
+        
+        setTimeout(() => {
+          console.log(`Refreshing staking entries (attempt 3/3)...`);
+          refreshStakingEntries();
+        }, 4000);
+      };
+      
+      refreshMultipleTimes();
       refreshStakingDataRef.current = false; 
     }
   }, [refreshStakingEntries, hookProjectId]); // Added hookProjectId as a dep, though refreshStakingEntries is main trigger
@@ -535,6 +596,9 @@ export default function BuilderPage() {
   
   // Create a ref to store the approval refresh function
   const refreshApprovalRef = useRef<((amount: string) => Promise<boolean> | boolean) | null>(null);
+  // Create a ref to store the allowance refetch function
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const refetchAllowanceRef = useRef<(() => Promise<any>) | null>(null);
   
   // Staking hook
   const stakingContractHookProps: UseStakingContractInteractionsProps = useMemo(() => ({
@@ -564,6 +628,28 @@ export default function BuilderPage() {
         console.warn("refetchStakerDataForUser is not available");
       }
       
+      // Refresh single builder metrics immediately (for mainnet)
+      // This is more efficient than refreshing all builders
+      if (!isTestnet && refetchSingleBuilder) {
+        // Invalidate immediately to mark data as stale
+        queryClient.invalidateQueries({ queryKey: ['singleBuilder', singleBuilderProjectId] });
+        
+        // Then refetch multiple times to ensure we get updated data
+        const refetchMetrics = async () => {
+          for (let i = 0; i < 3; i++) {
+            await new Promise(resolve => setTimeout(resolve, 2000 * (i + 1))); // 2s, 4s, 6s
+            console.log(`Refreshing single builder metrics (attempt ${i + 1}/3)...`);
+            try {
+              await refetchSingleBuilder();
+              console.log(`Successfully refreshed single builder metrics (attempt ${i + 1}/3)`);
+            } catch (error: unknown) {
+              console.error(`Error refreshing single builder metrics (attempt ${i + 1}/3):`, error);
+            }
+          }
+        };
+        refetchMetrics();
+      }
+      
       // Refresh builders data to update totalStaked amounts in "Your Subnets" table
       // Use timeout to allow blockchain state to propagate
       setTimeout(() => {
@@ -575,11 +661,26 @@ export default function BuilderPage() {
         });
       }, 3000); // 3 second delay to allow blockchain state to update and propagate
       
-      // Force refresh approval state after successful transaction
+      // Force refresh allowance and approval state after successful transaction
       // Use timeout to allow blockchain state to update
-      setTimeout(() => {
-        console.log("Refreshing approval state after successful transaction...");
-        if (refreshApprovalRef.current && currentStakeAmount && parseFloat(currentStakeAmount) > 0) {
+      setTimeout(async () => {
+        console.log("Refreshing allowance and approval state after successful transaction...");
+        // First refresh the allowance data
+        if (refetchAllowanceRef.current) {
+          try {
+            await refetchAllowanceRef.current();
+            console.log("Successfully refreshed allowance after transaction");
+            // Then check approval state with the fresh allowance
+            if (refreshApprovalRef.current && currentStakeAmount && parseFloat(currentStakeAmount) > 0) {
+              // Small delay to ensure state propagates
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const result = refreshApprovalRef.current(currentStakeAmount);
+              console.log("Successfully refreshed approval state after transaction, result:", result);
+            }
+          } catch (error: unknown) {
+            console.error("Error refreshing allowance/approval state:", error);
+          }
+        } else if (refreshApprovalRef.current && currentStakeAmount && parseFloat(currentStakeAmount) > 0) {
           try {
             const result = refreshApprovalRef.current(currentStakeAmount);
             console.log("Successfully refreshed approval state after transaction, result:", result);
@@ -590,7 +691,7 @@ export default function BuilderPage() {
       }, 2000); // 2 second delay to allow blockchain state to update
     },
     lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
-  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser, stakeAmount, refreshData]);
+  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser, stakeAmount, refreshData, isTestnet, refetchSingleBuilder, singleBuilderProjectId, queryClient]);
 
   // Log subnet ID state for debugging
   useEffect(() => {
@@ -621,13 +722,18 @@ export default function BuilderPage() {
     handleWithdraw,
     handleClaim,
     checkAndUpdateApprovalNeeded,
-    refetchClaimableAmount
+    refetchClaimableAmount,
+    refetchAllowance
   } = useStakingContractInteractions(stakingContractHookProps);
 
-  // Set the ref to the actual function for use in the onTxSuccess callback
+  // Set the refs to the actual functions for use in the onTxSuccess callback
   useEffect(() => {
     refreshApprovalRef.current = checkAndUpdateApprovalNeeded;
   }, [checkAndUpdateApprovalNeeded]);
+
+  useEffect(() => {
+    refetchAllowanceRef.current = refetchAllowance || null;
+  }, [refetchAllowance]);
 
   // Refresh claimable amount after successful transactions
   useEffect(() => {
@@ -647,20 +753,25 @@ export default function BuilderPage() {
   }, [userStakedAmount, refetchClaimableAmount]); // Trigger when user staked amount changes (indicating a successful transaction)
 
   // Check if approval is needed when stake amount changes
+  // Only check if we have allowance data loaded to avoid false positives
   useEffect(() => {
-    if (stakeAmount && parseFloat(stakeAmount) > 0) {
+    if (stakeAmount && parseFloat(stakeAmount) > 0 && !isLoadingData) {
       checkAndUpdateApprovalNeeded(stakeAmount);
+    } else if (stakeAmount && parseFloat(stakeAmount) > 0 && isLoadingData) {
+      // If data is still loading, don't assume approval is needed
+      // Wait for data to load first
+      console.log("Waiting for allowance data to load before checking approval");
     }
-  }, [stakeAmount, checkAndUpdateApprovalNeeded]);
+  }, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]);
 
-  // Refresh approval state when user returns to the page or when allowance data loads
+  // Refresh approval state when allowance data loads
   // This fixes the issue where interface keeps asking for approval after page reload
   useEffect(() => {
     if (stakeAmount && parseFloat(stakeAmount) > 0 && !isLoadingData) {
       console.log("Refreshing approval state due to allowance data update");
       checkAndUpdateApprovalNeeded(stakeAmount);
     }
-  }, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]); // Added isLoadingData dependency
+  }, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]);
 
   // Debug useEffect for token approval states
   useEffect(() => {
@@ -706,6 +817,19 @@ export default function BuilderPage() {
     if (!isCorrectNetwork()) {
       await handleNetworkSwitch();
       return; // Exit after network switch to prevent further action
+    }
+
+    // Refresh allowance first to ensure we have the latest data
+    if (refetchAllowance) {
+      console.log("Refreshing allowance before checking approval...");
+      try {
+        await refetchAllowance();
+        // Small delay to ensure state updates
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error("Error refreshing allowance:", error);
+        // Continue anyway - the check will use cached data
+      }
     }
 
     // Force a fresh check for approval before proceeding
@@ -1009,11 +1133,22 @@ export default function BuilderPage() {
     return <div className="p-8 text-red-500">Error loading builder: {buildersError.message}</div>;
   }
 
+  // Safety check: if builder is null, show skeleton
+  if (!builder) {
+    return (
+      <div className="page-container">
+        <div className="max-w-5xl mx-auto space-y-8">
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-container">
       <NetworkSwitchNotification
         show={showNetworkSwitchNotice}
-        networkName={`${networksToDisplay[0]} network`}
+        networkName={`${networksToDisplay[0] || 'network'} network`}
       />
       
       {/* Destructive alert dialog */}
@@ -1055,26 +1190,29 @@ export default function BuilderPage() {
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4`}>
           <MetricCardMinimal
             title="Total Staked"
-            value={builder.totalStaked || 0}
+            value={builderWithUpdatedMetrics?.totalStaked || builder?.totalStaked || 0}
             label="MOR"
             autoFormatNumbers={true}
             disableGlow={false}
+            isLoading={isLoadingSingleBuilder}
           />
           
           <MetricCardMinimal
             title="Total Claimed"
-            value={builder.totalClaimed || 0}
+            value={builderWithUpdatedMetrics?.totalClaimed || builder?.totalClaimed || 0}
             label="MOR"
             autoFormatNumbers={true}
             disableGlow={false}
+            isLoading={isLoadingSingleBuilder}
           />
           
           <MetricCardMinimal
             title="Cumulative stakers"
-            value={builder.stakingCount || 0}
+            value={builderWithUpdatedMetrics?.stakingCount || builder?.stakingCount || 0}
             label="users"
             autoFormatNumbers={true}
             disableGlow={false}
+            isLoading={isLoadingSingleBuilder}
           />
           
           <MetricCardMinimal

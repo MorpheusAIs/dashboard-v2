@@ -23,6 +23,11 @@ export const subnetContractSchema = z.object({
   minStake: z.number().min(0, "Minimum stake must be a non-negative number"),
   withdrawLockPeriod: z.number().min(7, "Withdraw lock period must be at least 7 days"),
   networkChainId: z.number({ required_error: "Please select a network" }),
+  claimAdmin: z.string().refine((val) => {
+    if (!val || val.trim() === '') return false;
+    // Basic Ethereum address validation (0x followed by 40 hex characters)
+    return /^0x[a-fA-F0-9]{40}$/.test(val);
+  }, "Please enter a valid Ethereum address"),
 });
 
 // Legacy schema - kept for backward compatibility but not used for v4 contracts
@@ -91,6 +96,11 @@ export const formSchema = z.object({
     networkChainId: z.number(),
     minStake: z.number().min(0, "Minimum stake must be non-negative."),
     withdrawLockPeriod: z.number().min(7, "Withdraw lock period must be at least 7 days."),
+    claimAdmin: z.string().refine((val) => {
+      if (!val || val.trim() === '') return false;
+      // Basic Ethereum address validation (0x followed by 40 hex characters)
+      return /^0x[a-fA-F0-9]{40}$/.test(val);
+    }, "Please enter a valid Ethereum address"),
   }),
   builderPool: z.object({ // Legacy fields - not used for v4 contracts (Base and Base Sepolia)
     name: z.string().optional(), // V4 contracts use subnet.name instead
