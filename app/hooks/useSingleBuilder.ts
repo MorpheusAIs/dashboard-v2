@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Builder } from '@/app/builders/builders-data';
 import { useNetworkInfo } from './useNetworkInfo';
-import { base, arbitrum } from 'wagmi/chains';
+import { arbitrum, base } from 'wagmi/chains';
 import { useChainId } from 'wagmi';
 import { formatTimePeriod } from '@/app/utils/time-utils';
 
@@ -19,7 +19,7 @@ export const useSingleBuilder = ({ projectId, network }: UseSingleBuilderProps) 
   const { isTestnet } = useNetworkInfo();
   
   // Determine network from prop, chainId, or default to 'base'
-  const networkName = network || (chainId === arbitrum.id ? 'arbitrum' : 'base');
+  const networkName = network || (chainId === arbitrum.id ? 'arbitrum' : chainId === base.id ? 'base' : 'base');
   
   return useQuery<Builder | null, Error>({
     queryKey: ['singleBuilder', projectId, networkName, isTestnet],

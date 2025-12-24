@@ -3,7 +3,6 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { baseSepolia, base } from 'wagmi/chains';
 import { useNetwork } from "@/context/network-context";
 import { useBuilders } from "@/context/builders-context";
-import { useAccount } from 'wagmi';
 import { isAddress } from 'viem';
 
 import {
@@ -32,7 +31,6 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   const form = useFormContext();
   const { currentChainId } = useNetwork();
   const { builders } = useBuilders();
-  const { address: connectedAddress } = useAccount();
 
   const selectedChainId = form.watch("subnet.networkChainId");
   // Both Base mainnet and Base Sepolia use V4 contracts with the same structure
