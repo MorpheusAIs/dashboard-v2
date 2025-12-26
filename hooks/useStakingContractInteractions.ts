@@ -463,6 +463,10 @@ export const useStakingContractInteractions = ({
       // Refresh balance and allowance after staking
       refetchBalance();
       refetchAllowance();
+      // Refresh MOR balances in navbar after staking transaction
+      if (typeof window !== 'undefined' && window.refreshMORBalances) {
+        window.refreshMORBalances();
+      }
       if (onTxSuccess) {
         onTxSuccess();
       }
@@ -502,6 +506,10 @@ export const useStakingContractInteractions = ({
       resetWithdrawContract();
       // Refresh balance after withdrawal
       refetchBalance();
+      // Refresh MOR balances in navbar after withdrawal transaction
+      if (typeof window !== 'undefined' && window.refreshMORBalances) {
+        window.refreshMORBalances();
+      }
       if (onTxSuccess) {
         onTxSuccess();
       }
@@ -542,6 +550,10 @@ export const useStakingContractInteractions = ({
       // Refresh balance and claimable amount after claim
       refetchBalance();
       refetchClaimableAmount();
+      // Refresh MOR balances in navbar after claim transaction
+      if (typeof window !== 'undefined' && window.refreshMORBalances) {
+        window.refreshMORBalances();
+      }
       if (onTxSuccess) {
         onTxSuccess();
       }

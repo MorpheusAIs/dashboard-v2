@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  ArrowLeftRight,
   CircleDollarSign,
   // Cpu,
   Users,
@@ -28,6 +29,11 @@ const navigation = [
     title: "Builders",
     url: "/builders",
     icon: Users,
+  },
+  {
+    title: "Bridge MOR",
+    url: "/bridge-mor",
+    icon: ArrowLeftRight,
   },
   // {
   //   title: "Compute",

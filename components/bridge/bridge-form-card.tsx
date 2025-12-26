@@ -16,6 +16,8 @@ import { morTokenContracts } from "@/lib/contracts";
 import MOR20_ABI from "@/app/abi/MOR20.json";
 import { toast } from "sonner";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
+import { ArrowLeftRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface BridgeFormCardProps {
   fromChain: "arbitrum" | "base";
@@ -29,6 +31,7 @@ interface BridgeFormCardProps {
   onRecipientChange: (address: string) => void;
   onBridgeSuccess: () => void;
   isCorrectNetwork: boolean;
+  onSwitchDirection: () => void;
 }
 
 export function BridgeFormCard({
@@ -43,19 +46,23 @@ export function BridgeFormCard({
   onRecipientChange,
   onBridgeSuccess,
   isCorrectNetwork,
+  onSwitchDirection,
 }: BridgeFormCardProps) {
   const { address } = useAccount();
-  const baseChainId = (toChain === "base" ? 8453 : 42161) as 8453 | 42161; // Base mainnet ID
-  const basePublicClient = usePublicClient({ chainId: baseChainId });
+  const destinationChainId = (toChain === "base" ? 8453 : 42161) as 8453 | 42161;
+  const destinationPublicClient = usePublicClient({ chainId: destinationChainId });
   const [quoteFee, setQuoteFee] = useState<{ nativeFee: bigint; lzTokenFee: bigint } | null>(null);
   const [expectedOutput, setExpectedOutput] = useState<number | null>(null);
-  const [initialBaseBalance, setInitialBaseBalance] = useState<bigint | null>(null);
-  const [isMonitoringBase, setIsMonitoringBase] = useState(false);
+  const [initialDestinationBalance, setInitialDestinationBalance] = useState<bigint | null>(null);
+  const [isMonitoringDestination, setIsMonitoringDestination] = useState(false);
 
   // Check ETH balance for gas and LayerZero fees
   const { data: ethBalance } = useBalance({
     address,
     chainId: sourceChainId,
+    query: {
+      refetchInterval: false, // Disable automatic polling - only fetch when needed
+    }
   });
 
   // Validate recipient address
@@ -67,14 +74,18 @@ export function BridgeFormCard({
 
   // Get MOR token address for source chain
   const morTokenAddress = useMemo(() => {
-    return morTokenContracts[sourceChainId as keyof typeof morTokenContracts] as `0x${string}` | undefined;
-  }, [sourceChainId]);
+    const address = morTokenContracts[sourceChainId as keyof typeof morTokenContracts] as `0x${string}` | undefined;
+    if (!address) {
+      console.error(`MOR token contract not found for chain ID ${sourceChainId} (${fromChain})`);
+    }
+    return address;
+  }, [sourceChainId, fromChain]);
 
-  // Monitor Base network balance to detect when funds arrive
-  const baseMorTokenAddress = morTokenContracts[baseChainId as keyof typeof morTokenContracts] as `0x${string}` | undefined;
+  // Monitor destination network balance to detect when funds arrive
+  const destinationMorTokenAddress = morTokenContracts[destinationChainId as keyof typeof morTokenContracts] as `0x${string}` | undefined;
   
-  const { data: baseBalance } = useReadContract({
-    address: baseMorTokenAddress,
+  const { data: destinationBalance } = useReadContract({
+    address: destinationMorTokenAddress,
     abi: [
       {
         inputs: [{ internalType: "address", name: "account", type: "address" }],
@@ -86,15 +97,15 @@ export function BridgeFormCard({
     ] as const,
     functionName: "balanceOf",
     args: recipientAddress && isRecipientValid ? [recipientAddress as `0x${string}`] : undefined,
-    chainId: baseChainId,
+    chainId: destinationChainId,
     query: {
-      enabled: !!baseMorTokenAddress && !!recipientAddress && isRecipientValid && isMonitoringBase,
-      refetchInterval: isMonitoringBase ? 5000 : false, // Poll every 5 seconds when monitoring
+      enabled: !!destinationMorTokenAddress && !!recipientAddress && isRecipientValid && isMonitoringDestination,
+      refetchInterval: isMonitoringDestination ? 30000 : false, // Poll every 30 seconds when monitoring (reduced from 5s to minimize RPC calls)
     },
   });
 
   // Quote the bridge fee
-  const { data: quoteData, refetch: refetchQuote, isLoading: isQuoteLoading } = useReadContract({
+  const { data: quoteData, isLoading: isQuoteLoading, error: quoteError } = useReadContract({
     address: morTokenAddress,
     abi: MOR20_ABI,
     functionName: "quoteSend",
@@ -115,6 +126,7 @@ export function BridgeFormCard({
     chainId: sourceChainId,
     query: {
       enabled: !!morTokenAddress && !!bridgeAmount && parseFloat(bridgeAmount) > 0 && !!recipientAddress && isRecipientValid && isCorrectNetwork,
+      refetchInterval: false, // Disable automatic polling for quotes - only refetch when inputs change
     },
   });
 
@@ -152,18 +164,18 @@ export function BridgeFormCard({
   // Store expected output amount for monitoring
   const [monitoredAmount, setMonitoredAmount] = useState<number | null>(null);
 
-  // Handle successful transaction - start monitoring Base balance
+  // Handle successful transaction - start monitoring destination balance
   useEffect(() => {
     if (isSuccess && expectedOutput) {
       // Capture the expected output before clearing
       setMonitoredAmount(expectedOutput);
       
-      // Get initial Base balance - fetch it first, then start monitoring
+      // Get initial destination balance - fetch it first, then start monitoring
       const fetchInitialBalance = async () => {
-        if (baseMorTokenAddress && recipientAddress && isRecipientValid && basePublicClient) {
+        if (destinationMorTokenAddress && recipientAddress && isRecipientValid && destinationPublicClient) {
           try {
-            const balance = await basePublicClient.readContract({
-              address: baseMorTokenAddress,
+            const balance = await destinationPublicClient.readContract({
+              address: destinationMorTokenAddress,
               abi: [
                 {
                   inputs: [{ internalType: "address", name: "account", type: "address" }],
@@ -176,47 +188,49 @@ export function BridgeFormCard({
               functionName: "balanceOf",
               args: [recipientAddress as `0x${string}`],
             });
-            setInitialBaseBalance(balance);
+            setInitialDestinationBalance(balance);
           } catch (error) {
-            console.warn("Failed to fetch initial Base balance:", error);
+            console.warn(`Failed to fetch initial ${toChain === "base" ? "Base" : "Arbitrum"} balance:`, error);
           }
         }
         // Start monitoring after a short delay
         setTimeout(() => {
-          setIsMonitoringBase(true);
+          setIsMonitoringDestination(true);
         }, 2000);
       };
       
       fetchInitialBalance();
       
-      toast.success("Bridge transaction submitted! Monitoring Base network for arrival...", {
+      const destinationNetworkName = toChain === "base" ? "Base" : "Arbitrum One";
+      toast.success(`Bridge transaction submitted! Monitoring ${destinationNetworkName} network for arrival...`, {
         duration: 5000,
       });
       onBridgeSuccess();
       setQuoteFee(null);
       setExpectedOutput(null);
     }
-  }, [isSuccess, expectedOutput, baseMorTokenAddress, recipientAddress, isRecipientValid, basePublicClient, baseChainId, onBridgeSuccess]);
+  }, [isSuccess, expectedOutput, destinationMorTokenAddress, recipientAddress, isRecipientValid, destinationPublicClient, destinationChainId, onBridgeSuccess, toChain]);
 
-  // Detect when funds arrive on Base network
+  // Detect when funds arrive on destination network
   useEffect(() => {
     if (
-      isMonitoringBase &&
-      baseBalance !== undefined &&
-      initialBaseBalance !== null &&
+      isMonitoringDestination &&
+      destinationBalance !== undefined &&
+      initialDestinationBalance !== null &&
       monitoredAmount !== null
     ) {
-      const currentBalance = baseBalance;
+      const currentBalance = destinationBalance;
       const expectedIncrease = parseUnits(monitoredAmount.toString(), 18);
       
       // Check if balance increased by approximately the expected amount (within 1% tolerance)
-      const balanceIncrease = currentBalance - initialBaseBalance;
+      const balanceIncrease = currentBalance - initialDestinationBalance;
       const tolerance = expectedIncrease / BigInt(100); // 1% tolerance
       
       if (balanceIncrease >= expectedIncrease - tolerance) {
-        setIsMonitoringBase(false);
-        setInitialBaseBalance(null);
+        setIsMonitoringDestination(false);
+        setInitialDestinationBalance(null);
         const formattedAmount = monitoredAmount >= 1 ? Math.floor(monitoredAmount) : monitoredAmount.toFixed(1);
+        const destinationNetworkName = toChain === "base" ? "Base" : "Arbitrum One";
         
         // Immediately refresh MOR balances in navbar
         if (typeof window !== 'undefined' && window.refreshMORBalances) {
@@ -224,31 +238,32 @@ export function BridgeFormCard({
         }
         
         toast.success(
-          `🎉 Bridge complete! ${formattedAmount} MOR tokens have arrived on Base network!`,
+          `🎉 Bridge complete! ${formattedAmount} MOR tokens have arrived on ${destinationNetworkName}!`,
           {
-            duration: 5000, // 15 seconds
+            duration: 5000,
             className: "bridge-success-toast",
           }
         );
         setMonitoredAmount(null);
       }
     }
-  }, [baseBalance, initialBaseBalance, isMonitoringBase, monitoredAmount]);
+  }, [destinationBalance, initialDestinationBalance, isMonitoringDestination, monitoredAmount, toChain]);
 
   // Stop monitoring after 10 minutes to avoid infinite polling
   useEffect(() => {
-    if (isMonitoringBase) {
+    if (isMonitoringDestination) {
       const timeout = setTimeout(() => {
-        setIsMonitoringBase(false);
-        setInitialBaseBalance(null);
-        toast.info("Bridge monitoring stopped. Please check your Base network balance manually.", {
+        setIsMonitoringDestination(false);
+        setInitialDestinationBalance(null);
+        const destinationNetworkName = toChain === "base" ? "Base" : "Arbitrum One";
+        toast.info(`Bridge monitoring stopped. Please check your ${destinationNetworkName} network balance manually.`, {
           duration: 5000,
         });
       }, 10 * 60 * 1000); // 10 minutes
 
       return () => clearTimeout(timeout);
     }
-  }, [isMonitoringBase]);
+  }, [isMonitoringDestination, toChain]);
 
   // Format error message to show only first 2 lines
   const formatErrorMessage = useCallback((error: Error) => {
@@ -282,13 +297,30 @@ export function BridgeFormCard({
     };
   }, []);
 
-  // Handle errors
+  // Handle quote errors
+  useEffect(() => {
+    if (quoteError && bridgeAmount && parseFloat(bridgeAmount) > 0 && isRecipientValid && isCorrectNetwork) {
+      const errorMessage = quoteError instanceof Error ? quoteError.message : String(quoteError);
+      console.error("Quote error details:", quoteError);
+      
+      // Check for common error patterns
+      if (errorMessage.toLowerCase().includes("insufficient") || errorMessage.toLowerCase().includes("balance")) {
+        toast.error("Insufficient balance or invalid amount for bridging", { duration: 5000 });
+      } else if (errorMessage.toLowerCase().includes("endpoint") || errorMessage.toLowerCase().includes("layerzero")) {
+        toast.error(`Bridge configuration error: ${fromChain === "base" ? "Base" : "Arbitrum"} to ${toChain === "base" ? "Base" : "Arbitrum"} may not be supported`, { duration: 8000 });
+      } else {
+        toast.error(`Failed to get bridge quote: ${errorMessage.substring(0, 100)}`, { duration: 8000 });
+      }
+    }
+  }, [quoteError, bridgeAmount, isRecipientValid, isCorrectNetwork, fromChain, toChain]);
+
+  // Handle transaction errors
   useEffect(() => {
     if (error) {
       const formatted = formatErrorMessage(error as Error);
       
       // Log full error to console for debugging
-      console.error("Bridge error details:", error);
+      console.error("Bridge transaction error details:", error);
       
       // Show short message in toast with action button to view full details
       toast.error(formatted.short, {
@@ -329,19 +361,15 @@ export function BridgeFormCard({
     return true;
   }, [bridgeAmount, balance]);
 
-  // Update quote when amount or recipient changes (debounced)
-  useEffect(() => {
-    if (bridgeAmount && parseFloat(bridgeAmount) > 0 && isRecipientValid && isCorrectNetwork) {
-      const timer = setTimeout(() => {
-        refetchQuote();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [bridgeAmount, recipientAddress, isRecipientValid, isCorrectNetwork, refetchQuote]);
+  // Note: Quote is automatically refetched by useReadContract when args change
+  // No need for manual refetch on keystroke to avoid excessive RPC calls
 
   // Handle bridge
   const handleBridge = async () => {
     if (!isAmountValid || !isRecipientValid || !morTokenAddress || !quoteFee || !address) {
+      if (!morTokenAddress) {
+        toast.error(`MOR token contract not found on ${fromChain === "arbitrum" ? "Arbitrum One" : "Base"}. Please check your network connection.`, { duration: 8000 });
+      }
       return;
     }
 
@@ -406,11 +434,38 @@ export function BridgeFormCard({
       <CardHeader>
         <CardTitle className="text-lg font-bold">Bridge MOR Tokens</CardTitle>
         <CardDescription className="flex items-center gap-2">
-          <ArbitrumIcon size={16} className="text-gray-400" />
-          <span>Arbitrum One</span>
-          <span className="text-gray-400">→</span>
-          <BaseIcon size={16} className="text-gray-400" />
-          <span className="border-b-2 border-emerald-500 pb-0.5">Base</span>
+          {fromChain === "arbitrum" ? (
+            <>
+              <ArbitrumIcon size={16} className="text-gray-400" />
+              <span>Arbitrum One</span>
+            </>
+          ) : (
+            <>
+              <BaseIcon size={16} className="text-gray-400" />
+              <span>Base</span>
+            </>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onSwitchDirection}
+            className="h-8 w-8 p-0 hover:bg-gray-800 rounded-full"
+            aria-label="Switch bridge direction"
+          >
+            <ArrowLeftRight className="h-4 w-4 text-gray-400" />
+          </Button>
+          {toChain === "base" ? (
+            <>
+              <BaseIcon size={16} className="text-gray-400" />
+              <span className="border-b-2 border-emerald-500 pb-0.5">Base</span>
+            </>
+          ) : (
+            <>
+              <ArbitrumIcon size={16} className="text-gray-400" />
+              <span className="border-b-2 border-emerald-500 pb-0.5">Arbitrum One</span>
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-1 px-6 pb-3">
@@ -514,7 +569,19 @@ export function BridgeFormCard({
               <div className="text-sm text-gray-400">Calculating fees...</div>
             </div>
           )}
-          {expectedOutput !== null && quoteFee && !isQuoteLoading && (
+          {quoteError && bridgeAmount && parseFloat(bridgeAmount) > 0 && isRecipientValid && isCorrectNetwork && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <div className="text-sm text-red-400">
+                Failed to get bridge quote. Please check:
+                <ul className="list-disc list-inside mt-2 space-y-1 text-xs">
+                  <li>You have sufficient MOR balance on {fromChain === "arbitrum" ? "Arbitrum One" : "Base"}</li>
+                  <li>The recipient address is valid</li>
+                  <li>Bridge direction is supported</li>
+                </ul>
+              </div>
+            </div>
+          )}
+          {expectedOutput !== null && quoteFee && !isQuoteLoading && !quoteError && (
             <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">Expected Output:</span>

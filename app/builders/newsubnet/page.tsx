@@ -82,6 +82,7 @@ export default function NewSubnetPage() {
     chainId: selectedChainId,
     query: {
       enabled: !!connectedAddress && !!selectedChainId,
+      refetchInterval: false, // Disable automatic polling to reduce RPC calls
     }
   });
   const hasNoEth = balanceData && balanceData.value === BigInt(0);
