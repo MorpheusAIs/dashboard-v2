@@ -17,21 +17,30 @@ const DEBOUNCE_TIME = 2000; // 2 seconds debounce time
 // Utility function to get the current endpoint for a network
 export const getEndpointForNetwork = (network: string) => {
   // Check if we're on Base Sepolia
-  if (network.toLowerCase() === 'base_sepolia' || 
-      network.toLowerCase() === 'base sepolia' || 
+  if (network.toLowerCase() === 'base_sepolia' ||
+      network.toLowerCase() === 'base sepolia' ||
       network.toLowerCase() === 'basesepolia') {
     return GRAPHQL_ENDPOINTS.BaseSepolia;
   }
-  
+
   // Check if we're on Arbitrum Sepolia (deprecated, kept for backward compatibility)
-  if (network.toLowerCase() === 'arbitrum_sepolia' || 
-      network.toLowerCase() === 'arbitrum sepolia' || 
+  if (network.toLowerCase() === 'arbitrum_sepolia' ||
+      network.toLowerCase() === 'arbitrum sepolia' ||
       network.toLowerCase() === 'arbitrumsepolia') {
     return GRAPHQL_ENDPOINTS.ArbitrumSepolia;
   }
-  
+
+  // For mainnet networks, use Goldsky V4 endpoints (ACTIVE endpoints)
+  if (network.toLowerCase() === 'arbitrum') {
+    return GRAPHQL_ENDPOINTS.GoldskyArbitrumV4;
+  }
+
+  if (network.toLowerCase() === 'base') {
+    return GRAPHQL_ENDPOINTS.GoldskyBaseV4;
+  }
+
   // Otherwise, use the standard network endpoint if it exists
-  return GRAPHQL_ENDPOINTS[network as keyof typeof GRAPHQL_ENDPOINTS] || GRAPHQL_ENDPOINTS.Base;
+  return GRAPHQL_ENDPOINTS[network as keyof typeof GRAPHQL_ENDPOINTS] || GRAPHQL_ENDPOINTS.GoldskyBaseV4;
 };
 
 /**

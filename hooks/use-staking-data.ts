@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { fetchGraphQL, getEndpointForNetwork } from "@/app/graphql/client";
-import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry, BuildersUser, SubnetUser } from "@/app/graphql/types";
-import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
+import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry, BuildersUser, SubnetUser, BuildersProject } from "@/app/graphql/types";
+import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_BY_NAME_V1, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
 import { GET_SUBNET_USERS } from "@/app/graphql/queries/compute";
 import { useChainId } from 'wagmi';
 import { baseSepolia, base, arbitrum } from 'wagmi/chains';
@@ -95,7 +95,11 @@ export function useStakingData({
   // Auto-detect testnet if not explicitly provided
   const chainId = useChainId();
   const isTestnet = providedIsTestnet !== undefined ? providedIsTestnet : chainId === baseSepolia.id;
-  
+
+  // Determine endpoint to use
+  const endpoint = queryEndpoint || getEndpointForNetwork(network);
+  const isGoldskyEndpoint = endpoint.includes('goldsky.com');
+
   /**
    * Helper function to detect if a project is V4 (has on-chain metadata) or V1 (missing metadata)
    * V4 projects will have metadata fields populated (description, website, image, slug)
@@ -168,7 +172,6 @@ export function useStakingData({
   // Fetch project ID by name if needed
   const fetchProjectIdByName = useCallback(async (name: string): Promise<string | null> => {
     try {
-      const endpoint = getEndpointForNetwork(network);
       
       if (isComputeProject) {
         // Logic for compute project
@@ -239,22 +242,37 @@ export function useStakingData({
         return subnet.id;
       } else {
         // Logic for mainnet builders project
+        // Use V1 schema for Goldsky endpoints, V4 schema for others
+        const isGoldskyEndpoint = endpoint.includes('goldsky.com');
+        const queryToUse = isGoldskyEndpoint ? GET_BUILDERS_PROJECT_BY_NAME_V1 : GET_BUILDERS_PROJECT_BY_NAME;
+
         const response = await fetchGraphQL<BuildersGraphQLResponse>(
           endpoint,
           "getBuildersProjectsByName",
-          GET_BUILDERS_PROJECT_BY_NAME,
+          queryToUse,
           { name }
         );
-        
+
         if (response.errors && response.errors.length > 0) {
           throw new Error(response.errors[0].message);
         }
-        
-        if (!response.data?.buildersProjects?.items?.length) {
+
+        // Handle both V1 (flat array) and V4 (nested items) schema structures
+        let projects: BuildersProject[] = [];
+        if (isGoldskyEndpoint) {
+          // V1 schema: flat array
+          projects = (response.data?.buildersProjects as unknown as BuildersProject[]) || [];
+        } else {
+          // V4 schema: nested items
+          const v4Response = response.data?.buildersProjects as unknown as { items: BuildersProject[] };
+          projects = v4Response?.items || [];
+        }
+
+        if (!projects.length) {
           return null;
         }
-        
-        const project = response.data.buildersProjects.items[0];
+
+        const project = projects[0];
         // Update total items count
         if (project.totalUsers) {
           setPagination(prev => ({
@@ -331,9 +349,6 @@ export function useStakingData({
       // Calculate pagination skip
       const skip = (pagination.currentPage - 1) * pagination.pageSize;
       
-      // Get the right endpoint
-      const endpoint = queryEndpoint || getEndpointForNetwork(network);
-      
       console.log('Fetching data from endpoint:', endpoint);
       console.log('Query parameters:', {
         projectId: projectIdToUse,
@@ -348,7 +363,14 @@ export function useStakingData({
         try {
           console.log(`[useStakingData] Fetching builder project details to get total user count`);
                      // We need to make a specific query for this to work properly
-           const getProjectQuery = `
+           // Use V1 schema for Goldsky endpoints, V4 schema for others
+           const getProjectQuery = isGoldskyEndpoint ? `
+           query getBuildersProjects($id: ID!) {
+             buildersProjects(where: {id: $id}) {
+               id
+               totalUsers
+             }
+           }` : `
            query getBuildersProjects($id: ID!) {
              buildersProjects(where: {id: $id}) {
                items {
@@ -357,16 +379,27 @@ export function useStakingData({
                }
              }
            }`;
-           
+
            const builderResponse = await fetchGraphQL<BuildersGraphQLResponse>(
             endpoint,
             "getBuildersProjects",
             getProjectQuery,
             { id: projectIdToUse }
           );
-          
-          if (builderResponse.data?.buildersProjects?.items?.[0]) {
-            const totalUsers = parseInt(builderResponse.data.buildersProjects.items[0].totalUsers || '0');
+
+          // Handle both V1 (flat array) and V4 (nested items) schema structures
+          let projects: BuildersProject[] = [];
+          if (isGoldskyEndpoint) {
+            // V1 schema: flat array
+            projects = (builderResponse.data?.buildersProjects as unknown as BuildersProject[]) || [];
+          } else {
+            // V4 schema: nested items
+            const v4Response = builderResponse.data?.buildersProjects as unknown as { items: BuildersProject[] };
+            projects = v4Response?.items || [];
+          }
+
+          if (projects[0]) {
+            const totalUsers = parseInt(projects[0].totalUsers || '0');
             console.log(`[useStakingData] Found builder with totalUsers: ${totalUsers}`);
             
             // Calculate total pages

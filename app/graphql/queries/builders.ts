@@ -3,14 +3,26 @@
 export const GET_BUILDERS_PROJECT_BY_NAME = `
   query getBuildersProjectsByName($name: String!) {
     buildersProjects(where: { name: $name }) {
-      items {
-        id
-        name
-        totalStaked
-        totalUsers
-        withdrawLockPeriodAfterDeposit
-        minimalDeposit
-      }
+      id
+      name
+      totalStaked
+      totalUsers
+      withdrawLockPeriodAfterDeposit
+      minimalDeposit
+    }
+  }
+`;
+
+// V1-compatible query for Goldsky endpoints (flat array structure)
+export const GET_BUILDERS_PROJECT_BY_NAME_V1 = `
+  query getBuildersProjectsByName($name: String!) {
+    buildersProjects(where: { name: $name }) {
+      id
+      name
+      totalStaked
+      totalUsers
+      withdrawLockPeriodAfterDeposit
+      minimalDeposit
     }
   }
 `;
