@@ -1,11 +1,10 @@
 'use client'
 
 import { formatUnits } from 'viem'
-import { useAccount, useReadContract, useChainId } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
 import dynamic from 'next/dynamic'
-import { morTokenContracts } from '@/lib/contracts'
-import { testnetChains } from '@/config/networks'
+import { useMORBalances } from '@/hooks/use-mor-balances'
 
 // Dynamically import NumberFlow with SSR disabled to prevent hydration errors
 const NumberFlow = dynamic(() => import('@number-flow/react'), {
@@ -20,79 +19,47 @@ declare global {
   }
 }
 
-const MOR_ABI = [{
-  "inputs": [{"internalType": "address","name": "account","type": "address"}],
-  "name": "balanceOf",
-  "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
-  "stateMutability": "view",
-  "type": "function"
-}, {
-  "anonymous": false,
-  "inputs": [
-    {"indexed": true, "internalType": "address", "name": "from", "type": "address"},
-    {"indexed": true, "internalType": "address", "name": "to", "type": "address"},
-    {"indexed": false, "internalType": "uint256", "name": "value", "type": "uint256"}
-  ],
-  "name": "Transfer",
-  "type": "event"
-}] as const
+export function MORBalance() {
+  const { address } = useAccount()
+  const chainId = useChainId()
+  
+  // console.log('MORBalance - Connected chainId:', chainId)
+  // console.log('MORBalance - User address:', address)
+  // console.log('MORBalance - MOR contract addresses:', morTokenContracts)
 
-// Custom hook for MOR balance management
-function useMORBalances(address: `0x${string}` | undefined) {
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const { 
+    arbitrumBalance, 
+    baseBalance, 
+    arbitrumSepoliaBalance, 
+    baseSepoliaBalance,
+    refetchArbitrum,
+    refetchBase,
+    refetchSepolia,
+    refetchBaseSepolia
+  } = useMORBalances(address)
 
-  const { data: arbitrumBalance, refetch: refetchArbitrum } = useReadContract({
-    address: morTokenContracts[42161] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 42161, // Arbitrum One
-    account: address
-  })
-
-  const { data: baseBalance, refetch: refetchBase } = useReadContract({
-    address: morTokenContracts[8453] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 8453, // Base
-    account: address
-  })
-
-  // @deprecated - Arbitrum Sepolia MOR token (kept for backward compatibility)
-  const { data: arbitrumSepoliaBalance, refetch: refetchSepolia } = useReadContract({
-    address: testnetChains.arbitrumSepolia.contracts?.morToken?.address as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 421614, // Arbitrum Sepolia
-    account: address,
-    query: {
-      enabled: !!testnetChains.arbitrumSepolia.contracts?.morToken?.address
-    }
-  })
-
-  const { data: baseSepoliaBalance, refetch: refetchBaseSepolia } = useReadContract({
-    address: morTokenContracts[84532] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 84532, // Base Sepolia
-    account: address
-  })
-
-  // Function to refresh all balances
+  // Function to refresh balances based on current network
   const refreshBalances = useCallback(async () => {
-    // console.log('MORBalance - Refreshing all balances...')
-    await Promise.all([
-      refetchArbitrum(),
-      refetchBase(),
-      refetchSepolia(),
-      refetchBaseSepolia()
-    ])
-  }, [refetchArbitrum, refetchBase, refetchSepolia, refetchBaseSepolia])
+    const isTestnet = chainId === 421614 || chainId === 84532 || chainId === 11155111;
+
+    if (isTestnet) {
+      // Only refresh testnet balances
+      await Promise.all([
+        refetchSepolia(),
+        refetchBaseSepolia()
+      ]);
+    } else {
+      // Only refresh mainnet balances
+      await Promise.all([
+        refetchArbitrum(),
+        refetchBase()
+      ]);
+    }
+  }, [chainId, refetchArbitrum, refetchBase, refetchSepolia, refetchBaseSepolia])
 
   // Set up polling for balance updates instead of watching events
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  
   useEffect(() => {
     if (!address) {
       // Clear interval if no address
@@ -103,12 +70,11 @@ function useMORBalances(address: `0x${string}` | undefined) {
       return
     }
 
-    // Poll for balance updates every 15 seconds
-    // This is more reliable than event watching with RPC providers that don't support filters
+    // Poll for balance updates every 5 minutes - balances don't change frequently
+    // This is more conservative to avoid overwhelming RPC endpoints
     intervalRef.current = setInterval(() => {
-      // console.log('MORBalance - Polling for balance updates...')
       refreshBalances()
-    }, 15000) // 15 seconds
+    }, 300000) // 5 minutes (300 seconds) - significantly reduced to minimize RPC calls
 
     // Cleanup interval on unmount or address change
     return () => {
@@ -118,25 +84,6 @@ function useMORBalances(address: `0x${string}` | undefined) {
       }
     }
   }, [address, refreshBalances])
-
-  return {
-    arbitrumBalance,
-    baseBalance,
-    arbitrumSepoliaBalance,
-    baseSepoliaBalance,
-    refreshBalances
-  }
-}
-
-export function MORBalance() {
-  const { address } = useAccount()
-  const chainId = useChainId()
-  
-  // console.log('MORBalance - Connected chainId:', chainId)
-  // console.log('MORBalance - User address:', address)
-  // console.log('MORBalance - MOR contract addresses:', morTokenContracts)
-
-  const { arbitrumBalance, baseBalance, arbitrumSepoliaBalance, baseSepoliaBalance, refreshBalances } = useMORBalances(address)
   
   // console.log('MORBalance - Arbitrum One raw balance:', arbitrumBalance)
   // console.log('MORBalance - Base raw balance:', baseBalance)

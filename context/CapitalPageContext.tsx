@@ -1834,6 +1834,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
 
+          // Refresh MOR balances in navbar after stake transaction
+          if (typeof window !== 'undefined' && window.refreshMORBalances) {
+            window.refreshMORBalances();
+          }
+
           setLastHandledStakeHash(stakeHash);
           setActiveModal(null); // Close modal on success
       }
@@ -1868,6 +1873,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           // Refetch reward pool data to update reward calculations
           capitalPoolData.refetch.rewardPoolData();
+
+          // Refresh MOR balances in navbar after claim transaction
+          if (typeof window !== 'undefined' && window.refreshMORBalances) {
+            window.refreshMORBalances();
+          }
+
           setLastHandledClaimHash(claimHash);
       }
   }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
@@ -1899,6 +1910,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
+
+          // Refresh MOR balances in navbar after withdrawal transaction
+          if (typeof window !== 'undefined' && window.refreshMORBalances) {
+            window.refreshMORBalances();
+          }
 
           setLastHandledWithdrawHash(withdrawHash);
           setActiveModal(null); // Close modal on success

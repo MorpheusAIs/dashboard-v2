@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { formatUnits } from 'viem'
-import { useAccount, useReadContract, useChainId } from 'wagmi'
+import { useAccount, useChainId } from 'wagmi'
 import { ArbitrumIcon, BaseIcon } from './network-icons'
 import dynamic from 'next/dynamic'
-import { morTokenContracts } from '@/lib/contracts'
+import { useMORBalances } from '@/hooks/use-mor-balances'
 
 // Dynamically import NumberFlow with SSR disabled to prevent hydration errors
 const NumberFlow = dynamic(() => import('@number-flow/react'), {
@@ -23,50 +23,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
-
-const MOR_ABI = [{
-  "inputs": [{"internalType": "address","name": "account","type": "address"}],
-  "name": "balanceOf",
-  "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
-  "stateMutability": "view",
-  "type": "function"
-}] as const
-
-// Custom hook for MOR balance management (similar to mor-balance.tsx)
-function useMORBalances(address: `0x${string}` | undefined) {
-  const { data: arbitrumBalance } = useReadContract({
-    address: morTokenContracts[42161] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 42161, // Arbitrum One
-    account: address
-  })
-
-  const { data: baseBalance } = useReadContract({
-    address: morTokenContracts[8453] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 8453, // Base
-    account: address
-  })
-
-  const { data: arbitrumSepoliaBalance } = useReadContract({
-    address: morTokenContracts[421614] as `0x${string}`,
-    abi: MOR_ABI,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: 421614, // Arbitrum Sepolia
-    account: address
-  })
-
-  return {
-    arbitrumBalance,
-    baseBalance,
-    arbitrumSepoliaBalance
-  }
-}
 
 export function MyBalanceModal() {
   const [isOpen, setIsOpen] = useState(false)
