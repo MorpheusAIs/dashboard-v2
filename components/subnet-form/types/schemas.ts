@@ -13,7 +13,7 @@ export const REWARD_OPTIONS: Option[] = [
 ];
 
 export const FORM_STEPS = [
-  { id: 1, title: "Pool Configuration", description: "Define core pool parameters", fields: ["subnet"] as const },
+  { id: 1, title: "Configuration", description: "Define core subnet parameters", fields: ["subnet"] as const },
   { id: 2, title: "Project Metadata", description: "Add project information", fields: ["metadata"] as const },
 ];
 
