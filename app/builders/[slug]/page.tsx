@@ -295,6 +295,17 @@ export default function BuilderPage() {
     }
   }, [getParam, builder, isTestnet, chainId]);
 
+  // Normalize network names for icon display (Base Sepolia -> Base)
+  const networksForIconDisplay = useMemo(() => {
+    return networksToDisplay.map(network => {
+      // Map Base Sepolia to Base for icon display
+      if (network === 'Base Sepolia') {
+        return 'Base';
+      }
+      return network;
+    });
+  }, [networksToDisplay]);
+
   // Fetch single builder data for real-time metrics updates
   const singleBuilderProjectId = useMemo(() => {
     if (isTestnet) return null; // useSingleBuilder doesn't support testnet
@@ -1175,7 +1186,7 @@ export default function BuilderPage() {
           name={builder.name}
           description={builder.description || ""}
           imagePath={builder.image_src || ""}
-          networks={networksToDisplay}
+          networks={networksForIconDisplay}
           website={builder.website || ""}
           rewardType={builder.reward_types?.[0] || ""}
           backButton={true}

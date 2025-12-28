@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { NetworkIcon } from '@web3icons/react';
+import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 import { ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { EditSubnetModal } from "./edit-subnet-modal";
@@ -149,7 +149,11 @@ export function ProjectHeader({
           <div className="flex -space-x-1">
             {networks.map((network: string) => (
               <div key={network} className="relative">
-                <NetworkIcon name={network.toLowerCase()} size={24} />
+                {network === "Arbitrum" || network === "Arbitrum Sepolia" ? (
+                  <ArbitrumIcon size={24} className="text-current" />
+                ) : (
+                  <BaseIcon size={24} className="text-current" />
+                )}
               </div>
             ))}
           </div>
@@ -238,7 +242,11 @@ export function ProjectHeader({
             <div className="flex -space-x-1">
               {networks.map((network: string) => (
                 <div key={network} className="relative">
-                  <NetworkIcon name={network.toLowerCase()} size={24} />
+                  {network === "Arbitrum" || network === "Arbitrum Sepolia" ? (
+                    <ArbitrumIcon size={24} className="text-current" />
+                  ) : (
+                    <BaseIcon size={24} className="text-current" />
+                  )}
                 </div>
               ))}
             </div>
