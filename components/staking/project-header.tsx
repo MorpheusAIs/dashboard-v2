@@ -1,10 +1,11 @@
 import Image from "next/image";
-import { NetworkIcon } from '@web3icons/react';
+import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
 import { ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { EditSubnetModal } from "./edit-subnet-modal";
 import { Builder } from "@/app/builders/builders-data";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 // Helper function to extract domain from URL
 const extractDomain = (url: string): string => {
@@ -146,13 +147,44 @@ export function ProjectHeader({
         
         {/* Row 2: Network + Reward Type + Website */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex -space-x-1">
-            {networks.map((network: string) => (
-              <div key={network} className="relative">
-                <NetworkIcon name={network.toLowerCase()} size={24} />
-              </div>
-            ))}
-          </div>
+          <TooltipProvider>
+            <div className="flex -space-x-1">
+              {networks.map((network: string) => {
+                const isArbitrum = network === "Arbitrum" || network === "Arbitrum Sepolia";
+                const networkIcon = isArbitrum ? (
+                  <ArbitrumIcon size={24} className="text-current" />
+                ) : (
+                  <BaseIcon size={24} className="text-current" />
+                );
+                
+                // Show tooltip for testnet networks
+                if (isTestnet) {
+                  const tooltipText = `${network} testnet`;
+                  return (
+                    <Tooltip key={network}>
+                      <TooltipTrigger asChild>
+                        <div className="relative cursor-help">
+                          {networkIcon}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
+                      >
+                        <p className="text-sm font-medium">{tooltipText}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+                
+                return (
+                  <div key={network} className="relative">
+                    {networkIcon}
+                  </div>
+                );
+              })}
+            </div>
+          </TooltipProvider>
           
           {rewardType && (
             <>
@@ -235,13 +267,44 @@ export function ProjectHeader({
           </div>
           
           <div className="flex items-center gap-4 mb-4">
-            <div className="flex -space-x-1">
-              {networks.map((network: string) => (
-                <div key={network} className="relative">
-                  <NetworkIcon name={network.toLowerCase()} size={24} />
-                </div>
-              ))}
-            </div>
+            <TooltipProvider>
+              <div className="flex -space-x-1">
+                {networks.map((network: string) => {
+                  const isArbitrum = network === "Arbitrum" || network === "Arbitrum Sepolia";
+                  const networkIcon = isArbitrum ? (
+                    <ArbitrumIcon size={24} className="text-current" />
+                  ) : (
+                    <BaseIcon size={24} className="text-current" />
+                  );
+                  
+                  // Show tooltip for testnet networks
+                  if (isTestnet) {
+                    const tooltipText = `${network} testnet`;
+                    return (
+                      <Tooltip key={network}>
+                        <TooltipTrigger asChild>
+                          <div className="relative cursor-help">
+                            {networkIcon}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
+                        >
+                          <p className="text-sm font-medium">{tooltipText}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+                  
+                  return (
+                    <div key={network} className="relative">
+                      {networkIcon}
+                    </div>
+                  );
+                })}
+              </div>
+            </TooltipProvider>
             
             {rewardType && (
               <>
