@@ -27,6 +27,7 @@ import { formatNumber } from "@/lib/utils";
 import { builderNameToSlug } from "@/app/utils/supabase-utils";
 import { useUserStakedBuilders } from "@/app/hooks/useUserStakedBuilders";
 import { useUserAdminSubnets } from "@/app/hooks/useUserAdminSubnets";
+import { parseSubnetDescription } from "@/lib/utils/subnet-metadata";
 
 import { StakeModal } from "@/components/staking/stake-modal";
 
@@ -455,7 +456,7 @@ export default function BuildersPage() {
                 <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
                   <div className="space-y-2">
                     <p className="text-sm text-gray-300">
-                      {builder.description || "No description available."}
+                      {parseSubnetDescription(builder.description ?? undefined).description || "No description available."}
                     </p>
                     {builder.website && (
                       <div className="flex items-center pt-2">
@@ -985,7 +986,7 @@ export default function BuildersPage() {
                 <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
                   <div className="space-y-2">
                     <p className="text-sm text-gray-300">
-                      {builder.description || "No description available."}
+                      {parseSubnetDescription(builder.description ?? undefined).description || "No description available."}
                     </p>
                     {builder.website && (
                       <div className="flex items-center pt-2">
