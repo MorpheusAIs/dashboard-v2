@@ -109,41 +109,74 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
   return (
     <fieldset disabled={isSubmitting} className="space-y-6 p-6 border border-gray-100/30 rounded-lg">
       <legend className="text-xl font-semibold text-gray-100 mb-4 px-1">
-        Pool Configuration
+        Configuration
       </legend>
 
-      {/* Name */}
-      <FormField
-        control={form.control}
-        name="subnet.name"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel htmlFor="subnet.name">Subnet Name</FormLabel>
-            <FormControl>
-              <Input 
-                id="subnet.name" 
-                placeholder="Unique name (cannot be changed)" 
-                {...field} 
-                className={subnetNameError ? "border-red-500" : undefined}
-                onChange={(e) => {
-                  field.onChange(e);
-                  validateSubnetName(e.target.value);
-                }}
-                onBlur={(e) => {
-                  field.onBlur();
-                  validateSubnetName(e.target.value);
-                }}
-              />
-            </FormControl>
-            {subnetNameError && (
-              <FormDescription className="text-red-500">
-                {subnetNameError}
-              </FormDescription>
+      {/* Name and Type */}
+      <div className="flex gap-4">
+        <div className="flex-1 min-w-0">
+          <FormField
+            control={form.control}
+            name="subnet.name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="subnet.name">Subnet Name</FormLabel>
+                <FormControl>
+                  <Input
+                    id="subnet.name"
+                    placeholder="Unique name (cannot be changed)"
+                    {...field}
+                    className={subnetNameError ? "border-red-500" : undefined}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      validateSubnetName(e.target.value);
+                    }}
+                    onBlur={(e) => {
+                      field.onBlur();
+                      validateSubnetName(e.target.value);
+                    }}
+                  />
+                </FormControl>
+                {subnetNameError && (
+                  <FormDescription className="text-red-500">
+                    {subnetNameError}
+                  </FormDescription>
+                )}
+                <FormMessage />
+              </FormItem>
             )}
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+          />
+        </div>
+        <div className="w-1/3">
+          <FormField
+            control={form.control}
+            name="subnet.type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="subnet.type">Type</FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={isSubmitting}
+                >
+                  <FormControl>
+                    <SelectTrigger id="subnet.type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="App">App</SelectItem>
+                    <SelectItem value="Agent">Agent</SelectItem>
+                    <SelectItem value="MCP server">MCP server</SelectItem>
+                    <SelectItem value="API">API</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
 
       {/* Network */}
       <FormField

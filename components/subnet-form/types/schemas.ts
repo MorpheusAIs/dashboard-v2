@@ -13,7 +13,7 @@ export const REWARD_OPTIONS: Option[] = [
 ];
 
 export const FORM_STEPS = [
-  { id: 1, title: "Pool Configuration", description: "Define core pool parameters", fields: ["subnet"] as const },
+  { id: 1, title: "Configuration", description: "Define core parameters", fields: ["subnet"] as const },
   { id: 2, title: "Project Metadata", description: "Add project information", fields: ["metadata"] as const },
 ];
 
@@ -45,14 +45,26 @@ export const metadataContractSchema = z.object({
       .min(3, "Slug must be at least 3 characters")
       .max(120, "Slug must be 120 characters or less")
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens")
-  ]).optional(), 
+  ]).optional(),
   description: z.string()
-    .min(60, "Description must be at least 60 characters")
-    .max(800, "Description must be 800 characters or less"),
+    .min(1, "Description is required")
+    .max(3000, "Description must be 3000 characters or less"),
   website: z.string()
     .min(1, "Project URL is required")
     .url("Please enter a valid URL"),
   image: z.union([z.literal(''), z.string().url("Please enter a valid URL for the logo")]).optional(),
+  extended: z.object({
+    description: z.string().optional(),
+    author: z.string().optional(),
+    xUrl: z.string().url().optional().or(z.literal('')),
+    githubUrl: z.string().url().optional().or(z.literal('')),
+    type: z.string().optional(),
+    inputType: z.string().optional(),
+    outputType: z.string().optional(),
+    docsUrl: z.string().url().optional().or(z.literal('')),
+    skills: z.array(z.string()).optional(),
+    category: z.string().optional(),
+  }).optional(),
 });
 
 // Step 2: Project Off-Chain Schema
@@ -93,6 +105,7 @@ export const projectOffChainSchema = z.object({
 export const formSchema = z.object({
   subnet: z.object({
     name: z.string().min(1, "Subnet name is required."),
+    type: z.enum(["App", "Agent", "MCP server", "API"]).default("App"),
     networkChainId: z.number(),
     minStake: z.number().min(0, "Minimum stake must be non-negative."),
     withdrawLockPeriod: z.number().min(7, "Withdraw lock period must be at least 7 days."),
@@ -112,7 +125,7 @@ export const formSchema = z.object({
 }).superRefine((data, ctx) => {
   // V4 contracts: Both Base and Base Sepolia use subnet.name and subnet.minStake
   // No longer support Arbitrum mainnet - only Base and Base Sepolia with v4 contracts
-  
+
   // Cross-field validation for withdrawLockPeriod on v4 networks
   // Apply 7 day minimum for both Base mainnet and Base Sepolia testnet
   if (data.subnet.networkChainId === base.id || data.subnet.networkChainId === baseSepolia.id) {
@@ -126,6 +139,22 @@ export const formSchema = z.object({
         code: z.ZodIssueCode.custom,
       });
     }
+  }
+
+  // Conditional validation for description based on subnet type
+  if (data.subnet.type === "App") {
+    // For App type, description should be a regular text description
+    if (!data.metadata.description || data.metadata.description.length < 60) {
+      ctx.addIssue({
+        path: ["metadata", "description"],
+        message: "Description must be at least 60 characters for App type.",
+        code: z.ZodIssueCode.custom,
+      });
+    }
+  } else {
+    // For non-App types, description can be JSON or regular text
+    // The length check is already handled by the base schema (min 1, max 2000)
+    // We can add additional validation here if needed
   }
 
   // V4 networks (Base and Base Sepolia) use subnet.name and subnet.minStake
