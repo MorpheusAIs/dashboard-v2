@@ -31,7 +31,7 @@ const navigation = [
     icon: Users,
   },
   {
-    title: "Bridge MOR",
+    title: "Bridge",
     url: "/bridge-mor",
     icon: ArrowLeftRight,
   },
