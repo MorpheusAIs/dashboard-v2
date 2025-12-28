@@ -28,16 +28,119 @@ import { useStakingContractInteractions, type UseStakingContractInteractionsProp
 import { formatEther, type Address, parseUnits } from "viem";
 import { testnetChains, mainnetChains } from '@/config/networks';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUrlParams } from '@/lib/utils/url-params';
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSingleBuilder } from "@/app/hooks/useSingleBuilder";
 import { useQueryClient } from "@tanstack/react-query";
+import { parseSubnetDescription, type SubnetMetadata } from "@/lib/utils/subnet-metadata";
 
 // Type for user in formatStakingEntry
 type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
+
+// Metadata Info Component
+function MetadataInfoSection({ metadata, metadataType }: { metadata: SubnetMetadata; metadataType: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="relative">
+      <Card className="card-minimal group relative overflow-hidden">
+        <CardHeader 
+          className={`cursor-pointer justify-between w-full ${!isExpanded ? 'mb-2' : ''}`}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <CardTitle className="text-lg font-bold">{metadataType} Info</CardTitle>
+          <ChevronDown 
+            className={`h-5 w-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${
+              isExpanded ? 'rotate-180' : ''
+            }`}
+          />
+        </CardHeader>
+        {isExpanded && (
+          <CardContent className="space-y-4 pb-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Column 1: Author (with Input/Output Type below) */}
+              <div>
+                {metadata.author && (
+                  <div>
+                    <dt className="text-sm font-medium text-gray-400 mb-1">Author</dt>
+                    <dd className="text-sm text-gray-200">{metadata.author}</dd>
+                  </div>
+                )}
+                {/* Input/Output Type directly below Author */}
+                {(metadata.inputType || metadata.outputType) && (
+                  <div className={metadata.author ? "mt-3" : ""}>
+                    <dt className="text-sm font-medium text-gray-400 mb-1">Input / Output Type</dt>
+                    <dd className="text-sm text-gray-200">
+                      {metadata.inputType && metadata.outputType 
+                        ? `${metadata.inputType} / ${metadata.outputType}`
+                        : metadata.inputType || metadata.outputType
+                      }
+                    </dd>
+                  </div>
+                )}
+              </div>
+              
+              {/* Column 2: Endpoint URL (with skills below) */}
+              {metadata.endpointUrl && (
+                <div>
+                  <dt className="text-sm font-medium text-gray-400 mb-1">Endpoint URL</dt>
+                  <dd className="text-sm text-gray-200 break-all">
+                    <a 
+                      href={metadata.endpointUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-emerald-400 hover:text-emerald-300 transition-colors underline"
+                    >
+                      {metadata.endpointUrl}
+                    </a>
+                  </dd>
+                  {/* Skills section right under endpoint URL */}
+                  {metadata.skills && metadata.skills.length > 0 && (
+                    <div className="mt-3">
+                      <dt className="text-sm font-medium text-gray-400 mb-1">Skills</dt>
+                      <dd className="text-sm text-gray-200">
+                        <div className="flex flex-wrap gap-2">
+                          {metadata.skills.map((skill, index) => (
+                            <span 
+                              key={index}
+                              className="px-2 py-1 bg-emerald-900/30 text-emerald-400 rounded-full text-xs"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </dd>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Column 3: Category */}
+              {metadata.category && (
+                <div>
+                  <dt className="text-sm font-medium text-gray-400 mb-1">Category</dt>
+                  <dd className="text-sm text-gray-200">{metadata.category}</dd>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+      <GlowingEffect
+        spread={40}
+        glow={true}
+        disabled={false}
+        proximity={64}
+        inactiveZone={0.01}
+        borderWidth={2}
+        borderRadius="rounded-xl"
+      />
+    </div>
+  );
+}
 
 // Function to format a timestamp to date
 const formatDate = (timestamp: number): string => {
@@ -1173,7 +1276,7 @@ export default function BuilderPage() {
         {/* Builder Header */}
         <ProjectHeader
           name={builder.name}
-          description={builder.description || ""}
+          description={parseSubnetDescription(builder.description || undefined).description || ""}
           imagePath={builder.image_src || ""}
           networks={networksToDisplay}
           website={builder.website || ""}
@@ -1185,6 +1288,20 @@ export default function BuilderPage() {
           subnetId={subnetId || null}
           isTestnet={isTestnet}
         />
+
+        {/* Metadata Section for API/Agent/MCP Subnets */}
+        {(() => {
+          const parsedDesc = parseSubnetDescription(builder.description || undefined);
+          if (parsedDesc.isStructured && parsedDesc.metadata) {
+            const { metadata } = parsedDesc;
+            const metadataType = metadata.type || 'Subnet';
+            
+            return (
+              <MetadataInfoSection metadata={metadata} metadataType={metadataType} />
+            );
+          }
+          return null;
+        })()}
 
         {/* Staking Stats */}
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4`}>
