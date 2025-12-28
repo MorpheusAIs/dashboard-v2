@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { useNetwork } from "@/context/network-context";
 import { base, baseSepolia } from 'wagmi/chains'; // Import chains
+import { useQueryClient } from '@tanstack/react-query';
 
 // Import the ABIs
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
@@ -23,7 +24,7 @@ export interface UseSubnetContractInteractionsProps {
   onTxSuccess?: () => void;
 }
 
-export const useSubnetContractInteractions = ({ 
+export const useSubnetContractInteractions = ({
   selectedChainId,
   onTxSuccess
 }: UseSubnetContractInteractionsProps) => {
@@ -35,12 +36,14 @@ export const useSubnetContractInteractions = ({
   const [allowance, setAllowance] = useState<bigint | undefined>(undefined);
   const [needsApproval, setNeedsApproval] = useState<boolean>(false);
   const [isLoadingFeeData, setIsLoadingFeeData] = useState<boolean>(true);
+  const [justApproved, setJustApproved] = useState<boolean>(false);
 
   // Hooks
   const { address: connectedAddress } = useAccount();
   const walletChainId = useChainId();
   const { switchToChain } = useNetwork();
   const { addNewlyCreatedSubnet } = useNewlyCreatedSubnets();
+  const queryClient = useQueryClient();
 
   // Helper Functions
   const isCorrectNetwork = useCallback(() => {
@@ -123,6 +126,10 @@ export const useSubnetContractInteractions = ({
     chainId: selectedChainId,
     query: {
        enabled: isCorrectNetwork() && !!tokenAddress && !!connectedAddress && !!builderContractAddress,
+       // Add cache time and stale time to ensure fresh data
+       gcTime: 0, // Don't cache
+       staleTime: 0, // Always consider stale
+       refetchInterval: false, // Disable automatic refetch
     }
   });
 
@@ -275,31 +282,54 @@ export const useSubnetContractInteractions = ({
   // Determine if approval is needed based on fee and allowance
   useEffect(() => {
     const checkNeedsApproval = () => {
+      // If we just approved, don't require approval for a short time
+      if (justApproved) {
+        console.log("Just approved - temporarily not requiring approval");
+        return false;
+      }
+
       // If creation fee is 0 (mainnet), no approval needed
       if (!creationFee || creationFee === BigInt(0)) {
         console.log("No approval needed - creation fee is 0 (likely mainnet)");
         return false;
       }
-      
+
       const effectiveAllowance = allowance || BigInt(0);
       const needsApproval = effectiveAllowance < creationFee;
-      
+
       console.log("Checking approval needs:", {
         creationFee: creationFee.toString(),
         effectiveAllowance: effectiveAllowance.toString(),
-        needsApproval
+        needsApproval,
+        allowanceExists: !!allowance,
+        allowanceValue: allowance?.toString(),
+        justApproved
       });
-      
+
       return needsApproval;
     };
-    
-    setNeedsApproval(checkNeedsApproval());
-  }, [creationFee, allowance]);
+
+    const newNeedsApproval = checkNeedsApproval();
+    console.log("Setting needsApproval to:", newNeedsApproval);
+    setNeedsApproval(newNeedsApproval);
+  }, [creationFee, allowance, justApproved]);
+
+  // Clear the justApproved flag after allowance should have updated
+  useEffect(() => {
+    if (justApproved) {
+      const timer = setTimeout(() => {
+        console.log("[Approval] Clearing justApproved flag");
+        setJustApproved(false);
+      }, 5000); // Clear after 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [justApproved]);
 
   // Refetch allowance when key dependencies change
   useEffect(() => {
     if (isCorrectNetwork() && tokenAddress && connectedAddress && builderContractAddress) {
-      console.log("Refetching allowance...");
+      console.log("Refetching allowance due to dependency change...");
       refetchAllowance();
     }
   }, [
@@ -311,15 +341,52 @@ export const useSubnetContractInteractions = ({
     selectedChainId
   ]);
 
+  // Additional refetch after approval success
+  useEffect(() => {
+    if (isApproveTxSuccess) {
+      console.log("Refetching allowance after approval success...");
+      // Add multiple refetches with delays to ensure it updates
+      refetchAllowance();
+
+      setTimeout(() => {
+        console.log("Refetching allowance again after 1s...");
+        refetchAllowance();
+      }, 1000);
+
+      setTimeout(() => {
+        console.log("Refetching allowance again after 3s...");
+        refetchAllowance();
+      }, 3000);
+    }
+  }, [isApproveTxSuccess, refetchAllowance]);
+
   // Handle Approval Transaction Notifications
   useEffect(() => {
     if (isApprovePending && !isApproveTxSuccess && !approveError) {
       showEnhancedLoadingToast("Confirm approval in wallet...", "approval-tx");
     }
     if (isApproveTxSuccess) {
+      console.log("[Approval] Approval transaction successful, invalidating allowance query...");
       toast.dismiss("approval-tx");
       toast.success("Approval successful!", { id: "approval-tx" });
+
+      // Set flag to indicate approval just completed
+      setJustApproved(true);
+
+      // Invalidate and refetch allowance query
+      queryClient.invalidateQueries({
+        queryKey: ['readContract', {
+          address: tokenAddress || FALLBACK_TOKEN_ADDRESS,
+          abi: ERC20Abi,
+          functionName: 'allowance',
+          args: [connectedAddress!, builderContractAddress!],
+          chainId: selectedChainId,
+        }]
+      });
+
+      // Also try the manual refetch
       refetchAllowance();
+
       resetApproveContract();
     }
     if (approveError) {
@@ -331,7 +398,7 @@ export const useSubnetContractInteractions = ({
       toast.error("Approval Failed", { id: "approval-tx", description: displayError });
       resetApproveContract();
     }
-  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance, showEnhancedLoadingToast]);
+  }, [isApprovePending, isApproveTxSuccess, approveError, resetApproveContract, refetchAllowance, showEnhancedLoadingToast, allowance, creationFee, needsApproval]);
 
   // Handle Subnet Creation Transaction Notifications
   useEffect(() => {
@@ -742,6 +809,7 @@ export const useSubnetContractInteractions = ({
     isCreating,
     isAnyTxPending,
     isSubmitting,
+    justApproved,
     // Format helpers
     formatCreationFee,
     getNetworkName,
