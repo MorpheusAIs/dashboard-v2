@@ -60,7 +60,7 @@ function MetadataInfoSection({ metadata, metadataType }: { metadata: SubnetMetad
         </CardHeader>
         {isExpanded && (
           <CardContent className="space-y-4 pb-2">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr] gap-x-6 gap-y-4">
               {/* Column 1: Author (with Input/Output Type below) */}
               <div>
                 {metadata.author && (
