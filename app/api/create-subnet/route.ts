@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { baseSepolia } from 'wagmi/chains';
-import { parseEther, encodeFunctionData } from 'viem';
+import { parseEther, encodeFunctionData, createPublicClient, http } from 'viem';
 
 // Import the BuildersV4 ABI
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
@@ -285,9 +285,43 @@ export async function POST(request: NextRequest) {
       value: '0x0',
     };
 
-    // For Base Sepolia, there's a creation fee that needs to be paid in MOR tokens
-    // The fee amount needs to be checked from the contract, but for simplicity we'll use a known value
-    const creationFee = parseEther('0.1'); // 0.1 MOR tokens
+    // Query the actual creation fee from the BuildersV4 contract
+    const INFURA_API_KEY = process.env.NEXT_PUBLIC_INFURA_API_KEY;
+    const rpcUrl = `https://base-sepolia.infura.io/v3/${INFURA_API_KEY}`;
+    
+    const publicClient = createPublicClient({
+      chain: baseSepolia,
+      transport: http(rpcUrl),
+    });
+
+    let creationFee: bigint;
+    try {
+      creationFee = await publicClient.readContract({
+        address: buildersContractAddress as `0x${string}`,
+        abi: BuildersV4Abi,
+        functionName: 'subnetCreationFeeAmount',
+      }) as bigint;
+      
+      console.log('[SubnetCreation API] Queried creation fee from contract:', creationFee.toString());
+    } catch (error) {
+      console.error('[SubnetCreation API] Failed to query creation fee from contract:', error);
+      const serializeWithBigInt = (obj: unknown): string => {
+        return JSON.stringify(obj, (key, value) =>
+          typeof value === 'bigint' ? value.toString() : value
+        );
+      };
+      return new NextResponse(serializeWithBigInt({ 
+        error: 'Failed to query subnet creation fee from contract. Please try again.' 
+      }), {
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Content-Type': 'application/json',
+        },
+      });
+    }
 
     // Custom JSON serializer that handles BigInt values
     const serializeWithBigInt = (obj: unknown): string => {
@@ -319,7 +353,7 @@ export async function POST(request: NextRequest) {
       },
       instructions: [
         '1. Ensure user is connected to Base Sepolia network',
-        '2. User must approve MOR token spending (0.1 MOR) to the Builders contract',
+        `2. User must approve MOR token spending (${creationFee.toString()} wei) to the Builders contract`,
         '3. User signs and submits the createSubnet transaction',
         '4. Wait for transaction confirmation'
       ]

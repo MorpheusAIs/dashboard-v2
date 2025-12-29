@@ -45,8 +45,10 @@ The API returns standard HTTP status codes:
 - **Network**: Base Sepolia (chain ID: 84532)
 - **Contract**: BuildersV4 at `0x6C3401D71CEd4b4fEFD1033EA5F83e9B3E7e4381`
 - **Function**: `createSubnet(subnet, metadata)`
-- **Fee**: 0.1 MOR tokens (paid via token approval)
+- **Fee**: Dynamically queried from contract via `subnetCreationFeeAmount()` (paid via token approval)
 - **Token**: MOR at `0x5c80ddd187054e1e4abbffcd750498e81d34ffa3`
+
+> **Note**: The API automatically queries the current creation fee from the BuildersV4 contract. External applications should use the `requirements.tokenApproval.amount` value from the API response rather than hardcoding any fee amount.
 
 ## Flow for External Apps
 
