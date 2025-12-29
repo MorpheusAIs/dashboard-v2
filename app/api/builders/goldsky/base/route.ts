@@ -82,7 +82,7 @@ export async function GET() {
       {
         status: 200,
         headers: {
-          'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
           'Content-Type': 'application/json',
         },
       }
