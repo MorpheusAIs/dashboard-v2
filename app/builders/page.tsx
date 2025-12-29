@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { cn, parseBuilderDescription } from "@/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
@@ -455,7 +455,7 @@ export default function BuildersPage() {
                 <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
                   <div className="space-y-2">
                     <p className="text-sm text-gray-300">
-                      {builder.description || "No description available."}
+                      {parseBuilderDescription(builder.description) || "No description available."}
                     </p>
                     {builder.website && (
                       <div className="flex items-center pt-2">
@@ -646,9 +646,9 @@ export default function BuildersPage() {
         header: "Description",
         accessorKey: "description",
         cell: (subnet) => { // Use description from Builder
-          const description = subnet.description || '';
-          const truncatedDescription = description.length > 80 
-            ? description.substring(0, 80) + '...' 
+          const description = parseBuilderDescription(subnet.description);
+          const truncatedDescription = description.length > 80
+            ? description.substring(0, 80) + '...'
             : description;
           
           return (
@@ -985,7 +985,7 @@ export default function BuildersPage() {
                 <HoverCardContent className="w-80 bg-background/95 backdrop-blur-sm border-gray-800">
                   <div className="space-y-2">
                     <p className="text-sm text-gray-300">
-                      {builder.description || "No description available."}
+                      {parseBuilderDescription(builder.description) || "No description available."}
                     </p>
                     {builder.website && (
                       <div className="flex items-center pt-2">

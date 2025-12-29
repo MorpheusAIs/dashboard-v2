@@ -35,6 +35,7 @@ import { NetworkSwitchNotification } from "@/components/network-switch-notificat
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSingleBuilder } from "@/app/hooks/useSingleBuilder";
 import { useQueryClient } from "@tanstack/react-query";
+import { parseBuilderDescription } from "@/lib/utils";
 
 // Type for user in formatStakingEntry
 type StakingUser = BuildersUser | StakingBuilderSubnetUser | SubnetUser;
@@ -1184,7 +1185,7 @@ export default function BuilderPage() {
         {/* Builder Header */}
         <ProjectHeader
           name={builder.name}
-          description={builder.description || ""}
+          description={parseBuilderDescription(builder.description)}
           imagePath={builder.image_src || ""}
           networks={networksForIconDisplay}
           website={builder.website || ""}
