@@ -46,6 +46,7 @@ export async function GET() {
       body: JSON.stringify({
         query,
       }),
+      cache: 'no-store', // Disable Next.js fetch caching to always get fresh data
     });
 
     if (!response.ok) {

@@ -67,6 +67,7 @@ export async function GET(
           projectId: projectId,
         },
       }),
+      cache: 'no-store', // Disable Next.js fetch caching to always get fresh data
     });
 
     if (!response.ok) {
