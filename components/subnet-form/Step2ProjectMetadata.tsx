@@ -187,7 +187,7 @@ export const Step2ProjectMetadata: React.FC<Step2ProjectMetadataProps> = ({ isSu
         clearTimeout(combineMetadataTimeoutRef.current);
       }
     };
-  }, [showMetadataSection, form]);
+  }, [showMetadataSection, form, selectedType]);
 
   // Function to validate image URL
   const validateImageUrl = (url: string) => {
