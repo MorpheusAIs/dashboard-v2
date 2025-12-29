@@ -119,7 +119,7 @@ export function DataFilters({
                     <SelectValue placeholder={selectFilterPlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All {selectFilterLabel.toLowerCase()}s</SelectItem>
+                    <SelectItem value="all">All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}</SelectItem>
                     {selectFilterOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
@@ -235,7 +235,7 @@ export function DataFilters({
                   <SelectValue placeholder={selectFilterPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All {selectFilterLabel.toLowerCase()}s</SelectItem>
+                  <SelectItem value="all">All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}</SelectItem>
                   {selectFilterOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -349,7 +349,7 @@ export function DataFilters({
                 <SelectValue placeholder={selectFilterPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All {selectFilterLabel.toLowerCase()}s</SelectItem>
+                <SelectItem value="all">All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}</SelectItem>
                 {selectFilterOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
