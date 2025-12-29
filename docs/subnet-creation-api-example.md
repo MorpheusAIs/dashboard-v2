@@ -31,6 +31,35 @@ The API includes CORS headers to allow cross-origin requests:
 
 This enables external applications running on different ports/origins to call the API without CORS errors.
 
+## Dynamic Fee Handling
+
+**Important Update**: The API now dynamically queries the subnet creation fee from the BuildersV4 contract instead of using a hardcoded value. This ensures your frontend always uses the correct fee amount, even if it changes on-chain.
+
+### What This Means for External Frontends
+
+**No changes required** - Your frontend should already be using the `requirements.tokenApproval.amount` value from the API response. The implementation is:
+
+```javascript
+// ✅ CORRECT: Use the amount from the API response
+const { requirements } = await response.json();
+const feeAmount = requirements.tokenApproval.amount;
+
+// Approve this exact amount
+await approveToken(
+  requirements.tokenApproval.tokenAddress,
+  requirements.tokenApproval.spenderAddress,
+  feeAmount  // Use the dynamic value
+);
+```
+
+**Do NOT hardcode the fee**:
+```javascript
+// ❌ WRONG: Never hardcode the fee amount
+const feeAmount = "100000000000000000"; // Don't do this!
+```
+
+The API response will always contain the current on-chain fee in the `requirements.tokenApproval.amount` field.
+
 ## Data Serialization
 
 The API automatically handles BigInt serialization for blockchain data:
@@ -159,7 +188,7 @@ interface CreateSubnetResponse {
     tokenApproval: {
       tokenAddress: string;     // MOR token address
       spenderAddress: string;   // Builders contract address
-      amount: string;           // Fee amount in wei (0.1 MOR)
+      amount: string;           // Fee amount in wei (dynamically queried from contract)
     };
     gasEstimate: string;        // Suggested gas limit
   };
@@ -244,9 +273,11 @@ However, EIP-681 cannot handle complex struct parameters, so it's not recommende
 1. **Network**: User must be on Base Sepolia (chain ID 84532)
 2. **Token Approval**: MOR token approval is required before creating subnet
 3. **Gas**: Transaction requires ~1M gas units
-4. **Fee**: 0.1 MOR tokens on Base Sepolia (0 on Base mainnet)
+4. **Fee**: Dynamically queried from the BuildersV4 contract (use `requirements.tokenApproval.amount` from API response)
 5. **Validation**: All inputs are validated server-side
 6. **Error Handling**: Check response status and handle validation errors
+
+> **Important**: Always use the `requirements.tokenApproval.amount` value returned by the API for token approval. Do NOT hardcode fee amounts as they may change in the contract.
 
 ## Error Responses
 
