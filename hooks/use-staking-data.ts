@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { fetchGraphQL, getEndpointForNetwork } from "@/app/graphql/client";
 import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry, BuildersUser, SubnetUser, BuildersProject } from "@/app/graphql/types";
 import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_BY_NAME_V1, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
@@ -525,9 +525,20 @@ export function useStakingData({
           console.log(`[useStakingData] Using BuildersV4 schema queries for chainId: ${chainId} (will detect V1 vs V4 after fetching project data)`);
           
           // Check if we should use Goldsky API routes
-          const networkName = chainId === base.id ? 'base' : chainId === arbitrum.id ? 'arbitrum' : 'base';
-          
-          if (USE_GOLDSKY_V1_DATA && (chainId === base.id || chainId === arbitrum.id)) {
+          // IMPORTANT: Use the builder's network (from props), NOT the user's wallet chainId
+          // This ensures we query the correct subgraph even if user's wallet is on a different network
+          const networkName = network?.toLowerCase() === 'arbitrum' ? 'arbitrum' :
+                             network?.toLowerCase() === 'base' ? 'base' :
+                             chainId === base.id ? 'base' :
+                             chainId === arbitrum.id ? 'arbitrum' : 'base';
+
+          console.log(`[useStakingData] Network determination: prop="${network}", chainId=${chainId}, resolved="${networkName}"`);
+
+          // Allow Goldsky API routes for mainnet networks (Base or Arbitrum)
+          // Use the resolved network from props, not just chainId, to support cross-network viewing
+          const isMainnetNetwork = networkName === 'base' || networkName === 'arbitrum';
+
+          if (USE_GOLDSKY_V1_DATA && isMainnetNetwork) {
             // Use Goldsky API routes for mainnet
             console.log(`[useStakingData] Using Goldsky API routes for projectId: ${projectIdToUse}`);
             
@@ -1128,6 +1139,31 @@ export function useStakingData({
       console.log('[useStakingData] projectIdEffect: projectId prop (', projectId, ') is either undefined or already matches internal id (', id, '). No primary state update in this effect.');
     }
   }, [projectId]); // Only depends on projectId prop to react to its changes
+
+  // useEffect to handle network changes - refetch data when network prop changes
+  // This is important because the same projectId might exist on different networks
+  // and we need to query the correct subgraph
+  const prevNetworkRef = useRef<string | undefined>(network);
+  useEffect(() => {
+    // Only refetch if network actually changed (not on initial mount)
+    const prevNetwork = prevNetworkRef.current;
+    prevNetworkRef.current = network;
+
+    if (id && network && prevNetwork && prevNetwork !== network) {
+      console.log(`[useStakingData] Network changed from "${prevNetwork}" to "${network}". Clearing cache and refetching for id: ${id}`);
+      setCachedPages({});
+      setPagination(prev => ({
+        ...prev,
+        currentPage: 1,
+        totalItems: 0,
+        totalPages: 1
+      }));
+      setError(null);
+      setIsLoading(true);
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [network]); // Only trigger on network changes, fetchData is intentionally excluded
 
   // Sorting handler
   const setSort = useCallback((column: string) => {
