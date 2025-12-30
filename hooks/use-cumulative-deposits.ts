@@ -83,7 +83,13 @@ export function useCumulativeDeposits() {
 
         const result = await response.json();
 
-        if (result.success && Array.isArray(result.data)) {
+        // Check if API returned an error (success: false)
+        if (!result.success) {
+          console.warn('⚠️  Dune API returned error:', result.error);
+          throw new Error(result.error || 'Dune API error - cumulative deposits data unavailable');
+        }
+
+        if (Array.isArray(result.data) && result.data.length > 0) {
           // Transform the data to match our expected format
           const transformedData = result.data.map((item: { date: string; cumulativeDeposit: string | number }) => ({
             date: item.date,
@@ -96,7 +102,8 @@ export function useCumulativeDeposits() {
           // Cache the data
           setCachedCumulativeDeposits(transformedData);
         } else {
-          throw new Error(result.error || 'Invalid data format received from API');
+          console.warn('⚠️  Dune API returned empty data array');
+          throw new Error('No cumulative deposits data available');
         }
       } catch (error) {
         console.error('Failed to fetch cumulative deposits data:', error);
