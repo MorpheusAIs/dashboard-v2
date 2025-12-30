@@ -386,8 +386,13 @@ export function ChartSection({ isMorlordData = true, chartType = 'cumulative', m
                   )}
                   {((chartType === 'deposits' && (chartError || metricsError || morlordError)) ||
                     (chartType === 'cumulative' && (cumulativeDepositsError || metricsError || morlordError))) && (
-                    <div className="flex justify-center items-center h-full text-red-500">
-                      <p>{chartType === 'deposits' ? (chartError || metricsError || morlordError) : (cumulativeDepositsError || metricsError || morlordError)}</p>
+                    <div className="flex flex-col justify-center items-center h-full text-amber-500/80">
+                      <p className="text-lg font-medium mb-2">Chart data temporarily unavailable</p>
+                      <p className="text-sm text-gray-400">
+                        {chartType === 'cumulative' && cumulativeDepositsError
+                          ? 'Historical cumulative deposits data is being updated. Please try again later.'
+                          : 'Please try again later or refresh the page.'}
+                      </p>
                     </div>
                   )}
                   {((chartType === 'deposits' && !chartLoading && !metricsLoading && !(isMorlordData && morlordLoading) && !chartError && !metricsError && !morlordError) ||

@@ -79,6 +79,8 @@ export async function GET(_request: NextRequest) {
     console.error('  - Error stack:', error instanceof Error ? error.stack : 'No stack available');
     console.error('  - Full error object:', JSON.stringify(error, null, 2));
 
+    // Return 200 with empty data for graceful degradation
+    // This allows the capital page to load without cumulative deposits chart
     const errorResponse = {
       success: false,
       data: [],
@@ -90,7 +92,7 @@ export async function GET(_request: NextRequest) {
       }
     };
 
-    console.log('💥 [DUNE API CUMULATIVE DEPOSITS] Sending error response:', JSON.stringify(errorResponse, null, 2));
-    return NextResponse.json(errorResponse, { status: 500 });
+    console.log('⚠️  [DUNE API CUMULATIVE DEPOSITS] Returning graceful error response (200) to allow page to load');
+    return NextResponse.json(errorResponse, { status: 200 });
   }
 }
