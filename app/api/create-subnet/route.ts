@@ -112,6 +112,28 @@ export async function GET() {
           type: 'string',
           category: 'string',
         }
+      },
+      // Example request structure for API consumers
+      exampleRequest: {
+        name: "My Subnet",
+        minStake: 10,
+        withdrawLockPeriod: 7,
+        claimAdmin: "0x1234567890123456789012345678901234567890",
+        description: "A description of my subnet",
+        website: "https://example.com",
+        adminAddress: "0x1234567890123456789012345678901234567890",
+        image: "https://example.com/logo.png",
+        slug: "my-subnet",
+        metadata_: {
+          description: "Extended description",
+          endpointUrl: "https://api.example.com",
+          author: "Author Name",
+          inputType: "text",
+          outputType: "text",
+          skills: ["image2text", "research", "chat"],
+          type: "Agent",
+          category: "AI"
+        }
       }
     };
 

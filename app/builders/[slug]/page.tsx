@@ -83,40 +83,42 @@ function MetadataInfoSection({ metadata, metadataType }: { metadata: SubnetMetad
                 )}
               </div>
               
-              {/* Column 2: Endpoint URL (with skills below) */}
-              {metadata.endpointUrl && (
-                <div>
-                  <dt className="text-sm font-medium text-gray-400 mb-1">Endpoint URL</dt>
-                  <dd className="text-sm text-gray-200 break-all">
-                    <a 
-                      href={metadata.endpointUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-emerald-400 hover:text-emerald-300 transition-colors underline"
-                    >
-                      {metadata.endpointUrl}
-                    </a>
-                  </dd>
-                  {/* Skills section right under endpoint URL */}
-                  {metadata.skills && metadata.skills.length > 0 && (
-                    <div className="mt-3">
-                      <dt className="text-sm font-medium text-gray-400 mb-1">Skills</dt>
-                      <dd className="text-sm text-gray-200">
-                        <div className="flex flex-wrap gap-2">
-                          {metadata.skills.map((skill, index) => (
-                            <span 
-                              key={index}
-                              className="px-2 py-1 bg-emerald-900/30 text-emerald-400 rounded-full text-xs"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      </dd>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Column 2: Endpoint URL and Skills */}
+              <div>
+                {metadata.endpointUrl && (
+                  <>
+                    <dt className="text-sm font-medium text-gray-400 mb-1">Endpoint URL</dt>
+                    <dd className="text-sm text-gray-200 break-all">
+                      <a
+                        href={metadata.endpointUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300 transition-colors underline"
+                      >
+                        {metadata.endpointUrl}
+                      </a>
+                    </dd>
+                  </>
+                )}
+                {/* Skills section - shown regardless of endpoint URL */}
+                {metadata.skills && metadata.skills.length > 0 && (
+                  <div className={metadata.endpointUrl ? "mt-3" : ""}>
+                    <dt className="text-sm font-medium text-gray-400 mb-1">Skills</dt>
+                    <dd className="text-sm text-gray-200">
+                      <div className="flex flex-wrap gap-2">
+                        {metadata.skills.map((skill, index) => (
+                          <span
+                            key={index}
+                            className="px-2 py-1 bg-emerald-900/30 text-emerald-400 rounded-full text-xs"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </dd>
+                  </div>
+                )}
+              </div>
               
               {/* Column 3: Category */}
               {metadata.category && (

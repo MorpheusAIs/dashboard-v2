@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import { useBuilders } from "@/context/builders-context";
 import { Builder, isV4Builder } from "@/app/builders/builders-data";
 import { toast } from "sonner";
@@ -14,6 +16,45 @@ import { Address, isAddress } from "viem";
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { testnetChains, mainnetChains } from '@/config/networks';
 import { useNetwork } from "@/context/network-context";
+import { parseSubnetDescription } from "@/lib/utils/subnet-metadata";
+
+// Skills options for the multiple selector
+const SKILLS_OPTIONS: Option[] = [
+  { label: 'image2text', value: 'image2text' },
+  { label: 'tts', value: 'tts' },
+  { label: 'research', value: 'research' },
+  { label: 'imagegen', value: 'imagegen' },
+  { label: 'multimodal', value: 'multimodal' },
+  { label: 'pdf extraction', value: 'pdf_extraction' },
+  { label: 'ocr', value: 'ocr' },
+  { label: 'text generation', value: 'text_generation' },
+  { label: 'code generation', value: 'code_generation' },
+  { label: 'data analysis', value: 'data_analysis' },
+  { label: 'web scraping', value: 'web_scraping' },
+  { label: 'api integration', value: 'api_integration' },
+  { label: 'automation', value: 'automation' },
+  { label: 'chat', value: 'chat' },
+  { label: 'translation', value: 'translation' },
+  { label: 'summarization', value: 'summarization' },
+  { label: 'sentiment analysis', value: 'sentiment_analysis' },
+  { label: 'classification', value: 'classification' },
+];
+
+// I/O type options
+const IO_TYPE_OPTIONS = [
+  { label: 'Text', value: 'text' },
+  { label: 'Image', value: 'image' },
+  { label: 'Audio', value: 'audio' },
+  { label: 'Video', value: 'video' },
+];
+
+// Subnet type options
+const SUBNET_TYPE_OPTIONS = [
+  { label: 'App', value: 'App' },
+  { label: 'Agent', value: 'Agent' },
+  { label: 'API server', value: 'API server' },
+  { label: 'MCP server', value: 'MCP server' },
+];
 
 // Add URL validation function
 const isValidUrl = (url: string): boolean => {
@@ -119,10 +160,21 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
   const [claimAdmin, setClaimAdmin] = useState("");
   // Note: rewardType removed - V4 subnets don't support it, only V1 (Supabase) does
 
+  // Extended metadata fields (for structured metadata subnets)
+  const [hasStructuredMetadata, setHasStructuredMetadata] = useState(false);
+  const [endpointUrl, setEndpointUrl] = useState("");
+  const [author, setAuthor] = useState("");
+  const [inputType, setInputType] = useState("");
+  const [outputType, setOutputType] = useState("");
+  const [skills, setSkills] = useState<Option[]>([]);
+  const [subnetType, setSubnetType] = useState("");
+  const [category, setCategory] = useState("");
+
   // Add validation states
   const [websiteError, setWebsiteError] = useState(false);
   const [imageSrcError, setImageSrcError] = useState(false);
   const [claimAdminError, setClaimAdminError] = useState(false);
+  const [endpointUrlError, setEndpointUrlError] = useState(false);
   
   // Ref to track which transaction hash we've already processed (prevent duplicate toasts)
   const processedTxHashRef = useRef<string | null>(null);
@@ -150,6 +202,12 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
     setClaimAdminError(value !== '' && !isAddress(value));
   };
 
+  const handleEndpointUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEndpointUrl(value);
+    setEndpointUrlError(value.trim() !== '' && !isValidUrl(value));
+  };
+
   // Handle modal close with cleanup
   const handleClose = () => {
     console.log('[EditSubnetModal] handleClose called');
@@ -171,12 +229,23 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
     setSlug("");
     setClaimAdmin("");
     setIsLoading(false);
-    
+
+    // Reset extended metadata fields
+    setHasStructuredMetadata(false);
+    setEndpointUrl("");
+    setAuthor("");
+    setInputType("");
+    setOutputType("");
+    setSkills([]);
+    setSubnetType("");
+    setCategory("");
+
     // Reset validation states
     setWebsiteError(false);
     setImageSrcError(false);
     setClaimAdminError(false);
-    
+    setEndpointUrlError(false);
+
     // Reset error tracking
     processedErrorRef.current = null;
     
@@ -227,12 +296,51 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
     // Pre-fill form fields
     // For V4, prefer image field; for V1, use image_src
     const imageValue = isV4 ? (builder.image || builder.image_src || "") : (builder.image_src || builder.image || "");
-    setDescription(builder.description || "");
     setWebsite(builder.website || "");
     setImageSrc(imageValue);
     setSlug(builder.slug || "");
     // Note: rewardType removed - V4 subnets don't support it
     // claimAdmin will be set from contract data in useEffect below
+
+    // Parse description to detect structured metadata
+    const parsedDesc = parseSubnetDescription(builder.description || undefined);
+
+    if (parsedDesc.isStructured && parsedDesc.metadata) {
+      // Structured metadata detected - populate extended fields
+      setHasStructuredMetadata(true);
+      setDescription(parsedDesc.description || "");
+      setEndpointUrl(parsedDesc.metadata.endpointUrl || "");
+      setAuthor(parsedDesc.metadata.author || "");
+      setInputType(parsedDesc.metadata.inputType || "");
+      setOutputType(parsedDesc.metadata.outputType || "");
+      setSubnetType(parsedDesc.metadata.type || "");
+      setCategory(parsedDesc.metadata.category || "");
+
+      // Convert skills array to Option format for MultipleSelector
+      if (parsedDesc.metadata.skills && Array.isArray(parsedDesc.metadata.skills)) {
+        const skillOptions = parsedDesc.metadata.skills.map(skill => {
+          // Find matching option from SKILLS_OPTIONS or create a new one
+          const existingOption = SKILLS_OPTIONS.find(opt => opt.value === skill);
+          return existingOption || { label: skill, value: skill };
+        });
+        setSkills(skillOptions);
+      } else {
+        setSkills([]);
+      }
+
+      console.log('[EditSubnetModal] Detected structured metadata:', parsedDesc.metadata);
+    } else {
+      // Plain text description
+      setHasStructuredMetadata(false);
+      setDescription(builder.description || "");
+      setEndpointUrl("");
+      setAuthor("");
+      setInputType("");
+      setOutputType("");
+      setSkills([]);
+      setSubnetType("");
+      setCategory("");
+    }
   }, [builder, isOpen, isV4, subnetId]);
 
   // Update claimAdmin from contract data when available (V4 only)
@@ -433,7 +541,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
     }
 
     // Validate URLs and address before saving
-    if (websiteError || imageSrcError) {
+    if (websiteError || imageSrcError || endpointUrlError) {
       toast.error("Please fix the invalid URLs before saving");
       return;
     }
@@ -480,11 +588,34 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
         
         // Check if metadata fields changed
         const finalSlug = slug.trim() || builder.slug || builder.name.toLowerCase().replace(/\s+/g, '-');
-        const metadataChanged = 
+
+        // Parse original description to compare properly
+        const originalParsed = parseSubnetDescription(builder.description || undefined);
+        const originalDescription = originalParsed.isStructured ? originalParsed.description : (builder.description || '');
+        const originalMetadata = originalParsed.metadata;
+
+        // Check basic field changes
+        let metadataChanged =
           (slug.trim() !== (builder.slug || '')) ||
-          (description.trim() !== (builder.description || '')) ||
+          (description.trim() !== originalDescription) ||
           (website.trim() !== (builder.website || '')) ||
           (imageSrc.trim() !== (builder.image || builder.image_src || ''));
+
+        // If we have structured metadata, also check extended fields
+        if (hasStructuredMetadata && originalMetadata) {
+          const extendedMetadataChanged =
+            (endpointUrl.trim() !== (originalMetadata.endpointUrl || '')) ||
+            (author.trim() !== (originalMetadata.author || '')) ||
+            (inputType !== (originalMetadata.inputType || '')) ||
+            (outputType !== (originalMetadata.outputType || '')) ||
+            (subnetType !== (originalMetadata.type || '')) ||
+            (category.trim() !== (originalMetadata.category || '')) ||
+            // Compare skills arrays
+            (JSON.stringify(skills.map(s => s.value).sort()) !==
+              JSON.stringify((originalMetadata.skills || []).sort()));
+
+          metadataChanged = metadataChanged || extendedMetadataChanged;
+        }
         
         // If claimAdmin changed, update subnet struct first
         if (claimAdminChanged) {
@@ -535,13 +666,35 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
           }
         } else if (metadataChanged) {
           // Only metadata changed, update metadata
+          // If we have structured metadata, re-serialize it into the description field
+          let finalDescription = description.trim() || "";
+
+          if (hasStructuredMetadata) {
+            // Serialize extended metadata into the description field
+            const combinedData = {
+              metadata_: {
+                description: description.trim() || "",
+                endpointUrl: endpointUrl.trim() || "",
+                author: author.trim() || "",
+                inputType: inputType || "",
+                outputType: outputType || "",
+                skills: skills.map(s => s.value),
+                type: subnetType || "",
+                category: category.trim() || "",
+              },
+              timestamp: Date.now(),
+            };
+            finalDescription = JSON.stringify(combinedData);
+            console.log('[EditSubnetModal] Serialized structured metadata:', combinedData);
+          }
+
           const metadataStruct = {
             slug: finalSlug,
-            description: description.trim() || "",
+            description: finalDescription,
             website: website.trim() || "",
             image: imageSrc.trim() || "",
           };
-          
+
           console.log('[EditSubnetModal] V4 Update - Subnet ID:', subnetIdBytes32);
           console.log('[EditSubnetModal] V4 Update - Contract address:', contractAddress);
           console.log('[EditSubnetModal] V4 Update - Metadata struct:', metadataStruct);
@@ -703,7 +856,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-emerald-400">
             Edit {builder?.name} metadata
@@ -712,8 +865,8 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
             Update the subnet information and settings below.
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="grid gap-4 py-4">
+
+        <div className="grid gap-4 py-4 overflow-y-auto pr-2 flex-1">
           {/* Slug field (V4 only) */}
           {isV4 && (
             <div className="grid gap-2">
@@ -724,7 +877,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
                 placeholder="e.g., my-subnet"
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
-                className="max-w-[373px]"
+                className="w-full"
               />
             </div>
           )}
@@ -747,6 +900,119 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
             </div>
           </div>
 
+          {/* Extended metadata fields - shown when structured metadata is detected */}
+          {hasStructuredMetadata && isV4 && (
+            <>
+              {/* Subnet Type */}
+              <div className="grid gap-2">
+                <Label htmlFor="subnetType">Subnet Type</Label>
+                <Select value={subnetType} onValueChange={setSubnetType}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUBNET_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Endpoint URL */}
+              <div className="grid gap-2">
+                <Label htmlFor="endpointUrl">Endpoint URL</Label>
+                <Input
+                  id="endpointUrl"
+                  type="url"
+                  placeholder="https://api.example.com"
+                  value={endpointUrl}
+                  onChange={handleEndpointUrlChange}
+                  className={`w-full overflow-hidden text-ellipsis ${endpointUrlError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                />
+                {endpointUrlError && (
+                  <p className="text-xs text-red-500">Please enter a valid URL</p>
+                )}
+              </div>
+
+              {/* Author */}
+              <div className="grid gap-2">
+                <Label htmlFor="author">Author</Label>
+                <Input
+                  id="author"
+                  type="text"
+                  placeholder="Author name"
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Input/Output Type */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="inputType">Input Type</Label>
+                  <Select value={inputType} onValueChange={setInputType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IO_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="outputType">Output Type</Label>
+                  <Select value={outputType} onValueChange={setOutputType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IO_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Skills */}
+              <div className="grid gap-2">
+                <Label>Skills</Label>
+                <MultipleSelector
+                  value={skills}
+                  onChange={setSkills}
+                  defaultOptions={SKILLS_OPTIONS}
+                  placeholder="Select skills..."
+                  emptyIndicator={
+                    <p className="text-center text-sm text-gray-500">No skills found</p>
+                  }
+                  className="w-full"
+                />
+              </div>
+
+              {/* Category */}
+              <div className="grid gap-2">
+                <Label htmlFor="category">Category</Label>
+                <Input
+                  id="category"
+                  type="text"
+                  placeholder="e.g., AI, Automation, Data"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            </>
+          )}
+
           {/* Website URL field */}
           <div className="grid gap-2">
             <Label htmlFor="website">Subnet URL</Label>
@@ -756,7 +1022,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
               placeholder="https://example.com"
               value={website}
               onChange={handleWebsiteChange}
-              className={`max-w-[373px] overflow-hidden text-ellipsis ${websiteError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+              className={`w-full overflow-hidden text-ellipsis ${websiteError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
             />
             {websiteError && (
               <p className="text-xs text-red-500">Please enter a valid URL</p>
@@ -772,13 +1038,13 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
               placeholder="https://example.com/logo.png"
               value={imageSrc}
               onChange={handleImageSrcChange}
-              className={`max-w-[373px] overflow-hidden text-ellipsis ${imageSrcError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+              className={`w-full overflow-hidden text-ellipsis ${imageSrcError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
             />
             {imageSrcError && (
               <p className="text-xs text-red-500">Please enter a valid URL</p>
             )}
             {imageSrc && !imageSrcError && (
-              <p className="text-xs text-gray-500 truncate max-w-[373px]">
+              <p className="text-xs text-gray-500 truncate w-full">
                 Current: {imageSrc}
               </p>
             )}
@@ -796,7 +1062,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
                 placeholder="0x..."
                 value={claimAdmin}
                 onChange={handleClaimAdminChange}
-                className={`max-w-[373px] ${claimAdminError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                className={`w-full ${claimAdminError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
               />
               <p className="text-xs text-gray-500">
                 This address can claim the Subnet rewards on behalf of the admin. Only the subnet admin can modify this field.
