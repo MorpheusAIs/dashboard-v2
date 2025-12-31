@@ -442,46 +442,37 @@ export default function BuilderPage() {
   // Update user staked amount and time until unlock when data is loaded
   useEffect(() => {
     console.log("Processing staker data:", { stakerData, isTestnet, userAddress });
-    
+
     if (stakerData) {
       // BuildersV4 (testnet) and mainnet both use usersData with the same structure:
       // [lastDeposit, claimLockStart, deposited, virtualDeposited]
       // [uint128, uint128, uint256, uint256]
+      // Note: claimLockStart is for claim locks, NOT withdrawal locks
+      // For withdrawal unlock time, we use: lastDeposit + withdrawLockPeriodAfterDeposit
       const stakerArray = stakerData as [bigint, bigint, bigint, bigint];
       const lastStakeData = stakerArray[0]; // lastDeposit timestamp
-      const claimLockStartData = stakerArray[1]; // claimLockStart timestamp from contract
       const depositedData = stakerArray[2]; // staked amount
       const staked = depositedData;
       const lastStake = lastStakeData;
-      
-      // Use claimLockStart from contract if available, otherwise calculate
-      let effectiveClaimLockEnd: bigint;
-      
-      if (claimLockStartData !== BigInt(0)) {
-        // Contract provides claimLockStart - use it to calculate claimLockEnd
-        const lpSeconds = isTestnet
-          ? (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod)
-          : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
-        effectiveClaimLockEnd = BigInt(Number(claimLockStartData) + lpSeconds);
-        console.log("Using claimLockStart from contract:", {
-          claimLockStart: claimLockStartData.toString(),
+
+      // Calculate withdrawal unlock time from lastDeposit + withdrawLockPeriodAfterDeposit
+      // This is the correct formula for withdrawal locks (not claim locks)
+      let withdrawalUnlockEnd: bigint;
+
+      if (lastStake !== BigInt(0)) {
+        // Calculate unlock time from last deposit + lock period
+        const lpSeconds = builder?.withdrawLockPeriodAfterDeposit
+          ? Number(builder.withdrawLockPeriodAfterDeposit)
+          : (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod);
+        withdrawalUnlockEnd = BigInt(Number(lastStake) + lpSeconds);
+        console.log("Calculating withdrawal unlock from lastDeposit:", {
+          lastDeposit: lastStake.toString(),
           lockPeriod: lpSeconds,
-          calculatedClaimLockEnd: effectiveClaimLockEnd.toString()
-        });
-      } else if (lastStake !== BigInt(0)) {
-        // Fallback: calculate from lastStake
-        const lpSeconds = isTestnet
-          ? (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod)
-          : (builder?.withdrawLockPeriodAfterDeposit ? Number(builder.withdrawLockPeriodAfterDeposit) : withdrawLockPeriod);
-        effectiveClaimLockEnd = BigInt(Number(lastStake) + lpSeconds);
-        console.log("Calculating claimLockEnd from lastStake:", {
-          lastStake: lastStake.toString(),
-          lockPeriod: lpSeconds,
-          calculatedClaimLockEnd: effectiveClaimLockEnd.toString()
+          calculatedUnlockEnd: withdrawalUnlockEnd.toString()
         });
       } else {
         // No stake data available
-        effectiveClaimLockEnd = BigInt(0);
+        withdrawalUnlockEnd = BigInt(0);
       }
       
       setRawStakedAmount(staked); // Store the raw bigint value
@@ -499,14 +490,14 @@ export default function BuilderPage() {
         formattedForDisplay: formattedStaked.toFixed(2)
       });
       
-      // Calculate time until unlock
+      // Calculate time until withdrawal unlock
       const now = Math.floor(Date.now() / 1000);
-      const claimLockEndNumber = Number(effectiveClaimLockEnd);
+      const unlockEndNumber = Number(withdrawalUnlockEnd);
       let calculatedTimeLeft: string;
-      
-      if (claimLockEndNumber > now) {
-        const secondsRemaining = claimLockEndNumber - now;
-        
+
+      if (unlockEndNumber > now) {
+        const secondsRemaining = unlockEndNumber - now;
+
         if (secondsRemaining < 60) {
           calculatedTimeLeft = `${secondsRemaining} seconds`;
         } else if (secondsRemaining < 3600) {
@@ -519,15 +510,15 @@ export default function BuilderPage() {
       } else {
         calculatedTimeLeft = "Unlocked";
       }
-      
+
       setTimeLeft(calculatedTimeLeft);
-      
+
       console.log("Staker data processed:", {
         isTestnet,
         stakedRaw: staked.toString(),
         stakedFormattedForUI: formattedStaked.toFixed(2),
-        claimLockEnd: new Date(Number(effectiveClaimLockEnd) * 1000).toLocaleString('en-US'),
-        lastStake: new Date(Number(lastStake) * 1000).toLocaleString('en-US'),
+        withdrawalUnlockEnd: new Date(Number(withdrawalUnlockEnd) * 1000).toLocaleString('en-US'),
+        lastDeposit: new Date(Number(lastStake) * 1000).toLocaleString('en-US'),
         timeLeft: calculatedTimeLeft
       });
     } else {
