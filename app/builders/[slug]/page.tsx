@@ -539,10 +539,13 @@ export default function BuilderPage() {
         displayAddress: `${user.address.substring(0, 6)}...${user.address.substring(user.address.length - 4)}`,
         amount: user.staked === "0" ? 0 : formatMOR(user.staked || '0'),
         timestamp: ('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0,
-        unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) + (builder?.withdrawLockPeriodRaw || withdrawLockPeriod),
+        unlockDate: (('lastStake' in user && typeof user.lastStake === 'string') ? parseInt(user.lastStake) : 0) +
+          (builder?.withdrawLockPeriodAfterDeposit
+            ? Number(builder.withdrawLockPeriodAfterDeposit)
+            : (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod)),
     }),
     network: networksToDisplay[0],
-  }), [isTestnet, hookProjectId, networksToDisplay, builder?.withdrawLockPeriodRaw, withdrawLockPeriod]);
+  }), [isTestnet, hookProjectId, networksToDisplay, builder?.withdrawLockPeriodAfterDeposit, builder?.withdrawLockPeriodRaw, withdrawLockPeriod]);
 
   // Log the props just before calling the hook
   console.log("[BuilderPage] Props for useStakingData:", stakingDataHookProps);
