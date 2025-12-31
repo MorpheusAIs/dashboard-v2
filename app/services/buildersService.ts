@@ -535,6 +535,7 @@ export const fetchBuildersAPI = async (
           // console.log(`[API] Mainnet: Found on-chain builder '${onChainProject.name}' on ${onChainProject.network} not in Supabase`);
           
           const currentDate = new Date().toISOString();
+          const lockPeriodSeconds = parseInt(onChainProject.withdrawLockPeriodAfterDeposit || '0', 10);
           const builder: Builder = {
             id: onChainProject.id,
             mainnetProjectId: onChainProject.id,
@@ -544,14 +545,16 @@ export const fetchBuildersAPI = async (
             admin: onChainProject.admin || "",
             networks: onChainProject.networks || [onChainProject.network || 'Unknown'],
             network: onChainProject.network || 'Unknown',
-            totalStaked: onChainProject.totalStakedFormatted !== undefined 
-              ? onChainProject.totalStakedFormatted 
+            totalStaked: onChainProject.totalStakedFormatted !== undefined
+              ? onChainProject.totalStakedFormatted
               : parseFloat(onChainProject.totalStaked || '0') / 1e18 || 0,
             totalClaimed: onChainProject.totalClaimedFormatted !== undefined
               ? onChainProject.totalClaimedFormatted
               : parseFloat(onChainProject.totalClaimed || '0') / 1e18 || 0,
             minDeposit: parseFloat(onChainProject.minimalDeposit || '0') / 1e18 || 0,
             lockPeriod: onChainProject.lockPeriod || '',
+            withdrawLockPeriodAfterDeposit: onChainProject.withdrawLockPeriodAfterDeposit,
+            withdrawLockPeriodRaw: lockPeriodSeconds,
             stakingCount: onChainProject.stakingCount || 0,
             website: onChainProject.website || '',
             image_src: onChainProject.image || '',
