@@ -640,6 +640,13 @@ export default function BuilderPage() {
         console.warn("refetchStakerDataForUser is not available");
       }
       
+      // Invalidate userStakedBuilders query to refresh "Staking in" tab on builders page
+      // Use a delay to allow blockchain state to propagate
+      setTimeout(() => {
+        console.log("Invalidating userStakedBuilders query to refresh 'Staking in' tab...");
+        queryClient.invalidateQueries({ queryKey: ['userStakedBuilders'] });
+      }, 2000); // 2 second delay to allow blockchain state to update
+
       // Refresh single builder metrics immediately (for mainnet)
       // This is more efficient than refreshing all builders
       if (!isTestnet && refetchSingleBuilder) {
