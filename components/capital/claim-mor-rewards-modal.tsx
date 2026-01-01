@@ -363,7 +363,7 @@ export function ClaimMorRewardsModal() {
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogPortal>
         <DialogContent className="h-[100vh] w-full sm:h-auto sm:max-w-[425px] bg-background border-gray-800 flex flex-col sm:block overflow-hidden">
-          <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
+          <DialogHeader className="shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">
               {isLockMode ? 'Lock MOR Rewards' : 'Claim MOR Rewards'}
             </DialogTitle>
@@ -582,7 +582,7 @@ export function ClaimMorRewardsModal() {
             )}
           </div>
 
-          <DialogFooter className="flex-shrink-0 px-4 sm:px-0 sm:mt-1">
+          <DialogFooter className="shrink-0 px-4 sm:px-0 sm:mt-1">
             {selectedAssetData && (
               <div className="w-full space-y-3">
                 {isLockMode && (

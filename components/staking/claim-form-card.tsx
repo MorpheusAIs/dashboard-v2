@@ -56,7 +56,7 @@ export function ClaimFormCard({
               </div> */}
             </div>
             
-            <div className="flex-shrink-0 ml-6">
+            <div className="shrink-0 ml-6">
               <button 
                 onClick={handleClaim}
                 className="copy-button-base copy-button-secondary px-6 hover:bg-black"

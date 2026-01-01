@@ -12,11 +12,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'text-primary hover:text-primary-foreground !bg-muted [--liquid-button-color:var(--primary)]',
+          'text-primary hover:text-primary-foreground bg-muted! [--liquid-button-color:var(--primary)]',
         outline:
-          'border !bg-background dark:!bg-input/30 dark:border-input [--liquid-button-color:var(--primary)]',
+          'border bg-background! dark:bg-input/30! dark:border-input [--liquid-button-color:var(--primary)]',
         secondary:
-          'text-secondary hover:text-secondary-foreground !bg-muted [--liquid-button-color:var(--secondary)]',
+          'text-secondary hover:text-secondary-foreground bg-muted! [--liquid-button-color:var(--secondary)]',
         ghost:
           'bg-transparent text-white hover:text-black [--liquid-button-color:#ffffff]',
       },

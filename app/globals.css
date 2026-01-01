@@ -11,105 +11,160 @@ input[type=number] {
   -moz-appearance: textfield;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "tw-animate-css";
 
-@layer base {
-  :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --sidebar-background: transparent;
-    --sidebar-foreground: 240 5% 84.9%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 240 4.9% 83.9%;
-    --radius: 0.25rem;
-  }
+/* Import the JavaScript config for compatibility */
+@config "../tailwind.config.ts";
 
-  /* Base cursor styles */
-  * {
-    cursor: default;
-  }
+/* CSS Variables - moved outside @layer for Tailwind v4 */
+:root {
+  --background: hsl(240 10% 3.9%);
+  --foreground: hsl(0 0% 98%);
+  --card: hsl(240 10% 3.9%);
+  --card-foreground: hsl(0 0% 98%);
+  --popover: hsl(240 10% 3.9%);
+  --popover-foreground: hsl(0 0% 98%);
+  --primary: hsl(0 0% 98%);
+  --primary-foreground: hsl(240 5.9% 10%);
+  --secondary: hsl(240 3.7% 15.9%);
+  --secondary-foreground: hsl(0 0% 98%);
+  --muted: hsl(240 3.7% 15.9%);
+  --muted-foreground: hsl(240 5% 64.9%);
+  --accent: hsl(240 3.7% 15.9%);
+  --accent-foreground: hsl(0 0% 98%);
+  --destructive: hsl(0 62.8% 30.6%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --border: hsl(240 3.7% 15.9%);
+  --input: hsl(240 3.7% 15.9%);
+  --ring: hsl(240 4.9% 83.9%);
+  --sidebar-background: transparent;
+  --sidebar-foreground: hsl(240 5% 84.9%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(240 4.9% 83.9%);
+  --chart-1: hsl(220 70% 50%);
+  --chart-2: hsl(160 60% 45%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(280 65% 60%);
+  --chart-5: hsl(340 75% 55%);
+  --radius: 0.25rem;
+}
 
-  /* Reset cursor for interactive elements */
-  a, button, [role="button"], 
-  input[type="button"], input[type="submit"], input[type="reset"],
-  select, [tabindex]:not([tabindex="-1"]),
-  [role="combobox"], [role="listbox"], [role="option"],
-  [role="menuitem"], [role="menu"], [role="menubar"],
-  details, summary,
-  .select-item, /* For shadcn dropdown items */
-  [cmdk-item], /* For command palette items */
-  .cursor-pointer,
-  .table-row[onclick], /* Ensure table rows with onclick handlers show pointer */
-  .table-row:has([onClick]) /* Target table rows with onClick handlers */ {
-    cursor: pointer;
-  }
+/* Theme mapping for Tailwind v4 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --animate-grid: grid 15s linear infinite;
+}
 
-  /* Specific cursor overrides */
-  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="radio"]):not([type="checkbox"]):not([type="range"]), 
-  input[type="text"], 
-  input[type="email"], 
-  input[type="password"],
-  input[type="search"],
-  input[type="tel"],
-  input[type="url"],
-  input[type="number"],
-  input[type="date"],
-  input[type="datetime-local"],
-  input[type="month"],
-  input[type="week"],
-  input[type="time"],
-  textarea,
-  [contenteditable="true"],
-  [role="textbox"],
-  .cursor-text {
-    cursor: text !important;
+@keyframes grid {
+  0% {
+    transform: translateY(-50%);
   }
+  100% {
+    transform: translateY(0);
+  }
+}
 
-  /* Range input cursor */
-  input[type="range"] {
-    cursor: ew-resize;
-  }
+/* Base cursor styles */
+* {
+  cursor: default;
+}
 
-  /* Resize cursor for resizable elements */
-  textarea[resize="both"],
-  textarea:not([resize="none"]) {
-    cursor: se-resize;
-  }
+/* Reset cursor for interactive elements */
+a, button, [role="button"],
+input[type="button"], input[type="submit"], input[type="reset"],
+select, [tabindex]:not([tabindex="-1"]),
+[role="combobox"], [role="listbox"], [role="option"],
+[role="menuitem"], [role="menu"], [role="menubar"],
+details, summary,
+.select-item, /* For shadcn dropdown items */
+[cmdk-item], /* For command palette items */
+.cursor-pointer,
+.table-row[onclick], /* Ensure table rows with onclick handlers show pointer */
+.table-row:has([onClick]) /* Target table rows with onClick handlers */ {
+  cursor: pointer;
+}
 
-  textarea[resize="horizontal"] {
-    cursor: ew-resize;
-  }
+/* Specific cursor overrides */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="radio"]):not([type="checkbox"]):not([type="range"]),
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+input[type="number"],
+input[type="date"],
+input[type="datetime-local"],
+input[type="month"],
+input[type="week"],
+input[type="time"],
+textarea,
+[contenteditable="true"],
+[role="textbox"],
+.cursor-text {
+  cursor: text !important;
+}
 
-  textarea[resize="vertical"] {
-    cursor: ns-resize;
-  }
+/* Range input cursor */
+input[type="range"] {
+  cursor: ew-resize;
+}
 
-  * {
-    @apply border-border;
-  }
+/* Resize cursor for resizable elements */
+textarea[resize="both"],
+textarea:not([resize="none"]) {
+  cursor: se-resize;
+}
+
+textarea[resize="horizontal"] {
+  cursor: ew-resize;
+}
+
+textarea[resize="vertical"] {
+  cursor: ns-resize;
+}
+
+* {
+  border-color: var(--border);
 }
 
 @layer components {
@@ -180,21 +235,19 @@ input[type=number] {
   }
 
   /* Section content base styles without group */
-  .section-content-base {
+  .section-content-base,
+  .section-content {
     @apply rounded-xl border border-white/[0.08] p-6 relative overflow-hidden;
   }
 
-  .section-content {
-    @apply section-content-base;
-  }
-
-  .section-content-gradient-base {
-    @apply absolute inset-0 bg-gradient-to-bl from-white/[0.04] to-transparent opacity-100 
+  .section-content-gradient-base,
+  .section-content-gradient {
+    @apply absolute inset-0 bg-gradient-to-bl from-white/[0.04] to-transparent opacity-100
     transition-all duration-300;
   }
 
   .section-content-gradient {
-    @apply section-content-gradient-base pointer-events-none;
+    @apply pointer-events-none;
   }
 
   .section-body {
@@ -202,12 +255,13 @@ input[type=number] {
   }
 
   .panel-gradient-base {
-    @apply bg-gradient-to-bl from-white/[0.04] to-transparent opacity-100 
+    @apply bg-gradient-to-bl from-white/[0.04] to-transparent opacity-100
     transition-all duration-300 group-hover:bg-gradient-to-bl group-hover:from-emerald-400/10 group-hover:to-transparent;
   }
 
   /* Base card styles */
-  .card-base {
+  .card-base,
+  .card-container {
     @apply rounded-xl border border-white/[0.08] p-6 relative overflow-hidden;
   }
 
@@ -215,17 +269,10 @@ input[type=number] {
     @apply rounded-xl border border-white/[0.08] p-2 relative overflow-hidden;
   }
 
-  .card-container {
-    @apply card-base;
-  }
-
-  .card-gradient-base {
-    @apply absolute inset-0 bg-gradient-to-bl from-white/[0.04] to-transparent opacity-100 
-    transition-all duration-300;
-  }
-
+  .card-gradient-base,
   .card-gradient {
-    @apply card-gradient-base;
+    @apply absolute inset-0 bg-gradient-to-bl from-white/[0.04] to-transparent opacity-100
+    transition-all duration-300;
   }
 
   /* Card header styles */
@@ -267,12 +314,13 @@ input[type=number] {
     @apply flex-1 bg-white/[0.05] px-4 py-2 rounded-lg text-gray-300;
   }
 
-  .copy-button-base {
+  .copy-button-base,
+  .copy-button {
     @apply bg-emerald-400 text-black font-medium px-4 py-2 rounded-lg transition-colors;
   }
 
   .copy-button {
-    @apply copy-button-base hover:bg-emerald-500;
+    @apply hover:bg-emerald-500;
   }
 
   .copy-button-secondary {
@@ -281,7 +329,26 @@ input[type=number] {
 
   /* Table styles */
   .table-container {
-    @apply [&>div]:max-h-[600px] overflow-auto custom-scrollbar;
+    @apply [&>div]:max-h-[600px] overflow-auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(16, 185, 129, 0.1) transparent;
+  }
+
+  .table-container::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .table-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .table-container::-webkit-scrollbar-thumb {
+    background-color: rgba(16, 185, 129, 0.1);
+    border-radius: 20px;
+  }
+
+  .table-container:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(16, 185, 129, 0.4);
   }
 
   .table-base {
@@ -342,112 +409,111 @@ body {
   @apply bg-[#0A0A0B] text-foreground;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* Custom utility: text-balance */
+@utility text-balance {
+  text-wrap: balance;
+}
 
-  /* Global custom scrollbar */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(16, 185, 129, 0.1) transparent;
-  }
+/* Global custom scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(16, 185, 129, 0.1) transparent;
+}
 
-  *::-webkit-scrollbar {
-    width: 6px;
-  }
+*::-webkit-scrollbar {
+  width: 6px;
+}
 
-  *::-webkit-scrollbar-track {
-    background: transparent;
-  }
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-  *::-webkit-scrollbar-thumb {
-    background-color: rgba(16, 185, 129, 0.1);
-    border-radius: 20px;
-    transition: background-color 0.2s ease-in-out;
-  }
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-radius: 20px;
+  transition: background-color 0.2s ease-in-out;
+}
 
-  *:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(16, 185, 129, 0.4);
-  }
+*:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(16, 185, 129, 0.4);
+}
 
-  /* For Firefox */
-  *:hover {
-    scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
-  }
+/* For Firefox */
+*:hover {
+  scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
+}
 
-  /* Custom scrollbar class (kept for backward compatibility) */
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(16, 185, 129, 0.1) transparent;
-  }
+/* Custom scrollbar class (kept for backward compatibility) */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(16, 185, 129, 0.1) transparent;
+}
 
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
 
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(16, 185, 129, 0.1);
-    border-radius: 20px;
-    transition: background-color 0.2s ease-in-out;
-  }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(16, 185, 129, 0.1);
+  border-radius: 20px;
+  transition: background-color 0.2s ease-in-out;
+}
 
-  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(16, 185, 129, 0.4);
-  }
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(16, 185, 129, 0.4);
+}
 
-  /* For Firefox */
-  .custom-scrollbar:hover {
-    scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
-  }
+/* For Firefox */
+.custom-scrollbar:hover {
+  scrollbar-color: rgba(16, 185, 129, 0.4) transparent;
+}
 
-  /* Show elements on table row hover */
-  tr.table-row:hover .action-button {
-    opacity: 1 !important;
-  }
+/* Show elements on table row hover */
+tr.table-row:hover .action-button {
+  opacity: 1 !important;
+}
 
-  /* Style stake buttons on table row hover */
-  tr.table-row:hover .stake-button {
-    border-color: rgb(16 185 129) !important; /* emerald-500 */
-    color: rgb(16 185 129) !important; /* emerald-500 */
-    background-color: rgb(16 185 129 / 0.1) !important; /* emerald-500/10 */
-  }
+/* Style stake buttons on table row hover */
+tr.table-row:hover .stake-button {
+  border-color: rgb(16 185 129) !important; /* emerald-500 */
+  color: rgb(16 185 129) !important; /* emerald-500 */
+  background-color: rgb(16 185 129 / 0.1) !important; /* emerald-500/10 */
+}
 
-  /* Sidebar collapsible states */
-  .sidebar-collapsed {
-    @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:w-[72px];
-  }
+/* Sidebar collapsible states */
+@utility sidebar-collapsed {
+  @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:w-[72px];
+}
 
-  .sidebar-header-collapsed {
-    @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:px-2;
-  }
+@utility sidebar-header-collapsed {
+  @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:px-2;
+}
 
-  .sidebar-logo-container-collapsed {
-    @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-11 
-    group-has-[[data-collapsible=icon]]/sidebar-wrapper:w-10;
-  }
+@utility sidebar-logo-container-collapsed {
+  @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-11
+  group-has-[[data-collapsible=icon]]/sidebar-wrapper:w-10;
+}
 
-  .sidebar-logo-collapsed {
-    @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-7 
-    group-has-[[data-collapsible=icon]]/sidebar-wrapper:w-7;
-  }
+@utility sidebar-logo-collapsed {
+  @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-7
+  group-has-[[data-collapsible=icon]]/sidebar-wrapper:w-7;
+}
 
-  .sidebar-nav-collapsed {
-    @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:px-1;
-  }
+@utility sidebar-nav-collapsed {
+  @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:px-1;
+}
 
-  .sidebar-nav-link-collapsed {
-    @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:justify-center 
-    group-has-[[data-collapsible=icon]]/sidebar-wrapper:px-0;
-  }
+@utility sidebar-nav-link-collapsed {
+  @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:justify-center
+  group-has-[[data-collapsible=icon]]/sidebar-wrapper:px-0;
+}
 
-  .sidebar-nav-text-collapsed {
-    @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:hidden;
-  }
+@utility sidebar-nav-text-collapsed {
+  @apply group-has-[[data-collapsible=icon]]/sidebar-wrapper:hidden;
 }
 
 /* Custom error toast styling - Override Sonner's built-in error styles */

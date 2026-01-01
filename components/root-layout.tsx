@@ -88,7 +88,7 @@ export function RootLayoutContent({
             )}
           </div>
           
-          <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 shrink-0">
             <div className="hidden sm:block">
               <MORBalance />
             </div>

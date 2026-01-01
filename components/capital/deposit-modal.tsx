@@ -952,7 +952,7 @@ export function DepositModal() {
     <Dialog open={isOpen} onOpenChange={(open) => !open && setActiveModal(null)}>
       <DialogPortal>
         <DialogContent className="h-[100vh] w-full sm:h-auto sm:max-w-[425px] bg-background border-gray-800 flex flex-col sm:block overflow-hidden">
-          <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
+          <DialogHeader className="shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">Deposit Capital</DialogTitle>
             <DialogDescription className="text-gray-400">
               Deposit an asset to start earning MOR rewards. Power factor activates after ~7-8 months and reaches maximum x10.7 at ~7 years from now.
@@ -1271,7 +1271,7 @@ export function DepositModal() {
                         )}
           </form>
 
-          <DialogFooter className="flex-shrink-0 px-4 sm:px-0 sm:mt-4">
+          <DialogFooter className="shrink-0 px-4 sm:px-0 sm:mt-4">
             <Button
               type="button"
               variant="outline"

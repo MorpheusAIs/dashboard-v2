@@ -1050,7 +1050,7 @@ export default function BuilderPage() {
             
             {/* Desktop Layout Skeleton */}
             <div className="hidden sm:flex items-start gap-6">
-              <Skeleton className="size-24 rounded-xl flex-shrink-0" />
+              <Skeleton className="size-24 rounded-xl shrink-0" />
               <div className="flex-1 space-y-4">
                 {builderName ? (
                   <h1 className="text-2xl font-bold text-gray-100 mb-2">{builderName}</h1>

@@ -121,7 +121,7 @@ export function ProjectHeader({
       <div className="sm:hidden space-y-4">
         {/* Row 1: Image + Title */}
         <div className="flex items-center gap-4">
-          <div className="relative size-16 sm:size-24 rounded-xl overflow-hidden bg-white/[0.05] flex-shrink-0">
+          <div className="relative size-16 sm:size-24 rounded-xl overflow-hidden bg-white/[0.05] shrink-0">
             {hasValidImage ? (
               <div className="relative size-16 sm:size-24">
                 <Image
@@ -231,7 +231,7 @@ export function ProjectHeader({
 
       {/* Desktop Layout (sm and larger) */}
       <div className="hidden sm:flex items-start gap-6">
-        <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05] flex-shrink-0">
+        <div className="relative size-24 rounded-xl overflow-hidden bg-white/[0.05] shrink-0">
           {hasValidImage ? (
             <div className="relative size-24">
               <Image
