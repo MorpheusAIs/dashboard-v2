@@ -16,7 +16,11 @@ const nextConfig = {
   },
   // Use hidden source maps so they are not referenced in built JS files
   productionBrowserSourceMaps: false,
-  // Ignore specific files/folders during build
+  // Turbopack config for Next.js 16 (empty to use defaults)
+  // Note: The React Native async storage fallback is handled in webpack only,
+  // Turbopack handles this automatically via external package resolution
+  turbopack: {},
+  // Keep webpack for any remaining compatibility
   webpack: (config, { dev }) => {
     // Add files/folders to ignore
     config.watchOptions = {

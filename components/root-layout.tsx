@@ -92,7 +92,7 @@ export function RootLayoutContent({
             <div className="hidden sm:block">
               <MORBalance />
             </div>
-            <w3m-button size="sm"/>
+            <appkit-button size="sm"/>
           </div>
         </header>
         {/* Page specific content */}
