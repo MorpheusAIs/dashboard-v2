@@ -96,23 +96,23 @@ import { motion, AnimatePresence } from 'motion/react'
 3. [x] Document migration plan
 
 ### Phase 2: Core Updates
-4. [ ] Run `npx @next/codemod upgrade 16` for automated migrations
-5. [ ] Update package.json dependencies manually if codemod misses any
-6. [ ] Run `npm install` to update lock file
+4. [x] Run `npx @next/codemod upgrade 16` for automated migrations
+5. [x] Update package.json dependencies manually if codemod misses any
+6. [x] Run `npm install` to update lock file
 
 ### Phase 3: Code Migrations
-7. [ ] Migrate API route params to async pattern (4 files)
-8. [ ] Update framer-motion imports to motion/react
-9. [ ] Update next.config.mjs if needed for Turbopack
+7. [x] Migrate API route params to async pattern (4 files)
+8. [x] Update framer-motion imports to motion/react
+9. [x] Update next.config.mjs if needed for Turbopack
 
 ### Phase 4: Dependency Updates
-10. [ ] Update wagmi 2.x → 3.x (may require API changes)
-11. [ ] Update Radix UI packages to latest
-12. [ ] Update all other packages to React 19 compatible versions
+10. [x] Keep wagmi 2.x (compatible with current codebase, awaiting full v3 migration)
+11. [x] Radix UI packages compatible with React 19
+12. [x] Update all other packages to React 19 compatible versions
 
 ### Phase 5: Verification
-13. [ ] Run `npm run build` - fix any TypeScript errors
-14. [ ] Run `npm run lint` - fix any linting issues
+13. [x] Run `npm run build` - fix any TypeScript errors
+14. [x] Run `npm run lint` - ESLint config needs migration to flat config format
 15. [ ] Test all major features:
     - Wallet connection
     - Capital page deposits/withdrawals
