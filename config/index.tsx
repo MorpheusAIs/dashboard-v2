@@ -1,7 +1,6 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { cookieStorage, createStorage, http } from 'wagmi';
 import { mainnet, arbitrum, base, baseSepolia, arbitrumSepolia, sepolia } from 'wagmi/chains';
-// import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
 

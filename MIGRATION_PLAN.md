@@ -12,10 +12,10 @@
 - CVE-2025-55183 - Source code exposure
 - Fixed in: React 19.0.3, 19.1.4, 19.2.3
 
-**Current Project Status:**
-- Next.js: 14.2.16 (vulnerable if upgraded without patch)
-- React: 18 (not directly affected by RSC vulnerability)
-- Target: Next.js 16.0.7+ with React 19.2.3
+**Current Project Status (Migrated):**
+- Next.js: 16.1.1 ✅ (patched)
+- React: 19.2.3 ✅ (patched)
+- Migration complete with security vulnerabilities addressed
 
 ---
 
@@ -144,6 +144,21 @@ export async function GET(
   // ...
 }
 ```
+
+---
+
+## Post-Migration Fixes
+
+### Infinite Re-render Loop Fix
+React 19 is stricter about effect dependencies. The `NetworkContext` was causing infinite re-renders because functions weren't memoized.
+
+**Fixed in `context/network-context.tsx`:**
+- Added `useCallback` to memoize `switchToEnvironment` and `switchToChain`
+- Added `useCallback` for `isL1Chain` and `isL2Chain` helper functions
+- Wrapped context value in `useMemo`
+
+### Web3Modal Setup
+Kept using `@web3modal/wagmi` (v5.1.11) with `w3m-button` instead of migrating to Reown AppKit for stability.
 
 ---
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { useAccount, useSwitchChain } from 'wagmi';
 import { baseSepolia, mainnet, arbitrum, base } from 'wagmi/chains';
 import { NetworkEnvironment, apiUrls, getChains, getL1Chains, getL2Chains } from '../config/networks';
@@ -39,10 +39,10 @@ export function NetworkProvider({
   const isMainnet = environment === 'mainnet';
   const isTestnet = environment === 'testnet';
 
-  const switchToEnvironment = async (newEnvironment: NetworkEnvironment) => {
+  const switchToEnvironment = useCallback(async (newEnvironment: NetworkEnvironment) => {
     try {
       setIsNetworkSwitching(true);
-      
+
       // If switching to testnet, switch to Base Sepolia
       if (newEnvironment === 'testnet') {
         await switchChain({ chainId: baseSepolia.id });
@@ -55,7 +55,7 @@ export function NetworkProvider({
           await switchChain({ chainId: arbitrum.id });
         }
       }
-      
+
       setEnvironment(newEnvironment);
     } catch (error) {
       console.error('Failed to switch environment:', error);
@@ -63,39 +63,59 @@ export function NetworkProvider({
     } finally {
       setIsNetworkSwitching(false);
     }
-  };
+  }, [switchChain, currentChainId]);
 
-  const switchToChain = async (chainId: number) => {
+  const switchToChain = useCallback(async (targetChainId: number) => {
     try {
       setIsNetworkSwitching(true);
-      await switchChain({ chainId });
+      await switchChain({ chainId: targetChainId });
     } catch (error) {
       console.error('Failed to switch chain:', error);
       throw error;
     } finally {
       setIsNetworkSwitching(false);
     }
-  };
+  }, [switchChain]);
+
+  const isL1Chain = useCallback((checkChainId: number) =>
+    getL1Chains(environment).some(chain => chain.id === checkChainId),
+    [environment]
+  );
+
+  const isL2Chain = useCallback((checkChainId: number) =>
+    getL2Chains(environment).some(chain => chain.id === checkChainId),
+    [environment]
+  );
+
+  const contextValue = useMemo(() => ({
+    environment,
+    setEnvironment,
+    isMainnet,
+    isTestnet,
+    currentChainId,
+    switchToEnvironment,
+    switchToChain,
+    isNetworkSwitching,
+    isL1Chain,
+    isL2Chain,
+    graphqlApiUrl: apiUrls[environment].graphql,
+    l1Chains: getL1Chains(environment),
+    l2Chains: getL2Chains(environment),
+    supportedChains: getChains(environment)
+  }), [
+    environment,
+    isMainnet,
+    isTestnet,
+    currentChainId,
+    switchToEnvironment,
+    switchToChain,
+    isNetworkSwitching,
+    isL1Chain,
+    isL2Chain
+  ]);
 
   return (
-    <NetworkContext.Provider
-      value={{
-        environment,
-        setEnvironment,
-        isMainnet,
-        isTestnet,
-        currentChainId,
-        switchToEnvironment,
-        switchToChain,
-        isNetworkSwitching,
-        isL1Chain: (chainId: number) => getL1Chains(environment).some(chain => chain.id === chainId),
-        isL2Chain: (chainId: number) => getL2Chains(environment).some(chain => chain.id === chainId),
-        graphqlApiUrl: apiUrls[environment].graphql,
-        l1Chains: getL1Chains(environment),
-        l2Chains: getL2Chains(environment),
-        supportedChains: getChains(environment)
-      }}
-    >
+    <NetworkContext.Provider value={contextValue}>
       {children}
     </NetworkContext.Provider>
   );
