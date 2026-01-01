@@ -10,10 +10,8 @@ export const runtime = 'nodejs';
  * API route to fetch subnets where a user is the admin from Goldsky V4
  * Used for the "Your Subnets" table
  */
-export async function GET(
-  request: Request,
-  { params }: { params: { network: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ network: string }> }) {
+  const params = await props.params;
   try {
     const { network } = params;
     

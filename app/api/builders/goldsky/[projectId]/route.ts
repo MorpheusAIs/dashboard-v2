@@ -9,10 +9,8 @@ export const runtime = 'nodejs';
  * API route to fetch individual builder project data from Goldsky V4
  * Queries Goldsky V4 endpoint directly for real-time data
  */
-export async function GET(
-  request: Request,
-  { params }: { params: { projectId: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
   try {
     const { projectId } = params;
     

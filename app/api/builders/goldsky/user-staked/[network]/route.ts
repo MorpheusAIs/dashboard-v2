@@ -10,10 +10,8 @@ export const runtime = 'nodejs';
  * API route to fetch builders where a user has staked from Goldsky V4
  * Used for the "Staking in" table
  */
-export async function GET(
-  request: Request,
-  { params }: { params: { network: string } }
-) {
+export async function GET(request: Request, props: { params: Promise<{ network: string }> }) {
+  const params = await props.params;
   try {
     const { network } = params;
     
