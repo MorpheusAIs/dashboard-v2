@@ -127,6 +127,8 @@ export function StakeModal({
     tokenSymbol,
     needsApproval,
     isSubmitting,
+    isLoadingData,
+    allowance,
     handleApprove,
     handleStake,
     checkAndUpdateApprovalNeeded
@@ -246,11 +248,12 @@ export function StakeModal({
   }, [stakeAmount, chainId, targetNetworkInfo, needsApproval, tokenSymbol, effectiveTokenBalance, selectedBuilder, isTestnet]);
 
   // Check approval status when amount changes
+  // Only check if we have allowance data loaded to avoid false positives
   useEffect(() => {
-    if (stakeAmount && parseFloat(stakeAmount) > 0) {
+    if (stakeAmount && parseFloat(stakeAmount) > 0 && !isLoadingData) {
       checkAndUpdateApprovalNeeded(stakeAmount);
     }
-  }, [stakeAmount, checkAndUpdateApprovalNeeded]);
+  }, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]);
 
   // Reset form state when modal opens or closes
   useEffect(() => {
@@ -266,8 +269,8 @@ export function StakeModal({
 
     if (!isValidForSubmission) {
       // Convert warningMessage to string if it's JSX
-      const errorMessage = typeof warningMessage === 'string' 
-        ? warningMessage 
+      const errorMessage = typeof warningMessage === 'string'
+        ? warningMessage
         : "Invalid amount";
       setFormError(errorMessage);
       return;
@@ -276,7 +279,7 @@ export function StakeModal({
     try {
       // FIRST: Check if we need to switch to the target network
       const needsNetworkSwitch = chainId !== targetNetworkInfo.chainId;
-      
+
       if (needsNetworkSwitch) {
         console.log(`Switching from chainId ${chainId} to target chainId ${targetNetworkInfo.chainId} (${targetNetworkInfo.networkName})`);
         await switchToChain(targetNetworkInfo.chainId);
@@ -289,8 +292,16 @@ export function StakeModal({
         return; // Exit after network switch to let user click again
       }
 
-      // Only proceed with approval/staking if we're on the correct network
-      const currentlyNeedsApproval = stakeAmount ? await checkAndUpdateApprovalNeeded(stakeAmount) : false;
+      // Wait for allowance data to load before proceeding
+      // This prevents the edge case where we skip approval when data hasn't loaded yet
+      if (isLoadingData || allowance === undefined) {
+        console.log("Allowance data still loading, waiting before proceeding with stake...");
+        setFormError("Please wait for allowance data to load...");
+        return;
+      }
+
+      // Only proceed with approval/staking if we're on the correct network and have valid data
+      const currentlyNeedsApproval = stakeAmount ? checkAndUpdateApprovalNeeded(stakeAmount) : false;
 
       if ((currentlyNeedsApproval || needsApproval) && stakeAmount && parseFloat(stakeAmount) > 0) {
         await handleApprove(stakeAmount);
@@ -380,7 +391,7 @@ export function StakeModal({
 
           <DialogFooter>
             <Button
-              type="button" 
+              type="button"
               variant="outline"
               onClick={onCloseAction}
               disabled={isSubmitting}
@@ -390,22 +401,25 @@ export function StakeModal({
             <button
               type="submit"
               className={
-                isSubmitting || !isValidForSubmission
-                  ? "copy-button-secondary px-2 text-sm opacity-50 cursor-not-allowed" 
+                isSubmitting || !isValidForSubmission || (chainId === targetNetworkInfo.chainId && isLoadingData)
+                  ? "copy-button-secondary px-2 text-sm opacity-50 cursor-not-allowed"
                   : (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0) ||
                     (chainId !== targetNetworkInfo.chainId)
-                  ? "copy-button-secondary px-2 text-sm" 
+                  ? "copy-button-secondary px-2 text-sm"
                   : "copy-button-base"
               }
               disabled={
-                isSubmitting || 
-                !isValidForSubmission
+                isSubmitting ||
+                !isValidForSubmission ||
+                (chainId === targetNetworkInfo.chainId && isLoadingData)
               }
             >
               {isSubmitting ? (
                 "Processing..."
               ) : chainId !== targetNetworkInfo.chainId ? (
                 `Switch to ${targetNetworkInfo.networkName}`
+              ) : isLoadingData ? (
+                "Loading..."
               ) : (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0) ? (
                 `Approve ${tokenSymbol}`
               ) : (
