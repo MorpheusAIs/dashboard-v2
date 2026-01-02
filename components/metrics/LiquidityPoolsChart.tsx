@@ -177,11 +177,11 @@ const transformPoolData = (poolsData: LiquidityPoolsData, tokenPrices: Record<st
 const chartConfig = {
   MOR: {
     label: "MOR",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   pairedToken: {
     label: "Paired Token",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
 } satisfies ChartConfig;
 
@@ -406,13 +406,13 @@ export function LiquidityPoolsChart({ data }: LiquidityPoolsChartProps) {
               <Bar
                 dataKey="MOR"
                 stackId="a"
-                fill="hsl(var(--chart-1))"
+                fill="var(--chart-1)"
                 radius={[0, 0, 4, 4]}
               />
               <Bar
                 dataKey="pairedToken"
-                stackId="a" 
-                fill="hsl(var(--chart-2))"
+                stackId="a"
+                fill="var(--chart-2)"
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>

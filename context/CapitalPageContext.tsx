@@ -1155,9 +1155,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         description: errorMessage,
         duration: 5000,
         style: {
-          background: 'hsl(var(--destructive))',
-          color: 'hsl(var(--destructive-foreground))',
-          border: '1px solid hsl(var(--destructive))'
+          background: 'var(--destructive)',
+          color: 'var(--destructive-foreground)',
+          border: '1px solid var(--destructive)'
         }
       });
       throw error; // Re-throw for modal error handling
@@ -1782,9 +1782,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           } : undefined,
           duration: 5000,
           style: {
-            background: 'hsl(var(--emerald-500))',
-            color: 'hsl(var(--emerald-50))',
-            border: '1px solid hsl(var(--emerald-600))'
+            background: '#10b981',
+            color: '#ecfdf5',
+            border: '1px solid #059669'
           }
         });
 
@@ -1812,9 +1812,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--emerald-500))',
-              color: 'hsl(var(--emerald-50))',
-              border: '1px solid hsl(var(--emerald-600))'
+              background: '#10b981',
+              color: '#ecfdf5',
+              border: '1px solid #059669'
             }
           });
 
@@ -1856,9 +1856,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--emerald-500))',
-              color: 'hsl(var(--emerald-50))',
-              border: '1px solid hsl(var(--emerald-600))'
+              background: '#10b981',
+              color: '#ecfdf5',
+              border: '1px solid #059669'
             }
           });
           setActiveModal(null); // Close modal on success
@@ -1895,9 +1895,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--emerald-500))',
-              color: 'hsl(var(--emerald-50))',
-              border: '1px solid hsl(var(--emerald-600))'
+              background: '#10b981',
+              color: '#ecfdf5',
+              border: '1px solid #059669'
             }
           });
 
@@ -1933,9 +1933,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--emerald-500))',
-              color: 'hsl(var(--emerald-50))',
-              border: '1px solid hsl(var(--emerald-600))'
+              background: '#10b981',
+              color: '#ecfdf5',
+              border: '1px solid #059669'
             }
           });
 
@@ -1966,9 +1966,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--destructive))',
-              color: 'hsl(var(--destructive-foreground))',
-              border: '1px solid hsl(var(--destructive))'
+              background: 'var(--destructive)',
+              color: 'var(--destructive-foreground)',
+              border: '1px solid var(--destructive)'
             }
           });
       }
@@ -1994,9 +1994,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--destructive))',
-              color: 'hsl(var(--destructive-foreground))',
-              border: '1px solid hsl(var(--destructive))'
+              background: 'var(--destructive)',
+              color: 'var(--destructive-foreground)',
+              border: '1px solid var(--destructive)'
             }
           });
       }
@@ -2016,9 +2016,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--destructive))',
-              color: 'hsl(var(--destructive-foreground))',
-              border: '1px solid hsl(var(--destructive))'
+              background: 'var(--destructive)',
+              color: 'var(--destructive-foreground)',
+              border: '1px solid var(--destructive)'
             }
           });
       }
@@ -2038,9 +2038,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--destructive))',
-              color: 'hsl(var(--destructive-foreground))',
-              border: '1px solid hsl(var(--destructive))'
+              background: 'var(--destructive)',
+              color: 'var(--destructive-foreground)',
+              border: '1px solid var(--destructive)'
             }
           });
       }
@@ -2060,9 +2060,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             } : undefined,
             duration: 5000,
             style: {
-              background: 'hsl(var(--destructive))',
-              color: 'hsl(var(--destructive-foreground))',
-              border: '1px solid hsl(var(--destructive))'
+              background: 'var(--destructive)',
+              color: 'var(--destructive-foreground)',
+              border: '1px solid var(--destructive)'
             }
           });
       }
