@@ -1166,8 +1166,15 @@ export default function BuilderPage() {
       
       {/* Destructive alert dialog */}
       {alertMessage && (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
-          <Alert variant="destructive" className="w-[90%] max-w-md bg-black">
+        <div className="fixed inset-0 z-50">
+          {/* Dark backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setAlertMessage(null)}
+          />
+          {/* Alert content */}
+          <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+            <Alert variant="destructive" className="w-[90%] max-w-md bg-black pointer-events-auto">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{alertMessage}</AlertDescription>
             <Button
@@ -1178,6 +1185,7 @@ export default function BuilderPage() {
               Understood
             </Button>
           </Alert>
+          </div>
         </div>
       )}
 
