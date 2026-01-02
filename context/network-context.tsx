@@ -22,19 +22,19 @@ interface NetworkContextType {
 
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
-export function NetworkProvider({ 
-  children, 
-  defaultEnvironment = 'mainnet' 
-}: { 
+export function NetworkProvider({
+  children,
+  defaultEnvironment = 'mainnet'
+}: {
   children: ReactNode;
   defaultEnvironment?: NetworkEnvironment;
 }) {
   const [environment, setEnvironment] = useState<NetworkEnvironment>(defaultEnvironment);
   const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
-  
+
   const { chainId } = useAccount();
   const { switchChain } = useSwitchChain();
-  
+
   const currentChainId = chainId;
   const isMainnet = environment === 'mainnet';
   const isTestnet = environment === 'testnet';
@@ -77,15 +77,15 @@ export function NetworkProvider({
     }
   }, [switchChain]);
 
-  const isL1Chain = useCallback((checkChainId: number) =>
-    getL1Chains(environment).some(chain => chain.id === checkChainId),
-    [environment]
-  );
+  // Performance optimization: memoize chain arrays to prevent new references on every render
+  const l1Chains = useMemo(() => getL1Chains(environment), [environment]);
+  const l2Chains = useMemo(() => getL2Chains(environment), [environment]);
+  const supportedChains = useMemo(() => getChains(environment), [environment]);
+  const graphqlApiUrl = useMemo(() => apiUrls[environment].graphql, [environment]);
 
-  const isL2Chain = useCallback((checkChainId: number) =>
-    getL2Chains(environment).some(chain => chain.id === checkChainId),
-    [environment]
-  );
+  // Performance optimization: memoize chain check functions
+  const isL1Chain = useCallback((checkChainId: number) => l1Chains.some(chain => chain.id === checkChainId), [l1Chains]);
+  const isL2Chain = useCallback((checkChainId: number) => l2Chains.some(chain => chain.id === checkChainId), [l2Chains]);
 
   const contextValue = useMemo(() => ({
     environment,
@@ -98,10 +98,10 @@ export function NetworkProvider({
     isNetworkSwitching,
     isL1Chain,
     isL2Chain,
-    graphqlApiUrl: apiUrls[environment].graphql,
-    l1Chains: getL1Chains(environment),
-    l2Chains: getL2Chains(environment),
-    supportedChains: getChains(environment)
+    graphqlApiUrl,
+    l1Chains,
+    l2Chains,
+    supportedChains
   }), [
     environment,
     isMainnet,
@@ -111,7 +111,11 @@ export function NetworkProvider({
     switchToChain,
     isNetworkSwitching,
     isL1Chain,
-    isL2Chain
+    isL2Chain,
+    graphqlApiUrl,
+    l1Chains,
+    l2Chains,
+    supportedChains
   ]);
 
   return (
@@ -129,4 +133,4 @@ export function useNetwork() {
   return context;
 }
 
-export default NetworkContext; 
+export default NetworkContext;
