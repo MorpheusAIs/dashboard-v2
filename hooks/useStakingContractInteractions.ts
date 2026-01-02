@@ -16,6 +16,58 @@ import BuildersAbi from '@/app/abi/Builders.json';
 // Import from config
 import { getChainById } from '@/config/networks';
 
+// Helper function to extract user-friendly error message from contract/RPC errors
+function extractErrorMessage(error: Error | unknown): string {
+  if (!error) return "Unknown error";
+
+  const errorMsg = error instanceof Error ? error.message : String(error);
+
+  // Try to extract the revert reason using various patterns
+  // Pattern 1: reverted with reason string 'X'
+  const reasonStringMatch = errorMsg.match(/reverted with reason string ['"]([^'"]+)['"]/);
+  if (reasonStringMatch?.[1]) {
+    return reasonStringMatch[1];
+  }
+
+  // Pattern 2: reverted with the following reason:\nX (handles newlines)
+  const followingReasonMatch = errorMsg.match(/reverted with the following reason:\s*\n?\s*(.+?)(?:\n|$)/i);
+  if (followingReasonMatch?.[1]) {
+    return followingReasonMatch[1].trim();
+  }
+
+  // Pattern 3: Details: X or Reason: X
+  const detailsMatch = errorMsg.match(/(?:Details|Reason):\s*(.+?)(?:\n|\.|$)/i);
+  if (detailsMatch?.[1]) {
+    return detailsMatch[1].trim();
+  }
+
+  // Pattern 4: Rate limiting
+  if (errorMsg.toLowerCase().includes('rate limit')) {
+    return "Request is being rate limited. Please try again in a few moments.";
+  }
+
+  // Pattern 5: Gas errors
+  if (errorMsg.toLowerCase().includes('gas')) {
+    return "Transaction would exceed gas limits. The contract function may be failing.";
+  }
+
+  // Pattern 6: User rejected
+  if (errorMsg.toLowerCase().includes('user rejected') || errorMsg.toLowerCase().includes('user denied')) {
+    return "Transaction was rejected by user.";
+  }
+
+  // Fallback: truncate long messages and remove technical prefixes
+  let displayError = errorMsg.split('(')[0].trim();
+  // Remove common prefixes
+  displayError = displayError.replace(/^(ContractFunctionExecutionError|ContractFunctionRevertedError):\s*/i, '');
+  // Truncate if still too long
+  if (displayError.length > 150) {
+    displayError = displayError.substring(0, 147) + '...';
+  }
+
+  return displayError || "Transaction failed. Please try again.";
+}
+
 export interface UseStakingContractInteractionsProps {
   subnetId?: `0x${string}`;
   networkChainId: number;
@@ -246,28 +298,8 @@ export const useStakingContractInteractions = ({
   const { data: stakeTxResult, writeContract: writeStake, isPending: isStakePending, error: stakeError, reset: resetStakeContract } = useWriteContract({
     mutation: {
       onError: (error) => {
+        // Log detailed error for debugging - toast is handled in useEffect to avoid race conditions
         console.error("Detailed staking error:", error);
-        let errorMessage = "Unknown error";
-        
-        if (error instanceof Error) {
-          errorMessage = error.message;
-          
-          // Try to extract the revert reason if available
-          const revertMatch = errorMessage.match(/reverted with reason string '([^']*)'/);
-          if (revertMatch && revertMatch[1]) {
-            errorMessage = `Contract reverted: ${revertMatch[1]}`;
-          }
-          
-          // Extract gas errors
-          if (errorMessage.includes("gas")) {
-            errorMessage = "Transaction would exceed gas limits. The contract function may be failing.";
-          }
-        }
-        
-        toast.error("Staking Failed", { 
-          id: "stake-tx", 
-          description: errorMessage 
-        });
       }
     }
   });
@@ -275,28 +307,8 @@ export const useStakingContractInteractions = ({
   const { data: claimTxResult, writeContract: writeClaim, isPending: isClaimPending, error: claimError, reset: resetClaimContract } = useWriteContract({
     mutation: {
       onError: (error) => {
+        // Log detailed error for debugging - toast is handled in useEffect to avoid race conditions
         console.error("Detailed claim error:", error);
-        let errorMessage = "Unknown error";
-        
-        if (error instanceof Error) {
-          errorMessage = error.message;
-          
-          // Try to extract the revert reason if available
-          const revertMatch = errorMessage.match(/reverted with reason string '([^']*)'/);
-          if (revertMatch && revertMatch[1]) {
-            errorMessage = `Contract reverted: ${revertMatch[1]}`;
-          }
-          
-          // Extract gas errors
-          if (errorMessage.includes("gas")) {
-            errorMessage = "Transaction would exceed gas limits. The contract function may be failing.";
-          }
-        }
-        
-        toast.error("Claim Failed", { 
-          id: "claim-tx", 
-          description: errorMessage 
-        });
       }
     }
   });
@@ -304,28 +316,8 @@ export const useStakingContractInteractions = ({
   const { data: withdrawTxResult, writeContract: writeWithdraw, isPending: isWithdrawPending, error: withdrawError, reset: resetWithdrawContract } = useWriteContract({
     mutation: {
       onError: (error) => {
+        // Log detailed error for debugging - toast is handled in useEffect to avoid race conditions
         console.error("Detailed withdrawal error:", error);
-        let errorMessage = "Unknown error";
-        
-        if (error instanceof Error) {
-          errorMessage = error.message;
-          
-          // Try to extract the revert reason if available
-          const revertMatch = errorMessage.match(/reverted with reason string '([^']*)'/);
-          if (revertMatch && revertMatch[1]) {
-            errorMessage = `Contract reverted: ${revertMatch[1]}`;
-          }
-          
-          // Extract gas errors
-          if (errorMessage.includes("gas")) {
-            errorMessage = "Transaction would exceed gas limits. The contract function may be failing.";
-          }
-        }
-        
-        toast.error("Withdrawal Failed", { 
-          id: "withdraw-tx", 
-          description: errorMessage 
-        });
       }
     }
   });
@@ -333,28 +325,8 @@ export const useStakingContractInteractions = ({
   const { data: approveTxResult, writeContract: writeApprove, isPending: isApprovePending, error: approveError, reset: resetApproveContract } = useWriteContract({
     mutation: {
       onError: (error) => {
+        // Log detailed error for debugging - toast is handled in useEffect to avoid race conditions
         console.error("Detailed approval error:", error);
-        let errorMessage = "Unknown error";
-        
-        if (error instanceof Error) {
-          errorMessage = error.message;
-          
-          // Try to extract the revert reason if available
-          const revertMatch = errorMessage.match(/reverted with reason string '([^']*)'/);
-          if (revertMatch && revertMatch[1]) {
-            errorMessage = `Token approval reverted: ${revertMatch[1]}`;
-          }
-          
-          // Extract gas errors
-          if (errorMessage.includes("gas")) {
-            errorMessage = "Approval would exceed gas limits. The token contract may be non-standard.";
-          }
-        }
-        
-        toast.error("Token Approval Failed", { 
-          id: "approval-tx", 
-          description: errorMessage 
-        });
       }
     }
   });
@@ -429,10 +401,7 @@ export const useStakingContractInteractions = ({
     }
     if (approveError) {
       toast.dismiss("approval-tx");
-      const errorMsg = approveError?.message || "Approval failed.";
-      let displayError = errorMsg.split('(')[0].trim();
-      const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
-      if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
+      const displayError = extractErrorMessage(approveError);
       toast.error("Approval Failed", { id: "approval-tx", description: displayError });
       resetApproveContract();
     }
@@ -473,10 +442,7 @@ export const useStakingContractInteractions = ({
     }
     if (stakeError) {
       toast.dismiss("stake-tx");
-      const errorMsg = stakeError?.message || "Staking failed.";
-      let displayError = errorMsg.split('(')[0].trim();
-      const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
-      if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
+      const displayError = extractErrorMessage(stakeError);
       toast.error("Staking Failed", { id: "stake-tx", description: displayError });
       resetStakeContract();
     }
@@ -516,10 +482,7 @@ export const useStakingContractInteractions = ({
     }
     if (withdrawError) {
       toast.dismiss("withdraw-tx");
-      const errorMsg = withdrawError?.message || "Withdrawal failed.";
-      let displayError = errorMsg.split('(')[0].trim();
-      const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
-      if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
+      const displayError = extractErrorMessage(withdrawError);
       toast.error("Withdrawal Failed", { id: "withdraw-tx", description: displayError });
       resetWithdrawContract();
     }
@@ -560,10 +523,7 @@ export const useStakingContractInteractions = ({
     }
     if (claimError) {
       toast.dismiss("claim-tx");
-      const errorMsg = claimError?.message || "Claim failed.";
-      let displayError = errorMsg.split('(')[0].trim();
-      const detailsMatch = errorMsg.match(/(?:Details|Reason): (.*?)(?:\\n|\.|$)/i);
-      if (detailsMatch && detailsMatch[1]) displayError = detailsMatch[1].trim();
+      const displayError = extractErrorMessage(claimError);
       toast.error("Claim Failed", { id: "claim-tx", description: displayError });
       resetClaimContract();
     }
