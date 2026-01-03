@@ -35,6 +35,11 @@ function initializeWeb3Modal() {
         enableOnramp: true,
         themeMode: "dark",
         defaultChain: mainnet,
+        featuredWalletIds: [
+          'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase Wallet (Base Wallet)
+          'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+          '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow
+        ],
         excludeWalletIds: [
           'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // Phantom wallet
         ],
