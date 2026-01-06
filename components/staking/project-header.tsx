@@ -276,7 +276,7 @@ export function ProjectHeader({
                   className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2 border-white text-white hover:bg-white hover:text-black transition-colors flex items-center"
                 >
                   <Code className="size-4" />
-                  <span className="ml-2">GetData</span>
+                  <span className="ml-2">Get Data</span>
                 </a>
               )}
             </div>
