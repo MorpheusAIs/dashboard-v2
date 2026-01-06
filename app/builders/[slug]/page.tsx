@@ -597,21 +597,9 @@ export default function BuilderPage() {
       refreshMultipleTimes();
       refreshStakingDataRef.current = false; 
     }
-  }, [refreshStakingEntries, hookProjectId]); // Added hookProjectId as a dep, though refreshStakingEntries is main trigger
+  }, [refreshStakingEntries]);
 
-  // useEffect to signal staking data refresh when hookProjectId is ready and changes
-  useEffect(() => {
-    if (hookProjectId) { 
-      console.log(`[BuilderPage] hookProjectId is now ready: ${hookProjectId}. Triggering staking data refresh signal.`);
-      refreshStakingDataRef.current = true;
-    } else {
-      console.log(`[BuilderPage] hookProjectId is not ready or became undefined. Builder:`, builder, `isTestnet:`, isTestnet);
-      // Optionally, if hookProjectId becomes undefined after being set, clear existing staking data
-      // This might require exposing a 'clear' function from useStakingData or handling it via refresh logic.
-      // For now, just log.
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hookProjectId]); // React to changes in the finalized hookProjectId (refreshStakingEntries is not needed here)
+
   
   // Create a ref to store the approval refresh function
   const refreshApprovalRef = useRef<((amount: string) => Promise<boolean> | boolean) | null>(null);
