@@ -256,6 +256,18 @@ export async function GET(
       }
     }
 
+    interface BuildersUser {
+      id: string;
+      address: string;
+      staked: string;
+      lastStake: string;
+      buildersProject?: {
+        id: string;
+        name: string;
+      };
+      __typename?: string;
+    }
+
     // ============================================================================
     // STEP 5: Build comprehensive response
     // ============================================================================
@@ -278,7 +290,7 @@ export async function GET(
       metadata: metadata,
 
       // Stakers data with pagination
-      stakers: stakers.map((staker) => ({
+      stakers: stakers.map((staker: BuildersUser) => ({
         id: staker.id,
         address: staker.address,
         staked: staker.staked,
