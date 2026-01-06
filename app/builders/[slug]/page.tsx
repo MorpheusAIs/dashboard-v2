@@ -1022,19 +1022,18 @@ export default function BuilderPage() {
   
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
 
-  const handleOpenJsonApi = () => {
-    const { subnet_id, network } = Object.fromEntries(
+  const getDataApiUrl = useMemo(() => {
+    if (!subnetId) return null;
+
+    const { network } = Object.fromEntries(
       new URLSearchParams(window.location.search)
     );
-    const slugPath = window.location.pathname.replace(/\/$/, '');
-    const queryParams = new URLSearchParams();
-    if (subnet_id) queryParams.set('subnet_id', subnet_id);
-    if (network) queryParams.set('network', network);
-    const queryString = queryParams.toString();
-    const jsonApiUrl = `${slugPath}.json${queryString ? '?' + queryString : ''}`;
-    window.open(jsonApiUrl, '_blank');
-  };
-  
+
+    const networkLower = network?.toLowerCase() || 'base';
+
+    return `/api/builders/goldsky/${subnetId}?network=${networkLower}`;
+  }, [subnetId]);
+
   // Determine if we should show skeleton loading state
   // Show skeleton if: loading, no builder, or no subnetId
   const showSkeleton = isLoading || !builder || !subnetId;
@@ -1196,18 +1195,6 @@ export default function BuilderPage() {
 
       {/* Main content */}
       <div className="max-w-5xl mx-auto space-y-8">
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenJsonApi}
-            className="gap-2"
-          >
-            <Code className="size-4" />
-            GetData
-          </Button>
-        </div>
-
         <ProjectHeader
           name={builder.name}
           description={parseBuilderDescription(builder.description)}
@@ -1221,6 +1208,7 @@ export default function BuilderPage() {
           showEditButton={isUserAdmin}
           subnetId={subnetId || null}
           isTestnet={isTestnet}
+          getDataUrl={getDataApiUrl || undefined}
         />
 
         {/* Staking Stats */}

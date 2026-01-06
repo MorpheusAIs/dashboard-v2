@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { ArbitrumIcon, BaseIcon } from "@/components/network-icons";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Code } from "lucide-react";
 import { useState, useEffect } from "react";
 import { EditSubnetModal } from "./edit-subnet-modal";
 import { Builder } from "@/app/builders/builders-data";
@@ -71,6 +71,7 @@ export interface ProjectHeaderProps {
   showEditButton?: boolean;
   subnetId?: string | null;
   isTestnet?: boolean;
+  getDataUrl?: string;
 }
 
 export function ProjectHeader({
@@ -85,6 +86,7 @@ export function ProjectHeader({
   showEditButton = false,
   subnetId,
   isTestnet = false,
+  getDataUrl,
 }: ProjectHeaderProps) {
   
   // Track image loading error
@@ -255,15 +257,29 @@ export function ProjectHeader({
         <div className="flex-1">
           <div className="flex items-start justify-between">
             <h1 className="text-2xl font-bold text-gray-100 mb-2">{name}</h1>
-            
-            {showEditButton && builder && (
-              <button 
-                onClick={() => setIsEditModalOpen(true)}
-                className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2"
-              >
-                Edit subnet
-              </button>
-            )}
+
+            <div className="flex flex-col gap-2 items-end">
+              {showEditButton && builder && (
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2"
+                >
+                  Edit subnet
+                </button>
+              )}
+
+              {getDataUrl && (
+                <a
+                  href={getDataUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2 border-white text-white hover:bg-white hover:text-black transition-colors flex items-center"
+                >
+                  <Code className="size-4" />
+                  <span className="ml-2">GetData</span>
+                </a>
+              )}
+            </div>
           </div>
           
           <div className="flex items-center gap-4 mb-4">
