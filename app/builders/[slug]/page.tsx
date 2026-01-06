@@ -28,7 +28,7 @@ import { useStakingContractInteractions, type UseStakingContractInteractionsProp
 import { formatEther, type Address, parseUnits } from "viem";
 import { testnetChains, mainnetChains } from '@/config/networks';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUrlParams } from '@/lib/utils/url-params';
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
@@ -1020,8 +1020,20 @@ export default function BuilderPage() {
     }
   }, [isLoading, builder, subnetId]);
   
-  // Add state for network switch notification
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
+
+  const handleOpenJsonApi = () => {
+    const { subnet_id, network } = Object.fromEntries(
+      new URLSearchParams(window.location.search)
+    );
+    const slugPath = window.location.pathname.replace(/\/$/, '');
+    const queryParams = new URLSearchParams();
+    if (subnet_id) queryParams.set('subnet_id', subnet_id);
+    if (network) queryParams.set('network', network);
+    const queryString = queryParams.toString();
+    const jsonApiUrl = `${slugPath}.json${queryString ? '?' + queryString : ''}`;
+    window.open(jsonApiUrl, '_blank');
+  };
   
   // Determine if we should show skeleton loading state
   // Show skeleton if: loading, no builder, or no subnetId
@@ -1184,7 +1196,18 @@ export default function BuilderPage() {
 
       {/* Main content */}
       <div className="max-w-5xl mx-auto space-y-8">
-        {/* Builder Header */}
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenJsonApi}
+            className="gap-2"
+          >
+            <Code className="size-4" />
+            GetData
+          </Button>
+        </div>
+
         <ProjectHeader
           name={builder.name}
           description={parseBuilderDescription(builder.description)}
