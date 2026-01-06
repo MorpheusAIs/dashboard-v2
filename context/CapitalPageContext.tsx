@@ -13,7 +13,8 @@ import {
   usePublicClient,
   type BaseError 
 } from "wagmi";
-import { parseUnits, parseEther, zeroAddress, maxInt256, getContract, formatUnits, isAddress } from "viem";
+import { parseUnits, zeroAddress, maxInt256, getContract, formatUnits, isAddress } from "viem";
+import { getStaticLayerZeroFee } from "@/hooks/use-layerzero-fee";
 import { toast } from "sonner";
 
 // Import Config, Utils & ABIs
@@ -2313,7 +2314,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const claimAssetRewards = useCallback(async (asset: AssetSymbol) => {
     if (!userAddress || !l1ChainId) throw new Error("Claim prerequisites not met");
     
-    // Get asset data dynamically
     const assetData = assets[asset];
     if (!assetData) {
       throw new Error(`${asset} data not available`);
@@ -2325,9 +2325,15 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     
     const targetAddress = assetData.config.depositPoolAddress;
 
-    // For V2 claims, we need ETH for cross-chain gas fees to L2 (Arbitrum Sepolia)
-    // The claim will trigger cross-chain communication via LayerZero
-    const ETH_FOR_CROSS_CHAIN_GAS = parseEther("0.01"); // 0.01 ETH for L2 gas
+    const layerZeroFee = getStaticLayerZeroFee(networkEnv);
+    
+    console.log(`💰 [${asset}] Claim - LayerZero fee:`, {
+      fee: layerZeroFee.toString(),
+      feeInEth: formatUnits(layerZeroFee, 18),
+      networkEnv
+    });
+
+    const l2NetworkName = networkEnv === 'testnet' ? 'Base Sepolia' : 'Arbitrum One';
 
     await handleTransaction(() => claimAsync({
       address: targetAddress,
@@ -2335,14 +2341,14 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       functionName: 'claim',
       args: [V2_REWARD_POOL_INDEX, userAddress],
       chainId: l1ChainId,
-      value: ETH_FOR_CROSS_CHAIN_GAS, // Send ETH for cross-chain gas
-      gas: BigInt(800000), // Higher gas limit for cross-chain operations
+      value: layerZeroFee,
+      gas: BigInt(800000),
     }), {
       loading: `Claiming ${asset} rewards...`,
-      success: `Successfully claimed ${asset} rewards! MOR tokens will be minted on Arbitrum Sepolia.`,
+      success: `Successfully claimed ${asset} rewards! MOR tokens will be minted on ${l2NetworkName}.`,
       error: `${asset} claim failed`
     });
-  }, [claimAsync, assets, l1ChainId, userAddress, handleTransaction]);
+  }, [claimAsync, assets, l1ChainId, userAddress, handleTransaction, networkEnv]);
 
   const lockAssetRewards = useCallback(async (asset: AssetSymbol, lockDurationSeconds: bigint) => {
     if (!userAddress || !l1ChainId) throw new Error("Lock claim prerequisites not met");
@@ -2380,6 +2386,15 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`${asset} referral claim prerequisites not met`);
     }
 
+    const layerZeroFee = getStaticLayerZeroFee(networkEnv);
+    const l2NetworkName = networkEnv === 'testnet' ? 'Base Sepolia' : 'Arbitrum One';
+
+    console.log(`💰 [Referral] Claim - LayerZero fee:`, {
+      fee: layerZeroFee.toString(),
+      feeInEth: formatUnits(layerZeroFee, 18),
+      networkEnv
+    });
+
     let claimedAny = false;
 
     for (const symbol of targetAssets) {
@@ -2405,10 +2420,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         functionName: 'claimReferrerTier',
         args: [V2_REWARD_POOL_INDEX, userAddress],
         chainId: l1ChainId,
-        gas: BigInt(600000),
+        value: layerZeroFee,
+        gas: BigInt(800000),
       }), {
         loading: `Claiming ${symbol} referral rewards...`,
-        success: `Successfully claimed ${symbol} referral rewards!`,
+        success: `Successfully claimed ${symbol} referral rewards! MOR tokens will be minted on ${l2NetworkName}.`,
         error: `${symbol} referral claim failed`
       });
 
@@ -2422,6 +2438,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     claimAsync,
     handleTransaction,
     l1ChainId,
+    networkEnv,
     referralAssetConfigMap,
     referralRewardsByAsset,
     userAddress
