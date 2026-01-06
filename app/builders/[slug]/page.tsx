@@ -1031,7 +1031,7 @@ export default function BuilderPage() {
 
     const networkLower = network?.toLowerCase() || 'base';
 
-    return `/api/builders/goldsky/${subnetId}?network=${networkLower}`;
+    return `/api/builders/goldsky/${subnetId}/full?network=${networkLower}`;
   }, [subnetId]);
 
   // Determine if we should show skeleton loading state
