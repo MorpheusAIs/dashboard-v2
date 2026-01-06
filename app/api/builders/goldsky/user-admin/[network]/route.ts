@@ -12,10 +12,10 @@ export const runtime = 'nodejs';
  */
 export async function GET(
   request: Request,
-  { params }: { params: { network: string } }
+  { params }: { params: Promise<{ network: string }> }
 ) {
   try {
-    const { network } = params;
+    const { network } = await params;
     
     if (!network) {
       return NextResponse.json(
