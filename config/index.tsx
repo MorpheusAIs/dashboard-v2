@@ -1,5 +1,6 @@
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { cookieStorage, createStorage, http } from 'wagmi';
+import { safe } from 'wagmi/connectors';
 import { mainnet, arbitrum, base, baseSepolia, arbitrumSepolia, sepolia } from 'wagmi/chains';
 // import { NetworkEnvironment } from './networks';
 
@@ -40,6 +41,17 @@ export const getWagmiConfig = () => {
   // Always include all chains Wagmi needs to be aware of
   const chains = [mainnet, arbitrum, base, baseSepolia, arbitrumSepolia, sepolia] as const;
 
+  // ✅ Safe Wallet Connector Configuration
+  // This enables proper detection when the dApp is accessed from within Safe's App browser
+  // Without this connector, Safe wallet connections via WalletConnect may not be properly detected
+  // See: https://wagmi.sh/react/guides/connect-wallet#_1-configure-wagmi
+  const safeConnector = safe({
+    // Allow connections from Safe's domains
+    allowedDomains: [/app\.safe\.global$/, /safe\.global$/],
+    // Enable shimDisconnect to properly handle disconnect state in storage
+    shimDisconnect: true,
+  });
+
   return defaultWagmiConfig({
     chains,
     projectId,
@@ -48,6 +60,10 @@ export const getWagmiConfig = () => {
     storage: createStorage({
       storage: cookieStorage
     }),
+    // ✅ Add Safe connector to enable Safe wallet support
+    // The defaultWagmiConfig will add this alongside the default connectors
+    // (WalletConnect, Injected, Coinbase, EIP-6963)
+    connectors: [safeConnector],
     // ✅ CRITICAL: Explicitly configure transports to use Alchemy RPC URLs (primary) with Infura as fallback
     transports: {
       [mainnet.id]: http(alchemyMainnetRpcUrl),

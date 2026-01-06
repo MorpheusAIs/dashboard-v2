@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useConnectorClient } from "wagmi";
 
 // Define a User type to replace 'any'
 interface User {
@@ -43,7 +43,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isWalletInitialized, setIsWalletInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  const { address, isConnected, isConnecting, isReconnecting } = useAccount();
+  const { address, isConnected, isConnecting, isReconnecting, connector } = useAccount();
+  const { data: connectorClient } = useConnectorClient();
   
   // Check if the connected account is an admin
   const isAdmin = walletAddress ? ADMIN_WALLETS.includes(walletAddress.toLowerCase()) : false;
@@ -52,6 +53,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setWalletAddress(address || null);
   }, [address]);
+
+  // Log Safe wallet connection details for debugging
+  useEffect(() => {
+    if (isConnected && connector) {
+      const isSafeConnector = connector.id === 'safe' || connector.name?.toLowerCase().includes('safe');
+      const isInIframe = typeof window !== 'undefined' && window.parent !== window;
+      
+      console.log('🔗 Wallet connection details:', {
+        connectorId: connector.id,
+        connectorName: connector.name,
+        isSafeConnector,
+        isInIframe,
+        address: address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null,
+        hasConnectorClient: !!connectorClient,
+      });
+      
+      if (isSafeConnector) {
+        console.log('✅ Safe wallet detected and connected successfully');
+      }
+    }
+  }, [isConnected, connector, address, connectorClient]);
 
   // Track wallet initialization state
   useEffect(() => {
