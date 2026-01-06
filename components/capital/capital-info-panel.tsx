@@ -222,15 +222,15 @@ export function CapitalInfoPanel() {
                           }
                         }
 
-                        return (
-                          <p className='text-right'>
-                            <NumberFlow
-                              value={parsedValue}
-                              format={formatOptions}
-                              locales="en-US"
-                            />
-                          </p>
-                        );
+                         return (
+                           <div className="text-right">
+                             <NumberFlow
+                               value={parsedValue}
+                               format={formatOptions}
+                               locales="en-US"
+                             />
+                           </div>
+                         );
                       })()}
                     </div>
 

@@ -28,7 +28,7 @@ import { useStakingContractInteractions, type UseStakingContractInteractionsProp
 import { formatEther, type Address, parseUnits } from "viem";
 import { testnetChains, mainnetChains } from '@/config/networks';
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUrlParams } from '@/lib/utils/url-params';
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
@@ -1020,9 +1020,20 @@ export default function BuilderPage() {
     }
   }, [isLoading, builder, subnetId]);
   
-  // Add state for network switch notification
   const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
-  
+
+  const getDataApiUrl = useMemo(() => {
+    if (!subnetId) return null;
+
+    const { network } = Object.fromEntries(
+      new URLSearchParams(window.location.search)
+    );
+
+    const networkLower = network?.toLowerCase() || 'base';
+
+    return `/api/builders/goldsky/${subnetId}/full?network=${networkLower}`;
+  }, [subnetId]);
+
   // Determine if we should show skeleton loading state
   // Show skeleton if: loading, no builder, or no subnetId
   const showSkeleton = isLoading || !builder || !subnetId;
@@ -1184,7 +1195,6 @@ export default function BuilderPage() {
 
       {/* Main content */}
       <div className="max-w-5xl mx-auto space-y-8">
-        {/* Builder Header */}
         <ProjectHeader
           name={builder.name}
           description={parseBuilderDescription(builder.description)}
@@ -1198,6 +1208,7 @@ export default function BuilderPage() {
           showEditButton={isUserAdmin}
           subnetId={subnetId || null}
           isTestnet={isTestnet}
+          getDataUrl={getDataApiUrl || undefined}
         />
 
         {/* Staking Stats */}
