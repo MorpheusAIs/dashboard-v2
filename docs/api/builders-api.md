@@ -444,6 +444,200 @@ interface ErrorResponse {
 
 ---
 
+### 3. Get Full Subnet Data
+
+Returns comprehensive subnet data including metadata and all stakers in a single response.
+
+```
+GET /api/builders/goldsky/[projectId]/full?network=base&limit=50&skip=0
+```
+
+#### Query Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `network` | string | No | "base" | Network identifier ("base" or "arbitrum") |
+| `limit` | number | No | 50 | Number of stakers per page (max: 1000) |
+| `skip` | number | No | 0 | Number of results to skip |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "project": {
+      "id": "0xf8c784db930f5b824609b2a64bc7135b089666624ba6e3a8cca427eafcf572cd",
+      "name": "MySuperAgent",
+      "admin": "0x67760bad63cc00294764ef7d1f6570e864c196c1",
+      "totalStaked": "144531970800000000000000",
+      "totalUsers": "31",
+      "totalClaimed": "89456789123456789",
+      "minimalDeposit": "1000000000000000",
+      "withdrawLockPeriodAfterDeposit": "2592000",
+      "startsAt": "1738684800",
+      "claimLockEnd": "1743254400"
+    },
+    "metadata": {
+      "id": "uuid-xxx-xxx-xxx",
+      "name": "MySuperAgent",
+      "description": "A powerful AI agent...",
+      "longDescription": "Detailed description...",
+      "imageSrc": "https://...",
+      "website": "https://example.com",
+      "tags": ["AI", "Blockchain"],
+      "githubUrl": "https://github.com/...",
+      "twitterUrl": "https://twitter.com/...",
+      "discordUrl": "https://discord.gg/...",
+      "contributors": 42,
+      "githubStars": 1250,
+      "rewardTypes": ["tokens"],
+      "rewardTypesDetail": [...],
+      "networks": ["Base", "Arbitrum"],
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-15T12:34:56.789Z"
+    },
+    "stakers": [
+      {
+        "id": "0x7ab874eeef0169ada0d225e9801a3ffffa26aac3",
+        "address": "0x7ab874eeef0169ada0d225e9801a3ffffa26aac3",
+        "staked": "1024000000000000000000",
+        "lastStake": "1738641221",
+        "projectName": "MySuperAgent"
+      },
+      ...
+    ],
+    "pagination": {
+      "totalCount": 92,
+      "limit": 50,
+      "skip": 0,
+      "hasMore": true
+    },
+    "queryParams": {
+      "network": "base",
+      "limit": "50",
+      "skip": "0"
+    }
+  }
+}
+```
+
+#### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Whether the request succeeded |
+| `data.project` | object | On-chain subnet data from Goldsky V4 |
+| `data.metadata` | object | Enrichment data from Supabase (null if not found) |
+| `data.stakers` | array | Full list of stakers with pagination support |
+| `data.pagination` | object | Pagination metadata for stakers list |
+| `data.queryParams` | object | Echo of query parameters for reference |
+
+#### Project Object (On-chain Data)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique subnet identifier (bytes32 hash) |
+| `name` | string | Human-readable subnet name |
+| `admin` | string | Subnet admin wallet address |
+| `totalStaked` | string | Total MOR staked in wei (raw value) |
+| `totalUsers` | string | Number of unique stakers |
+| `totalClaimed` | string | Total MOR claimed in wei |
+| `minimalDeposit` | string | Minimum deposit in wei |
+| `withdrawLockPeriodAfterDeposit` | string | Withdrawal lock period in seconds |
+| `startsAt` | string | Unix timestamp when subnet started |
+| `claimLockEnd` | string | Unix timestamp when claim lock ends |
+
+#### Metadata Object (Supabase Enrichment)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Supabase record ID |
+| `name` | string | Project name from database |
+| `description` | string | Short project description |
+| `longDescription` | string | Detailed description (markdown) |
+| `imageSrc` | string | Project logo/image URL |
+| `website` | string | Project website URL |
+| `tags` | array | List of technology tags |
+| `githubUrl` | string | GitHub repository URL |
+| `twitterUrl` | string | Twitter/X profile URL |
+| `discordUrl` | string | Discord server invite URL |
+| `contributors` | number | Number of GitHub contributors |
+| `githubStars` | number | Number of GitHub stars |
+| `rewardTypes` | array | List of reward type tags |
+| `rewardTypesDetail` | array | Detailed reward information |
+| `networks` | array | List of supported networks |
+| `createdAt` | string | ISO 8601 timestamp when record was created |
+| `updatedAt` | string | ISO 8601 timestamp when record was last updated |
+
+#### Staker Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Staker record ID |
+| `address` | string | Staker's wallet address |
+| `staked` | string | Amount staked in wei (raw value) |
+| `lastStake` | string | Unix timestamp of last stake action |
+| `projectName` | string | Associated project name (for reference) |
+
+#### Pagination Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `totalCount` | number | Total number of stakers |
+| `limit` | number | Results per page (from request) |
+| `skip` | number | Current offset (from request) |
+| `hasMore` | boolean | Whether more results are available |
+
+#### Examples
+
+**Basic request:**
+```bash
+curl "https://dashboard.mor.org/api/builders/goldsky/0xf8c784db930f5b824609b2a64bc7135b089666624ba6e3a8cca427eafcf572cd/full"
+```
+
+**With pagination:**
+```bash
+curl "https://dashboard.mor.org/api/builders/goldsky/0xf8c784db930f5b824609b2a64bc7135b089666624ba6e3a8cca427eafcf572cd/full?network=base&limit=50&skip=0"
+```
+
+**With network parameter:**
+```bash
+curl "https://dashboard.mor.org/api/builders/goldsky/0xf8c784db930f5b824609b2a64bc7135b089666624ba6e3a8cca427eafcf572cd/full?network=arbitrum"
+```
+
+```javascript
+// JavaScript/TypeScript
+const response = await fetch('https://dashboard.mor.org/api/builders/goldsky/0xf8c.../full');
+const data = await response.json();
+
+console.log(`Project: ${data.data.metadata.name}`);
+console.log(`Total staked: ${data.data.project.totalStakedFormatted}`);
+console.log(`Stakers count: ${data.data.stakers.length}`);
+console.log(`Total stakers: ${data.data.pagination.totalCount}`);
+
+// Access all stakers with pagination
+const { stakers, pagination } = data.data;
+console.log(`Page ${pagination.skip / pagination.limit + 1} of ${Math.ceil(pagination.totalCount / pagination.limit)}`);
+```
+
+```python
+# Python
+import requests
+
+response = requests.get(
+    'https://dashboard.mor.org/api/builders/goldsky/0xf8c784db930f5b824609b2a64bc7135b089666624ba6e3a8cca427eafcf572cd/full'
+)
+
+data = response.json()
+
+print(f"Project: {data['data']['metadata']['name']}")
+print(f"Total staked: {data['data']['project']['totalStakedFormatted']}")
+print(f"Stakers: {len(data['data']['stakers'])} of {data['data']['pagination']['totalCount']}")
+```
+
+---
+
 ## Support
 
 For questions or issues with these APIs, please open an issue at:
