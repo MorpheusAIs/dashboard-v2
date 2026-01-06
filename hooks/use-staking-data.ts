@@ -116,8 +116,30 @@ export function useStakingData({
     );
   }, []);
   
-  // Get the appropriate Apollo client and queries for BuildersV4 networks
+  // Uses network prop (subnet's network) not chainId (wallet's network) to fetch data correctly across networks
   const getBuildersV4Config = useCallback(() => {
+    const normalizedNetwork = network?.toLowerCase().trim();
+    
+    if (normalizedNetwork === 'base sepolia' || isTestnet) {
+      return {
+        client: getClientForNetwork('BaseSepolia'),
+        projectQuery: GET_PROJECT_WITH_DETAILS_BASE_SEPOLIA,
+        usersQuery: GET_PROJECT_USERS_PAGINATED_BASE_SEPOLIA,
+      };
+    } else if (normalizedNetwork === 'base') {
+      return {
+        client: getClientForNetwork('Base'),
+        projectQuery: GET_PROJECT_WITH_DETAILS_BASE_MAINNET,
+        usersQuery: GET_PROJECT_USERS_PAGINATED_BASE_MAINNET,
+      };
+    } else if (normalizedNetwork === 'arbitrum') {
+      return {
+        client: getClientForNetwork('Arbitrum'),
+        projectQuery: GET_PROJECT_WITH_DETAILS_ARBITRUM_MAINNET,
+        usersQuery: GET_PROJECT_USERS_PAGINATED_ARBITRUM_MAINNET,
+      };
+    }
+    
     if (chainId === baseSepolia.id) {
       return {
         client: getClientForNetwork('BaseSepolia'),
@@ -138,7 +160,7 @@ export function useStakingData({
       };
     }
     return null;
-  }, [chainId]);
+  }, [network, isTestnet, chainId]);
   
   // Data fetching state
   const [entries, setEntries] = useState<StakingEntry[]>([]);
@@ -522,12 +544,13 @@ export function useStakingData({
         if (buildersV4Config && buildersV4Config.client) {
           // BuildersV4 schema queries work for both V1 and V4 subnets on these chains
           // V1 subnets will have empty metadata fields and need Supabase metadata lookup
-          console.log(`[useStakingData] Using BuildersV4 schema queries for chainId: ${chainId} (will detect V1 vs V4 after fetching project data)`);
+          console.log(`[useStakingData] Using BuildersV4 schema queries for network: ${network} (will detect V1 vs V4 after fetching project data)`);
           
-          // Check if we should use Goldsky API routes
-          const networkName = chainId === base.id ? 'base' : chainId === arbitrum.id ? 'arbitrum' : 'base';
+          const normalizedNetwork = network?.toLowerCase().trim();
+          const networkName = normalizedNetwork === 'arbitrum' ? 'arbitrum' : 'base';
+          const shouldUseGoldsky = normalizedNetwork === 'base' || normalizedNetwork === 'arbitrum';
           
-          if (USE_GOLDSKY_V1_DATA && (chainId === base.id || chainId === arbitrum.id)) {
+          if (USE_GOLDSKY_V1_DATA && shouldUseGoldsky) {
             // Use Goldsky API routes for mainnet
             console.log(`[useStakingData] Using Goldsky API routes for projectId: ${projectIdToUse}`);
             

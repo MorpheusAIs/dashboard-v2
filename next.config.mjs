@@ -2,6 +2,7 @@ const isProd = process.env.VERCEL_ENV === 'production';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  turbopack: {},
   images: {
     remotePatterns: [
       {
