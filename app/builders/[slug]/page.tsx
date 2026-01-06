@@ -296,6 +296,19 @@ export default function BuilderPage() {
     }
   }, [getParam, builder, isTestnet, chainId]);
 
+  // Subnet's chain ID (may differ from wallet's chainId when user hasn't switched networks)
+  const subnetChainId = useMemo(() => {
+    const subnetNetwork = networksToDisplay[0];
+    if (!subnetNetwork) return chainId;
+    
+    const normalizedNetwork = subnetNetwork.toLowerCase();
+    if (normalizedNetwork === 'base sepolia') return baseSepolia.id;
+    if (normalizedNetwork === 'base') return base.id;
+    if (normalizedNetwork === 'arbitrum') return arbitrum.id;
+    
+    return chainId;
+  }, [networksToDisplay, chainId]);
+
   // Normalize network names for icon display (Base Sepolia -> Base)
   const networksForIconDisplay = useMemo(() => {
     return networksToDisplay.map(network => {
@@ -609,7 +622,7 @@ export default function BuilderPage() {
   // Staking hook
   const stakingContractHookProps: UseStakingContractInteractionsProps = useMemo(() => ({
     subnetId: subnetId || undefined,
-    networkChainId: chainId,
+    networkChainId: subnetChainId,
     onTxSuccess: () => {
       console.log("Transaction successful (stake/withdraw/claim), refreshing staking table and current user staker data.");
       refreshStakingDataRef.current = true; // For the main staking table
@@ -704,7 +717,7 @@ export default function BuilderPage() {
       }, 2000); // 2 second delay to allow blockchain state to update
     },
     lockPeriodInSeconds: builder?.withdrawLockPeriodRaw,
-  }), [subnetId, chainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser, stakeAmount, refreshData, isTestnet, refetchSingleBuilder, singleBuilderProjectId, queryClient]);
+  }), [subnetId, subnetChainId, builder?.withdrawLockPeriodRaw, refetchStakerDataForUser, stakeAmount, refreshData, isTestnet, refetchSingleBuilder, singleBuilderProjectId, queryClient]);
 
   // Log subnet ID state for debugging
   useEffect(() => {
