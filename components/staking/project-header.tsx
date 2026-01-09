@@ -256,111 +256,113 @@ export function ProjectHeader({
         
         <div className="flex-1">
           <div className="flex items-start justify-between">
-            <h1 className="text-2xl font-bold text-gray-100 mb-2">{name}</h1>
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold text-gray-100 mb-1">{name}</h1>
+              
+              <div className="flex items-center gap-4 mt-1">
+                <TooltipProvider>
+                  <div className="flex -space-x-1">
+                    {networks.map((network: string) => {
+                      const isArbitrum = network === "Arbitrum" || network === "Arbitrum Sepolia";
+                      const networkIcon = isArbitrum ? (
+                        <ArbitrumIcon size={24} className="text-current" />
+                      ) : (
+                        <BaseIcon size={24} className="text-current" />
+                      );
+                      
+                      // Show tooltip for testnet networks
+                      if (isTestnet) {
+                        const tooltipText = `${network} testnet`;
+                        return (
+                          <Tooltip key={network}>
+                            <TooltipTrigger asChild>
+                              <div className="relative cursor-help">
+                                {networkIcon}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
+                            >
+                              <p className="text-sm font-medium">{tooltipText}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+                      
+                      return (
+                        <div key={network} className="relative">
+                          {networkIcon}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TooltipProvider>
+                
+                {rewardType && (
+                  <>
+                    <span className="text-gray-400">|</span>
+                    <span className="text-gray-300">{rewardType}</span>
+                  </>
+                )}
+                
+                {isMetadataRefreshing ? (
+                  <>
+                    <span className="text-gray-400">|</span>
+                    <Skeleton className="h-5 w-32" />
+                  </>
+                ) : website ? (
+                  <>
+                    <span className="text-gray-400">|</span>
+                    <a 
+                      href={website} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3 flex items-center gap-1"
+                    >
+                      {extractDomain(website)}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </>
+                ) : null}
+              </div>
+              
+              {isMetadataRefreshing ? (
+                <div className="space-y-2 max-w-2xl mt-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              ) : description ? (
+                <p className="text-gray-400 max-w-2xl mt-2">
+                  {description}
+                </p>
+              ) : null}
+            </div>
 
-            <div className="flex flex-col gap-2 items-end">
-              {showEditButton && builder && (
-                <button
-                  onClick={() => setIsEditModalOpen(true)}
-                  className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2"
-                >
-                  Edit subnet
-                </button>
-              )}
-
+            <div className={`flex ${showEditButton && builder ? 'flex-row' : 'flex-col'} gap-2 items-end ml-4`}>
               {getDataUrl && (
                 <a
                   href={getDataUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="copy-button copy-button-secondary font-medium px-4 py-2 mt-2 border-white text-white hover:bg-white hover:text-black transition-colors flex items-center"
+                  className="copy-button copy-button-secondary font-medium px-4 py-2 !border-white/20 hover:!border-white/50 text-white hover:bg-white hover:text-black transition-colors flex items-center"
                 >
                   <Code className="size-4" />
                   <span className="ml-2">Get Data</span>
                 </a>
               )}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4 mb-4">
-            <TooltipProvider>
-              <div className="flex -space-x-1">
-                {networks.map((network: string) => {
-                  const isArbitrum = network === "Arbitrum" || network === "Arbitrum Sepolia";
-                  const networkIcon = isArbitrum ? (
-                    <ArbitrumIcon size={24} className="text-current" />
-                  ) : (
-                    <BaseIcon size={24} className="text-current" />
-                  );
-                  
-                  // Show tooltip for testnet networks
-                  if (isTestnet) {
-                    const tooltipText = `${network} testnet`;
-                    return (
-                      <Tooltip key={network}>
-                        <TooltipTrigger asChild>
-                          <div className="relative cursor-help">
-                            {networkIcon}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
-                        >
-                          <p className="text-sm font-medium">{tooltipText}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  }
-                  
-                  return (
-                    <div key={network} className="relative">
-                      {networkIcon}
-                    </div>
-                  );
-                })}
-              </div>
-            </TooltipProvider>
-            
-            {rewardType && (
-              <>
-                <span className="text-gray-400">|</span>
-                <span className="text-gray-300">{rewardType}</span>
-              </>
-            )}
-            
-            {isMetadataRefreshing ? (
-              <>
-                <span className="text-gray-400">|</span>
-                <Skeleton className="h-5 w-32" />
-              </>
-            ) : website ? (
-              <>
-                <span className="text-gray-400">|</span>
-                <a 
-                  href={website} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3 flex items-center gap-1"
+
+              {showEditButton && builder && (
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="copy-button copy-button-secondary font-medium px-4 py-2"
                 >
-                  {extractDomain(website)}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </>
-            ) : null}
-          </div>
-          
-          {isMetadataRefreshing ? (
-            <div className="space-y-2 max-w-2xl">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-2/3" />
+                  Edit subnet
+                </button>
+              )}
             </div>
-          ) : description ? (
-            <p className="text-gray-400 max-w-2xl">
-              {description}
-            </p>
-          ) : null}
+          </div>
           
           {children}
         </div>
