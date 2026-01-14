@@ -41,7 +41,7 @@ export function CapitalInfoPanel() {
   const networkEnvironment: NetworkEnvironment = poolData.networkEnvironment as NetworkEnvironment;
   
   // Dynamic assets data based on network environment and centralized config
-  const configuredAssets = getAssetsForNetwork(networkEnvironment);
+  const configuredAssets = getAssetsForNetwork(networkEnvironment).filter(asset => asset.metadata.symbol !== 'wBTC');
   
   const assets: Asset[] = configuredAssets.map(assetConfig => {
     const { symbol } = assetConfig.metadata;
