@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "engines": {
+    "node": ">=20.20.0"
+  },
   "dependencies": {
     "@apollo/client": "^3.13.2",
     "@cowprotocol/widget-lib": "^0.18.0",
@@ -85,7 +88,7 @@
   },
   "devDependencies": {
     "@tanstack/eslint-plugin-query": "^5.74.7",
-    "@types/node": "^20",
+    "@types/node": "^20.11.0",
     "@types/react": "18.3.23",
     "@types/react-dom": "18.3.0",
     "browserify-zlib": "^0.2.0",
@@ -108,5 +111,6 @@
   "overrides": {
     "@types/react-dom": "18.3.0",
     "@wagmi/connectors": "^5.9.9"
-  }
+  },
+  "packageManager": "pnpm@9.15.0"
 }
