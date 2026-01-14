@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { BuilderDB } from '@/app/lib/supabase';
+import { safeJsonParse } from '@/app/lib/utils/safe-json';
 
 // Create service client for server-side operations
 const supabaseService = createClient(
@@ -59,7 +60,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const builderData = await request.json();
+    const builderData = await safeJsonParse(request);
 
     // Validate required fields
     if (!builderData.name || !builderData.networks || builderData.networks.length === 0) {
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const requestData = await request.json();
+    const requestData = await safeJsonParse(request);
     const { id, ...updateData } = requestData;
 
     // Validate required fields

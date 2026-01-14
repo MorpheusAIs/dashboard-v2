@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "engines": {
+    "node": "^22.22.0"
+  },
   "dependencies": {
     "@apollo/client": "^3.13.2",
     "@cowprotocol/widget-lib": "^0.18.0",
@@ -50,7 +53,7 @@
     "@types/react-datepicker": "^6.2.0",
     "@uniswap/widgets": "^2.59.0",
     "@vercel/analytics": "^1.5.0",
-    "@wagmi/core": "^2.16.3",
+    "@wagmi/core": "^2.22.1",
     "@walletconnect/core": "^2.17.5",
     "@walletconnect/utils": "^2.17.5",
     "@web3icons/react": "^4.0.8",
@@ -85,7 +88,7 @@
   },
   "devDependencies": {
     "@tanstack/eslint-plugin-query": "^5.74.7",
-    "@types/node": "^20",
+    "@types/node": "^20.11.0",
     "@types/react": "18.3.23",
     "@types/react-dom": "18.3.0",
     "browserify-zlib": "^0.2.0",
@@ -108,5 +111,6 @@
   "overrides": {
     "@types/react-dom": "18.3.0",
     "@wagmi/connectors": "^5.9.9"
-  }
+  },
+  "packageManager": "pnpm@9.15.0"
 }

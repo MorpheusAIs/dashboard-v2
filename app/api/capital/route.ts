@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGraphQLApiUrl, NetworkEnvironment } from '@/config/networks';
+import { safeJsonParse } from '@/app/lib/utils/safe-json';
 
 // GraphQL Error type for better type safety
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await safeJsonParse(request);
 
     const { query, variables, networkEnv } = body;
     

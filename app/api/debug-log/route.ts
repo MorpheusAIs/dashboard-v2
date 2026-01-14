@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeJsonParse } from '@/app/lib/utils/safe-json';
 
 // Colors for terminal output
 const colors = {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { level, message, data, timestamp } = await request.json();
+    const { level, message, data, timestamp } = await safeJsonParse(request);
     
     const time = new Date(timestamp).toLocaleTimeString();
     const indent = '  '.repeat(groupIndent);
