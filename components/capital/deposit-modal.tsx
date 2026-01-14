@@ -101,7 +101,8 @@ export function DepositModal() {
         // Only include assets that have deposit pools deployed
         const contractKey = depositPoolMapping[asset.metadata.symbol];
         const hasDepositPool = contractKey && getContractAddress(l1ChainId, contractKey, networkEnv);
-        return hasDepositPool && !asset.metadata.disabled;
+        const isNotWBTC = asset.metadata.symbol !== 'wBTC';
+        return hasDepositPool && !asset.metadata.disabled && isNotWBTC;
       })
       .map(asset => ({
         value: asset.metadata.symbol,
