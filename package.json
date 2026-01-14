@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "engines": {
-    "node": ">=20.20.0"
+    "node": "^22.22.0"
   },
   "dependencies": {
     "@apollo/client": "^3.13.2",
@@ -53,7 +53,7 @@
     "@types/react-datepicker": "^6.2.0",
     "@uniswap/widgets": "^2.59.0",
     "@vercel/analytics": "^1.5.0",
-    "@wagmi/core": "^2.16.3",
+    "@wagmi/core": "^2.22.1",
     "@walletconnect/core": "^2.17.5",
     "@walletconnect/utils": "^2.17.5",
     "@web3icons/react": "^4.0.8",
