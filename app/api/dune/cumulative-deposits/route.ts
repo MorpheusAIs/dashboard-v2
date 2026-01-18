@@ -111,6 +111,12 @@ export async function GET() {
     };
 
     console.log('⚠️  [DUNE API CUMULATIVE DEPOSITS] Returning graceful error response (200) to allow page to load');
-    return NextResponse.json(errorResponse, { status: 200 });
+    // Don't cache error responses - use no-store so ISR doesn't cache failures
+    return NextResponse.json(errorResponse, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, must-revalidate',
+      }
+    });
   }
 }
