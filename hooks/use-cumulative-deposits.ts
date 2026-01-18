@@ -16,7 +16,7 @@ export interface CumulativeDepositsPoint {
   cumulativeDeposit: number;
 }
 
-const getCachedCumulativeDeposits = (): CumulativeDepositsPoint[] | null => {
+const getCachedCumulativeDeposits = (allowStale: boolean = false): CumulativeDepositsPoint[] | null => {
   if (typeof window === 'undefined') return null;
   try {
     const cached = localStorage.getItem(CUMULATIVE_DEPOSITS_CACHE_KEY);
@@ -24,14 +24,20 @@ const getCachedCumulativeDeposits = (): CumulativeDepositsPoint[] | null => {
 
     const parsedCache: CumulativeDepositsCache = JSON.parse(cached);
     const now = Date.now();
+    const ageHours = Math.round((now - parsedCache.timestamp) / 1000 / 60 / 60);
 
     // Check if cache is still valid (not expired)
     if (now - parsedCache.timestamp > CACHE_EXPIRY_MS) {
+      if (allowStale) {
+        // Return stale data as fallback when API fails
+        console.log(`📦 Using STALE cached cumulative deposits: ${parsedCache.data.length} points (${ageHours} hours old)`);
+        return parsedCache.data;
+      }
       localStorage.removeItem(CUMULATIVE_DEPOSITS_CACHE_KEY);
       return null;
     }
 
-    console.log(`📦 Using cached cumulative deposits: ${parsedCache.data.length} points (${Math.round((now - parsedCache.timestamp) / 1000 / 60 / 60)} hours old)`);
+    console.log(`📦 Using cached cumulative deposits: ${parsedCache.data.length} points (${ageHours} hours old)`);
     return parsedCache.data;
   } catch (error) {
     console.warn('Error reading cumulative deposits cache:', error);
@@ -107,13 +113,17 @@ export function useCumulativeDeposits() {
         }
       } catch (error) {
         console.error('Failed to fetch cumulative deposits data:', error);
-        setError(error instanceof Error ? error.message : 'Failed to fetch data');
 
-        // Try to use cached data as fallback
-        const cachedData = getCachedCumulativeDeposits();
+        // Try to use cached data as fallback (allow stale cache on error)
+        const cachedData = getCachedCumulativeDeposits(true);
         if (cachedData && cachedData.length > 0) {
           console.log('Using cached cumulative deposits data due to API error');
           setData(cachedData);
+          // Don't set error state if we have fallback data - user can still see the chart
+          setError(null);
+        } else {
+          // Only set error if we have no fallback data at all
+          setError(error instanceof Error ? error.message : 'Failed to fetch data');
         }
       } finally {
         setLoading(false);
