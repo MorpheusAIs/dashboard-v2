@@ -14,7 +14,16 @@ import {
 import { ChevronRight, Lock, LockOpen } from "lucide-react";
 import { AssetIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
+// Import Context and Hooks - Using new focused contexts
+import {
+  useCapitalNetwork,
+  useCapitalAssets,
+  useCapitalModal,
+  useSelectedAsset,
+  useCapitalTransactions,
+  type AssetSymbol,
+  type TimeUnit as ContextTimeUnit,
+} from "@/context/capital";
 import { useNetwork } from "@/context/network-context";
 import { sepolia, mainnet } from 'wagmi/chains';
 import { TimeLockPeriodSelector } from "./time-lock-period-selector";
@@ -40,19 +49,15 @@ interface ClaimableAsset {
 }
 
 export function ClaimMorRewardsModal() {
-  const {
-    activeModal,
-    setActiveModal,
-    selectedAsset,
-    assets,
-    selectedAssetCanClaim, // Use dynamic claim eligibility instead of hardcoded
-    claimAssetRewards,
-    lockAssetRewards,
-    isProcessingClaim,
-    isProcessingChangeLock,
-    networkEnv,
-    l1ChainId,
-  } = useCapitalContext();
+  // Get state from focused contexts
+  const { networkEnv, l1ChainId } = useCapitalNetwork();
+  const { assets } = useCapitalAssets();
+  const { selectedAsset } = useSelectedAsset();
+  const { activeModal, setActiveModal } = useCapitalModal();
+  const { claim, changeLock, isProcessingClaim, isProcessingChangeLock } = useCapitalTransactions();
+
+  // Derive selectedAssetCanClaim from asset data
+  const selectedAssetCanClaim = assets[selectedAsset]?.canClaim ?? false;
 
   // Add network detection
   const { currentChainId, switchToChain, isNetworkSwitching } = useNetwork();
@@ -331,7 +336,7 @@ export function ClaimMorRewardsModal() {
     try {
       // Claim rewards for the selected asset
       if (selectedAssetData.canClaim) {
-        await claimAssetRewards(selectedAssetData.symbol);
+        await claim(selectedAssetData.symbol);
       }
       handleClose();
     } catch (error) {
@@ -350,8 +355,9 @@ export function ClaimMorRewardsModal() {
     }
 
     try {
-      // Lock rewards for the selected asset
-      await lockAssetRewards(selectedAssetData.symbol, lockDurationSeconds);
+      // Lock rewards for the selected asset using the new changeLock function
+      // Cast lockUnit to context TimeUnit (safe since we only use days/months/years)
+      await changeLock(selectedAssetData.symbol, lockValue, lockUnit as ContextTimeUnit);
       handleClose();
     } catch (error) {
       console.error('Error locking rewards:', error);

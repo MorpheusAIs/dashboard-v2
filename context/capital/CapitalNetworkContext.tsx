@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useMemo } from "react";
-import { useAccount, useChainId, usePublicClient } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useReadContract } from "wagmi";
 import { getContract } from "viem";
 import {
   testnetChains,
@@ -11,7 +11,9 @@ import {
 } from "@/config/networks";
 import ERC20Abi from "@/app/abi/ERC20.json";
 import DepositPoolAbi from "@/app/abi/DepositPool.json";
-import { type DynamicContract } from "./types";
+import { type DynamicContract, type PoolInfoData } from "./types";
+
+const PUBLIC_POOL_ID = BigInt(0);
 
 // ============================================================================
 // Context State Interface
@@ -35,6 +37,10 @@ interface CapitalNetworkState {
   linkDepositPoolAddress?: `0x${string}`;
   linkTokenAddress?: `0x${string}`;
   morContractAddress?: `0x${string}`;
+
+  // Pool info (from stETH deposit pool - shared for chart timestamp generation)
+  poolInfo?: PoolInfoData;
+  isLoadingPoolInfo: boolean;
 
   // Dynamic contract instances
   dynamicContracts: {
@@ -127,6 +133,42 @@ export function CapitalNetworkProvider({ children }: CapitalNetworkProviderProps
     [l1ChainId, networkEnv]
   );
 
+  // Pool info read (used for chart timestamp generation)
+  const { data: poolInfoResult, isLoading: isLoadingPoolInfo } = useReadContract({
+    address: stETHDepositPoolAddress,
+    abi: DepositPoolAbi,
+    functionName: 'unusedStorage1',
+    args: [PUBLIC_POOL_ID],
+    chainId: l1ChainId,
+    query: { enabled: !!stETHDepositPoolAddress && !!l1ChainId }
+  });
+
+  // Parse pool info from contract result
+  const poolInfo = useMemo((): PoolInfoData | undefined => {
+    if (!poolInfoResult) return undefined;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dataArray = poolInfoResult as any[];
+    if (!Array.isArray(dataArray) || dataArray.length < 9) return undefined;
+
+    try {
+      return {
+        payoutStart: BigInt(dataArray[0]),
+        decreaseInterval: BigInt(dataArray[1]),
+        withdrawLockPeriod: BigInt(dataArray[2]),
+        claimLockPeriod: BigInt(dataArray[3]),
+        withdrawLockPeriodAfterStake: BigInt(dataArray[4]),
+        initialReward: BigInt(dataArray[5]),
+        rewardDecrease: BigInt(dataArray[6]),
+        minimalStake: BigInt(dataArray[7]),
+        isPublic: Boolean(dataArray[8]),
+      };
+    } catch {
+      console.error("Error parsing poolInfo data");
+      return undefined;
+    }
+  }, [poolInfoResult]);
+
   // Dynamic contract instances
   const dynamicContracts = useMemo(() => {
     const contracts: CapitalNetworkState["dynamicContracts"] = {};
@@ -180,6 +222,8 @@ export function CapitalNetworkProvider({ children }: CapitalNetworkProviderProps
       linkDepositPoolAddress,
       linkTokenAddress,
       morContractAddress,
+      poolInfo,
+      isLoadingPoolInfo,
       dynamicContracts,
     }),
     [
@@ -195,6 +239,8 @@ export function CapitalNetworkProvider({ children }: CapitalNetworkProviderProps
       linkDepositPoolAddress,
       linkTokenAddress,
       morContractAddress,
+      poolInfo,
+      isLoadingPoolInfo,
       dynamicContracts,
     ]
   );

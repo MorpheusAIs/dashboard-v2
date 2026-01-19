@@ -1,19 +1,24 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useCallback, useRef, useEffect } from "react";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import React, { createContext, useContext, useMemo, useCallback, useRef, useEffect, useState } from "react";
+import { useWriteContract, useWaitForTransactionReceipt, useSimulateContract } from "wagmi";
 import { parseUnits, zeroAddress, isAddress } from "viem";
 import { toast } from "sonner";
 import { useCapitalNetwork } from "./CapitalNetworkContext";
 import { useCapitalAssets } from "./CapitalAssetsContext";
 import { useCapitalMORBalance } from "./CapitalMORBalanceContext";
 import { useCapitalUI } from "./CapitalUIContext";
+import { useCapitalReferral } from "./CapitalReferralContext";
 import { type AssetSymbol, type TimeUnit, durationToSeconds } from "./types";
 import { getAssetConfig } from "@/components/capital/constants/asset-config";
 import { formatBigInt } from "@/lib/utils/formatters";
+import { getStaticLayerZeroFee } from "@/hooks/use-layerzero-fee";
 import ERC20Abi from "@/app/abi/ERC20.json";
 import DepositPoolAbi from "@/app/abi/DepositPool.json";
+import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
+
+const PUBLIC_POOL_ID = BigInt(0);
 
 const V2_REWARD_POOL_INDEX = BigInt(0);
 
@@ -28,6 +33,7 @@ interface CapitalTransactionsState {
   claim: (asset: AssetSymbol) => Promise<void>;
   approveToken: (asset: AssetSymbol) => Promise<void>;
   changeLock: (asset: AssetSymbol, lockValue: string, lockUnit: TimeUnit) => Promise<void>;
+  claimReferralRewards: (asset?: AssetSymbol) => Promise<void>;
 
   // Transaction hashes
   approveHash?: `0x${string}`;
@@ -35,6 +41,7 @@ interface CapitalTransactionsState {
   claimHash?: `0x${string}`;
   withdrawHash?: `0x${string}`;
   lockClaimHash?: `0x${string}`;
+  referralClaimHash?: `0x${string}`;
 
   // Sending states (wallet interaction pending)
   isSendingApproval: boolean;
@@ -42,6 +49,7 @@ interface CapitalTransactionsState {
   isSendingClaim: boolean;
   isSendingWithdraw: boolean;
   isSendingLockClaim: boolean;
+  isSendingReferralClaim: boolean;
 
   // Confirming states (transaction in mempool)
   isConfirmingApproval: boolean;
@@ -49,6 +57,7 @@ interface CapitalTransactionsState {
   isConfirmingClaim: boolean;
   isConfirmingWithdraw: boolean;
   isConfirmingLockClaim: boolean;
+  isConfirmingReferralClaim: boolean;
 
   // Success states
   isApprovalSuccess: boolean;
@@ -56,6 +65,7 @@ interface CapitalTransactionsState {
   isClaimSuccess: boolean;
   isWithdrawSuccess: boolean;
   isLockClaimSuccess: boolean;
+  isReferralClaimSuccess: boolean;
 
   // Combined processing states
   isProcessingDeposit: boolean;
@@ -63,6 +73,12 @@ interface CapitalTransactionsState {
   isProcessingClaim: boolean;
   isProcessingChangeLock: boolean;
   isProcessingApproval: boolean;
+  isProcessingReferralClaim: boolean;
+
+  // Multiplier simulation
+  triggerMultiplierEstimation: (lockValue: string, lockUnit: TimeUnit) => void;
+  estimatedMultiplierValue: string;
+  isSimulatingMultiplier: boolean;
 }
 
 // ============================================================================
@@ -84,6 +100,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
   const { assets, assetContractData, refetchAllAssets } = useCapitalAssets();
   const { refetchMorBalance } = useCapitalMORBalance();
   const { setActiveModal } = useCapitalUI();
+  const { referralRewardsByAsset, referralAssetConfigMap } = useCapitalReferral();
 
   // --- Write Hooks ---
   const { data: approveHash, writeContractAsync: approveAsync, isPending: isSendingApproval } = useWriteContract();
@@ -91,6 +108,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
   const { data: claimHash, writeContractAsync: claimAsync, isPending: isSendingClaim } = useWriteContract();
   const { data: withdrawHash, writeContractAsync: withdrawAsync, isPending: isSendingWithdraw } = useWriteContract();
   const { data: lockClaimHash, writeContractAsync: lockClaimAsync, isPending: isSendingLockClaim } = useWriteContract();
+  const { data: referralClaimHash, writeContractAsync: referralClaimAsync, isPending: isSendingReferralClaim } = useWriteContract();
 
   // --- Transaction Monitoring ---
   const { isLoading: isConfirmingApproval, isSuccess: isApprovalSuccess } = useWaitForTransactionReceipt({ hash: approveHash, chainId: l1ChainId });
@@ -98,6 +116,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
   const { isLoading: isConfirmingClaim, isSuccess: isClaimSuccess } = useWaitForTransactionReceipt({ hash: claimHash, chainId: l1ChainId });
   const { isLoading: isConfirmingWithdraw, isSuccess: isWithdrawSuccess } = useWaitForTransactionReceipt({ hash: withdrawHash, chainId: l1ChainId });
   const { isLoading: isConfirmingLockClaim, isSuccess: isLockClaimSuccess } = useWaitForTransactionReceipt({ hash: lockClaimHash, chainId: l1ChainId });
+  const { isLoading: isConfirmingReferralClaim, isSuccess: isReferralClaimSuccess } = useWaitForTransactionReceipt({ hash: referralClaimHash, chainId: l1ChainId });
 
   // --- Transaction Success Tracking (prevents repeated toasts) ---
   const lastHandledApprovalHashRef = useRef<string | undefined>(undefined);
@@ -105,6 +124,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
   const lastHandledClaimHashRef = useRef<string | undefined>(undefined);
   const lastHandledWithdrawHashRef = useRef<string | undefined>(undefined);
   const lastHandledLockClaimHashRef = useRef<string | undefined>(undefined);
+  const lastHandledReferralClaimHashRef = useRef<string | undefined>(undefined);
 
   // --- Transaction Helper ---
   const handleTransaction = useCallback(async (
@@ -213,6 +233,19 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       setActiveModal(null);
     }
   }, [isLockClaimSuccess, lockClaimHash, assetContractData, setActiveModal]);
+
+  // --- Referral Claim Success Effect ---
+  useEffect(() => {
+    if (isReferralClaimSuccess && referralClaimHash && referralClaimHash !== lastHandledReferralClaimHashRef.current) {
+      toast.success("Referral rewards claimed successfully!");
+      refetchMorBalance();
+      if (typeof window !== 'undefined' && (window as unknown as { refreshMORBalances?: () => void }).refreshMORBalances) {
+        (window as unknown as { refreshMORBalances: () => void }).refreshMORBalances();
+      }
+      lastHandledReferralClaimHashRef.current = referralClaimHash;
+      setActiveModal(null);
+    }
+  }, [isReferralClaimSuccess, referralClaimHash, refetchMorBalance, setActiveModal]);
 
   // --- Action: Approve Token ---
   const approveToken = useCallback(async (asset: AssetSymbol) => {
@@ -385,12 +418,113 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
     });
   }, [lockClaimAsync, l1ChainId, assets, handleTransaction]);
 
+  // --- Action: Claim Referral Rewards ---
+  const claimReferralRewards = useCallback(async (asset?: AssetSymbol) => {
+    if (!userAddress || !l1ChainId) throw new Error("Referral claim prerequisites not met");
+
+    const targetAssets = asset ? [asset] : Array.from(referralAssetConfigMap.keys());
+
+    if (asset && !referralAssetConfigMap.has(asset)) {
+      throw new Error(`${asset} referral claim prerequisites not met`);
+    }
+
+    const layerZeroFee = getStaticLayerZeroFee(networkEnv);
+
+    let claimedAny = false;
+
+    for (const symbol of targetAssets) {
+      const config = referralAssetConfigMap.get(symbol);
+      if (!config || !config.depositPoolAddress || config.depositPoolAddress === zeroAddress) {
+        if (asset) {
+          throw new Error(`${symbol} referral claim prerequisites not met`);
+        }
+        continue;
+      }
+
+      const rewardAmount = referralRewardsByAsset[symbol] ?? BigInt(0);
+      if (rewardAmount <= BigInt(0)) {
+        if (asset) {
+          throw new Error(`${symbol} referral claim prerequisites not met`);
+        }
+        continue;
+      }
+
+      await handleTransaction(() => referralClaimAsync({
+        address: config.depositPoolAddress,
+        abi: DepositPoolAbi,
+        functionName: 'claimReferrerTier',
+        args: [V2_REWARD_POOL_INDEX, userAddress],
+        chainId: l1ChainId,
+        value: layerZeroFee,
+      }), {
+        loading: `Requesting ${symbol} referral reward claim...`,
+        success: `Successfully claimed ${symbol} referral rewards!`,
+        error: `${symbol} referral claim failed`
+      });
+
+      claimedAny = true;
+    }
+
+    if (!claimedAny) {
+      throw new Error("No referral rewards available to claim");
+    }
+  }, [
+    handleTransaction,
+    l1ChainId,
+    networkEnv,
+    referralAssetConfigMap,
+    referralClaimAsync,
+    referralRewardsByAsset,
+    userAddress
+  ]);
+
   // --- Combined Processing States ---
   const isProcessingDeposit = isSendingStake || isConfirmingStake;
   const isProcessingWithdraw = isSendingWithdraw || isConfirmingWithdraw;
   const isProcessingClaim = isSendingClaim || isConfirmingClaim;
   const isProcessingChangeLock = isSendingLockClaim || isConfirmingLockClaim;
   const isProcessingApproval = isSendingApproval || isConfirmingApproval;
+  const isProcessingReferralClaim = isSendingReferralClaim || isConfirmingReferralClaim;
+
+  // --- Multiplier Simulation ---
+  const [multiplierSimArgs, setMultiplierSimArgs] = useState<{value: string, unit: TimeUnit} | null>(null);
+
+  const { data: simulatedMultiplierResult, error: simulateMultiplierError, isLoading: isSimulatingMultiplier } = useSimulateContract({
+    address: distributorV2Address,
+    abi: ERC1967ProxyAbi,
+    functionName: 'getClaimLockPeriodMultiplier',
+    args: useMemo(() => {
+      if (!multiplierSimArgs) return undefined;
+      const durationSeconds = durationToSeconds(multiplierSimArgs.value, multiplierSimArgs.unit);
+      if (durationSeconds <= BigInt(0)) return undefined;
+      const estimatedLockStartTimestamp = BigInt(Math.floor(Date.now() / 1000));
+      const estimatedLockEndTimestamp = estimatedLockStartTimestamp + durationSeconds;
+      return [PUBLIC_POOL_ID, estimatedLockStartTimestamp, estimatedLockEndTimestamp];
+    }, [multiplierSimArgs]),
+    query: {
+      enabled: !!multiplierSimArgs && !!distributorV2Address,
+    }
+  });
+
+  const triggerMultiplierEstimation = useCallback((lockValue: string, lockUnit: TimeUnit) => {
+    if (lockValue && parseInt(lockValue, 10) > 0) {
+      setMultiplierSimArgs({ value: lockValue, unit: lockUnit });
+    } else {
+      setMultiplierSimArgs(null);
+    }
+  }, []);
+
+  const estimatedMultiplierValue = useMemo(() => {
+    if (isSimulatingMultiplier) return "Loading...";
+    if (simulateMultiplierError) return "Error";
+    if (simulatedMultiplierResult?.result) {
+      // Use 21 decimals as per documentation for power factor
+      const multiplierBigInt = simulatedMultiplierResult.result as bigint;
+      const formatted = formatBigInt(multiplierBigInt, 21, 2);
+      return `${formatted}x`;
+    }
+    return "---x";
+  }, [simulatedMultiplierResult, simulateMultiplierError, isSimulatingMultiplier]);
 
   // Memoized context value
   const value = useMemo<CapitalTransactionsState>(
@@ -401,6 +535,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       claim,
       approveToken,
       changeLock,
+      claimReferralRewards,
 
       // Hashes
       approveHash,
@@ -408,6 +543,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       claimHash,
       withdrawHash,
       lockClaimHash,
+      referralClaimHash,
 
       // Sending states
       isSendingApproval,
@@ -415,6 +551,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       isSendingClaim,
       isSendingWithdraw,
       isSendingLockClaim,
+      isSendingReferralClaim,
 
       // Confirming states
       isConfirmingApproval,
@@ -422,6 +559,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       isConfirmingClaim,
       isConfirmingWithdraw,
       isConfirmingLockClaim,
+      isConfirmingReferralClaim,
 
       // Success states
       isApprovalSuccess,
@@ -429,6 +567,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       isClaimSuccess,
       isWithdrawSuccess,
       isLockClaimSuccess,
+      isReferralClaimSuccess,
 
       // Combined states
       isProcessingDeposit,
@@ -436,6 +575,12 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       isProcessingClaim,
       isProcessingChangeLock,
       isProcessingApproval,
+      isProcessingReferralClaim,
+
+      // Multiplier simulation
+      triggerMultiplierEstimation,
+      estimatedMultiplierValue,
+      isSimulatingMultiplier,
     }),
     [
       deposit,
@@ -443,31 +588,40 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
       claim,
       approveToken,
       changeLock,
+      claimReferralRewards,
       approveHash,
       stakeHash,
       claimHash,
       withdrawHash,
       lockClaimHash,
+      referralClaimHash,
       isSendingApproval,
       isSendingStake,
       isSendingClaim,
       isSendingWithdraw,
       isSendingLockClaim,
+      isSendingReferralClaim,
       isConfirmingApproval,
       isConfirmingStake,
       isConfirmingClaim,
       isConfirmingWithdraw,
       isConfirmingLockClaim,
+      isConfirmingReferralClaim,
       isApprovalSuccess,
       isStakeSuccess,
       isClaimSuccess,
       isWithdrawSuccess,
       isLockClaimSuccess,
+      isReferralClaimSuccess,
       isProcessingDeposit,
       isProcessingWithdraw,
       isProcessingClaim,
       isProcessingChangeLock,
       isProcessingApproval,
+      isProcessingReferralClaim,
+      triggerMultiplierEstimation,
+      estimatedMultiplierValue,
+      isSimulatingMultiplier,
     ]
   );
 
@@ -522,8 +676,22 @@ export function useClaimTransaction() {
  * Get lock change state and actions
  */
 export function useLockTransaction() {
-  const { changeLock, isProcessingChangeLock, isLockClaimSuccess } = useCapitalTransactions();
-  return { changeLock, isProcessingChangeLock, isLockClaimSuccess };
+  const {
+    changeLock,
+    isProcessingChangeLock,
+    isLockClaimSuccess,
+    triggerMultiplierEstimation,
+    estimatedMultiplierValue,
+    isSimulatingMultiplier
+  } = useCapitalTransactions();
+  return {
+    changeLock,
+    isProcessingChangeLock,
+    isLockClaimSuccess,
+    triggerMultiplierEstimation,
+    estimatedMultiplierValue,
+    isSimulatingMultiplier
+  };
 }
 
 /**
@@ -536,6 +704,7 @@ export function useTransactionProcessingStates() {
     isProcessingClaim,
     isProcessingChangeLock,
     isProcessingApproval,
+    isProcessingReferralClaim,
   } = useCapitalTransactions();
   return {
     isProcessingDeposit,
@@ -543,6 +712,15 @@ export function useTransactionProcessingStates() {
     isProcessingClaim,
     isProcessingChangeLock,
     isProcessingApproval,
-    isProcessingAny: isProcessingDeposit || isProcessingWithdraw || isProcessingClaim || isProcessingChangeLock || isProcessingApproval,
+    isProcessingReferralClaim,
+    isProcessingAny: isProcessingDeposit || isProcessingWithdraw || isProcessingClaim || isProcessingChangeLock || isProcessingApproval || isProcessingReferralClaim,
   };
+}
+
+/**
+ * Get referral claim-related state and actions
+ */
+export function useReferralClaimTransaction() {
+  const { claimReferralRewards, isProcessingReferralClaim, isReferralClaimSuccess } = useCapitalTransactions();
+  return { claimReferralRewards, isProcessingReferralClaim, isReferralClaimSuccess };
 }

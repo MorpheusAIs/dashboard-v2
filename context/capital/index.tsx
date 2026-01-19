@@ -109,6 +109,8 @@ import {
   useReferralTotals,
   useReferralsByAsset,
   useReferralLoadingStates,
+  useReferralRewardsByAsset,
+  useReferralAssetConfig,
 } from "./CapitalReferralContext";
 
 export {
@@ -117,6 +119,8 @@ export {
   useReferralTotals,
   useReferralsByAsset,
   useReferralLoadingStates,
+  useReferralRewardsByAsset,
+  useReferralAssetConfig,
 };
 
 // Transactions Context - Write operations and transaction state
@@ -128,6 +132,7 @@ import {
   useClaimTransaction,
   useLockTransaction,
   useTransactionProcessingStates,
+  useReferralClaimTransaction,
 } from "./CapitalTransactionsContext";
 
 export {
@@ -138,6 +143,7 @@ export {
   useClaimTransaction,
   useLockTransaction,
   useTransactionProcessingStates,
+  useReferralClaimTransaction,
 };
 
 // ============================================================================
@@ -226,6 +232,8 @@ export function useCapitalPagePartial() {
     linkTokenAddress: network.linkTokenAddress,
     morContractAddress: network.morContractAddress,
     dynamicContracts: network.dynamicContracts,
+    poolInfo: network.poolInfo,
+    isLoadingPoolInfo: network.isLoadingPoolInfo,
 
     // From Assets Context
     assets: assetsCtx.assets,
@@ -247,17 +255,17 @@ export function useCapitalPagePartial() {
       totalReferrals: String(referralCtx.totalReferrals),
       totalReferralAmount: referralCtx.totalReferralAmountFormatted,
       lifetimeRewards: referralCtx.totalMorEarnedFormatted,
-      claimableRewards: "0", // Not yet implemented - needs on-chain reads
-      isLoadingReferralData: referralCtx.isLoadingReferralData || referralCtx.isLoadingReferrerSummary,
+      claimableRewards: "0", // Computed from referralRewardsByAsset
+      isLoadingReferralData: referralCtx.isLoadingReferralData || referralCtx.isLoadingReferrerSummary || referralCtx.isLoadingReferralRewards,
       referralAmountsByAsset: referralCtx.referralAmountsByAsset,
-      rewardsByAsset: {}, // Not yet implemented
-      referrerDetailsByAsset: {}, // Not yet implemented
-      assetsWithClaimableRewards: [], // Not yet implemented
-      availableReferralAssets: [], // Not yet implemented
-      stETHReferralRewards: BigInt(0), // Deprecated
-      linkReferralRewards: BigInt(0), // Deprecated
-      stETHReferralData: null, // Deprecated
-      linkReferralData: null, // Deprecated
+      rewardsByAsset: referralCtx.referralRewardsByAsset,
+      referrerDetailsByAsset: referralCtx.referrerDetailsByAsset,
+      assetsWithClaimableRewards: referralCtx.assetsWithClaimableRewards,
+      availableReferralAssets: referralCtx.availableReferralAssets,
+      stETHReferralRewards: referralCtx.referralRewardsByAsset.stETH ?? BigInt(0),
+      linkReferralRewards: referralCtx.referralRewardsByAsset.LINK ?? BigInt(0),
+      stETHReferralData: referralCtx.referrerDetailsByAsset.stETH ?? null,
+      linkReferralData: referralCtx.referrerDetailsByAsset.LINK ?? null,
     },
 
     // From Transactions Context
@@ -266,12 +274,21 @@ export function useCapitalPagePartial() {
     claim: txCtx.claim,
     approveToken: txCtx.approveToken,
     changeLock: txCtx.changeLock,
+    claimReferralRewards: txCtx.claimReferralRewards,
     isProcessingDeposit: txCtx.isProcessingDeposit,
     isProcessingWithdraw: txCtx.isProcessingWithdraw,
     isProcessingClaim: txCtx.isProcessingClaim,
     isProcessingChangeLock: txCtx.isProcessingChangeLock,
+    isProcessingReferralClaim: txCtx.isProcessingReferralClaim,
     isApprovalSuccess: txCtx.isApprovalSuccess,
     isClaimSuccess: txCtx.isClaimSuccess,
+    isReferralClaimSuccess: txCtx.isReferralClaimSuccess,
     claimHash: txCtx.claimHash,
+    referralClaimHash: txCtx.referralClaimHash,
+
+    // Multiplier simulation (for change-lock-modal)
+    triggerMultiplierEstimation: txCtx.triggerMultiplierEstimation,
+    estimatedMultiplierValue: txCtx.estimatedMultiplierValue,
+    isSimulatingMultiplier: txCtx.isSimulatingMultiplier,
   };
 }

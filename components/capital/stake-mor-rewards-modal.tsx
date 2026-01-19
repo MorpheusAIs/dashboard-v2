@@ -10,15 +10,32 @@ import {
   DialogDescription, 
 } from "@/components/ui/dialog";
 import { ChevronRight} from "lucide-react";
-import { useCapitalContext } from "@/context/CapitalPageContext";
+// Import Context and Hooks - Using new focused contexts
+import {
+  useCapitalModal,
+  useCapitalAssets,
+} from "@/context/capital";
+import { useMemo } from "react";
 
 export function StakeMorRewardsModal() {
   const router = useRouter();
-  const {
-    activeModal,
-    setActiveModal,
-    totalClaimableAmountFormatted,
-  } = useCapitalContext();
+  // Get state from focused contexts
+  const { activeModal, setActiveModal } = useCapitalModal();
+  const { assets } = useCapitalAssets();
+
+  // Compute total claimable amount from assets
+  const totalClaimableAmountFormatted = useMemo(() => {
+    const total = Object.values(assets).reduce((sum, asset) => {
+      if (asset?.claimableAmount) {
+        return sum + asset.claimableAmount;
+      }
+      return sum;
+    }, BigInt(0));
+
+    // Format the total (18 decimals for MOR)
+    const formatted = Number(total) / Math.pow(10, 18);
+    return formatted.toFixed(4);
+  }, [assets]);
 
   const isOpen = activeModal === 'stakeMorRewards';
 

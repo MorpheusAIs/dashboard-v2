@@ -18,8 +18,16 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 
-// Import Context and Hooks
-import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
+// Import Context and Hooks - Using new focused contexts
+import {
+  useCapitalNetwork,
+  useCapitalAssets,
+  useCapitalModal,
+  useSelectedAsset,
+  usePreReferrer,
+  useCapitalTransactions,
+  type AssetSymbol,
+} from "@/context/capital";
 import { useNetwork } from "@/context/network-context";
 import { usePowerFactor } from "@/hooks/use-power-factor";
 // import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
@@ -50,24 +58,13 @@ export function DepositModal() {
   // Network switching hook
   const { currentChainId, switchToChain, isNetworkSwitching } = useNetwork();
 
-  // Get state and actions from V2 context
-  const {
-    userAddress,
-    assets,
-    selectedAsset: contextSelectedAsset,
-    deposit,
-    approveToken,
-    checkAndUpdateApprovalNeeded,
-    isProcessingDeposit,
-    isApprovalSuccess,
-    activeModal,
-    setActiveModal,
-    preReferrerAddress,
-    setPreReferrerAddress,
-    // Dynamic assets system provides all unlock timestamps
-    // Get contract details for power factor hook
-    l1ChainId,
-  } = useCapitalContext();
+  // Get state and actions from focused contexts
+  const { userAddress, l1ChainId } = useCapitalNetwork();
+  const { assets, assetContractData } = useCapitalAssets();
+  const { selectedAsset: contextSelectedAsset } = useSelectedAsset();
+  const { activeModal, setActiveModal } = useCapitalModal();
+  const { preReferrerAddress, setPreReferrerAddress } = usePreReferrer();
+  const { deposit, approveToken, isProcessingDeposit, isApprovalSuccess } = useCapitalTransactions();
 
   // Calculate network environment and contract address
   const networkEnv = useMemo((): NetworkEnvironment => {
@@ -82,6 +79,26 @@ export function DepositModal() {
   const availableAssets = useMemo((): AssetContractInfo[] => {
     return getAssetsForNetwork(networkEnv);
   }, [networkEnv]);
+
+  // Helper function to check if approval is needed (replaces old context function)
+  const checkAndUpdateApprovalNeeded = useCallback(async (asset: AssetSymbol, amountString: string): Promise<boolean> => {
+    // Refetch the allowance to get fresh data
+    assetContractData[asset]?.refetch.allowance();
+    // Small delay to allow state update
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    // Get asset config for decimals
+    const assetInfo = availableAssets.find(a => a.metadata.symbol === asset);
+    const decimals = assetInfo?.metadata.decimals || 18;
+
+    try {
+      const amountBigInt = parseUnits(amountString, decimals);
+      const currentAllowance = assetContractData[asset]?.userAllowance || BigInt(0);
+      return currentAllowance < amountBigInt;
+    } catch {
+      return true; // If parsing fails, assume approval needed
+    }
+  }, [assetContractData, availableAssets]);
 
   // Create asset options for dropdown (only include assets with deposit pools)
   const assetOptions = useMemo(() => {

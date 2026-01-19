@@ -1,55 +1,47 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-// import { type BaseError } from "wagmi"; // BaseError not needed
 
 import { Dialog, DialogPortal, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// import { AlertCircle } from "lucide-react"; // AlertCircle not needed
-// import { Alert, AlertDescription } from "@/components/ui/alert"; // Alert components not needed
 
-// Import Context hook and helpers
-import { useCapitalContext } from "@/context/CapitalPageContext";
-import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters"; 
-
-// Removed ABI imports
-// Removed PUBLIC_POOL_ID constant
-// Removed TimeUnit type and durationToSeconds helper (now in context)
-type TimeUnit = "days" | "months" | "years"; // Keep type for local state
+// Import Context hooks - Using new focused contexts
+import {
+  useCapitalNetwork,
+  useCapitalModal,
+  useSelectedAsset,
+  useCapitalTransactions,
+  type TimeUnit,
+} from "@/context/capital";
+import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
 
 interface ChangeLockModalProps {
-  // Removed open/onOpenChange
   currentUserMultiplierData?: bigint;
   userData?: { claimLockEnd?: bigint };
-  // Removed props handled by context:
-  // poolContractAddress?: `0x${string}`;
-  // l1ChainId?: number;
-  // refetchUserData: () => void;
 }
 
-export function ChangeLockModal({ 
-  currentUserMultiplierData, 
+export function ChangeLockModal({
+  currentUserMultiplierData,
   userData
 }: ChangeLockModalProps) {
-  // Get state/control from context
+  // Get state/control from focused contexts
+  const { userAddress } = useCapitalNetwork();
+  const { activeModal, setActiveModal } = useCapitalModal();
+  const { selectedAsset } = useSelectedAsset();
   const {
-    userAddress,
     changeLock,
-    // getEstimatedMultiplier, // Removed old function
-    triggerMultiplierEstimation, // Get new trigger function
-    estimatedMultiplierValue, // Get result state
-    isSimulatingMultiplier, // Get simulation loading state
+    triggerMultiplierEstimation,
+    estimatedMultiplierValue,
+    isSimulatingMultiplier,
     isProcessingChangeLock,
-    activeModal,
-    setActiveModal
-  } = useCapitalContext();
+  } = useCapitalTransactions();
 
   const isOpen = activeModal === 'changeLock';
 
-  const [lockValue, setLockValue] = useState<string>(""); 
+  const [lockValue, setLockValue] = useState<string>("");
   const [lockUnit, setLockUnit] = useState<TimeUnit>("days");
   // const [estimatedMultiplier, setEstimatedMultiplier] = useState<string | null>("---x"); // Removed local state
   const [formError, setFormError] = useState<string | null>(null);
@@ -75,7 +67,7 @@ export function ChangeLockModal({
     }
     
     try {
-      await changeLock(lockValue, lockUnit);
+      await changeLock(selectedAsset, lockValue, lockUnit);
       // Context action now handles closing on success
     } catch (error) {
       console.error("Change Lock Action Error:", error);

@@ -2,7 +2,15 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useTransition, useRef } from "react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { useCapitalContext } from "@/context/CapitalPageContext";
+// Import Context and Hooks - Using new focused contexts
+import {
+  useCapitalNetwork,
+  useCapitalAssets,
+  useCapitalModal,
+  useSelectedAsset,
+  useCapitalTransactions,
+  type AssetSymbol,
+} from "@/context/capital";
 import { formatNumber } from "@/lib/utils";
 import { StakeMorRewardsModal } from "./stake-mor-rewards-modal";
 import { ClaimMorRewardsModal } from "./claim-mor-rewards-modal";
@@ -19,7 +27,6 @@ import {
   formatUnlockDate
 } from "./utils/asset-formatters";
 import { getAssetConfig } from "./constants/asset-config";
-import type { AssetSymbol } from "@/context/CapitalPageContext";
 import type { UserAsset } from "./types/user-asset";
 import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAuth } from "@/context/auth-context";
@@ -43,21 +50,12 @@ export { getCachedUserAssets, setCachedUserAssets, type UserAssetsCache } from "
 
 // Wrap in React.memo to prevent unnecessary re-renders from parent component changes
 export const UserAssetsPanel = React.memo(function UserAssetsPanel() {
-  const {
-    userAddress,
-    setActiveModal,
-    setSelectedAsset,
-    assets,
-    networkEnv,
-    isProcessingDeposit,
-    isProcessingClaim,
-    isProcessingWithdraw,
-    isProcessingChangeLock,
-    // Add loading states to detect when data is loaded
-    isLoadingUserData,
-    isLoadingBalances,
-    isLoadingRewards,
-  } = useCapitalContext();
+  // Get state from focused contexts
+  const { userAddress, networkEnv } = useCapitalNetwork();
+  const { assets, isLoadingAssets: isLoadingUserData, isLoadingBalances, isLoadingRewards } = useCapitalAssets();
+  const { setActiveModal } = useCapitalModal();
+  const { setSelectedAsset } = useSelectedAsset();
+  const { isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock } = useCapitalTransactions();
 
   // Get wallet initialization status from auth context
   const { isWalletInitialized, isLoading: isAuthLoading } = useAuth();
@@ -279,7 +277,8 @@ export const UserAssetsPanel = React.memo(function UserAssetsPanel() {
 
   // Check if user has any assets staked
   const hasStakedAssets = useMemo(() => {
-    return checkHasStakedAssets(assets);
+    // Cast to expected type - the function handles undefined values gracefully
+    return checkHasStakedAssets(assets as Record<AssetSymbol, { userDepositedFormatted: string }>);
   }, [assets]);
 
   // Check if user has any claimable MOR rewards (even without active stakes)
