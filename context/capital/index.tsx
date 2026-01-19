@@ -119,6 +119,27 @@ export {
   useReferralLoadingStates,
 };
 
+// Transactions Context - Write operations and transaction state
+import {
+  CapitalTransactionsProvider,
+  useCapitalTransactions,
+  useDepositTransaction,
+  useWithdrawTransaction,
+  useClaimTransaction,
+  useLockTransaction,
+  useTransactionProcessingStates,
+} from "./CapitalTransactionsContext";
+
+export {
+  CapitalTransactionsProvider,
+  useCapitalTransactions,
+  useDepositTransaction,
+  useWithdrawTransaction,
+  useClaimTransaction,
+  useLockTransaction,
+  useTransactionProcessingStates,
+};
+
 // ============================================================================
 // Combined Provider
 // ============================================================================
@@ -137,8 +158,7 @@ interface CapitalProviderProps {
  * 3. CapitalAssetsProvider - Asset configurations and contract data
  * 4. CapitalMORBalanceProvider - L2 MOR token balance
  * 5. CapitalReferralProvider - Referral data and metrics
- *
- * Note: Transactions context will be added as it is implemented.
+ * 6. CapitalTransactionsProvider - Write operations and transaction state
  */
 export function CapitalProvider({ children, defaultAsset = "stETH" }: CapitalProviderProps) {
   return (
@@ -147,7 +167,9 @@ export function CapitalProvider({ children, defaultAsset = "stETH" }: CapitalPro
         <CapitalAssetsProvider>
           <CapitalMORBalanceProvider>
             <CapitalReferralProvider>
-              {children}
+              <CapitalTransactionsProvider>
+                {children}
+              </CapitalTransactionsProvider>
             </CapitalReferralProvider>
           </CapitalMORBalanceProvider>
         </CapitalAssetsProvider>
@@ -179,6 +201,7 @@ export function useCapitalPagePartial() {
   const assetsCtx = useCapitalAssets();
   const morBalanceCtx = useCapitalMORBalance();
   const referralCtx = useCapitalReferral();
+  const txCtx = useCapitalTransactions();
 
   return {
     // From UI Context
@@ -236,5 +259,19 @@ export function useCapitalPagePartial() {
       stETHReferralData: null, // Deprecated
       linkReferralData: null, // Deprecated
     },
+
+    // From Transactions Context
+    deposit: txCtx.deposit,
+    withdraw: txCtx.withdraw,
+    claim: txCtx.claim,
+    approveToken: txCtx.approveToken,
+    changeLock: txCtx.changeLock,
+    isProcessingDeposit: txCtx.isProcessingDeposit,
+    isProcessingWithdraw: txCtx.isProcessingWithdraw,
+    isProcessingClaim: txCtx.isProcessingClaim,
+    isProcessingChangeLock: txCtx.isProcessingChangeLock,
+    isApprovalSuccess: txCtx.isApprovalSuccess,
+    isClaimSuccess: txCtx.isClaimSuccess,
+    claimHash: txCtx.claimHash,
   };
 }
