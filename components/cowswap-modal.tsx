@@ -1,9 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import { CowSwapWidget } from '@cowprotocol/widget-react'
-import { CowSwapWidgetParams, TradeType, TokenInfo } from '@cowprotocol/widget-lib'
+import dynamic from "next/dynamic"
+import { TradeType, type CowSwapWidgetParams, type TokenInfo } from '@cowprotocol/widget-lib'
 import { useWalletClient, useAccount } from 'wagmi'
+
+// Dynamically import CowSwap widget to reduce initial bundle size (~100KB+)
+// The widget-lib types/enums are small and can stay as static imports
+const CowSwapWidget = dynamic(
+  () => import('@cowprotocol/widget-react').then(mod => mod.CowSwapWidget),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[640px] flex items-center justify-center bg-[#0f0f0f] rounded-lg">
+        <div className="text-gray-400">Loading swap widget...</div>
+      </div>
+    )
+  }
+)
 
 const customTokens: TokenInfo[] = [
   {

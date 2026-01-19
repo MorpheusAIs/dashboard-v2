@@ -7,11 +7,23 @@ import { useNetwork } from "@/context/network-context";
 import { useChainId, useSwitchChain, useAccount, useConnectorClient } from "wagmi";
 import { mainnet } from "wagmi/chains";
 
-// Import Modals (updated to kebab-case)
-import { DepositModal } from "@/components/capital/deposit-modal";
-import { WithdrawModal } from "@/components/capital/withdraw-modal";
-import { ClaimMorRewardsModal } from "@/components/capital/claim-mor-rewards-modal";
-import { ChangeLockModal } from "@/components/capital/change-lock-modal";
+// Import Modals dynamically to reduce initial bundle size (~40-60KB)
+const DepositModal = dynamic(
+  () => import("@/components/capital/deposit-modal").then(mod => ({ default: mod.DepositModal })),
+  { ssr: false }
+);
+const WithdrawModal = dynamic(
+  () => import("@/components/capital/withdraw-modal").then(mod => ({ default: mod.WithdrawModal })),
+  { ssr: false }
+);
+const ClaimMorRewardsModal = dynamic(
+  () => import("@/components/capital/claim-mor-rewards-modal").then(mod => ({ default: mod.ClaimMorRewardsModal })),
+  { ssr: false }
+);
+const ChangeLockModal = dynamic(
+  () => import("@/components/capital/change-lock-modal").then(mod => ({ default: mod.ChangeLockModal })),
+  { ssr: false }
+);
 
 // Import new components
 import { CapitalInfoPanel } from "@/components/capital/capital-info-panel";

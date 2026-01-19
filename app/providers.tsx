@@ -1,8 +1,8 @@
 "use client";
 
 import React from 'react';
+import dynamic from 'next/dynamic';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Web3Providers } from "@/components/web3-providers";
 import { BuildersProvider } from '@/context/builders-context';
 import { AuthProvider } from '@/context/auth-context';
@@ -10,7 +10,13 @@ import { ComputeProvider } from '@/context/compute-context';
 import { Toaster } from "@/components/ui/sonner";
 import { type State } from 'wagmi'; // Import the State type
 // RootLayoutContent is not used here, it's used in app/layout.tsx
-// import { RootLayoutContent } from "@/components/root-layout"; 
+// import { RootLayoutContent } from "@/components/root-layout";
+
+// Dynamically import ReactQueryDevtools to exclude from production bundle (~80KB)
+const ReactQueryDevtools = dynamic(
+  () => import('@tanstack/react-query-devtools').then(mod => mod.ReactQueryDevtools),
+  { ssr: false }
+); 
 
 // Create a new QueryClient instance here, within the client component module.
 // This ensures it's created once per client session.
@@ -49,7 +55,7 @@ export function Providers({
           </BuildersProvider>
         </ComputeProvider>
       </Web3Providers>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 } 

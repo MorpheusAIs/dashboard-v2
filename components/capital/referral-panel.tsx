@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
@@ -33,7 +33,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-export function ReferralPanel() {
+// Wrap in React.memo to prevent unnecessary re-renders from parent component changes
+export const ReferralPanel = React.memo(function ReferralPanel() {
   const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
   const [isCopying, setIsCopying] = useState(false);
   const [currentDomain, setCurrentDomain] = useState('');
@@ -392,4 +393,7 @@ export function ReferralPanel() {
       </Dialog>
     </div>
   );
-} 
+});
+
+// Add display name for React DevTools debugging
+ReferralPanel.displayName = 'ReferralPanel'; 

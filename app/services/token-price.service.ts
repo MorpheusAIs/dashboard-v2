@@ -90,45 +90,56 @@ export function getPriceCache(): ServerPriceCache {
   };
 }
 
-// Update server-side price cache by fetching from DefiLlama and CoinGecko
+// Update server-side price cache by fetching from DefiLlama and CoinGecko in parallel
 export async function updatePriceCache(): Promise<void> {
   try {
-    // Fetch from DefiLlama (stETH, wBTC, wETH, LINK)
+    // Prepare URLs for parallel fetching
     const tokenAddresses = Object.values(DEFILLAMA_TOKEN_ADDRESSES).join(',');
     const defiLlamaUrl = `https://coins.llama.fi/prices/current/${tokenAddresses}`;
-    
-    console.log('🦙 Fetching prices from DefiLlama:', defiLlamaUrl);
-    
-    const defiLlamaResponse = await fetch(defiLlamaUrl, {
-      headers: {
-        'Accept': 'application/json',
-      },
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-    
-    if (!defiLlamaResponse.ok) {
-      throw new Error(`DefiLlama API error: ${defiLlamaResponse.status}`);
-    }
-    
-    const defiLlamaData = await defiLlamaResponse.json();
-    
-    // Fetch from CoinGecko (MOR)
     const coinGeckoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${COINGECKO_TOKEN_IDS.MOR}&vs_currencies=usd`;
-    
-    console.log('🦎 Fetching MOR price from CoinGecko:', coinGeckoUrl);
-    
-    const coinGeckoResponse = await fetch(coinGeckoUrl, {
-      headers: {
-        'Accept': 'application/json',
-      },
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-    
-    if (!coinGeckoResponse.ok) {
-      console.warn(`CoinGecko API error: ${coinGeckoResponse.status}`);
+
+    console.log('🚀 Fetching prices in parallel from DefiLlama and CoinGecko');
+
+    // Fetch from both APIs in parallel for ~50% latency reduction
+    const [defiLlamaResult, coinGeckoResult] = await Promise.allSettled([
+      fetch(defiLlamaUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(coinGeckoUrl, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      }),
+    ]);
+
+    // Process DefiLlama response
+    let defiLlamaData = null;
+    if (defiLlamaResult.status === 'fulfilled' && defiLlamaResult.value.ok) {
+      defiLlamaData = await defiLlamaResult.value.json();
+      console.log('🦙 DefiLlama prices fetched successfully');
+    } else {
+      const error = defiLlamaResult.status === 'rejected'
+        ? defiLlamaResult.reason
+        : `HTTP ${defiLlamaResult.value.status}`;
+      console.warn(`DefiLlama API error: ${error}`);
     }
-    
-    const coinGeckoData = coinGeckoResponse.ok ? await coinGeckoResponse.json() : null;
+
+    // Process CoinGecko response
+    let coinGeckoData = null;
+    if (coinGeckoResult.status === 'fulfilled' && coinGeckoResult.value.ok) {
+      coinGeckoData = await coinGeckoResult.value.json();
+      console.log('🦎 CoinGecko MOR price fetched successfully');
+    } else {
+      const error = coinGeckoResult.status === 'rejected'
+        ? coinGeckoResult.reason
+        : `HTTP ${coinGeckoResult.value.status}`;
+      console.warn(`CoinGecko API error: ${error}`);
+    }
+
+    // If DefiLlama failed completely, throw to indicate cache update failed
+    if (!defiLlamaData) {
+      throw new Error('DefiLlama API failed - cannot update price cache');
+    }
     
     // Parse prices from both sources
     const prices = {

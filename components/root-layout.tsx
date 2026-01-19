@@ -1,5 +1,6 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { AppSidebar } from "@/components/app-sidebar"
 // import {
 //   Breadcrumb,
@@ -20,7 +21,19 @@ import Link from "next/link"
 import { useChainId } from 'wagmi'
 import { MORBalance } from "./mor-balance"
 import { TestnetIndicator } from "./testnet-indicator"
-import { MyBalanceModal } from "./my-balance-modal"
+
+// Dynamically import MyBalanceModal to reduce initial bundle size (~15-20KB)
+const MyBalanceModal = dynamic(
+  () => import("./my-balance-modal").then(mod => ({ default: mod.MyBalanceModal })),
+  {
+    ssr: false,
+    loading: () => (
+      <button className="flex items-center gap-1 px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-sm font-medium">
+        My Balance
+      </button>
+    )
+  }
+)
 // import { builders } from "@/app/builders/builders-data"
 
 // function getPageInfo(pathname: string) {

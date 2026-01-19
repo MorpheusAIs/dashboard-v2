@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect, useTransition, useRef } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useTransition, useRef } from "react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { useCapitalContext } from "@/context/CapitalPageContext";
 import { formatNumber } from "@/lib/utils";
@@ -41,7 +41,8 @@ type ModalAction = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "
 export { getCachedPrices, setCachedPrices, shouldRetryPriceFetch, MAX_PRICE_RETRIES, type TokenPriceCache } from "./hooks/use-token-prices";
 export { getCachedUserAssets, setCachedUserAssets, type UserAssetsCache } from "./hooks/use-user-assets-cache";
 
-export function UserAssetsPanel() {
+// Wrap in React.memo to prevent unnecessary re-renders from parent component changes
+export const UserAssetsPanel = React.memo(function UserAssetsPanel() {
   const {
     userAddress,
     setActiveModal,
@@ -691,4 +692,7 @@ export function UserAssetsPanel() {
       </div>
     </>
   );
-} 
+});
+
+// Add display name for React DevTools debugging
+UserAssetsPanel.displayName = 'UserAssetsPanel'; 
