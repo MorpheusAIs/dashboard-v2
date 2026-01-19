@@ -4,6 +4,7 @@ import { useNetworkInfo } from './useNetworkInfo';
 import { arbitrum, base } from 'wagmi/chains';
 import { useChainId } from 'wagmi';
 import { formatTimePeriod } from '@/app/utils/time-utils';
+import { STALE_TIMES } from '@/lib/constants/refetch-intervals';
 
 interface UseSingleBuilderProps {
   projectId: string | null | undefined;
@@ -111,7 +112,7 @@ export const useSingleBuilder = ({ projectId, network }: UseSingleBuilderProps) 
       }
     },
     enabled: !!projectId && !isTestnet, // Only fetch if we have a projectId and we're on mainnet
-    staleTime: 30 * 1000, // Consider data stale after 30 seconds
+    staleTime: STALE_TIMES.SHORT,
     refetchOnWindowFocus: true,
   });
 };

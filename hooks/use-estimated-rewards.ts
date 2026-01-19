@@ -11,6 +11,7 @@ import {
 import DistributorV2Abi from "@/app/abi/DistributorV2.json";
 import RewardPoolV2Abi from "@/app/abi/RewardPoolV2.json";
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
+import { REFETCH_INTERVALS } from "@/lib/constants/refetch-intervals";
 
 export interface EstimatedRewardsResult {
   estimatedRewards: string;
@@ -110,7 +111,7 @@ export function useEstimatedRewards({
       enabled: enabled && !!rewardPoolV2Address && !!chainId,
       retry: 3,
       retryDelay: 1000,
-      refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW,
     }
   });
   
@@ -149,7 +150,7 @@ export function useEstimatedRewards({
       enabled: enabled && !!contractAddress && !!chainId,
       retry: 3,
       retryDelay: 1000,
-      refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW,
     }
   });
 
@@ -541,7 +542,7 @@ export function usePoolRateData(
       enabled: false, // Disabled for v7 compatibility
       retry: 3,
       retryDelay: 1000,
-      refetchInterval: 5 * 60 * 1000,
+      refetchInterval: REFETCH_INTERVALS.SLOW,
     }
   });
 

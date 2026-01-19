@@ -6,6 +6,7 @@ import { useContractReads, useChainId, usePublicClient } from 'wagmi';
 import { formatUnits } from 'viem';
 import { NetworkEnvironment, getContractAddress, testnetChains, mainnetChains } from '@/config/networks';
 import { getAssetsForNetwork, type AssetSymbol } from '@/components/capital/constants/asset-config';
+import { REFETCH_INTERVALS } from '@/lib/constants/refetch-intervals';
 
 // Import ABIs
 import DepositPoolAbi from '@/app/abi/DepositPool.json'; // Use the generic ABI that has all functions
@@ -194,7 +195,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     allowFailure: true,
     query: {
       enabled: rewardPoolContracts.length > 0,
-      refetchInterval: 10 * 60 * 1000,
+      refetchInterval: REFETCH_INTERVALS.VERY_SLOW,
     },
   });
 
@@ -314,7 +315,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     allowFailure: true,
     query: {
       enabled: depositedContracts.length > 0,
-      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW,
     },
   });
 
@@ -401,7 +402,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     allowFailure: true,
     query: {
       enabled: rewardRateContracts.length > 0,
-      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW,
     },
   });
 
@@ -438,7 +439,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     allowFailure: true,
     query: {
       enabled: distributorPoolContracts.length > 0,
-      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW,
     },
   });
 
@@ -518,7 +519,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     allowFailure: true,
     query: {
       enabled: aTokenBalanceContracts.length > 0,
-      refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW,
     },
   });
 

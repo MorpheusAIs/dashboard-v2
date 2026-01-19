@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useReadContract } from "wagmi";
 import { parseEther, encodeAbiParameters, parseAbiParameters } from "viem";
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
+import { REFETCH_INTERVALS, STALE_TIMES } from "@/lib/constants/refetch-intervals";
 
 const LAYER_ZERO_ENDPOINT_ABI = [
   {
@@ -79,7 +80,7 @@ export function useLayerZeroFee(options: UseLayerZeroFeeOptions): LayerZeroFeeRe
     chainId: l1ChainId,
     query: {
       enabled: enabled && !!l1SenderAddress && !!l1ChainId,
-      staleTime: 5 * 60 * 1000,
+      staleTime: STALE_TIMES.LONG,
     }
   });
 
@@ -116,8 +117,8 @@ export function useLayerZeroFee(options: UseLayerZeroFeeOptions): LayerZeroFeeRe
     chainId: l1ChainId,
     query: {
       enabled: enabled && !!lzEndpointAddress && !!destinationChainId && !!l1SenderAddress && !!l1ChainId,
-      staleTime: 30 * 1000,
-      refetchInterval: 60 * 1000,
+      staleTime: STALE_TIMES.SHORT,
+      refetchInterval: REFETCH_INTERVALS.MODERATE,
     }
   });
 

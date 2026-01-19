@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { isRecoverableWalletError, clearAllWalletData } from '@/lib/utils/error-suppression'
 
 interface Props {
   children: React.ReactNode
@@ -24,21 +25,10 @@ class WalletErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Only log serious errors; recover from common wallet connection issues
-    const message = (error.message || '').toLowerCase()
-    const isProposalExpired = message.includes('proposal expired')
-    const isSessionExpired = message.includes('session expired')
-    const isWalletConnectionIssue = message.includes('walletconnect') || message.includes('user rejected')
-
-    if (isProposalExpired || isSessionExpired || isWalletConnectionIssue) {
+    if (isRecoverableWalletError(error)) {
       // Clear any expired wallet data silently, then safely reset the boundary
       try {
-        Object.keys(localStorage).forEach(key => {
-          if (key.toLowerCase().includes('walletconnect') ||
-              key.includes('wc@2') ||
-              key.includes('@walletconnect')) {
-            localStorage.removeItem(key)
-          }
-        })
+        clearAllWalletData()
       } catch {}
 
       // Defer state update to avoid nested updates within the same render phase

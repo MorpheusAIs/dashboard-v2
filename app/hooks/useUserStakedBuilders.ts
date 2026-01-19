@@ -11,6 +11,7 @@ import { useBuilders } from '@/context/builders-context';
 import { useChainId } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { USE_GOLDSKY_V1_DATA } from '@/app/config/subgraph-endpoints';
+import { STALE_TIMES } from '@/lib/constants/refetch-intervals';
 
 /**
  * Hook to fetch ALL builders where the user has staked tokens
@@ -427,7 +428,7 @@ export const useUserStakedBuilders = () => {
       return stakedBuilders;
     },
     enabled: isEnabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: STALE_TIMES.LONG,
     retry: 2
   });
 }; 

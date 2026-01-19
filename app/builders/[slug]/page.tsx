@@ -27,6 +27,7 @@ import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { useStakingContractInteractions, type UseStakingContractInteractionsProps } from "@/hooks/useStakingContractInteractions";
 import { formatEther, type Address, parseUnits } from "viem";
 import { testnetChains, mainnetChains } from '@/config/networks';
+import { STALE_TIMES } from '@/lib/constants/refetch-intervals';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -388,7 +389,7 @@ export default function BuilderPage() {
     args: subnetId ? [subnetId] : undefined,
     query: {
       enabled: !!subnetId && !!contractAddress && (!builder?.admin), // Only fetch if admin is missing
-      staleTime: 5 * 60 * 1000,
+      staleTime: STALE_TIMES.LONG,
     },
   });
   
@@ -448,7 +449,7 @@ export default function BuilderPage() {
     args: subnetId && userAddress ? [userAddress, subnetId] : undefined, // Consistent parameter order: [user, subnetId]
     query: {
       enabled: !!subnetId && !!userAddress && !!contractAddress, // Only enable if all args are present
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: STALE_TIMES.LONG,
     },
   });
   

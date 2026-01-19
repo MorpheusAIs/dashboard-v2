@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { STALE_TIMES } from '@/lib/constants/refetch-intervals';
 // import { useEffect } from 'react';
 
 
@@ -34,7 +35,7 @@ export const useMorlordBuilders = () => {
         return [];
       }
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: STALE_TIMES.LONG,
     retry: 3 // Retry 3 times if the request fails
   });
 

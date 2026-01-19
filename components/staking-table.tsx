@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Table,
   TableBody,
@@ -178,9 +177,14 @@ export function StakingTable({
           ) : (
             // Data state - only show when we actually have data
             entries.map((entry, index) => (
-              <TableRow 
+              <TableRow
                 key={`entry-${entry.address}-${index}`}
                 className="border-b border-white/[0.08] hover:bg-emerald-400/10 transition-colors"
+                style={entries.length > 20 ? {
+                  // content-visibility optimization for long lists
+                  contentVisibility: 'auto',
+                  containIntrinsicSize: '0 48px',
+                } : undefined}
               >
                 <TableCell className="font-mono">
                   <div className="flex items-center gap-2">

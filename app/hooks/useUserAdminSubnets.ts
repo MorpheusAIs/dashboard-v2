@@ -9,6 +9,7 @@ import { useChainId } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { useBuilders } from '@/context/builders-context';
 import { USE_GOLDSKY_V1_DATA } from '@/app/config/subgraph-endpoints';
+import { STALE_TIMES } from '@/lib/constants/refetch-intervals';
 
 /**
  * Hook to fetch subnets where the user is the admin
@@ -335,7 +336,7 @@ export const useUserAdminSubnets = () => {
       return adminSubnets;
     },
     enabled: isEnabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: STALE_TIMES.LONG,
     retry: 2
   });
 };

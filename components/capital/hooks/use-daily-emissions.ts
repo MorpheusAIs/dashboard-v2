@@ -9,6 +9,7 @@ import {
   type ContractAddresses
 } from "@/config/networks";
 import { type AssetSymbol, getAssetConfig } from "@/components/capital/constants/asset-config";
+import { REFETCH_INTERVALS } from "@/lib/constants/refetch-intervals";
 
 // Import the correct ABIs for proper v7 protocol approach
 import RewardPoolV2Abi from "@/app/abi/RewardPoolV2.json";
@@ -136,7 +137,7 @@ export function useDailyEmissions(
     chainId: l1ChainId,
     query: {
       enabled: !!rewardPoolAddress,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW
     }
   });
 
@@ -151,7 +152,7 @@ export function useDailyEmissions(
     chainId: l1ChainId,
     query: {
       enabled: !!depositPoolAddress,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW
     }
   });
 
@@ -168,7 +169,7 @@ export function useDailyEmissions(
     chainId: l1ChainId,
     query: {
       enabled: !!distributorV2Address && !!depositPoolAddress,
-      refetchInterval: 5 * 60 * 1000 // Refetch every 5 minutes
+      refetchInterval: REFETCH_INTERVALS.SLOW
     }
   });
 

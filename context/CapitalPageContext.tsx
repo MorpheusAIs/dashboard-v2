@@ -34,6 +34,7 @@ import {
 // Re-export AssetSymbol for use by other components
 export type { AssetSymbol } from "@/components/capital/constants/asset-config";
 import { formatTimestamp, formatBigInt } from "@/lib/utils/formatters";
+import { REFETCH_INTERVALS } from "@/lib/constants/refetch-intervals";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
 import { getTransactionUrl, isMainnetChain } from "@/lib/utils/transaction-utils";
 
@@ -743,7 +744,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     functionName: 'getLatestUserReward',
     args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 } 
+    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: REFETCH_INTERVALS.NORMAL }
   });
   const currentUserRewardData = useMemo(() => currentUserRewardDataRaw as bigint | undefined, [currentUserRewardDataRaw]);
 
@@ -820,7 +821,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     functionName: 'getLatestUserReward',
     args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 }
+    query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: REFETCH_INTERVALS.NORMAL }
   });
 
   // --- V2 DepositPool Reads (LINK) ---
@@ -844,7 +845,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     functionName: 'getLatestUserReward',
     args: [V2_REWARD_POOL_INDEX, userAddress || zeroAddress],
     chainId: l1ChainId,
-    query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 }
+    query: { enabled: !!linkDepositPoolAddress && !!userAddress, refetchInterval: REFETCH_INTERVALS.NORMAL }
   });
 
   // --- V2 User Multiplier Reads (Power Factor) ---

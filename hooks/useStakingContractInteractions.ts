@@ -15,6 +15,7 @@ import BuildersAbi from '@/app/abi/Builders.json';
 
 // Import from config
 import { getChainById } from '@/config/networks';
+import { STALE_TIMES } from '@/lib/constants/refetch-intervals';
 
 export interface UseStakingContractInteractionsProps {
   subnetId?: `0x${string}`;
@@ -206,7 +207,7 @@ export const useStakingContractInteractions = ({
     chainId: networkChainId,
     query: {
        enabled: isCorrectNetwork() && !!contractAddress && !!subnetId && !!connectedAddress,
-       staleTime: 5 * 60 * 1000, // 5 minutes
+       staleTime: STALE_TIMES.LONG,
     }
   });
 

@@ -6,12 +6,13 @@ import { createWeb3Modal } from "@web3modal/wagmi/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { State, WagmiProvider } from "wagmi";
 import { mainnet } from "wagmi/chains";
+import { STALE_TIMES } from "@/lib/constants/refetch-intervals";
 
 // Configure QueryClient with conservative refetch intervals to reduce RPC calls
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000, // 60 seconds - data is fresh for 60s
+      staleTime: STALE_TIMES.NORMAL,
       refetchInterval: false, // Disable automatic refetching by default
       refetchOnWindowFocus: false, // Don't refetch when window regains focus
       refetchOnReconnect: false, // Don't refetch on reconnect

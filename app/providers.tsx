@@ -9,6 +9,7 @@ import { AuthProvider } from '@/context/auth-context';
 import { ComputeProvider } from '@/context/compute-context';
 import { Toaster } from "@/components/ui/sonner";
 import { type State } from 'wagmi'; // Import the State type
+import { STALE_TIMES } from '@/lib/constants/refetch-intervals';
 // RootLayoutContent is not used here, it's used in app/layout.tsx
 // import { RootLayoutContent } from "@/components/root-layout";
 
@@ -23,7 +24,7 @@ const ReactQueryDevtools = dynamic(
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: STALE_TIMES.LONG,
     },
   },
 });

@@ -14,6 +14,7 @@ import { Address, isAddress } from "viem";
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { testnetChains, mainnetChains } from '@/config/networks';
 import { useNetwork } from "@/context/network-context";
+import { STALE_TIMES } from "@/lib/constants/refetch-intervals";
 
 // Add URL validation function
 const isValidUrl = (url: string): boolean => {
@@ -107,10 +108,10 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
     args: subnetId ? [subnetId as Address] : undefined,
     query: {
       enabled: isV4 && !!subnetId && !!contractAddress && isOpen,
-      staleTime: 5 * 60 * 1000,
+      staleTime: STALE_TIMES.LONG,
     },
   });
-  
+
   // Form state
   const [description, setDescription] = useState("");
   const [website, setWebsite] = useState("");

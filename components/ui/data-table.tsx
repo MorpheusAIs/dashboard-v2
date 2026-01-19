@@ -122,8 +122,8 @@ export function DataTable<T>({
               ))
           ) : data.length > 0 ? (
             data.map((item, itemIndex) => (
-              <TableRow 
-                key={`row-${itemIndex}`} 
+              <TableRow
+                key={`row-${itemIndex}`}
                 className={cn(
                   "table-row sm:h-auto h-12",
                   onRowClick && "cursor-pointer hover:bg-white/[0.05]"
@@ -131,7 +131,14 @@ export function DataTable<T>({
                 onClick={() => onRowClick && onRowClick(item)}
                 onMouseEnter={() => onRowHover && getItemId && onRowHover(getItemId(item))}
                 onMouseLeave={() => onRowHover && onRowHover(null)}
-                style={onRowClick ? { cursor: 'pointer' } : undefined}
+                style={{
+                  ...(onRowClick ? { cursor: 'pointer' } : {}),
+                  // content-visibility optimization for long lists (20+ items)
+                  ...(data.length > 20 ? {
+                    contentVisibility: 'auto',
+                    containIntrinsicSize: '0 48px',
+                  } : {}),
+                }}
               >
                 {columns.map((column) => (
                   <TableCell key={`cell-${column.id}-${itemIndex}`} className="sm:py-4 py-2 sm:px-4 px-2">
