@@ -374,6 +374,9 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
 
     if (!l1ChainId) throw new Error("Chain ID not available");
 
+    // Get LayerZero fee for cross-chain claim
+    const layerZeroFee = getStaticLayerZeroFee(networkEnv);
+
     await handleTransaction(() => {
       return claimAsync({
         address: assetData.config.depositPoolAddress,
@@ -381,13 +384,14 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
         functionName: "claim",
         args: [V2_REWARD_POOL_INDEX, userAddress],
         chainId: l1ChainId,
+        value: layerZeroFee,
       });
     }, {
       loading: `Requesting ${asset} reward claim...`,
       success: `Successfully claimed ${asset} rewards!`,
       error: `${asset} claim failed`
     });
-  }, [claimAsync, l1ChainId, assets, handleTransaction, userAddress]);
+  }, [claimAsync, l1ChainId, networkEnv, assets, handleTransaction, userAddress]);
 
   // --- Action: Change Lock ---
   const changeLock = useCallback(async (asset: AssetSymbol, lockValue: string, lockUnit: TimeUnit) => {
