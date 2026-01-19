@@ -68,6 +68,40 @@ export {
   useCapitalTokenAddresses,
 };
 
+// Assets Context - Asset configurations and contract data
+import {
+  CapitalAssetsProvider,
+  useCapitalAssets,
+  useAssets,
+  useAssetData,
+  useAssetLoadingStates,
+  useRefetchAssets,
+} from "./CapitalAssetsContext";
+
+export {
+  CapitalAssetsProvider,
+  useCapitalAssets,
+  useAssets,
+  useAssetData,
+  useAssetLoadingStates,
+  useRefetchAssets,
+};
+
+// MOR Balance Context - L2 MOR token balance
+import {
+  CapitalMORBalanceProvider,
+  useCapitalMORBalance,
+  useMORBalance,
+  useMORBalanceLoading,
+} from "./CapitalMORBalanceContext";
+
+export {
+  CapitalMORBalanceProvider,
+  useCapitalMORBalance,
+  useMORBalance,
+  useMORBalanceLoading,
+};
+
 // ============================================================================
 // Combined Provider
 // ============================================================================
@@ -83,15 +117,21 @@ interface CapitalProviderProps {
  * Provider hierarchy (outer to inner):
  * 1. CapitalNetworkProvider - Foundation layer (network, addresses)
  * 2. CapitalUIProvider - UI state (modals, selected asset)
+ * 3. CapitalAssetsProvider - Asset configurations and contract data
+ * 4. CapitalMORBalanceProvider - L2 MOR token balance
  *
- * Note: Additional contexts (Assets, Balances, Deposits, Rewards, etc.)
+ * Note: Additional contexts (Deposits, Rewards, Transactions, etc.)
  * will be added as they are implemented.
  */
 export function CapitalProvider({ children, defaultAsset = "stETH" }: CapitalProviderProps) {
   return (
     <CapitalNetworkProvider>
       <CapitalUIProvider defaultAsset={defaultAsset}>
-        {children}
+        <CapitalAssetsProvider>
+          <CapitalMORBalanceProvider>
+            {children}
+          </CapitalMORBalanceProvider>
+        </CapitalAssetsProvider>
       </CapitalUIProvider>
     </CapitalNetworkProvider>
   );
@@ -110,11 +150,15 @@ export function CapitalProvider({ children, defaultAsset = "stETH" }: CapitalPro
  * Migration guide:
  * - useCapitalPage().activeModal -> useCapitalUI().activeModal
  * - useCapitalPage().networkEnv -> useCapitalNetwork().networkEnv
+ * - useCapitalPage().assets -> useCapitalAssets().assets
+ * - useCapitalPage().morBalance -> useCapitalMORBalance().morBalance
  * - etc.
  */
 export function useCapitalPagePartial() {
   const ui = useCapitalUI();
   const network = useCapitalNetwork();
+  const assetsCtx = useCapitalAssets();
+  const morBalanceCtx = useCapitalMORBalance();
 
   return {
     // From UI Context
@@ -139,5 +183,20 @@ export function useCapitalPagePartial() {
     linkTokenAddress: network.linkTokenAddress,
     morContractAddress: network.morContractAddress,
     dynamicContracts: network.dynamicContracts,
+
+    // From Assets Context
+    assets: assetsCtx.assets,
+    assetContractData: assetsCtx.assetContractData,
+    isLoadingAssetData: assetsCtx.isLoadingAssets,
+    isLoadingBalances: assetsCtx.isLoadingBalances,
+    isLoadingAllowances: assetsCtx.isLoadingAllowances,
+    isLoadingRewards: assetsCtx.isLoadingRewards,
+    isLoadingTotalDeposits: assetsCtx.isLoadingTotalDeposits,
+
+    // From MOR Balance Context
+    morBalance: morBalanceCtx.morBalance,
+    morBalanceFormatted: morBalanceCtx.morBalanceFormatted,
+    isLoadingMorBalance: morBalanceCtx.isLoadingMorBalance,
+    refetchMorBalance: morBalanceCtx.refetchMorBalance,
   };
 }
