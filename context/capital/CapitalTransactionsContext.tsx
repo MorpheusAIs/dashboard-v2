@@ -363,19 +363,20 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
     });
   }, [withdrawAsync, l1ChainId, networkEnv, assets, handleTransaction, assetContractData]);
 
-  // --- Action: Claim ---
+  // --- Action: Claim (V2 with LayerZero cross-chain) ---
   const claim = useCallback(async (asset: AssetSymbol) => {
+    if (!userAddress || !l1ChainId) throw new Error("Claim prerequisites not met");
+
     const assetData = assets[asset];
     if (!assetData) throw new Error(`Asset ${asset} data not available`);
 
-    if (assetData.claimableAmount <= BigInt(0)) {
-      throw new Error(`No ${asset} rewards available to claim`);
+    if (!assetData.canClaim || assetData.claimableAmount <= BigInt(0)) {
+      throw new Error(`${asset} claim prerequisites not met or no rewards available`);
     }
-
-    if (!l1ChainId) throw new Error("Chain ID not available");
 
     // Get LayerZero fee for cross-chain claim
     const layerZeroFee = getStaticLayerZeroFee(networkEnv);
+    const l2NetworkName = networkEnv === 'testnet' ? 'Base Sepolia' : 'Arbitrum One';
 
     await handleTransaction(() => {
       return claimAsync({
@@ -385,24 +386,25 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
         args: [V2_REWARD_POOL_INDEX, userAddress],
         chainId: l1ChainId,
         value: layerZeroFee,
+        gas: BigInt(800000),
       });
     }, {
-      loading: `Requesting ${asset} reward claim...`,
-      success: `Successfully claimed ${asset} rewards!`,
+      loading: `Claiming ${asset} rewards...`,
+      success: `Successfully claimed ${asset} rewards! MOR tokens will be minted on ${l2NetworkName}.`,
       error: `${asset} claim failed`
     });
   }, [claimAsync, l1ChainId, networkEnv, assets, handleTransaction, userAddress]);
 
   // --- Action: Change Lock ---
   const changeLock = useCallback(async (asset: AssetSymbol, lockValue: string, lockUnit: TimeUnit) => {
+    if (!userAddress || !l1ChainId) throw new Error("Lock claim prerequisites not met");
+
     const assetData = assets[asset];
     if (!assetData) throw new Error(`Asset ${asset} data not available`);
 
     if (assetData.claimableAmount <= BigInt(0)) {
       throw new Error(`No ${asset} rewards available to lock`);
     }
-
-    if (!l1ChainId) throw new Error("Chain ID not available");
 
     const lockDurationSeconds = durationToSeconds(lockValue, lockUnit);
     const newClaimLockEnd = BigInt(Math.floor(Date.now() / 1000)) + lockDurationSeconds;
@@ -414,15 +416,16 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
         functionName: "lockClaim",
         args: [V2_REWARD_POOL_INDEX, newClaimLockEnd],
         chainId: l1ChainId,
+        gas: BigInt(500000),
       });
     }, {
-      loading: `Requesting lock change for ${asset}...`,
-      success: `Successfully updated ${asset} lock period!`,
-      error: `${asset} lock change failed`
+      loading: `Locking ${asset} rewards...`,
+      success: `Successfully locked ${asset} rewards for increased multiplier!`,
+      error: `${asset} lock failed`
     });
-  }, [lockClaimAsync, l1ChainId, assets, handleTransaction]);
+  }, [lockClaimAsync, l1ChainId, userAddress, assets, handleTransaction]);
 
-  // --- Action: Claim Referral Rewards ---
+  // --- Action: Claim Referral Rewards (V2 with LayerZero cross-chain) ---
   const claimReferralRewards = useCallback(async (asset?: AssetSymbol) => {
     if (!userAddress || !l1ChainId) throw new Error("Referral claim prerequisites not met");
 
@@ -433,6 +436,7 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
     }
 
     const layerZeroFee = getStaticLayerZeroFee(networkEnv);
+    const l2NetworkName = networkEnv === 'testnet' ? 'Base Sepolia' : 'Arbitrum One';
 
     let claimedAny = false;
 
@@ -460,9 +464,10 @@ export function CapitalTransactionsProvider({ children }: CapitalTransactionsPro
         args: [V2_REWARD_POOL_INDEX, userAddress],
         chainId: l1ChainId,
         value: layerZeroFee,
+        gas: BigInt(800000),
       }), {
-        loading: `Requesting ${symbol} referral reward claim...`,
-        success: `Successfully claimed ${symbol} referral rewards!`,
+        loading: `Claiming ${symbol} referral rewards...`,
+        success: `Successfully claimed ${symbol} referral rewards! MOR tokens will be minted on ${l2NetworkName}.`,
         error: `${symbol} referral claim failed`
       });
 
