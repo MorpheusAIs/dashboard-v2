@@ -102,6 +102,23 @@ export {
   useMORBalanceLoading,
 };
 
+// Referral Context - Referral data and metrics
+import {
+  CapitalReferralProvider,
+  useCapitalReferral,
+  useReferralTotals,
+  useReferralsByAsset,
+  useReferralLoadingStates,
+} from "./CapitalReferralContext";
+
+export {
+  CapitalReferralProvider,
+  useCapitalReferral,
+  useReferralTotals,
+  useReferralsByAsset,
+  useReferralLoadingStates,
+};
+
 // ============================================================================
 // Combined Provider
 // ============================================================================
@@ -119,9 +136,9 @@ interface CapitalProviderProps {
  * 2. CapitalUIProvider - UI state (modals, selected asset)
  * 3. CapitalAssetsProvider - Asset configurations and contract data
  * 4. CapitalMORBalanceProvider - L2 MOR token balance
+ * 5. CapitalReferralProvider - Referral data and metrics
  *
- * Note: Additional contexts (Deposits, Rewards, Transactions, etc.)
- * will be added as they are implemented.
+ * Note: Transactions context will be added as it is implemented.
  */
 export function CapitalProvider({ children, defaultAsset = "stETH" }: CapitalProviderProps) {
   return (
@@ -129,7 +146,9 @@ export function CapitalProvider({ children, defaultAsset = "stETH" }: CapitalPro
       <CapitalUIProvider defaultAsset={defaultAsset}>
         <CapitalAssetsProvider>
           <CapitalMORBalanceProvider>
-            {children}
+            <CapitalReferralProvider>
+              {children}
+            </CapitalReferralProvider>
           </CapitalMORBalanceProvider>
         </CapitalAssetsProvider>
       </CapitalUIProvider>
@@ -159,6 +178,7 @@ export function useCapitalPagePartial() {
   const network = useCapitalNetwork();
   const assetsCtx = useCapitalAssets();
   const morBalanceCtx = useCapitalMORBalance();
+  const referralCtx = useCapitalReferral();
 
   return {
     // From UI Context
@@ -198,5 +218,23 @@ export function useCapitalPagePartial() {
     morBalanceFormatted: morBalanceCtx.morBalanceFormatted,
     isLoadingMorBalance: morBalanceCtx.isLoadingMorBalance,
     refetchMorBalance: morBalanceCtx.refetchMorBalance,
+
+    // From Referral Context
+    referralData: {
+      totalReferrals: String(referralCtx.totalReferrals),
+      totalReferralAmount: referralCtx.totalReferralAmountFormatted,
+      lifetimeRewards: referralCtx.totalMorEarnedFormatted,
+      claimableRewards: "0", // Not yet implemented - needs on-chain reads
+      isLoadingReferralData: referralCtx.isLoadingReferralData || referralCtx.isLoadingReferrerSummary,
+      referralAmountsByAsset: referralCtx.referralAmountsByAsset,
+      rewardsByAsset: {}, // Not yet implemented
+      referrerDetailsByAsset: {}, // Not yet implemented
+      assetsWithClaimableRewards: [], // Not yet implemented
+      availableReferralAssets: [], // Not yet implemented
+      stETHReferralRewards: BigInt(0), // Deprecated
+      linkReferralRewards: BigInt(0), // Deprecated
+      stETHReferralData: null, // Deprecated
+      linkReferralData: null, // Deprecated
+    },
   };
 }
