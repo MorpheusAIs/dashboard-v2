@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import { formatAssetAmount, formatStakedAmount } from "./utils/asset-formatters";
 import type { UserAsset } from "./types/user-asset";
-import type { AssetSymbol } from "@/context/CapitalPageContext";
+import type { AssetSymbol } from "@/context/capital";
 
 interface UserAssetsTableProps {
   userAssets: UserAsset[];

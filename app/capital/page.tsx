@@ -74,21 +74,25 @@ const ReferralPanel = dynamic(() => import("@/components/capital/referral-panel"
 });
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 
-// Import Context and Config
-import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext";
+// Import Context and Config - Using new focused contexts
+import {
+  CapitalProvider,
+  useCapitalModal,
+  usePreReferrer,
+  useSelectedAsset,
+  useCapitalAssets,
+} from "@/context/capital";
 
 // --- Capital Page Content Component ---
 
 function CapitalPageContent() {
-  const {
-    // Raw data needed by modals
-    userData,
-    currentUserMultiplierData,
-    // isLoadingUserData,
-    // Modal controls
-    setActiveModal,
-    setPreReferrerAddress,
-  } = useCapitalContext();
+  const { setActiveModal } = useCapitalModal();
+  const { setPreReferrerAddress } = usePreReferrer();
+  const { selectedAsset } = useSelectedAsset();
+  const { assetContractData } = useCapitalAssets();
+
+  // Get selected asset data for ChangeLockModal
+  const selectedAssetData = assetContractData[selectedAsset];
 
   const { switchToChain: contextSwitchToChain, isNetworkSwitching } = useNetwork();
   const chainId = useChainId();
@@ -212,9 +216,8 @@ function CapitalPageContent() {
       <DepositModal />
       <WithdrawModal />
       <ClaimMorRewardsModal />
-      <ChangeLockModal 
-        currentUserMultiplierData={currentUserMultiplierData}
-        userData={userData}
+      <ChangeLockModal
+        currentUserMultiplierData={selectedAssetData?.userMultiplier}
       />
 
       {/* Placeholder for Assets to Deposit Section */}

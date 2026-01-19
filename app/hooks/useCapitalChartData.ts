@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { print } from "graphql";
 import { ethers } from "ethers";
-import { useCapitalContext } from "@/context/CapitalPageContext";
+import { useCapitalNetwork } from "@/context/capital";
 import { useNetwork } from "@/context/network-context";
 import { 
   getEndOfDayTimestamps, 
@@ -140,7 +140,7 @@ export interface DataPoint {
 }
 
 export function useCapitalChartData() {
-  const { networkEnv, poolInfo } = useCapitalContext();
+  const { networkEnv, poolInfo } = useCapitalNetwork();
   const { switchToChain, isNetworkSwitching } = useNetwork();
   
   // Get available assets with positive balances for live data

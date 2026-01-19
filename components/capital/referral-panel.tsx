@@ -3,7 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { MetricCardMinimal } from "@/components/metric-card-minimal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
+// Import Context and Hooks - Using new focused contexts
+import {
+  useCapitalNetwork,
+  useCapitalReferral,
+  useCapitalTransactions,
+  type AssetSymbol,
+} from "@/context/capital";
+import { formatBigInt } from "@/lib/utils/formatters";
 import { toast } from "sonner";
 import { formatAssetAmount } from "./utils/asset-formatters";
 import {
@@ -35,7 +42,28 @@ import {
 
 // Wrap in React.memo to prevent unnecessary re-renders from parent component changes
 export const ReferralPanel = React.memo(function ReferralPanel() {
-  const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
+  // Get state from focused contexts
+  const { userAddress } = useCapitalNetwork();
+  const referralCtx = useCapitalReferral();
+  const { claimReferralRewards, isProcessingReferralClaim } = useCapitalTransactions();
+
+  // Compute total claimable rewards from referralRewardsByAsset
+  const totalClaimableRewards = (Object.values(referralCtx.referralRewardsByAsset) as (bigint | undefined)[]).reduce(
+    (sum: bigint, value) => sum + (value ?? BigInt(0)),
+    BigInt(0)
+  );
+  const claimableRewardsFormatted = formatBigInt(totalClaimableRewards, 18, 4);
+
+  // Construct referralData object from context (backward compatibility)
+  const referralData = {
+    totalReferrals: String(referralCtx.totalReferrals),
+    totalReferralAmount: referralCtx.totalReferralAmountFormatted,
+    lifetimeRewards: referralCtx.totalMorEarnedFormatted,
+    claimableRewards: claimableRewardsFormatted,
+    isLoadingReferralData: referralCtx.isLoadingReferralData || referralCtx.isLoadingReferrerSummary || referralCtx.isLoadingReferralRewards,
+    referralAmountsByAsset: referralCtx.referralAmountsByAsset,
+    assetsWithClaimableRewards: referralCtx.assetsWithClaimableRewards,
+  };
   const [isCopying, setIsCopying] = useState(false);
   const [currentDomain, setCurrentDomain] = useState('');
   const [showClaimDialog, setShowClaimDialog] = useState(false);
@@ -229,14 +257,14 @@ export const ReferralPanel = React.memo(function ReferralPanel() {
               </div>
               <button
                 className={`copy-button-secondary font-medium px-4 py-2 rounded-lg transition-all duration-200 ${
-                  !userAddress || !hasClaimableRewards || referralData.isLoadingReferralData
+                  !userAddress || !hasClaimableRewards || referralData.isLoadingReferralData || isProcessingReferralClaim
                     ? ''
                     : 'hover:copy-button'
                 }`}
                 onClick={handleClaimReferralRewards}
-                disabled={!userAddress || !hasClaimableRewards || referralData.isLoadingReferralData}
+                disabled={!userAddress || !hasClaimableRewards || referralData.isLoadingReferralData || isProcessingReferralClaim}
               >
-                {referralData.isLoadingReferralData ? "Loading..." : "Claim Rewards"}
+                {isProcessingReferralClaim ? "Claiming..." : referralData.isLoadingReferralData ? "Loading..." : "Claim Rewards"}
               </button>
             </div>
 

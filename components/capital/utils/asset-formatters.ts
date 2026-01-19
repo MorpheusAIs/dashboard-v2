@@ -1,5 +1,5 @@
 import { formatNumber } from "@/lib/utils";
-import type { AssetSymbol } from "@/context/CapitalPageContext";
+import type { AssetSymbol } from "@/context/capital";
 
 interface MinimalAssetData {
   userDepositedFormatted: string;

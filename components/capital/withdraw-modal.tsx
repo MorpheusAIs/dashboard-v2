@@ -8,23 +8,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { useCapitalContext } from "@/context/CapitalPageContext";
+// Import Context and Hooks - Using new focused contexts
+import {
+  useCapitalNetwork,
+  useCapitalAssets,
+  useCapitalModal,
+  useSelectedAsset,
+  useCapitalTransactions,
+} from "@/context/capital";
 import { getAssetConfig } from "@/components/capital/constants/asset-config";
 import { useNetwork } from "@/context/network-context";
 
 export function WithdrawModal() {
-  const {
-    userAddress,
-    withdraw,
-    canWithdraw,
-    isProcessingWithdraw,
-    activeModal,
-    setActiveModal,
-    selectedAsset,
-    assets
-  } = useCapitalContext();
-  
+  // Get state from focused contexts
+  const { userAddress } = useCapitalNetwork();
+  const { assets } = useCapitalAssets();
+  const { selectedAsset } = useSelectedAsset();
+  const { activeModal, setActiveModal } = useCapitalModal();
+  const { withdraw, isProcessingWithdraw } = useCapitalTransactions();
+
   const { environment } = useNetwork();
+
+  // Get canWithdraw from the selected asset data
+  const canWithdraw = assets[selectedAsset]?.canWithdraw ?? false;
 
   const isOpen = activeModal === 'withdraw';
 

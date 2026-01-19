@@ -8,24 +8,28 @@ const NumberFlow = dynamic(() => import('@number-flow/react'), {
   ssr: false,
   loading: () => <span>—</span>
 })
-import { useCapitalContext } from "@/context/CapitalPageContext";
+// Import Context and Hooks - Using new focused contexts
+import {
+  useCapitalNetwork,
+  useCapitalModal,
+  useSelectedAsset,
+  type AssetSymbol,
+} from "@/context/capital";
 import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 import { AssetIcon } from "@/components/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Asset } from "./types/asset";
 import { parseStakedAmount } from "./utils/parse-staked-amount";
-import type { AssetSymbol } from "@/context/CapitalPageContext";
 import { getAssetsForNetwork, DEPOSIT_POOL_MAPPING, type NetworkEnvironment } from "./constants/asset-config";
 import { getContractAddress } from "@/config/networks";
 import type { Format} from '@number-flow/react';
 
 export function CapitalInfoPanel() {
-  const {
-    userAddress,
-    setActiveModal,
-    setSelectedAsset,
-  } = useCapitalContext();
+  // Get state from focused contexts
+  const { userAddress } = useCapitalNetwork();
+  const { setActiveModal } = useCapitalModal();
+  const { setSelectedAsset } = useSelectedAsset();
 
   // Get MOR price from metrics (which already uses useTokenPrices correctly)
   const { morPrice } = useCapitalMetrics();
