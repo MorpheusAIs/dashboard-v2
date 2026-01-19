@@ -1,5 +1,17 @@
 # CapitalPageContext Refactoring Plan
 
+## Implementation Progress
+
+| Context | Status | Commit |
+|---------|--------|--------|
+| `CapitalNetworkContext` | ✅ Complete | c6a8607 |
+| `CapitalUIContext` | ✅ Complete | c6a8607 |
+| `CapitalAssetsContext` | ✅ Complete | ead1cc7 |
+| `CapitalMORBalanceContext` | ✅ Complete | ead1cc7 |
+| `CapitalReferralContext` | ✅ Complete | 5653f94 |
+| `CapitalTransactionsContext` | 🚧 Pending | - |
+| Component Migration | 🚧 Pending | - |
+
 ## Current State
 - **File**: `context/CapitalPageContext.tsx`
 - **Lines**: 2856
