@@ -9,8 +9,22 @@
 | `CapitalAssetsContext` | ✅ Complete | ead1cc7 |
 | `CapitalMORBalanceContext` | ✅ Complete | ead1cc7 |
 | `CapitalReferralContext` | ✅ Complete | 5653f94 |
-| `CapitalTransactionsContext` | 🚧 Pending | - |
+| `CapitalTransactionsContext` | ✅ Complete | 7b2a3a3 |
 | Component Migration | 🚧 Pending | - |
+
+### Context Architecture Complete
+
+All 6 focused contexts have been implemented:
+
+1. **CapitalNetworkContext** - Network info, chain IDs, contract addresses
+2. **CapitalUIContext** - Modal state, selected asset, referrer address
+3. **CapitalAssetsContext** - Asset configurations and contract data (leverages `useAssetContractData`)
+4. **CapitalMORBalanceContext** - L2 MOR token balance
+5. **CapitalReferralContext** - Referral metrics (leverages existing hooks)
+6. **CapitalTransactionsContext** - Write operations and transaction state
+
+The combined `CapitalProvider` wraps all contexts in the correct dependency order.
+A backward-compatible `useCapitalPagePartial()` hook is available for gradual migration.
 
 ## Current State
 - **File**: `context/CapitalPageContext.tsx`
