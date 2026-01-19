@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useEffect, useCallback, useState } from "react";
+import React, { createContext, useContext, useMemo, useEffect, useCallback, useState, useRef } from "react";
 import { 
   useAccount, 
   useChainId, 
@@ -374,7 +374,6 @@ interface CapitalContextState {
   // Claim transaction states for enhanced balance monitoring
   isClaimSuccess: boolean;
   claimHash?: `0x${string}`;
-  lastHandledClaimHash: `0x${string}` | null;
 
   // V2 Action Functions (asset-aware)
   deposit: (asset: AssetSymbol, amount: string, lockDurationSeconds?: bigint, referrerAddress?: string) => Promise<void>;
@@ -913,45 +912,47 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const { isLoading: isConfirmingLockClaim, isSuccess: isLockClaimSuccess, isError: isLockClaimError, error: lockClaimError } = useWaitForTransactionReceipt({ hash: lockClaimHash, chainId: l1ChainId });
 
   // --- Transaction Success Tracking (prevents repeated toasts) ---
-  const [lastHandledApprovalHash, setLastHandledApprovalHash] = useState<`0x${string}` | null>(null);
-  const [lastHandledStakeHash, setLastHandledStakeHash] = useState<`0x${string}` | null>(null);
-  const [lastHandledClaimHash, setLastHandledClaimHash] = useState<`0x${string}` | null>(null);
-  const [lastHandledWithdrawHash, setLastHandledWithdrawHash] = useState<`0x${string}` | null>(null);
-  const [lastHandledLockClaimHash, setLastHandledLockClaimHash] = useState<`0x${string}` | null>(null);
-  
+  // Using refs instead of state to prevent unnecessary re-renders
+  // These values are only read inside useEffect callbacks, not during render
+  const lastHandledApprovalHashRef = useRef<`0x${string}` | null>(null);
+  const lastHandledStakeHashRef = useRef<`0x${string}` | null>(null);
+  const lastHandledClaimHashRef = useRef<`0x${string}` | null>(null);
+  const lastHandledWithdrawHashRef = useRef<`0x${string}` | null>(null);
+  const lastHandledLockClaimHashRef = useRef<`0x${string}` | null>(null);
+
   // Track first-time depositor status for active depositor count increments
   const [pendingFirstDeposit, setPendingFirstDeposit] = useState<boolean>(false);
 
-  // Reset tracking when new transactions start
+  // Reset tracking when new transactions start (using refs - no effect needed for state sync)
   useEffect(() => {
-    if (approveHash && approveHash !== lastHandledApprovalHash) {
-      setLastHandledApprovalHash(null);
+    if (approveHash && approveHash !== lastHandledApprovalHashRef.current) {
+      lastHandledApprovalHashRef.current = null;
     }
-  }, [approveHash, lastHandledApprovalHash]);
+  }, [approveHash]);
 
   useEffect(() => {
-    if (stakeHash && stakeHash !== lastHandledStakeHash) {
-      setLastHandledStakeHash(null);
+    if (stakeHash && stakeHash !== lastHandledStakeHashRef.current) {
+      lastHandledStakeHashRef.current = null;
     }
-  }, [stakeHash, lastHandledStakeHash]);
+  }, [stakeHash]);
 
   useEffect(() => {
-    if (claimHash && claimHash !== lastHandledClaimHash) {
-      setLastHandledClaimHash(null);
+    if (claimHash && claimHash !== lastHandledClaimHashRef.current) {
+      lastHandledClaimHashRef.current = null;
     }
-  }, [claimHash, lastHandledClaimHash]);
+  }, [claimHash]);
 
   useEffect(() => {
-    if (withdrawHash && withdrawHash !== lastHandledWithdrawHash) {
-      setLastHandledWithdrawHash(null);
+    if (withdrawHash && withdrawHash !== lastHandledWithdrawHashRef.current) {
+      lastHandledWithdrawHashRef.current = null;
     }
-  }, [withdrawHash, lastHandledWithdrawHash]);
+  }, [withdrawHash]);
 
   useEffect(() => {
-    if (lockClaimHash && lockClaimHash !== lastHandledLockClaimHash) {
-      setLastHandledLockClaimHash(null);
+    if (lockClaimHash && lockClaimHash !== lastHandledLockClaimHashRef.current) {
+      lastHandledLockClaimHashRef.current = null;
     }
-  }, [lockClaimHash, lastHandledLockClaimHash]);
+  }, [lockClaimHash]);
 
   // --- Combined Loading States (Dynamic) ---
   // These are now calculated from the dynamic assetContractData loading states
@@ -1763,7 +1764,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   
   // --- Transaction Success/Error Effects (Update to close modal) ---
   useEffect(() => {
-    if (isApprovalSuccess && approveHash && approveHash !== lastHandledApprovalHash) {
+    if (isApprovalSuccess && approveHash && approveHash !== lastHandledApprovalHashRef.current) {
         // Add debugging for approval success
         if (process.env.NODE_ENV !== 'production') {
           console.log('🎉 [Capital Context] Approval transaction confirmed:', {
@@ -1791,7 +1792,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
         // Refetch allowances for all assets dynamically
         Object.values(assetContractData).forEach(asset => asset.refetch.allowance());
-        setLastHandledApprovalHash(approveHash);
+        lastHandledApprovalHashRef.current = approveHash;
 
         // Add debugging for allowance refetch
         if (process.env.NODE_ENV !== 'production') {
@@ -1799,10 +1800,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
         }
         // Don't close modal after approval
     }
-  }, [isApprovalSuccess, approveHash, lastHandledApprovalHash, l1ChainId, assetContractData]);
+  }, [isApprovalSuccess, approveHash, l1ChainId, assetContractData]);
 
   useEffect(() => {
-      if (isStakeSuccess && stakeHash && stakeHash !== lastHandledStakeHash) {
+      if (isStakeSuccess && stakeHash && stakeHash !== lastHandledStakeHashRef.current) {
           const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, stakeHash) : null;
 
           toast.success(`Stake confirmed!`, {
@@ -1840,13 +1841,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             window.refreshMORBalances();
           }
 
-          setLastHandledStakeHash(stakeHash);
+          lastHandledStakeHashRef.current = stakeHash;
           setActiveModal(null); // Close modal on success
       }
-  }, [isStakeSuccess, stakeHash, lastHandledStakeHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId, pendingFirstDeposit, networkEnv]);
+  }, [isStakeSuccess, stakeHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId, pendingFirstDeposit, networkEnv]);
 
   useEffect(() => {
-      if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHash) {
+      if (isClaimSuccess && claimHash && claimHash !== lastHandledClaimHashRef.current) {
           const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, claimHash) : null;
 
           toast.success("Claim confirmed!", {
@@ -1880,12 +1881,12 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             window.refreshMORBalances();
           }
 
-          setLastHandledClaimHash(claimHash);
+          lastHandledClaimHashRef.current = claimHash;
       }
-  }, [isClaimSuccess, claimHash, lastHandledClaimHash, refetchUserData, refetchUserReward, refetchMorBalance, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
+  }, [isClaimSuccess, claimHash, refetchUserData, refetchUserReward, refetchMorBalance, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
 
   useEffect(() => {
-      if (isWithdrawSuccess && withdrawHash && withdrawHash !== lastHandledWithdrawHash) {
+      if (isWithdrawSuccess && withdrawHash && withdrawHash !== lastHandledWithdrawHashRef.current) {
           const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, withdrawHash) : null;
 
           toast.success("Withdrawal confirmed!", {
@@ -1917,13 +1918,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             window.refreshMORBalances();
           }
 
-          setLastHandledWithdrawHash(withdrawHash);
+          lastHandledWithdrawHashRef.current = withdrawHash;
           setActiveModal(null); // Close modal on success
       }
-  }, [isWithdrawSuccess, withdrawHash, lastHandledWithdrawHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
+  }, [isWithdrawSuccess, withdrawHash, refetchUserData, refetchUserReward, capitalPoolData.refetch, setActiveModal, assetContractData, l1ChainId]);
 
   useEffect(() => {
-      if (isLockClaimSuccess && lockClaimHash && lockClaimHash !== lastHandledLockClaimHash) {
+      if (isLockClaimSuccess && lockClaimHash && lockClaimHash !== lastHandledLockClaimHashRef.current) {
           const txUrl = l1ChainId && isMainnetChain(l1ChainId) ? getTransactionUrl(l1ChainId, lockClaimHash) : null;
 
           toast.success("Lock period update confirmed!", {
@@ -1947,10 +1948,10 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           // Refetch all asset multiplier data dynamically
           Object.values(assetContractData).forEach(asset => asset.refetch.multiplier());
 
-          setLastHandledLockClaimHash(lockClaimHash);
+          lastHandledLockClaimHashRef.current = lockClaimHash;
           setActiveModal(null); // Close modal on success
       }
-  }, [isLockClaimSuccess, lockClaimHash, lastHandledLockClaimHash, refetchUserData, refetchUserMultiplier, setActiveModal, assetContractData, l1ChainId]);
+  }, [isLockClaimSuccess, lockClaimHash, refetchUserData, refetchUserMultiplier, setActiveModal, assetContractData, l1ChainId]);
 
   // --- Transaction Error Effects ---
   useEffect(() => {
@@ -2755,7 +2756,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     // Claim transaction states for enhanced balance monitoring
     isClaimSuccess: isClaimSuccess,
     claimHash: claimHash,
-    lastHandledClaimHash: lastHandledClaimHash,
 
     // V2 Action Functions (asset-aware)
     deposit,
@@ -2818,8 +2818,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isLoadingRewards, isLoadingTotalDeposits,
     
     // Processing states
-    isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock, 
-    isApprovalSuccess, isClaimSuccess, claimHash, lastHandledClaimHash,
+    isProcessingDeposit, isProcessingClaim, isProcessingWithdraw, isProcessingChangeLock,
+    isApprovalSuccess, isClaimSuccess, claimHash,
     
     // Action functions
     deposit, claim, withdraw, changeLock, approveToken, needsApproval, checkAndUpdateApprovalNeeded,

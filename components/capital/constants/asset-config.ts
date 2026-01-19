@@ -1,15 +1,17 @@
 /**
  * Centralized Asset Configuration
- * 
+ *
  * This file contains all asset configurations for the Capital project,
  * including contract addresses, metadata, and network-specific settings.
- * 
+ *
  * Benefits:
  * - Single source of truth for all asset data
  * - Easy to maintain and update
  * - Consistent across all components
  * - Type-safe configuration
  */
+
+import type { ContractAddresses } from '@/config/networks';
 
 export type NetworkEnvironment = 'mainnet' | 'testnet';
 export type AssetSymbol = 'stETH' | 'LINK' | 'USDC' | 'USDT' | 'wBTC' | 'wETH';
@@ -186,3 +188,16 @@ export const timeLockOptions = [
 
 // Regular expression for Ethereum addresses (kept for backward compatibility)
 export const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+
+/**
+ * Mapping from asset symbols to their deposit pool contract keys
+ * This is a shared constant to avoid recreating the object in multiple components
+ */
+export const DEPOSIT_POOL_MAPPING: Record<AssetSymbol, keyof ContractAddresses> = {
+  stETH: 'stETHDepositPool',
+  LINK: 'linkDepositPool',
+  USDC: 'usdcDepositPool',
+  USDT: 'usdtDepositPool',
+  wBTC: 'wbtcDepositPool',
+  wETH: 'wethDepositPool',
+} as const;

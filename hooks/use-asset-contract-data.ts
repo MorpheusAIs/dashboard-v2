@@ -3,14 +3,14 @@
 import { useMemo } from 'react';
 import { useAccount, useBalance, useReadContract, useChainId } from 'wagmi';
 import { zeroAddress } from 'viem';
-import { 
-  getContractAddress, 
-  type NetworkEnvironment,
-  type ContractAddresses 
+import {
+  getContractAddress,
+  type NetworkEnvironment
 } from '@/config/networks';
-import { 
-  type AssetSymbol, 
-  getAssetConfig
+import {
+  type AssetSymbol,
+  getAssetConfig,
+  DEPOSIT_POOL_MAPPING
 } from '@/components/capital/constants/asset-config';
 import { formatBigInt, formatTimestamp } from '@/lib/utils/formatters';
 import { formatPowerFactorPrecise } from '@/lib/utils/power-factor-utils';
@@ -97,17 +97,8 @@ export function useAssetContractData(assetSymbol: AssetSymbol): AssetContractDat
       };
     }
     
-    // Map asset symbol to deposit pool contract name
-    const depositPoolMapping: Record<AssetSymbol, keyof ContractAddresses> = {
-      'stETH': 'stETHDepositPool',
-      'LINK': 'linkDepositPool',
-      'USDC': 'usdcDepositPool',
-      'USDT': 'usdtDepositPool',
-      'wBTC': 'wbtcDepositPool',
-      'wETH': 'wethDepositPool',
-    };
-    
-    const depositPoolContractName = depositPoolMapping[assetSymbol];
+    // Uses shared DEPOSIT_POOL_MAPPING constant from asset-config
+    const depositPoolContractName = DEPOSIT_POOL_MAPPING[assetSymbol];
     const depositPoolAddr = depositPoolContractName 
       ? getContractAddress(l1ChainId, depositPoolContractName, networkEnv)
       : '';

@@ -41,6 +41,7 @@ import {
 // Import dynamic asset configuration
 import {
   getAssetsForNetwork,
+  DEPOSIT_POOL_MAPPING,
   type AssetContractInfo
 } from "./constants/asset-config";
 import { TimeLockPeriodSelector } from "./time-lock-period-selector";
@@ -84,22 +85,13 @@ export function DepositModal() {
 
   // Create asset options for dropdown (only include assets with deposit pools)
   const assetOptions = useMemo(() => {
-    // Mapping from asset symbols to their deposit pool contract keys (same as use-capital-pool-data.ts)
-    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
-      stETH: 'stETHDepositPool',
-      LINK: 'linkDepositPool', 
-      USDC: 'usdcDepositPool',
-      USDT: 'usdtDepositPool',
-      wBTC: 'wbtcDepositPool',
-      wETH: 'wethDepositPool',
-    };
-    
+    // Uses shared DEPOSIT_POOL_MAPPING constant from asset-config
     const l1ChainId = networkEnv === 'mainnet' ? 1 : 11155111; // mainnet : sepolia
-    
+
     return availableAssets
       .filter(asset => {
         // Only include assets that have deposit pools deployed
-        const contractKey = depositPoolMapping[asset.metadata.symbol];
+        const contractKey = DEPOSIT_POOL_MAPPING[asset.metadata.symbol];
         const hasDepositPool = contractKey && getContractAddress(l1ChainId, contractKey, networkEnv);
         const isNotWBTC = asset.metadata.symbol !== 'wBTC';
         return hasDepositPool && !asset.metadata.disabled && isNotWBTC;

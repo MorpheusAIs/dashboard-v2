@@ -64,6 +64,7 @@
     "dotenv": "^16.4.7",
     "effect": "^3.18.1",
     "ethers": "^5.8.0",
+    "framer-motion": "^11.1.7",
     "graphql": "^16.10.0",
     "lucide-react": "^0.474.0",
     "mime-types": "^3.0.1",

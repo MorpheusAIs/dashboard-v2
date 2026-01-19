@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Asset } from "./types/asset";
 import { parseStakedAmount } from "./utils/parse-staked-amount";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
-import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
+import { getAssetsForNetwork, DEPOSIT_POOL_MAPPING, type NetworkEnvironment } from "./constants/asset-config";
 import { getContractAddress } from "@/config/networks";
 import type { Format} from '@number-flow/react';
 
@@ -50,17 +50,8 @@ export function CapitalInfoPanel() {
     const assetData = poolData.assets[symbol];
     
     // Check if this asset has a deposit pool configured in networks.ts
-    // Use the same mapping logic as use-capital-pool-data.ts
-    const depositPoolMapping: Partial<Record<AssetSymbol, keyof import('@/config/networks').ContractAddresses>> = {
-      stETH: 'stETHDepositPool',
-      LINK: 'linkDepositPool', 
-      USDC: 'usdcDepositPool',
-      USDT: 'usdtDepositPool',
-      wBTC: 'wbtcDepositPool',
-      wETH: 'wethDepositPool',
-    };
-    
-    const contractKey = depositPoolMapping[symbol];
+    // Uses shared DEPOSIT_POOL_MAPPING constant from asset-config
+    const contractKey = DEPOSIT_POOL_MAPPING[symbol];
     const l1ChainId = networkEnvironment === 'mainnet' ? 1 : 11155111; // mainnet : sepolia
     const hasDepositPool = contractKey && getContractAddress(l1ChainId, contractKey, networkEnvironment);
     
