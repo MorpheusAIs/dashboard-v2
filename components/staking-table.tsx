@@ -24,6 +24,7 @@ export interface StakingTableProps {
   onNextPage: () => void;
   // Optional display properties
   hideColumns?: string[];
+  disableSortColumns?: string[];
   getExplorerUrl: (address: string, network?: string) => string;
   network?: string;
   formatDate?: (timestamp: number) => string;
@@ -41,12 +42,16 @@ export function StakingTable({
   onPreviousPage,
   onNextPage,
   hideColumns = [],
+  disableSortColumns = [],
   getExplorerUrl,
   network,
   formatDate = (timestamp) => new Date(timestamp * 1000).toLocaleDateString(),
 }: StakingTableProps) {
   // Helper to determine if a column should be shown
   const showColumn = (columnId: string) => !hideColumns.includes(columnId);
+
+  // Helper to determine if a column is sortable
+  const isSortable = (columnId: string) => !disableSortColumns.includes(columnId);
 
   // Default sorting indicator
   const SortIndicator = ({ column }: { column: string }) => (
@@ -101,25 +106,25 @@ export function StakingTable({
             )}
             
             {showColumn('timestamp') && (
-              <TableHead 
-                className="text-sm font-medium text-gray-400 cursor-pointer"
-                onClick={() => onSort('timestamp')}
+              <TableHead
+                className={`text-sm font-medium text-gray-400 ${isSortable('timestamp') ? 'cursor-pointer' : ''}`}
+                onClick={isSortable('timestamp') ? () => onSort('timestamp') : undefined}
               >
                 <div className="flex items-center">
                   Stake Date
-                  <SortIndicator column="timestamp" />
+                  {isSortable('timestamp') && <SortIndicator column="timestamp" />}
                 </div>
               </TableHead>
             )}
             
             {showColumn('unlockDate') && (
-              <TableHead 
-                className="text-sm font-medium text-gray-400 cursor-pointer"
-                onClick={() => onSort('unlockDate')}
+              <TableHead
+                className={`text-sm font-medium text-gray-400 ${isSortable('unlockDate') ? 'cursor-pointer' : ''}`}
+                onClick={isSortable('unlockDate') ? () => onSort('unlockDate') : undefined}
               >
                 <div className="flex items-center">
                   Unlock Date
-                  <SortIndicator column="unlockDate" />
+                  {isSortable('unlockDate') && <SortIndicator column="unlockDate" />}
                 </div>
               </TableHead>
             )}

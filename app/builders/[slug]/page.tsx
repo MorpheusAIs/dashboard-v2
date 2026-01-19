@@ -1443,6 +1443,7 @@ export default function BuilderPage() {
                 onPreviousPage={pagination.prevPage}
                 onNextPage={pagination.nextPage}
                 hideColumns={['claimed', 'fee']}
+                disableSortColumns={['timestamp', 'unlockDate']}
                 getExplorerUrl={getExplorerUrl}
                 network={networksToDisplay[0]}
                 formatDate={formatDate}
