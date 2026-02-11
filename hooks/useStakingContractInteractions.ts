@@ -693,6 +693,8 @@ export const useStakingContractInteractions = ({
         functionName: 'approve',
         args: [contractAddress, approvalAmount],
         chainId: networkChainId,
+        // Add explicit gas limit for Base mainnet to prevent estimation issues
+        gas: networkChainId === base.id ? BigInt(100000) : undefined,
       });
       
       return true;
@@ -750,6 +752,9 @@ export const useStakingContractInteractions = ({
         functionName: 'deposit',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
+        // Add explicit gas limit for Base mainnet to prevent estimation issues
+        // This matches the pattern used in useSubnetContractInteractions.ts
+        gas: networkChainId === base.id ? BigInt(500000) : undefined,
       });
       
       return true;
@@ -802,6 +807,8 @@ export const useStakingContractInteractions = ({
         functionName: 'withdraw',
         args: [subnetId, parsedAmount],
         chainId: networkChainId,
+        // Add explicit gas limit for Base mainnet to prevent estimation issues
+        gas: networkChainId === base.id ? BigInt(500000) : undefined,
       });
       
       return true;
@@ -851,6 +858,8 @@ export const useStakingContractInteractions = ({
         functionName: 'claim',
         args: [subnetId, connectedAddress],
         chainId: networkChainId,
+        // Add explicit gas limit for Base mainnet to prevent estimation issues
+        gas: networkChainId === base.id ? BigInt(500000) : undefined,
       });
       
       return true;

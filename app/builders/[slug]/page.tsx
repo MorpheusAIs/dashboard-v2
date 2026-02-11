@@ -97,7 +97,6 @@ export default function BuilderPage() {
   const [rawStakedAmount, setRawStakedAmount] = useState<bigint | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
-  const refreshStakingDataRef = useRef(false); // Add a ref to track if refresh has been called
   const previousStakedAmountRef = useRef<number | null>(null); // Add ref to track previous staked amount
   const [builder, setBuilder] = useState<Builder | null>(null);
   const [subnetId, setSubnetId] = useState<Address | null>(null);
@@ -572,31 +571,11 @@ export default function BuilderPage() {
     refresh: refreshStakingEntries,
   } = useStakingData(stakingDataHookProps);
   
-  // useEffect for triggering refresh based on refreshStakingDataRef
+  // Store refreshStakingEntries in a ref so it can be called from onTxSuccess
+  // without causing the useMemo to recreate on every refresh function change
+  const refreshStakingEntriesRef = useRef(refreshStakingEntries);
   useEffect(() => {
-    if (refreshStakingDataRef.current) {
-      console.log("[BuilderPage] Calling refreshStakingEntries due to ref. hookProjectId:", hookProjectId);
-      
-      // Refresh multiple times to ensure we get updated data from blockchain
-      const refreshMultipleTimes = () => {
-        // First immediate refresh
-        refreshStakingEntries();
-        
-        // Then refresh again after delays
-        setTimeout(() => {
-          console.log(`Refreshing staking entries (attempt 2/3)...`);
-          refreshStakingEntries();
-        }, 2000);
-        
-        setTimeout(() => {
-          console.log(`Refreshing staking entries (attempt 3/3)...`);
-          refreshStakingEntries();
-        }, 4000);
-      };
-      
-      refreshMultipleTimes();
-      refreshStakingDataRef.current = false; 
-    }
+    refreshStakingEntriesRef.current = refreshStakingEntries;
   }, [refreshStakingEntries]);
 
 
@@ -613,9 +592,28 @@ export default function BuilderPage() {
     networkChainId: subnetChainId,
     onTxSuccess: () => {
       console.log("Transaction successful (stake/withdraw/claim), refreshing staking table and current user staker data.");
-      refreshStakingDataRef.current = true; // For the main staking table
       const currentStakeAmount = stakeAmount; // Capture current stake amount
       setStakeAmount(""); // Clear stake input
+
+      // Directly refresh staking entries multiple times to ensure updated data from blockchain
+      // Using ref to avoid adding refreshStakingEntries to useMemo dependencies
+      const refreshTable = () => {
+        if (refreshStakingEntriesRef.current) {
+          console.log("Refreshing staking entries (attempt 1/3)...");
+          refreshStakingEntriesRef.current();
+
+          setTimeout(() => {
+            console.log("Refreshing staking entries (attempt 2/3)...");
+            refreshStakingEntriesRef.current?.();
+          }, 2000);
+
+          setTimeout(() => {
+            console.log("Refreshing staking entries (attempt 3/3)...");
+            refreshStakingEntriesRef.current?.();
+          }, 4000);
+        }
+      };
+      refreshTable();
       
       // Signal the WithdrawalPositionCard to reset its withdrawal amount
       if (window && window.document) {
