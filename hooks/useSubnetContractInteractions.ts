@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAccount, useChainId } from 'wagmi';
+import { useAccount, useChainId, useSignMessage } from 'wagmi';
 import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 'wagmi';
 import { parseEther, formatEther, Address, isAddress } from 'viem';
 import { toast } from "sonner";
@@ -14,7 +14,8 @@ import ERC20Abi from '@/app/abi/ERC20.json';
 // Import constants
 import { SUPPORTED_CHAINS, FALLBACK_TOKEN_ADDRESS, DEFAULT_TOKEN_SYMBOL } from '@/components/subnet-form/utils/constants';
 import { FormData } from '@/components/subnet-form/types/schemas';
-import { BuildersService } from '@/app/services/builders.service'; // Import BuildersService
+import { BuildersService } from '@/app/services/builders.service';
+import { buildCreateMessage } from '@/app/lib/utils/verify-signature';
 import { BuilderDB } from '@/app/lib/supabase'; // Import BuilderDB type
 import { useNewlyCreatedSubnets } from '@/app/hooks/useNewlyCreatedSubnets'; // Import the new hook
 
@@ -41,6 +42,7 @@ export const useSubnetContractInteractions = ({
   const walletChainId = useChainId();
   const { switchToChain } = useNetwork();
   const { addNewlyCreatedSubnet } = useNewlyCreatedSubnets();
+  const { signMessageAsync } = useSignMessage();
 
   // Helper Functions
   const isCorrectNetwork = useCallback(() => {
@@ -482,7 +484,18 @@ export const useSubnetContractInteractions = ({
 
           try {
             toast.info("Syncing project details with database...", { id: "supabase-sync" });
-            await BuildersService.addBuilder(newBuilderData);
+
+            // connectedAddress is guaranteed non-null by the outer `if (isMainnet && submittedFormData && connectedAddress)` guard.
+            const ownerAddress = connectedAddress as string;
+            const timestamp = Date.now();
+            const message = buildCreateMessage(ownerAddress, timestamp);
+            const signature = await signMessageAsync({ message });
+
+            await BuildersService.addBuilder(newBuilderData, {
+              walletAddress: ownerAddress,
+              signature,
+              timestamp,
+            });
             toast.success("Project details synced successfully!", {
               id: "supabase-sync"
             });
@@ -514,7 +527,7 @@ export const useSubnetContractInteractions = ({
 
     insertIntoSupabase();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWriteTxSuccess, submittedFormData, selectedChainId, writeTxResult, getNetworkName, onTxSuccess, addNewlyCreatedSubnet, connectedAddress]); // Add dependencies
+  }, [isWriteTxSuccess, submittedFormData, selectedChainId, writeTxResult, getNetworkName, onTxSuccess, connectedAddress, signMessageAsync]); // Add dependencies
 
   // Update loading state for token data and allowance
   useEffect(() => {

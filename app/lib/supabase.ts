@@ -31,4 +31,8 @@ export interface BuilderDB {
   networks: string[];
   created_at: string;
   updated_at: string;
+  // Owning wallet address — stored on record creation and used to authorise PATCH requests.
+  // Run the following migration if this column doesn't exist yet:
+  //   ALTER TABLE builders ADD COLUMN IF NOT EXISTS wallet_address TEXT;
+  wallet_address?: string | null;
 } 

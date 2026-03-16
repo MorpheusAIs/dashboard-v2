@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useBuilders } from "@/context/builders-context";
 import { Builder, isV4Builder } from "@/app/builders/builders-data";
 import { toast } from "sonner";
-import { useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract, useSignMessage, useAccount } from "wagmi";
 import { Address, isAddress } from "viem";
+import { buildUpdateMessage } from "@/app/lib/utils/verify-signature";
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { testnetChains, mainnetChains } from '@/config/networks';
 import { useNetwork } from "@/context/network-context";
@@ -56,6 +57,8 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
   const chainId = useChainId();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { switchToChain } = useNetwork();
+  const { address: connectedAddress } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   
   // V4 contract write hooks
   const { writeContract, data: hash, isPending: isContractPending, error: contractError } = useWriteContract();
@@ -620,14 +623,16 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
         reward_types: builder.reward_types || null // Keep existing reward types, don't allow editing
       });
 
-      // Update the builder using the API route (bypasses RLS)
-      // Note: Only update V1 subnets via API - V4 should use contract
+      if (!connectedAddress) {
+        toast.error("Wallet not connected. Please connect your wallet to save changes.");
+        return;
+      }
+
       const updateData = {
         id: builder.id,
         description: description.trim() || null,
         website: website.trim() || null,
         image_src: imageSrc.trim() || null,
-        // Don't update reward_types via API - keep existing
       };
       
       console.log(`[EditSubnetModal] === STARTING V1 SAVE PROCESS === ${new Date().toISOString()}`);
@@ -635,12 +640,31 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
       console.log('[EditSubnetModal] API endpoint: /api/builders');
       console.log('[EditSubnetModal] HTTP method: PATCH');
 
+      // Sign the update request so the server can verify ownership.
+      const timestamp = Date.now();
+      const message = buildUpdateMessage(builder.id, connectedAddress, timestamp);
+      let signature: string;
+      try {
+        toast.loading("Please sign the update request in your wallet...", { id: "sign-update" });
+        signature = await signMessageAsync({ message });
+        toast.dismiss("sign-update");
+      } catch (signErr) {
+        toast.dismiss("sign-update");
+        toast.error("You must sign the request to save changes.");
+        console.error('[EditSubnetModal] Signing rejected:', signErr);
+        setIsLoading(false);
+        return;
+      }
+
       const response = await fetch('/api/builders', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...updateData,
+          walletAddress: connectedAddress,
+          signature,
+          timestamp,
+        }),
       });
 
       console.log(`[EditSubnetModal] API response received: ${response.status} at ${new Date().toISOString()}`);

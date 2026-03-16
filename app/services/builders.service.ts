@@ -76,20 +76,19 @@ export class BuildersService {
     return data;
   }
 
-  static async addBuilder(builderData: Partial<BuilderDB>): Promise<BuilderDB | null> {
-    // Ensure required fields like name and networks are present
+  static async addBuilder(
+    builderData: Partial<BuilderDB>,
+    auth: { walletAddress: string; signature: string; timestamp: number },
+  ): Promise<BuilderDB | null> {
     if (!builderData.name || !builderData.networks || builderData.networks.length === 0) {
       throw new Error("Builder name and networks are required.");
     }
 
     try {
-      // Use the API route to add the builder (server-side with service key)
       const response = await fetch('/api/builders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(builderData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...builderData, ...auth }),
       });
 
       if (!response.ok) {
@@ -100,10 +99,9 @@ export class BuildersService {
       const data = await response.json();
       console.log('Builder added successfully via API route:', data);
       return data as BuilderDB;
-
     } catch (error) {
       console.error('Error adding builder via API route:', error);
-      throw error; // Re-throw the error to be handled by the caller
+      throw error;
     }
   }
 } 
