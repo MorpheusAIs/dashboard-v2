@@ -86,8 +86,6 @@ const getExplorerUrl = (address: string, network?: string): string => {
 	}
 };
 
-console.log("########## BUILDER PAGE COMPONENT RENDERED ##########"); // Top-level log
-
 export default function BuilderPage() {
 	const { slug } = useParams();
 	const router = useRouter();
@@ -112,7 +110,6 @@ export default function BuilderPage() {
 	const [timeLeft, setTimeLeft] = useState<string>("");
 	const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
 	const refreshStakingDataRef = useRef(false); // Add a ref to track if refresh has been called
-	const previousStakedAmountRef = useRef<number | null>(null); // Add ref to track previous staked amount
 	const [builder, setBuilder] = useState<Builder | null>(null);
 	const [subnetId, setSubnetId] = useState<Address | null>(null);
 	const [stakeAmount, setStakeAmount] = useState<string>("");
@@ -133,9 +130,6 @@ export default function BuilderPage() {
 
 		// If isTestnet status has changed since the last render.
 		if (previousIsTestnetRef.current !== isTestnet) {
-			console.log(
-				`Network type changed. Previous: \${previousIsTestnetRef.current ? 'Testnet' : 'Mainnet'}, Current: \${isTestnet ? 'Testnet' : 'Mainnet'}. Redirecting to /builders.`,
-			);
 			router.push("/builders");
 		}
 
@@ -149,16 +143,9 @@ export default function BuilderPage() {
 	useEffect(() => {
 		if (typeof slug !== "string") return;
 
-		console.log(
-			"########## EFFECT TO FIND BUILDER: slug, builders, isTestnet ##########",
-			slug,
-			builders,
-			isTestnet,
-		);
 
 		// Get subnet_id from URL params - prioritize this over slug-based matching
 		const subnetIdFromUrl = getParam("subnet_id");
-		console.log("########## SUBNET_ID FROM URL: ##########", subnetIdFromUrl);
 
 		let foundBuilder: Builder | null | undefined = null;
 
@@ -172,24 +159,10 @@ export default function BuilderPage() {
 					);
 				});
 
-				if (foundBuilder) {
-					console.log(
-						"########## BUILDER FOUND BY SUBNET_ID ##########",
-						foundBuilder.name,
-					);
-				} else {
-					console.log(
-						"########## NO BUILDER FOUND WITH SUBNET_ID ##########",
-						subnetIdFromUrl,
-					);
-				}
 			}
 
 			// If not found by subnet_id, fall back to slug-based matching
 			if (!foundBuilder) {
-				console.log(
-					"########## FALLING BACK TO SLUG-BASED MATCHING ##########",
-				);
 
 				// Extract network from slug if present
 				// Check for network suffixes: -base-sepolia, -base, or -arbitrum
@@ -239,12 +212,6 @@ export default function BuilderPage() {
 					return nameMatches;
 				});
 
-				// Log for debugging
-				if (hasNetworkSuffix) {
-					console.log(
-						`########## LOOKING FOR BUILDER WITH NAME '${builderNameFromSlug}' ON NETWORK '${network}' ##########`,
-					);
-				}
 			}
 		}
 
@@ -261,10 +228,6 @@ export default function BuilderPage() {
 				// For testnet, use foundBuilder.id
 				if (foundBuilder.id) {
 					setSubnetId(foundBuilder.id as Address);
-					console.log(
-						"########## TESTNET: SUBNET ID SET FROM foundBuilder.id ##########",
-						foundBuilder.id,
-					);
 				} else {
 					console.error(
 						"########## TESTNET: BUILDER ID IS UNDEFINED, CANNOT SET SUBNET ID ##########",
@@ -275,10 +238,6 @@ export default function BuilderPage() {
 				// For mainnet, use mainnetProjectId
 				if (foundBuilder.mainnetProjectId) {
 					setSubnetId(foundBuilder.mainnetProjectId as Address);
-					console.log(
-						"########## MAINNET: SUBNET ID SET FROM foundBuilder.mainnetProjectId ##########",
-						foundBuilder.mainnetProjectId,
-					);
 				} else {
 					console.error(
 						"########## MAINNET: BUILDER mainnetProjectId IS UNDEFINED, CANNOT SET SUBNET ID ##########",
@@ -289,29 +248,19 @@ export default function BuilderPage() {
 		} else {
 			setBuilder(null);
 			setSubnetId(null);
-			console.log("########## BUILDER NOT FOUND, SUBNET ID CLEARED ##########");
 		}
 	}, [slug, builders, isTestnet, getParam]);
 
 	// Derive the projectId for useStakingData once builder is loaded
 	const hookProjectId = useMemo(() => {
 		if (!builder) {
-			console.log("[BuilderPage] hookProjectId: builder not yet available.");
 			return undefined;
 		}
 		if (isTestnet) {
 			// For testnet, use builder.id (which should be the UUID / subnetId)
-			console.log(
-				"[BuilderPage] hookProjectId (Testnet): using builder.id:",
-				builder.id,
-			);
 			return builder.id || undefined;
 		} else {
 			// For mainnet, use builder.mainnetProjectId (which should be the ETH address like ID)
-			console.log(
-				"[BuilderPage] hookProjectId (Mainnet): using builder.mainnetProjectId:",
-				builder.mainnetProjectId,
-			);
 			return builder.mainnetProjectId || undefined;
 		}
 	}, [builder, isTestnet]);
@@ -321,31 +270,20 @@ export default function BuilderPage() {
 		// First priority: check for network parameter in URL
 		const networkFromUrl = getParam("network");
 		if (networkFromUrl) {
-			console.log(
-				"[BuilderPage] Using network from URL parameter:",
-				networkFromUrl,
-			);
 			return [networkFromUrl];
 		}
 
 		// Second priority: use builder's defined networks
 		if (builder?.networks && builder.networks.length > 0) {
-			console.log(
-				"[BuilderPage] Using networks from builder data:",
-				builder.networks,
-			);
 			return builder.networks;
 		}
 
 		// Last resort: fallback to user's wallet network
 		if (isTestnet) {
-			console.log("[BuilderPage] Fallback to testnet network");
 			return ["Base Sepolia"];
 		} else if (chainId === 42161) {
-			console.log("[BuilderPage] Fallback to Arbitrum network");
 			return ["Arbitrum"];
 		} else {
-			console.log("[BuilderPage] Fallback to Base network");
 			return ["Base"];
 		}
 	}, [getParam, builder, isTestnet, chainId]);
@@ -433,22 +371,6 @@ export default function BuilderPage() {
 		return selectedChain.contracts?.builders?.address as Address | undefined;
 	}, [isTestnet, chainId]);
 
-	// Log the addresses for debugging
-	useEffect(() => {
-		console.log("Network information:", {
-			chainId,
-			isTestnet,
-			networksToDisplay,
-			contractAddress,
-			testnetBuildersAddress:
-				testnetChains.baseSepolia.contracts?.builders?.address,
-			testnetTokenAddress:
-				testnetChains.baseSepolia.contracts?.morToken?.address,
-			mainnetBuildersAddress: mainnetChains.base.contracts?.builders?.address,
-			mainnetTokenAddress: mainnetChains.base.contracts?.morToken?.address,
-		});
-	}, [chainId, isTestnet, networksToDisplay, contractAddress]);
-
 	// Get subnet admin address from contract if builder.admin is missing (for newly created subnets)
 	const { data: subnetAdminData } = useReadContract({
 		address: contractAddress,
@@ -482,43 +404,14 @@ export default function BuilderPage() {
 		].filter(Boolean);
 
 		if (!effectiveAdmin || userAddresses.length === 0) {
-			console.log(
-				"[BuilderPage] Edit button check - No admin or user addresses:",
-				{
-					effectiveAdmin,
-					builderAdminFromData: builder?.admin?.toLowerCase(),
-					contractAdminAddress,
-					userAddresses,
-					authUserAddress,
-					userAddress,
-					subnetId,
-				},
-			);
 			return false;
 		}
 
 		const isAdmin = userAddresses.some((addr) => addr === effectiveAdmin);
 
-		console.log("[BuilderPage] Edit button check:", {
-			isAdmin,
-			effectiveAdmin,
-			builderAdminFromData: builder?.admin?.toLowerCase(),
-			contractAdminAddress,
-			userAddresses,
-			builderName: builder?.name,
-			subnetId,
-		});
 
 		return isAdmin;
-	}, [
-		effectiveAdmin,
-		authUserAddress,
-		userAddress,
-		builder?.admin,
-		contractAdminAddress,
-		builder?.name,
-		subnetId,
-	]);
+	}, [effectiveAdmin, authUserAddress, userAddress]);
 
 	// Get staker information from the contract
 	const { data: stakerData, refetch: refetchStakerDataForUser } =
@@ -535,11 +428,6 @@ export default function BuilderPage() {
 
 	// Update user staked amount and time until unlock when data is loaded
 	useEffect(() => {
-		console.log("Processing staker data:", {
-			stakerData,
-			isTestnet,
-			userAddress,
-		});
 
 		if (stakerData) {
 			// BuildersV4 (testnet) and mainnet both use usersData with the same structure:
@@ -563,11 +451,6 @@ export default function BuilderPage() {
 					? Number(builder.withdrawLockPeriodAfterDeposit)
 					: (builder?.withdrawLockPeriodRaw ?? withdrawLockPeriod);
 				withdrawalUnlockEnd = BigInt(Number(lastStake) + lpSeconds);
-				console.log("Calculating withdrawal unlock from lastDeposit:", {
-					lastDeposit: lastStake.toString(),
-					lockPeriod: lpSeconds,
-					calculatedUnlockEnd: withdrawalUnlockEnd.toString(),
-				});
 			} else {
 				// No stake data available
 				withdrawalUnlockEnd = BigInt(0);
@@ -577,16 +460,8 @@ export default function BuilderPage() {
 
 			// Format the staked amount for UI display
 			const formattedStaked = parseFloat(formatUnits(staked, 18));
-			const previousUserStakedAmount = previousStakedAmountRef.current;
 			setUserStakedAmount(formattedStaked); // Keep decimal precision
-			previousStakedAmountRef.current = formattedStaked; // Update ref with new value
 
-			console.log("Updated user staked amount:", {
-				previousAmount: previousUserStakedAmount,
-				newAmount: formattedStaked,
-				rawStaked: staked.toString(),
-				formattedForDisplay: formattedStaked.toFixed(2),
-			});
 
 			// Calculate time until withdrawal unlock
 			const now = Math.floor(Date.now() / 1000);
@@ -611,24 +486,13 @@ export default function BuilderPage() {
 
 			setTimeLeft(calculatedTimeLeft);
 
-			console.log("Staker data processed:", {
-				isTestnet,
-				stakedRaw: staked.toString(),
-				stakedFormattedForUI: formattedStaked.toFixed(2),
-				withdrawalUnlockEnd: new Date(
-					Number(withdrawalUnlockEnd) * 1000,
-				).toLocaleString("en-US"),
-				lastDeposit: new Date(Number(lastStake) * 1000).toLocaleString("en-US"),
-				timeLeft: calculatedTimeLeft,
-			});
 		} else {
 			// Reset values if no data
-			console.log("No staker data found, resetting values");
 			setUserStakedAmount(0);
 			setRawStakedAmount(null); // Reset raw amount
 			setTimeLeft("Not staked");
 		}
-	}, [stakerData, builder, withdrawLockPeriod, isTestnet, userAddress]);
+	}, [stakerData, builder, withdrawLockPeriod]);
 
 	const stakingDataHookProps: UseStakingDataProps = useMemo(
 		() => ({
@@ -666,7 +530,6 @@ export default function BuilderPage() {
 	);
 
 	// Log the props just before calling the hook
-	console.log("[BuilderPage] Props for useStakingData:", stakingDataHookProps);
 
 	const {
 		entries: stakingEntries,
@@ -680,10 +543,6 @@ export default function BuilderPage() {
 	// useEffect for triggering refresh based on refreshStakingDataRef
 	useEffect(() => {
 		if (refreshStakingDataRef.current) {
-			console.log(
-				"[BuilderPage] Calling refreshStakingEntries due to ref. hookProjectId:",
-				hookProjectId,
-			);
 
 			// Refresh multiple times to ensure we get updated data from blockchain
 			const refreshMultipleTimes = () => {
@@ -692,12 +551,10 @@ export default function BuilderPage() {
 
 				// Then refresh again after delays
 				setTimeout(() => {
-					console.log(`Refreshing staking entries (attempt 2/3)...`);
 					refreshStakingEntries();
 				}, 2000);
 
 				setTimeout(() => {
-					console.log(`Refreshing staking entries (attempt 3/3)...`);
 					refreshStakingEntries();
 				}, 4000);
 			};
@@ -721,29 +578,14 @@ export default function BuilderPage() {
 			subnetId: subnetId || undefined,
 			networkChainId: subnetChainId,
 			onTxSuccess: () => {
-				console.log(
-					"Transaction successful (stake/withdraw/claim), refreshing staking table and current user staker data.",
-				);
 				refreshStakingDataRef.current = true; // For the main staking table
 				const currentStakeAmount = stakeAmount; // Capture current stake amount
 				setStakeAmount(""); // Clear stake input
 
-				// Signal the WithdrawalPositionCard to reset its withdrawal amount
-				if (window && window.document) {
-					const resetWithdrawEvent = new CustomEvent("reset-withdraw-form");
-					window.document.dispatchEvent(resetWithdrawEvent);
-				}
-
 				// Refetch the current user's staker data with logging
 				if (refetchStakerDataForUser) {
-					console.log(
-						"Calling refetchStakerDataForUser to refresh user's staked amount...",
-					);
 					refetchStakerDataForUser()
 						.then(() => {
-							console.log(
-								"Successfully refetched user staker data after transaction",
-							);
 						})
 						.catch((error: unknown) => {
 							console.error("Error refetching user staker data:", error);
@@ -755,9 +597,6 @@ export default function BuilderPage() {
 				// Invalidate userStakedBuilders query to refresh "Staking in" tab on builders page
 				// Use a delay to allow blockchain state to propagate
 				setTimeout(() => {
-					console.log(
-						"Invalidating userStakedBuilders query to refresh 'Staking in' tab...",
-					);
 					queryClient.invalidateQueries({ queryKey: ["userStakedBuilders"] });
 				}, 2000); // 2 second delay to allow blockchain state to update
 
@@ -775,14 +614,8 @@ export default function BuilderPage() {
 							await new Promise((resolve) =>
 								setTimeout(resolve, 2000 * (i + 1)),
 							); // 2s, 4s, 6s
-							console.log(
-								`Refreshing single builder metrics (attempt ${i + 1}/3)...`,
-							);
 							try {
 								await refetchSingleBuilder();
-								console.log(
-									`Successfully refreshed single builder metrics (attempt ${i + 1}/3)`,
-								);
 							} catch (error: unknown) {
 								console.error(
 									`Error refreshing single builder metrics (attempt ${i + 1}/3):`,
@@ -797,14 +630,8 @@ export default function BuilderPage() {
 				// Refresh builders data to update totalStaked amounts in "Your Subnets" table
 				// Use timeout to allow blockchain state to propagate
 				setTimeout(() => {
-					console.log(
-						"Refreshing builders data after successful transaction to update totalStaked amounts...",
-					);
 					refreshData()
 						.then(() => {
-							console.log(
-								"Successfully refreshed builders data after transaction",
-							);
 						})
 						.catch((error: unknown) => {
 							console.error("Error refreshing builders data:", error);
@@ -814,14 +641,10 @@ export default function BuilderPage() {
 				// Force refresh allowance and approval state after successful transaction
 				// Use timeout to allow blockchain state to update
 				setTimeout(async () => {
-					console.log(
-						"Refreshing allowance and approval state after successful transaction...",
-					);
 					// First refresh the allowance data
 					if (refetchAllowanceRef.current) {
 						try {
 							await refetchAllowanceRef.current();
-							console.log("Successfully refreshed allowance after transaction");
 							// Then check approval state with the fresh allowance
 							if (
 								refreshApprovalRef.current &&
@@ -831,10 +654,6 @@ export default function BuilderPage() {
 								// Small delay to ensure state propagates
 								await new Promise((resolve) => setTimeout(resolve, 500));
 								const result = refreshApprovalRef.current(currentStakeAmount);
-								console.log(
-									"Successfully refreshed approval state after transaction, result:",
-									result,
-								);
 							}
 						} catch (error: unknown) {
 							console.error(
@@ -849,10 +668,6 @@ export default function BuilderPage() {
 					) {
 						try {
 							const result = refreshApprovalRef.current(currentStakeAmount);
-							console.log(
-								"Successfully refreshed approval state after transaction, result:",
-								result,
-							);
 						} catch (error: unknown) {
 							console.error("Error refreshing approval state:", error);
 						}
@@ -874,17 +689,6 @@ export default function BuilderPage() {
 			queryClient,
 		],
 	);
-
-	// Log subnet ID state for debugging
-	useEffect(() => {
-		console.log("Subnet ID state updated:", {
-			subnetId,
-			isTestnet,
-			builderId: builder?.id,
-			mainnetProjectId: builder?.mainnetProjectId,
-			chainId,
-		});
-	}, [subnetId, isTestnet, builder, chainId]);
 
 	const {
 		isCorrectNetwork,
@@ -921,13 +725,9 @@ export default function BuilderPage() {
 	useEffect(() => {
 		// Use a timeout to allow blockchain state to update after successful transactions
 		const timer = setTimeout(() => {
-			if (refetchClaimableAmount) {
-				console.log(
-					"Refreshing claimable amount after transaction state change...",
-				);
+			if (userStakedAmount !== null && refetchClaimableAmount) {
 				refetchClaimableAmount()
 					.then(() => {
-						console.log("Successfully refreshed claimable amount");
 					})
 					.catch((error: unknown) => {
 						console.error("Error refetching claimable amount:", error);
@@ -946,9 +746,6 @@ export default function BuilderPage() {
 		} else if (stakeAmount && parseFloat(stakeAmount) > 0 && isLoadingData) {
 			// If data is still loading, don't assume approval is needed
 			// Wait for data to load first
-			console.log(
-				"Waiting for allowance data to load before checking approval",
-			);
 		}
 	}, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]);
 
@@ -956,49 +753,12 @@ export default function BuilderPage() {
 	// This fixes the issue where interface keeps asking for approval after page reload
 	useEffect(() => {
 		if (stakeAmount && parseFloat(stakeAmount) > 0 && !isLoadingData) {
-			console.log("Refreshing approval state due to allowance data update");
 			checkAndUpdateApprovalNeeded(stakeAmount);
 		}
 	}, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]);
 
-	// Debug useEffect for token approval states
-	useEffect(() => {
-		if (stakeAmount && parseFloat(stakeAmount) > 0) {
-			console.log("Approval state debug:", {
-				needsApproval,
-				stakeAmount,
-				parsedAmount: parseFloat(stakeAmount),
-				isCorrectNetwork: isCorrectNetwork(),
-				isStaking,
-				isApproving,
-				chainId,
-				networksToDisplay,
-				buttonText:
-					needsApproval && stakeAmount && parseFloat(stakeAmount) > 0
-						? `Approve ${tokenSymbol}`
-						: `Stake ${tokenSymbol}`,
-			});
-		}
-	}, [
-		needsApproval,
-		stakeAmount,
-		isCorrectNetwork,
-		isStaking,
-		isApproving,
-		chainId,
-		networksToDisplay,
-		tokenSymbol,
-	]);
-
 	// Handlers for staking actions
 	const onStakeSubmit = async () => {
-		console.log("onStakeSubmit called with:", {
-			needsApproval,
-			stakeAmount,
-			isCorrectNetwork: isCorrectNetwork(),
-			tokenSymbol,
-			subnetId, // Log subnetId here to debug
-		});
 
 		// Validate subnetId is present
 		if (!subnetId) {
@@ -1021,7 +781,6 @@ export default function BuilderPage() {
 
 		// Refresh allowance first to ensure we have the latest data
 		if (refetchAllowance) {
-			console.log("Refreshing allowance before checking approval...");
 			try {
 				await refetchAllowance();
 				// Small delay to ensure state updates
@@ -1036,9 +795,6 @@ export default function BuilderPage() {
 		const currentlyNeedsApproval = stakeAmount
 			? await checkAndUpdateApprovalNeeded(stakeAmount)
 			: false;
-		console.log(
-			`Fresh approval check: ${currentlyNeedsApproval ? "Needs approval" : "No approval needed"}`,
-		);
 
 		// Already on correct network, handle approval or staking
 		if (
@@ -1046,10 +802,8 @@ export default function BuilderPage() {
 			stakeAmount &&
 			parseFloat(stakeAmount) > 0
 		) {
-			console.log(`Calling handleApprove with amount: ${stakeAmount}`);
 			await handleApprove(stakeAmount);
 		} else if (stakeAmount && parseFloat(stakeAmount) > 0) {
-			console.log(`Calling handleStake with amount: ${stakeAmount}`);
 			await handleStake(stakeAmount);
 		} else {
 			console.warn("Neither approval nor staking conditions met:", {
@@ -1062,11 +816,6 @@ export default function BuilderPage() {
 	};
 
 	const onWithdrawSubmit = async (amountUserWantsToWithdrawStr: string) => {
-		console.log(
-			"########## ON WITHDRAW SUBMIT - User wants to withdraw:",
-			amountUserWantsToWithdrawStr,
-			"##########",
-		);
 
 		const amountUserWantsToWithdraw = parseFloat(amountUserWantsToWithdrawStr);
 
@@ -1089,17 +838,8 @@ export default function BuilderPage() {
 			return;
 		}
 
-		console.log("########## Withdrawal validation passed:", {
-			userStakedAmount,
-			amountUserWantsToWithdraw,
-			isWithdrawingAll:
-				Math.abs(amountUserWantsToWithdraw - userStakedAmount) < 0.000001,
-		});
 
 		if (!isCorrectNetwork()) {
-			console.log(
-				"########## Incorrect network. Requesting switch. ##########",
-			);
 			await handleNetworkSwitch();
 			return; // Exit after network switch
 		}
@@ -1149,29 +889,9 @@ export default function BuilderPage() {
 			return;
 		}
 
-		console.log(
-			`########## CALLING HANDLEWITHDRAW ########## Amount (token units string): ${amountUserWantsToWithdrawStr}, SubnetID: ${subnetId}`,
-		);
 		// Pass the original string (e.g., "4") to handleWithdraw, as the hook expects token units.
 		await handleWithdraw(amountUserWantsToWithdrawStr);
 	};
-
-	// Effect to listen for the reset-withdraw-form event
-	useEffect(() => {
-		const handleResetWithdrawForm = () => {
-			// This code is for demonstration - since we can't directly reset WithdrawalPositionCard's state
-			// Another approach would be to pass a resetWithdrawAmount prop to WithdrawalPositionCard
-			console.log("Should reset withdrawal form now");
-		};
-
-		document.addEventListener("reset-withdraw-form", handleResetWithdrawForm);
-		return () => {
-			document.removeEventListener(
-				"reset-withdraw-form",
-				handleResetWithdrawForm,
-			);
-		};
-	}, []);
 
 	// Add a flag to track if network switch has been attempted
 	const networkSwitchAttempted = useRef(false);
@@ -1213,9 +933,6 @@ export default function BuilderPage() {
 			!networkSwitchAttempted.current &&
 			!isNetworkSwitching
 		) {
-			console.log(
-				`Auto-switching network to ${networksToDisplay[0]} (chainId: ${networkInfo.targetChainId}) for builder ${builder?.name}`,
-			);
 
 			// Set the flag to prevent multiple switch attempts
 			networkSwitchAttempted.current = true;
@@ -1239,8 +956,6 @@ export default function BuilderPage() {
 	}, [
 		isPageFullyLoaded,
 		networkInfo,
-		networksToDisplay,
-		builder,
 		switchToChain,
 		isNetworkSwitching,
 	]);
@@ -1613,7 +1328,6 @@ export default function BuilderPage() {
 										return;
 									}
 
-									console.log("Claim button clicked, calling handleClaim");
 									await handleClaim();
 								}}
 								claimableAmount={
