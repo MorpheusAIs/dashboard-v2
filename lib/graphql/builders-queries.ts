@@ -410,6 +410,10 @@ export const COMBINED_BUILDERS_PROJECTS_BASE_MAINNET = gql`
       withdrawLockPeriodAfterDeposit
       startsAt
       claimLockEnd
+      description
+      website
+      image
+      slug
       __typename
     }
   }
@@ -434,6 +438,10 @@ export const COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET = gql`
       withdrawLockPeriodAfterDeposit
       startsAt
       claimLockEnd
+      description
+      website
+      image
+      slug
       __typename
     }
   }

@@ -52,6 +52,10 @@ export async function GET(
           withdrawLockPeriodAfterDeposit
           startsAt
           claimLockEnd
+          description
+          website
+          image
+          slug
         }
       }
     `;

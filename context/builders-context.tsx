@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
-import { Builder } from '@/app/builders/builders-data';
+import React, { createContext, useContext, useState, useEffect, useMemo, type ReactNode, useCallback } from 'react';
+import type { Builder } from '@/app/builders/builders-data';
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { useAllBuildersQuery } from '@/app/hooks/useAllBuildersQuery';
 import { useQueryClient } from '@tanstack/react-query';
@@ -153,11 +153,12 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
     console.log("[BuildersContext] refreshData called. Invalidating all builder-related queries.");
     
     try {
-      // Invalidate all builder-related queries
+      // Invalidate all builder-related queries (including individual slug-page queries)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['builders'] }),
         queryClient.invalidateQueries({ queryKey: ['supabaseBuilders'] }),
         queryClient.invalidateQueries({ queryKey: ['morlordBuilders'] }),
+        queryClient.invalidateQueries({ queryKey: ['singleBuilder'] }),
       ]);
       
       console.log("[BuildersContext] All queries invalidated, now refetching...");

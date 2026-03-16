@@ -15,7 +15,7 @@ export async function GET() {
     
     console.log(`[Goldsky V4 API Arbitrum] Fetching builders projects from ${endpoint}`);
 
-    // V4 query - fetch all builders projects
+    // V4 query - fetch all builders projects including on-chain metadata
     const query = `
       query combinedBuildersProjectsArbitrumMainnet {
         buildersProjects(
@@ -33,6 +33,10 @@ export async function GET() {
           withdrawLockPeriodAfterDeposit
           startsAt
           claimLockEnd
+          description
+          website
+          image
+          slug
           __typename
         }
       }

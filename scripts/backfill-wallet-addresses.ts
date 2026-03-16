@@ -1,38 +1,36 @@
 /**
  * scripts/backfill-wallet-addresses.ts
  *
- * One-off migration: reads every subnet on the Base mainnet from the Goldsky V4
- * subgraph, matches each one to a row in the Supabase `builders` table by name,
- * and writes the subnet's `admin` address into the `wallet_address` column.
+ * Populates the `wallet_address` column on every `builders` row by matching
+ * the row's name against the on-chain `admin` field from both:
+ *   • Goldsky V4 Base mainnet subgraph
+ *   • Goldsky V4 Arbitrum mainnet subgraph
  *
- * Only rows that:
- *   - belong to the "Base" network, AND
- *   - currently have wallet_address IS NULL
- * are touched.  Rows that already have a wallet_address are left unchanged.
+ * Only rows that currently have wallet_address IS NULL are touched.
+ * Rows that already have a wallet_address are left unchanged.
  *
  * Run with:
  *   npx tsx scripts/backfill-wallet-addresses.ts
  */
 
-import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
-// Load .env.local from the project root
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 // ─── config ──────────────────────────────────────────────────────────────────
 
-const GOLDSKY_ENDPOINT =
-  'https://api.goldsky.com/api/public/project_cmgzm6igw009l5np264iw7obk/subgraphs/morpheus-mainnet-base-compatible/v0.0.1/gn';
+const ENDPOINTS: Record<string, string> = {
+  Base: 'https://api.goldsky.com/api/public/project_cmgzm6igw009l5np264iw7obk/subgraphs/morpheus-mainnet-base-compatible/v0.0.1/gn',
+  Arbitrum: 'https://api.goldsky.com/api/public/project_cmgzm6igw009l5np264iw7obk/subgraphs/morpheus-mainnet-arbitrum-compatible/v0.0.1/gn',
+};
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.error(
-    '❌  Missing required env vars: NEXT_PUBLIC_SUPABASE_URL and/or SUPABASE_SERVICE_KEY',
-  );
+  console.error('❌  Missing NEXT_PUBLIC_SUPABASE_URL and/or SUPABASE_SERVICE_KEY');
   process.exit(1);
 }
 
@@ -43,7 +41,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 // ─── types ───────────────────────────────────────────────────────────────────
 
 interface OnChainSubnet {
-  id: string;
   name: string;
   admin: string;
 }
@@ -57,126 +54,90 @@ interface BuilderRow {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-async function fetchBaseSubnets(): Promise<OnChainSubnet[]> {
-  const query = `
-    query BackfillBaseSubnets {
-      buildersProjects(first: 1000, orderBy: totalStaked, orderDirection: desc) {
-        id
-        name
-        admin
-      }
-    }
-  `;
-
-  const response = await fetch(GOLDSKY_ENDPOINT, {
+async function fetchSubnets(label: string, endpoint: string): Promise<OnChainSubnet[]> {
+  const query = `{ buildersProjects(first: 1000, orderBy: totalStaked, orderDirection: desc) { name admin } }`;
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
   });
-
-  if (!response.ok) {
-    throw new Error(`Goldsky request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const result = await response.json();
-
-  if (result.errors) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
-  }
-
-  return (result.data?.buildersProjects ?? []) as OnChainSubnet[];
-}
-
-async function fetchBaseBuilders(): Promise<BuilderRow[]> {
-  // Fetch all builders — we'll filter by network client-side to avoid
-  // relying on Supabase array-contains syntax differences across versions.
-  const { data, error } = await supabase
-    .from('builders')
-    .select('id, name, networks, wallet_address');
-
-  if (error) throw new Error(`Supabase fetch failed: ${error.message}`);
-
-  // Keep only rows whose networks array contains "Base" (case-insensitive)
-  return (data ?? []).filter((row: BuilderRow) =>
-    row.networks?.some((n: string) => n.toLowerCase() === 'base'),
-  );
+  if (!res.ok) throw new Error(`[${label}] HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.errors) throw new Error(`[${label}] GraphQL errors: ${JSON.stringify(json.errors)}`);
+  return (json.data?.buildersProjects ?? []) as OnChainSubnet[];
 }
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('🔍  Fetching Base subnets from Goldsky V4…');
-  const subnets = await fetchBaseSubnets();
-  console.log(`    Found ${subnets.length} on-chain subnets on Base\n`);
+  // 1. Fetch on-chain data from both networks
+  const allOnChain = new Map<string, string>(); // lowercase name → admin address
 
-  console.log('🗄   Fetching Base builders from Supabase…');
-  const builders = await fetchBaseBuilders();
-  console.log(`    Found ${builders.length} Supabase builder rows on Base\n`);
-
-  // Build a lookup: lowercase name → on-chain subnet
-  const subnetByName = new Map<string, OnChainSubnet>();
-  for (const s of subnets) {
-    if (s.name) subnetByName.set(s.name.toLowerCase().trim(), s);
+  for (const [label, endpoint] of Object.entries(ENDPOINTS)) {
+    console.log(`🔍  Fetching ${label} subnets from Goldsky V4…`);
+    const subnets = await fetchSubnets(label, endpoint);
+    console.log(`    Found ${subnets.length} on-chain subnets on ${label}`);
+    for (const s of subnets) {
+      if (s.name && s.admin) {
+        const key = s.name.toLowerCase().trim();
+        // Base takes priority if the same name exists on both chains
+        if (!allOnChain.has(key)) {
+          allOnChain.set(key, s.admin.toLowerCase());
+        }
+      }
+    }
   }
+  console.log(`\n    Combined on-chain index: ${allOnChain.size} unique subnet names\n`);
 
+  // 2. Fetch ALL Supabase builders that are missing wallet_address
+  console.log('🗄   Fetching builders missing wallet_address from Supabase…');
+  const { data, error } = await supabase
+    .from('builders')
+    .select('id, name, networks, wallet_address')
+    .is('wallet_address', null);
+
+  if (error) throw new Error(`Supabase fetch failed: ${error.message}`);
+
+  const rows = (data ?? []) as BuilderRow[];
+  console.log(`    Found ${rows.length} rows missing wallet_address\n`);
+
+  // 3. Match and update
   let updated = 0;
-  let skippedAlreadySet = 0;
   let skippedNoMatch = 0;
-  let skippedNoAdmin = 0;
   const errors: string[] = [];
 
-  for (const builder of builders) {
-    const key = builder.name?.toLowerCase().trim();
+  for (const row of rows) {
+    const key = row.name?.toLowerCase().trim();
+    const adminAddress = allOnChain.get(key);
 
-    // Skip if wallet_address is already set
-    if (builder.wallet_address) {
-      skippedAlreadySet++;
-      continue;
-    }
-
-    const match = subnetByName.get(key);
-
-    if (!match) {
-      console.log(`  ⚠️   No on-chain match for "${builder.name}" (id: ${builder.id})`);
+    if (!adminAddress) {
+      console.log(`  ⚠️   No on-chain match for "${row.name}"`);
       skippedNoMatch++;
       continue;
     }
 
-    if (!match.admin) {
-      console.log(`  ⚠️   On-chain subnet "${match.name}" has no admin address`);
-      skippedNoAdmin++;
-      continue;
-    }
+    console.log(`  ✏️   Updating "${row.name}" → ${adminAddress}`);
 
-    const adminAddress = match.admin.toLowerCase();
-    console.log(`  ✏️   Updating "${builder.name}" → wallet_address = ${adminAddress}`);
-
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from('builders')
-      .update({
-        wallet_address: adminAddress,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', builder.id);
+      .update({ wallet_address: adminAddress, updated_at: new Date().toISOString() })
+      .eq('id', row.id);
 
-    if (error) {
-      console.error(`  ❌  Failed to update "${builder.name}": ${error.message}`);
-      errors.push(`${builder.name}: ${error.message}`);
+    if (updateError) {
+      console.error(`  ❌  Failed to update "${row.name}": ${updateError.message}`);
+      errors.push(`${row.name}: ${updateError.message}`);
     } else {
       updated++;
     }
   }
 
+  // 4. Summary
   console.log('\n─────────────────────────────────────────');
-  console.log(`✅  Updated:              ${updated}`);
-  console.log(`⏭   Already had address:  ${skippedAlreadySet}`);
-  console.log(`🔍  No on-chain match:    ${skippedNoMatch}`);
-  console.log(`⚠️   No admin on chain:   ${skippedNoAdmin}`);
+  console.log(`✅  Updated:           ${updated}`);
+  console.log(`🔍  No on-chain match: ${skippedNoMatch}`);
   if (errors.length > 0) {
-    console.log(`❌  Errors:              ${errors.length}`);
-    errors.forEach((e) => {
-      console.log(`     • ${e}`);
-    });
+    console.log(`❌  Errors:           ${errors.length}`);
+    errors.forEach((e) => console.log(`     • ${e}`));
   }
   console.log('─────────────────────────────────────────\n');
 }

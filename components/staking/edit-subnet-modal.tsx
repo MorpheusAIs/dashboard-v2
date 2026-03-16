@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useBuilders } from "@/context/builders-context";
-import { Builder, isV4Builder } from "@/app/builders/builders-data";
+import { type Builder, isV4Builder } from "@/app/builders/builders-data";
 import { toast } from "sonner";
 import { useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract, useSignMessage, useAccount } from "wagmi";
-import { Address, isAddress } from "viem";
+import { type Address, isAddress } from "viem";
 import { buildUpdateMessage } from "@/app/lib/utils/verify-signature";
 import BuildersV4Abi from '@/app/abi/BuildersV4.json';
 import { testnetChains, mainnetChains } from '@/config/networks';
@@ -154,7 +154,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
   };
 
   // Handle modal close with cleanup
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     console.log('[EditSubnetModal] handleClose called');
     console.log('[EditSubnetModal] Has confirmed transaction:', hasConfirmedTransactionRef.current);
     console.log('[EditSubnetModal] Is contract pending:', isContractPending);
@@ -204,7 +204,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
     setTimeout(() => {
       onCloseAction();
     }, 0);
-  };
+  }, [isContractPending, isConfirming, hash, onRefreshingChange, onCloseAction]);
 
   // Initialize form with builder data when modal opens
   useEffect(() => {
@@ -238,17 +238,6 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
     // claimAdmin will be set from contract data in useEffect below
   }, [builder, isOpen, isV4, subnetId]);
 
-  // Update claimAdmin from contract data when available (V4 only)
-  useEffect(() => {
-    if (isV4 && subnetData && Array.isArray(subnetData) && subnetData.length >= 7) {
-      // BuildersV4.subnets returns: [name, admin, unusedStorage1_V4Update, withdrawLockPeriodAfterDeposit, 
-      // unusedStorage2_V4Update, minimalDeposit, claimAdmin]
-      const claimAdminFromContract = subnetData[6] as string;
-      if (claimAdminFromContract) {
-        setClaimAdmin(String(claimAdminFromContract));
-      }
-    }
-  }, [isV4, subnetData]);
   
   // Handle V4 transaction confirmation
   useEffect(() => {
@@ -277,32 +266,39 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
         console.log('[EditSubnetModal] Setting refreshing state to true - skeleton should appear');
         onRefreshingChange(true);
       }
-      
+
+      // Wait for the subgraph indexer to pick up the event before fetching fresh data.
+      // Goldsky V4 typically takes 15–30 s to index a new transaction.
+      const SUBGRAPH_INDEXING_DELAY_MS = 15_000;
+      console.log(`[EditSubnetModal] Waiting ${SUBGRAPH_INDEXING_DELAY_MS / 1000}s for subgraph to index…`);
+      toast.loading('Waiting for subgraph to index update…', { id: 'subgraph-wait', duration: SUBGRAPH_INDEXING_DELAY_MS + 5000 });
+
       // Refresh builder data
       if (refreshData) {
-        refreshData().then(() => {
-          console.log('[EditSubnetModal] Data refresh complete - stopping skeleton');
-          // Data refresh complete, stop showing skeleton
-          hasConfirmedTransactionRef.current = false;
-          if (onRefreshingChange) {
-            onRefreshingChange(false);
-          }
-        }).catch((error) => {
-          console.error('[EditSubnetModal] Error refreshing data:', error);
-          // Stop showing skeleton even on error
-          hasConfirmedTransactionRef.current = false;
-          if (onRefreshingChange) {
-            onRefreshingChange(false);
-          }
-        });
-      } else {
-        // If no refreshData, stop refreshing after a delay
         setTimeout(() => {
+          toast.dismiss('subgraph-wait');
+          refreshData().then(() => {
+            console.log('[EditSubnetModal] Data refresh complete - stopping skeleton');
+            hasConfirmedTransactionRef.current = false;
+            if (onRefreshingChange) {
+              onRefreshingChange(false);
+            }
+          }).catch((error) => {
+            console.error('[EditSubnetModal] Error refreshing data:', error);
+            hasConfirmedTransactionRef.current = false;
+            if (onRefreshingChange) {
+              onRefreshingChange(false);
+            }
+          });
+        }, SUBGRAPH_INDEXING_DELAY_MS);
+      } else {
+        setTimeout(() => {
+          toast.dismiss('subgraph-wait');
           hasConfirmedTransactionRef.current = false;
           if (onRefreshingChange) {
             onRefreshingChange(false);
           }
-        }, 2000);
+        }, SUBGRAPH_INDEXING_DELAY_MS);
       }
       
       // Call onSave callback
@@ -315,8 +311,7 @@ export function EditSubnetModal({ isOpen, onCloseAction, builder, subnetId, isTe
         handleClose();
       }, 1000);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isV4, isConfirmed, hash, refreshData, onSave, onRefreshingChange]);
+  }, [isV4, isConfirmed, hash, refreshData, onSave, onRefreshingChange, handleClose]);
   
   // Handle V4 transaction pending state (when user needs to sign)
   useEffect(() => {

@@ -1,33 +1,29 @@
-import { getClientForNetwork } from '@/lib/apollo-client';
-import { 
-  COMBINED_BUILDER_SUBNETS,
-  COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA,
-  COMBINED_BUILDERS_PROJECTS_BASE_MAINNET,
-  COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET
-} from '@/lib/graphql/builders-queries';
-import { 
-  BuilderProject, 
-  CombinedBuildersListFilteredByPredefinedBuildersResponse, // Ensure this type is correctly defined/imported
-  OrderDirection
-} from '@/lib/types/graphql';
-import { Builder, mergeBuilderData } from '@/app/builders/builders-data'; // Assuming mergeBuilderData is needed and correctly typed
-import { BuilderDB } from '@/app/lib/supabase'; // Assuming BuilderDB type is correctly defined/imported
-import { formatTimePeriod } from "@/app/utils/time-utils";
+import { type Builder, mergeBuilderData } from '@/app/builders/builders-data';
 import { USE_GOLDSKY_V1_DATA } from '@/app/config/subgraph-endpoints';
+import type { BuilderDB } from '@/app/lib/supabase';
+import { formatTimePeriod } from "@/app/utils/time-utils";
+import { getClientForNetwork } from '@/lib/apollo-client';
+import {
+  COMBINED_BUILDERS_PROJECTS_ARBITRUM_MAINNET,
+  COMBINED_BUILDERS_PROJECTS_BASE_MAINNET,
+  COMBINED_BUILDERS_PROJECTS_BASE_SEPOLIA,
+  COMBINED_BUILDER_SUBNETS,
+} from '@/lib/graphql/builders-queries';
+import {
+  OrderDirection,
+  type BuilderProject,
+  type CombinedBuildersListFilteredByPredefinedBuildersResponse,
+} from '@/lib/types/graphql';
 
 /**
- * Helper function to detect if a subnet is V4 (has on-chain metadata) or V1 (missing metadata)
- * V4 subnets will have metadata fields populated (description, website, image, slug)
- * V1 subnets discovered via V4 query will have these fields empty/null
+ * Detects whether a subnet comes from the V4 BuildersV4 contract.
+ * All subnets indexed by the Goldsky V4-compatible subgraph have bytes32 hex IDs
+ * (keccak256 of the subnet name), whereas legacy V1 entries in Supabase use UUIDs.
+ * Using the ID format is more reliable than checking metadata field presence,
+ * because a V4 subnet with no metadata set would incorrectly be classified as V1.
  */
 function isV4Subnet(project: BuilderProject): boolean {
-  // V4 subnets have metadata fields populated
-  return !!(
-    project.description || 
-    project.website || 
-    project.image || 
-    project.slug
-  );
+  return typeof project.id === 'string' && project.id.startsWith('0x');
 }
 
 // Interface for the structure of subnet data from the testnet query
@@ -498,7 +494,9 @@ export const fetchBuildersAPI = async (
             
             mappedBuilders.push(builder);
           } else {
-            // V1 subnet: Merge on-chain data with Supabase metadata
+            // V1 subnet: Merge on-chain data with Supabase metadata.
+            // Supabase is the primary metadata source, but fall back to on-chain
+            // fields so any editSubnetMetadata updates are still visible.
             const builder = mergeBuilderData(matchingSupabaseBuilder, {
               id: onChainProject.id,
               totalStaked: onChainProject.totalStakedFormatted !== undefined 
@@ -515,9 +513,9 @@ export const fetchBuildersAPI = async (
               network: onChainProject.network || 'Unknown',
               networks: onChainProject.networks || ['Unknown'],
               admin: onChainProject.admin,
-              // V1: Use Supabase metadata (image_src, website, description from Supabase)
               image: matchingSupabaseBuilder.image_src || onChainProject.image || undefined,
               website: matchingSupabaseBuilder.website || onChainProject.website || undefined,
+              description: matchingSupabaseBuilder.description || onChainProject.description || undefined,
               startsAt: onChainProject.startsAt,
             });
             
