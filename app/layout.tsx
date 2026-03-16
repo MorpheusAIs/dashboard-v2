@@ -1,15 +1,13 @@
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
-import { GoogleAnalytics } from '@next/third-parties/google'
 import { Analytics } from "@vercel/analytics/next"
-import { RootLayoutContent } from "@/components/root-layout"
-import { headers } from "next/headers"
-import { cookieToInitialState } from "wagmi"
-import { config } from "@/config"
-import { cn } from "@/lib/utils"
-import { Providers } from './providers'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import { FeaturebaseWidget } from '@/components/featurebase-widget'
+import { RootLayoutContent } from "@/components/root-layout"
+import { cn } from "@/lib/utils"
+import { Suspense } from "react"
+import { Providers } from './providers'
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -88,18 +86,17 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const headersList = await headers()
-  const initialState = cookieToInitialState(config, headersList.get("cookie"))
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
         <GoogleAnalytics gaId='G-RTZPQB9Y3J' />
         <Analytics />
-        <Providers initialState={initialState}>
-          <RootLayoutContent>{children}</RootLayoutContent>
-          <FeaturebaseWidget />
-        </Providers>
+        <Suspense fallback={null}>
+          <Providers>
+            <RootLayoutContent>{children}</RootLayoutContent>
+            <FeaturebaseWidget />
+          </Providers>
+        </Suspense>
       </body>
     </html>
   );

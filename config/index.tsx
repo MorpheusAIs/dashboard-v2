@@ -1,6 +1,6 @@
-import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
+import type { Config } from 'wagmi';
 import { cookieStorage, createStorage, http } from 'wagmi';
-import { mainnet, arbitrum, base, baseSepolia, arbitrumSepolia, sepolia } from 'wagmi/chains';
+import { arbitrum, arbitrumSepolia, base, baseSepolia, mainnet, sepolia } from 'wagmi/chains';
 // import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
@@ -35,14 +35,15 @@ const metadata = {
   icons: ['https://morpheus.reown.com/favicon.ico']
 };
 
-// Create a function to get the config for a specific environment
-export const getWagmiConfig = () => {
+async function buildWagmiConfig() {
+  const { defaultWagmiConfig } = await import('@web3modal/wagmi/react/config');
+
   // Always include all chains Wagmi needs to be aware of
   const chains = [mainnet, arbitrum, base, baseSepolia, arbitrumSepolia, sepolia] as const;
 
   return defaultWagmiConfig({
     chains,
-    projectId,
+    projectId: projectId!,
     metadata,
     ssr: true,
     storage: createStorage({
@@ -71,7 +72,17 @@ export const getWagmiConfig = () => {
     // Reduce polling to avoid overwhelming RPC endpoints
     pollingInterval: 30000, // 30 seconds instead of default 1 second - significantly reduces RPC calls
   });
-};
+}
 
-// Default config using mainnet to match NetworkProvider default
-export const config = getWagmiConfig();
+export type WagmiConfig = Awaited<ReturnType<typeof buildWagmiConfig>>;
+
+let wagmiConfigPromise: Promise<Config> | undefined;
+
+// Create a function to get the config for a specific environment
+export const getWagmiConfig = (): Promise<Config> => {
+  if (!wagmiConfigPromise) {
+    wagmiConfigPromise = buildWagmiConfig();
+  }
+
+  return wagmiConfigPromise;
+};

@@ -9,15 +9,16 @@ export function useUrlParams() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
   
   // Get a specific param
   const getParam = useCallback((key: string): string | null => {
-    return searchParams.get(key);
-  }, [searchParams]);
+    return new URLSearchParams(searchParamsString).get(key);
+  }, [searchParamsString]);
   
   // Set a single param (adds or updates)
   const setParam = useCallback((key: string, value: string | null) => {
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(searchParamsString);
     
     if (value === null || value === '') {
       params.delete(key);
@@ -26,13 +27,17 @@ export function useUrlParams() {
     }
     
     const newQuery = params.toString();
+    if (newQuery === searchParamsString) {
+      return;
+    }
+
     const queryString = newQuery.length > 0 ? `?${newQuery}` : '';
     router.replace(`${pathname}${queryString}`, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [pathname, router, searchParamsString]);
   
   // Set multiple params at once
   const setParams = useCallback((paramsToSet: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams(searchParamsString);
     
     Object.entries(paramsToSet).forEach(([key, value]) => {
       if (value === null || value === '') {
@@ -43,9 +48,13 @@ export function useUrlParams() {
     });
     
     const newQuery = params.toString();
+    if (newQuery === searchParamsString) {
+      return;
+    }
+
     const queryString = newQuery.length > 0 ? `?${newQuery}` : '';
     router.replace(`${pathname}${queryString}`, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [pathname, router, searchParamsString]);
   
   // Reset all params (clear URL)
   const resetParams = useCallback(() => {
@@ -103,7 +112,7 @@ export const ParamConverters = {
   },
   
   number: {
-    serialize: (value: number): string | null => isNaN(value) ? null : value.toString(),
+    serialize: (value: number): string | null => Number.isNaN(value) ? null : value.toString(),
     deserialize: (param: string | null): number => param ? Number(param) : 0,
   },
   

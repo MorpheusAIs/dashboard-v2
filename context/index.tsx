@@ -1,10 +1,11 @@
 "use client";
 
-import React, { ReactNode, useEffect } from "react";
-import { config, projectId } from "@/config";
-import { createWeb3Modal } from "@web3modal/wagmi/react";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
+import { getWagmiConfig, projectId, type WagmiConfig } from "@/config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { State, WagmiProvider } from "wagmi";
+import type { State } from "wagmi";
+import { WagmiProvider } from "wagmi";
 import { mainnet } from "wagmi/chains";
 
 // Configure QueryClient with conservative refetch intervals to reduce RPC calls
@@ -25,58 +26,85 @@ if (!projectId) throw new Error("Project ID is not defined");
 // Initialize Web3Modal only on client side to prevent SSR issues
 let web3ModalInitialized = false;
 
-function initializeWeb3Modal() {
-  if (typeof window !== 'undefined' && !web3ModalInitialized) {
-    try {
-      createWeb3Modal({
-        wagmiConfig: config,
-        projectId: projectId!,
-        enableAnalytics: true,
-        enableOnramp: true,
-        themeMode: "dark",
-        defaultChain: mainnet,
-        featuredWalletIds: [
-          'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase Wallet (Base Wallet)
-          'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
-          '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow
-        ],
-        excludeWalletIds: [
-          'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // Phantom wallet
-        ],
-        themeVariables: {
-          '--w3m-accent': '#34d399',
-          '--w3m-border-radius-master': '1px',
-          '--w3m-font-family': 'var(--font-geist-sans)',
-        },
-        tokens: {
-          "eip155:8453": {
-            address: '0x7431aDa8a591C955a994a21710752EF9b882b8e3',
-            image: 'https://assets.coingecko.com/coins/images/37969/standard/MOR200X200.png?1716327119'
-          },
-          "eip155:42161": {
-            address: '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86',
-            image: 'https://assets.coingecko.com/coins/images/37969/standard/MOR200X200.png?1716327119'
-          },
-          "eip155:1": {
-            address: '0x7431aDa8a591C955a994a21710752EF9b882b8e3',
-            image: 'https://assets.coingecko.com/coins/images/279/standard/ethereum.png?1696501628'
-          }
-        }
-      });
-      web3ModalInitialized = true;
-    } catch (error) {
-      console.warn('Failed to initialize Web3Modal:', error);
-    }
-  }
-}
-
 export default function Web3ModalProvider({ children, initialState }: { children: ReactNode; initialState?: State }) {
+  const [wagmiConfig, setWagmiConfig] = useState<WagmiConfig | null>(null);
+
   useEffect(() => {
+    let cancelled = false;
+
+    async function initializeWeb3Modal() {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        const [resolvedWagmiConfig, { createWeb3Modal }] = await Promise.all([
+          getWagmiConfig(),
+          import('@web3modal/wagmi/react')
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        setWagmiConfig(resolvedWagmiConfig);
+
+        if (!web3ModalInitialized) {
+          createWeb3Modal({
+            wagmiConfig: resolvedWagmiConfig,
+            projectId: projectId!,
+            enableAnalytics: true,
+            enableOnramp: true,
+            themeMode: "dark",
+            defaultChain: mainnet,
+            featuredWalletIds: [
+              'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase Wallet (Base Wallet)
+              'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+              '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow
+            ],
+            excludeWalletIds: [
+              'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // Phantom wallet
+            ],
+            themeVariables: {
+              '--w3m-accent': '#34d399',
+              '--w3m-border-radius-master': '1px',
+              '--w3m-font-family': 'var(--font-geist-sans)',
+            },
+            tokens: {
+              "eip155:8453": {
+                address: '0x7431aDa8a591C955a994a21710752EF9b882b8e3',
+                image: 'https://assets.coingecko.com/coins/images/37969/standard/MOR200X200.png?1716327119'
+              },
+              "eip155:42161": {
+                address: '0x092baadb7def4c3981454dd9c0a0d7ff07bcfc86',
+                image: 'https://assets.coingecko.com/coins/images/37969/standard/MOR200X200.png?1716327119'
+              },
+              "eip155:1": {
+                address: '0x7431aDa8a591C955a994a21710752EF9b882b8e3',
+                image: 'https://assets.coingecko.com/coins/images/279/standard/ethereum.png?1696501628'
+              }
+            }
+          });
+          web3ModalInitialized = true;
+        }
+      } catch (error) {
+        console.warn('Failed to initialize Web3Modal:', error);
+      }
+    }
+
     initializeWeb3Modal();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  if (!wagmiConfig) {
+    return null;
+  }
+
   return (
-    <WagmiProvider config={config} initialState={initialState}>
+    <WagmiProvider config={wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
   );
