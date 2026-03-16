@@ -200,9 +200,9 @@ function CapitalPageContent() {
       <DepositModal />
       <WithdrawModal />
       <ClaimMorRewardsModal />
-      <ChangeLockModal 
+      <ChangeLockModal
         currentUserMultiplierData={currentUserMultiplierData}
-        userData={userData}
+        userData={{ claimLockEnd: userData?.claimLockEnd }}
       />
 
       {/* Placeholder for Assets to Deposit Section */}
