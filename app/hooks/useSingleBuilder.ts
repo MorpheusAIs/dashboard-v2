@@ -112,7 +112,7 @@ export const useSingleBuilder = ({ projectId, network }: UseSingleBuilderProps) 
     },
     enabled: !!projectId && !isTestnet, // Only fetch if we have a projectId and we're on mainnet
     staleTime: 30 * 1000, // Consider data stale after 30 seconds
-    refetchOnWindowFocus: true,
+    // Performance optimization: use global default (false) to avoid unnecessary refetches on tab switch
   });
 };
 

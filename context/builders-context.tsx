@@ -100,19 +100,32 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   };
 
   const filteredBuilders = useMemo(() => {
-    let result = [...builders];
-    if (nameFilter && nameFilter.trim() !== '') {
-      result = result.filter(builder => builder.name.toLowerCase().includes(nameFilter.toLowerCase().trim()));
-    }
-    if (rewardTypeFilter && rewardTypeFilter !== 'all') {
-      result = result.filter(builder => builder.reward_types && builder.reward_types.includes(rewardTypeFilter));
-    }
-    if (networkFilter && networkFilter !== 'all') {
-      result = result.filter(builder => builder.networks && builder.networks.includes(networkFilter));
-    }
-    if (hasDescriptionFilter) {
-      result = result.filter(builder => builder.description && builder.description.trim() !== '');
-    }
+    // Performance optimization: combine all filters into a single pass instead of 4 sequential passes
+    const nameLower = nameFilter?.trim().toLowerCase();
+    const hasNameFilter = nameLower && nameLower !== '';
+    const hasRewardFilter = rewardTypeFilter && rewardTypeFilter !== 'all';
+    const hasNetworkFilter = networkFilter && networkFilter !== 'all';
+
+    const result = builders.filter(builder => {
+      // Name filter
+      if (hasNameFilter && !builder.name.toLowerCase().includes(nameLower)) {
+        return false;
+      }
+      // Reward type filter
+      if (hasRewardFilter && (!builder.reward_types || !builder.reward_types.includes(rewardTypeFilter))) {
+        return false;
+      }
+      // Network filter
+      if (hasNetworkFilter && (!builder.networks || !builder.networks.includes(networkFilter))) {
+        return false;
+      }
+      // Description filter
+      if (hasDescriptionFilter && (!builder.description || builder.description.trim() === '')) {
+        return false;
+      }
+      return true;
+    });
+
     if (sortColumn) {
       result.sort((a, b) => {
         const aValue = a[sortColumn as keyof Builder];
@@ -132,20 +145,23 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   }, [builders, nameFilter, rewardTypeFilter, networkFilter, hasDescriptionFilter, sortColumn, sortDirection]);
 
   const rewardTypes = useMemo(() => {
-    const types = new Set<string>();
-    builders.forEach(builder => {
-      if (builder.reward_types && Array.isArray(builder.reward_types)) {
-        builder.reward_types.forEach(type => types.add(type));
-      }
-    });
-    return Array.from(types);
+    // Performance optimization: use flatMap instead of nested forEach
+    return [...new Set(builders.flatMap(builder => builder.reward_types || []))];
   }, [builders]);
 
   const totalMetrics = useMemo(() => {
+    // Performance optimization: combine into single reduce instead of 2 separate passes
+    const { totalStaked, totalStaking } = builders.reduce(
+      (acc, builder) => ({
+        totalStaked: acc.totalStaked + (builder.totalStaked || 0),
+        totalStaking: acc.totalStaking + (builder.stakingCount || 0),
+      }),
+      { totalStaked: 0, totalStaking: 0 }
+    );
     return {
       totalBuilders: builders.length,
-      totalStaked: builders.reduce((acc, builder) => acc + (builder.totalStaked || 0), 0),
-      totalStaking: builders.reduce((acc, builder) => acc + (builder.stakingCount || 0), 0),
+      totalStaked,
+      totalStaking,
     };
   }, [builders]);
   
