@@ -1,8 +1,7 @@
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
-import { Analytics } from "@vercel/analytics/next"
-import { GoogleAnalytics } from '@next/third-parties/google'
+import Script from "next/script"
 import { FeaturebaseWidget } from '@/components/featurebase-widget'
 import { RootLayoutContent } from "@/components/root-layout"
 import { cn } from "@/lib/utils"
@@ -89,8 +88,21 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
-        <GoogleAnalytics gaId='G-RTZPQB9Y3J' />
-        <Analytics />
+        <Script
+          id="umami-analytics"
+          src="https://umami-production-5f98.up.railway.app/script.js"
+          data-website-id="93926d2b-ff86-4c74-8897-dbe12ea33be5"
+          strategy="afterInteractive"
+        />
+        <Script
+          id="umami-session-replay"
+          src="https://umami-production-5f98.up.railway.app/recorder.js"
+          data-website-id="93926d2b-ff86-4c74-8897-dbe12ea33be5"
+          data-sample-rate="0.15"
+          data-mask-level="moderate"
+          data-max-duration="300000"
+          strategy="afterInteractive"
+        />
         <Suspense fallback={null}>
           <Providers>
             <RootLayoutContent>{children}</RootLayoutContent>
