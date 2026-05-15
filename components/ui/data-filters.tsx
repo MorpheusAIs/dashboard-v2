@@ -119,9 +119,22 @@ export function DataFilters({
                     <SelectValue placeholder={selectFilterPlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}</SelectItem>
+                    <SelectItem
+                      value="all"
+                      data-analytics-action="select-data-filter"
+                      data-analytics-label={`${selectFilterLabel}: All`}
+                      data-analytics-destination={`data-filter:${selectFilterLabel}:all`}
+                    >
+                      All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}
+                    </SelectItem>
                     {selectFilterOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        data-analytics-action="select-data-filter"
+                        data-analytics-label={`${selectFilterLabel}: ${option.label}`}
+                        data-analytics-destination={`data-filter:${selectFilterLabel}:${option.value}`}
+                      >
                         {option.label}
                       </SelectItem>
                     ))}
@@ -143,7 +156,13 @@ export function DataFilters({
                   }}
                   className="bg-background border border-input p-1 w-full justify-center"
                 >
-                  <ToggleGroupItem value="all" className="flex items-center gap-2 px-3 flex-1">
+                  <ToggleGroupItem
+                    value="all"
+                    className="flex items-center gap-2 px-3 flex-1"
+                    data-analytics-action="select-network-filter"
+                    data-analytics-label="Network filter: All"
+                    data-analytics-destination="network-filter:all"
+                  >
                     All
                   </ToggleGroupItem>
                   <ToggleGroupItem
@@ -153,6 +172,9 @@ export function DataFilters({
                       isTestnet && "opacity-50 cursor-not-allowed"
                     )}
                     disabled={isTestnet}
+                    data-analytics-action="select-network-filter"
+                    data-analytics-label="Network filter: Arbitrum"
+                    data-analytics-destination="network-filter:Arbitrum"
                   >
                     <div className="w-[18px] h-[20px] relative">
                       <ArbitrumIcon size={19} className="text-current" fill="currentColor" />
@@ -165,6 +187,9 @@ export function DataFilters({
                       isTestnet && "opacity-50 cursor-not-allowed"
                     )}
                     disabled={isTestnet}
+                    data-analytics-action="select-network-filter"
+                    data-analytics-label="Network filter: Base"
+                    data-analytics-destination="network-filter:Base"
                   >
                     <div className="w-[18px] h-[20px] relative">
                       <BaseIcon size={19} className="text-current" fill="currentColor" />
@@ -235,9 +260,22 @@ export function DataFilters({
                   <SelectValue placeholder={selectFilterPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}</SelectItem>
+                  <SelectItem
+                    value="all"
+                    data-analytics-action="select-data-filter"
+                    data-analytics-label={`${selectFilterLabel}: All`}
+                    data-analytics-destination={`data-filter:${selectFilterLabel}:all`}
+                  >
+                    All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}
+                  </SelectItem>
                   {selectFilterOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      data-analytics-action="select-data-filter"
+                      data-analytics-label={`${selectFilterLabel}: ${option.label}`}
+                      data-analytics-destination={`data-filter:${selectFilterLabel}:${option.value}`}
+                    >
                       {option.label}
                     </SelectItem>
                   ))}
@@ -260,7 +298,13 @@ export function DataFilters({
                 }}
                 className="bg-background border border-input p-1"
               >
-                <ToggleGroupItem value="all" className="flex items-center gap-2 px-3 flex-1">
+                <ToggleGroupItem
+                  value="all"
+                  className="flex items-center gap-2 px-3 flex-1"
+                  data-analytics-action="select-network-filter"
+                  data-analytics-label="Network filter: All"
+                  data-analytics-destination="network-filter:all"
+                >
                   All
                 </ToggleGroupItem>
                 <ToggleGroupItem
@@ -270,6 +314,9 @@ export function DataFilters({
                     isTestnet && "opacity-50 cursor-not-allowed"
                   )}
                   disabled={isTestnet}
+                  data-analytics-action="select-network-filter"
+                  data-analytics-label="Network filter: Arbitrum"
+                  data-analytics-destination="network-filter:Arbitrum"
                 >
                   <div className="w-[18px] h-[20px] relative">
                     <ArbitrumIcon size={19} className="text-current" fill="currentColor" />
@@ -282,6 +329,9 @@ export function DataFilters({
                     isTestnet && "opacity-50 cursor-not-allowed"
                   )}
                   disabled={isTestnet}
+                  data-analytics-action="select-network-filter"
+                  data-analytics-label="Network filter: Base"
+                  data-analytics-destination="network-filter:Base"
                 >
                   <div className="w-[18px] h-[20px] relative">
                     <BaseIcon size={19} className="text-current" fill="currentColor" />
@@ -349,9 +399,22 @@ export function DataFilters({
                 <SelectValue placeholder={selectFilterPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}</SelectItem>
+                <SelectItem
+                  value="all"
+                  data-analytics-action="select-data-filter"
+                  data-analytics-label={`${selectFilterLabel}: All`}
+                  data-analytics-destination={`data-filter:${selectFilterLabel}:all`}
+                >
+                  All {selectFilterLabel.toLowerCase().endsWith('s') ? selectFilterLabel.toLowerCase() : `${selectFilterLabel.toLowerCase()}s`}
+                </SelectItem>
                 {selectFilterOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    data-analytics-action="select-data-filter"
+                    data-analytics-label={`${selectFilterLabel}: ${option.label}`}
+                    data-analytics-destination={`data-filter:${selectFilterLabel}:${option.value}`}
+                  >
                     {option.label}
                   </SelectItem>
                 ))}
@@ -374,7 +437,13 @@ export function DataFilters({
               }}
               className="bg-background border border-input p-1"
             >
-              <ToggleGroupItem value="all" className="flex items-center gap-2 px-4">
+              <ToggleGroupItem
+                value="all"
+                className="flex items-center gap-2 px-4"
+                data-analytics-action="select-network-filter"
+                data-analytics-label="Network filter: All"
+                data-analytics-destination="network-filter:all"
+              >
                 All
               </ToggleGroupItem>
               <ToggleGroupItem
@@ -384,6 +453,9 @@ export function DataFilters({
                   isTestnet && "opacity-50 cursor-not-allowed"
                 )}
                 disabled={isTestnet}
+                data-analytics-action="select-network-filter"
+                data-analytics-label="Network filter: Arbitrum"
+                data-analytics-destination="network-filter:Arbitrum"
               >
                 <div className="w-[18px] h-[20px] relative">
                   <ArbitrumIcon size={19} className="text-current" fill="currentColor" />
@@ -396,6 +468,9 @@ export function DataFilters({
                   isTestnet && "opacity-50 cursor-not-allowed"
                 )}
                 disabled={isTestnet}
+                data-analytics-action="select-network-filter"
+                data-analytics-label="Network filter: Base"
+                data-analytics-destination="network-filter:Base"
               >
                 <div className="w-[18px] h-[20px] relative">
                   <BaseIcon size={19} className="text-current" fill="currentColor" />
