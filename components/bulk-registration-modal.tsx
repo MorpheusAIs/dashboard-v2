@@ -269,13 +269,25 @@ export function BulkRegistrationModal({
                     <SelectValue placeholder="Select network" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Arbitrum" className="flex items-center gap-2">
+                    <SelectItem
+                      value="Arbitrum"
+                      className="flex items-center gap-2"
+                      data-analytics-action="select-bulk-registration-network"
+                      data-analytics-label="Bulk registration network: Arbitrum"
+                      data-analytics-destination="bulk-registration-network:Arbitrum"
+                    >
                       <div className="flex items-center gap-2">
                         <ArbitrumIcon size={18} className="text-current" />
                         <span>Arbitrum</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="Base" className="flex items-center gap-2">
+                    <SelectItem
+                      value="Base"
+                      className="flex items-center gap-2"
+                      data-analytics-action="select-bulk-registration-network"
+                      data-analytics-label="Bulk registration network: Base"
+                      data-analytics-destination="bulk-registration-network:Base"
+                    >
                       <div className="flex items-center gap-2">
                         <BaseIcon size={18} className="text-current" />
                         <span>Base</span>

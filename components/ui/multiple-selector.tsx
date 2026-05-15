@@ -571,6 +571,9 @@ const MultipleSelector = React.forwardRef<MultipleSelectorRef, MultipleSelectorP
                               key={option.value}
                               value={option.label}
                               disabled={option.disable}
+                              data-analytics-action="select-multiple-selector-option"
+                              data-analytics-label={`Multiple selector option: ${option.label}`}
+                              data-analytics-destination={`multiple-selector-option:${option.value}`}
                               onMouseDown={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();

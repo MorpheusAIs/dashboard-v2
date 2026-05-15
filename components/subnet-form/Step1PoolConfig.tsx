@@ -167,13 +167,23 @@ export const Step1PoolConfig: React.FC<Step1PoolConfigProps> = ({ isSubmitting, 
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                <SelectItem value={baseSepolia.id.toString()}>
+                <SelectItem
+                  value={baseSepolia.id.toString()}
+                  data-analytics-action="select-subnet-network"
+                  data-analytics-label="Subnet network: Base Sepolia"
+                  data-analytics-destination={`subnet-network:${baseSepolia.id}`}
+                >
                   <div className="flex items-center gap-2">
                     <BaseSepoliaIcon className="text-current" />
                     <span>Base Sepolia</span>
                   </div>
                 </SelectItem>
-                <SelectItem value={base.id.toString()}>
+                <SelectItem
+                  value={base.id.toString()}
+                  data-analytics-action="select-subnet-network"
+                  data-analytics-label="Subnet network: Base"
+                  data-analytics-destination={`subnet-network:${base.id}`}
+                >
                   <div className="flex items-center gap-2">
                     <BaseIcon size={19} className="text-current" />
                     <span>Base</span>
