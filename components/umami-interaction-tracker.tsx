@@ -56,6 +56,27 @@ function getDestination(anchor: HTMLAnchorElement): { destination: string; outbo
   };
 }
 
+function getActionDestination(element: HTMLElement): Partial<Pick<UmamiPayload, "destination" | "link_domain">> {
+  const destination = clean(element.getAttribute("data-analytics-destination"));
+
+  if (!destination) {
+    return {};
+  }
+
+  try {
+    const url = new URL(destination, window.location.href);
+
+    return {
+      destination: url.origin === window.location.origin
+        ? `${url.pathname}${url.search}${url.hash}`
+        : `${url.origin}${url.pathname}${url.search}${url.hash}`,
+      link_domain: url.hostname,
+    };
+  } catch {
+    return { destination };
+  }
+}
+
 function track(name: string, payload: UmamiPayload): void {
   window.umami?.track(name, {
     current_path: window.location.pathname,
@@ -104,6 +125,7 @@ export function UmamiInteractionTracker(): null {
           clean(action.getAttribute("data-umami-action")) ||
           "click",
         element_area: getArea(action),
+        ...getActionDestination(action),
       });
     };
 
