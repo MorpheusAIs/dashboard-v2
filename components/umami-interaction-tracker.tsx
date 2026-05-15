@@ -63,6 +63,10 @@ function getActionDestination(element: HTMLElement): Partial<Pick<UmamiPayload, 
     return {};
   }
 
+  if (!/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(destination)) {
+    return { destination };
+  }
+
   try {
     const url = new URL(destination, window.location.href);
 
@@ -110,9 +114,9 @@ export function UmamiInteractionTracker(): null {
         return;
       }
 
-      const action = target.closest<HTMLElement>(
-        "button, [role='button'], [data-umami-action], [data-analytics-action]",
-      );
+      const action =
+        target.closest<HTMLElement>("[data-analytics-action], [data-umami-action]") ||
+        target.closest<HTMLElement>("button, [role='button']");
 
       if (!action) {
         return;

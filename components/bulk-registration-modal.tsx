@@ -244,6 +244,7 @@ export function BulkRegistrationModal({
                   <div 
                     className="flex items-center gap-2 px-3 py-2 border border-input rounded-md bg-transparent cursor-pointer"
                     onClick={() => fileInputRef.current?.click()}
+                    data-analytics-label="CSV upload picker"
                     data-analytics-action="open-csv-upload"
                     data-analytics-destination="csv-file-picker"
                   >

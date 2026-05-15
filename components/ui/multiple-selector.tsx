@@ -452,6 +452,7 @@ const MultipleSelector = React.forwardRef<MultipleSelectorRef, MultipleSelectorP
             inputRef?.current?.focus();
           }}
           data-analytics-action="focus-multiple-selector"
+          data-analytics-label={placeholder || 'Multiple selector'}
           data-analytics-destination="multiple-selector-input"
         >
           <div className="relative flex flex-wrap gap-1">
