@@ -53,6 +53,46 @@ import ERC20Abi from "@/app/abi/ERC20.json";
 const PUBLIC_POOL_ID = BigInt(0);
 // Removed unused SECONDS_PER_DAY constant
 
+function trackExternalToastAction(label: string, destination: string, actionName: string): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  let normalizedDestination = destination;
+  let linkDomain = window.location.hostname;
+
+  try {
+    const url = new URL(destination, window.location.href);
+    normalizedDestination = url.origin === window.location.origin
+      ? `${url.pathname}${url.search}${url.hash}`
+      : `${url.origin}${url.pathname}${url.search}${url.hash}`;
+    linkDomain = url.hostname;
+  } catch {
+    normalizedDestination = destination;
+  }
+
+  window.umami?.track('button-click', {
+    current_path: window.location.pathname,
+    page_title: document.title || 'Morpheus Dashboard',
+    page_section: window.location.pathname.split('/').filter(Boolean)[0] || 'home',
+    element_area: 'notification',
+    button_text: label,
+    action_name: actionName,
+    destination: normalizedDestination,
+    link_domain: linkDomain,
+  });
+}
+
+function createTrackedExternalToastAction(label: string, destination: string, actionName: string) {
+  return {
+    label,
+    onClick: () => {
+      trackExternalToastAction(label, destination, actionName);
+      window.open(destination, "_blank", "noopener,noreferrer");
+    },
+  };
+}
+
 // V2 Confirmed Pool Index (from discovery script)
 const V2_REWARD_POOL_INDEX = BigInt(0); // ✅ Confirmed active on Sepolia
 
@@ -1096,10 +1136,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       toast.loading(options.loading, { 
         id: toastId,
         description: "If the transaction doesn't appear, check your Safe wallet.",
-        action: {
-          label: "Open Safe Wallet",
-          onClick: () => window.open(safeWalletUrl, "_blank")
-        }
+        action: createTrackedExternalToastAction("Open Safe Wallet", safeWalletUrl, "open-safe-wallet")
       });
     } else {
       toast.loading(options.loading, { id: toastId });
@@ -1777,10 +1814,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
         toast.success("Approval successful!", {
           description: "Your approval transaction has been confirmed",
-          action: txUrl ? {
-            label: "View Transaction",
-            onClick: () => window.open(txUrl, "_blank")
-          } : undefined,
+          action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
           duration: 5000,
           style: {
             background: 'hsl(var(--emerald-500))',
@@ -1807,10 +1841,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.success(`Stake confirmed!`, {
             description: "Your stake transaction has been confirmed",
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--emerald-500))',
@@ -1851,10 +1882,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.success("Claim confirmed!", {
             description: "Your claim transaction has been confirmed",
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--emerald-500))',
@@ -1890,10 +1918,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.success("Withdrawal confirmed!", {
             description: "Your withdrawal transaction has been confirmed",
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--emerald-500))',
@@ -1928,10 +1953,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.success("Lock period update confirmed!", {
             description: "Your lock period update transaction has been confirmed",
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--emerald-500))',
@@ -1961,10 +1983,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.error("Approval Failed", {
             description: errorMessage,
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -1989,10 +2008,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.error("Staking Failed", {
             description: errorMessage,
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -2011,10 +2027,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.error("Claim Failed", {
             description: errorMessage,
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -2033,10 +2046,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.error("Withdrawal Failed", {
             description: errorMessage,
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
@@ -2055,10 +2065,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
           toast.error("Lock Update Failed", {
             description: errorMessage,
-            action: txUrl ? {
-              label: "View Transaction",
-              onClick: () => window.open(txUrl, "_blank")
-            } : undefined,
+            action: txUrl ? createTrackedExternalToastAction("View Transaction", txUrl, "view-transaction") : undefined,
             duration: 5000,
             style: {
               background: 'hsl(var(--destructive))',
