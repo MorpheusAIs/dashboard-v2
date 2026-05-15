@@ -49,6 +49,20 @@ export function StakingTable({
   // Helper to determine if a column should be shown
   const showColumn = (columnId: string) => !hideColumns.includes(columnId);
 
+  const getSortDestination = (column: string) => {
+    const nextDirection = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc';
+    return `staking-table-sort:${column}-${nextDirection}`;
+  };
+
+  const handleSortKeyDown = (event: React.KeyboardEvent, column: string) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    onSort(column);
+  };
+
   // Default sorting indicator
   const SortIndicator = ({ column }: { column: string }) => (
     <>
@@ -69,6 +83,12 @@ export function StakingTable({
               <TableHead 
                 className="text-sm font-medium text-gray-400 cursor-pointer"
                 onClick={() => onSort('amount')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => handleSortKeyDown(event, 'amount')}
+                data-analytics-action="staking-table-sort"
+                data-analytics-label="Sort staking table by MOR Staked"
+                data-analytics-destination={getSortDestination('amount')}
               >
                 <div className="flex items-center">
                   MOR Staked
@@ -81,6 +101,12 @@ export function StakingTable({
               <TableHead 
                 className="text-sm font-medium text-gray-400 cursor-pointer"
                 onClick={() => onSort('claimed')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => handleSortKeyDown(event, 'claimed')}
+                data-analytics-action="staking-table-sort"
+                data-analytics-label="Sort staking table by MOR Claimed"
+                data-analytics-destination={getSortDestination('claimed')}
               >
                 <div className="flex items-center">
                   MOR Claimed
@@ -93,6 +119,12 @@ export function StakingTable({
               <TableHead 
                 className="text-sm font-medium text-gray-400 cursor-pointer"
                 onClick={() => onSort('fee')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => handleSortKeyDown(event, 'fee')}
+                data-analytics-action="staking-table-sort"
+                data-analytics-label="Sort staking table by Fee Charged"
+                data-analytics-destination={getSortDestination('fee')}
               >
                 <div className="flex items-center">
                   Fee Charged
@@ -105,6 +137,12 @@ export function StakingTable({
               <TableHead 
                 className="text-sm font-medium text-gray-400 cursor-pointer"
                 onClick={() => onSort('timestamp')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => handleSortKeyDown(event, 'timestamp')}
+                data-analytics-action="staking-table-sort"
+                data-analytics-label="Sort staking table by Stake Date"
+                data-analytics-destination={getSortDestination('timestamp')}
               >
                 <div className="flex items-center">
                   Stake Date
@@ -117,6 +155,12 @@ export function StakingTable({
               <TableHead 
                 className="text-sm font-medium text-gray-400 cursor-pointer"
                 onClick={() => onSort('unlockDate')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => handleSortKeyDown(event, 'unlockDate')}
+                data-analytics-action="staking-table-sort"
+                data-analytics-label="Sort staking table by Unlock Date"
+                data-analytics-destination={getSortDestination('unlockDate')}
               >
                 <div className="flex items-center">
                   Unlock Date
