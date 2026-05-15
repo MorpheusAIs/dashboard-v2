@@ -30,7 +30,7 @@ Shared properties: `current_path`, `page_title`, `page_section`, and `element_ar
 
 - Source inventory found 171 link/button/action/form patterns across 42 TSX files.
 - Root tracking covers all `a[href]`, `button`, `[role='button']`, `[data-umami-action]`, `[data-analytics-action]`, and form submits.
-- No non-native clickable `div`, `span`, `li`, or card wrappers were found in the source inventory; dashboard actions use native buttons or button-like components and are captured by the root handler.
+- Dashboard actions use native buttons, button-like components, or explicit `data-analytics-action` metadata. The known non-native wrappers for CSV upload and multi-select focus are annotated so the root handler captures those actions too.
 
 ## Session replay verification
 
@@ -50,3 +50,5 @@ Shared properties: `current_path`, `page_title`, `page_section`, and `element_ar
 - `/builders` table QA confirmed Umami `/api/send` POST payloads for sortable headers and clickable rows: `button-click` with `action_name: table-sort`, `button_text: Sort by MOR Staked`, `destination: /builders?sort=totalStaked-asc`, plus `button-click` with `action_name: table-row-open`, `button_text: Open Mor.org-BASE`, and destination `/builders/mororg-base?subnet_id=0xdccb9a7800ec49cd48db4d631f37c63a730ac8e8124901e59dd087ffcfc29564&network=Base`.
 - `/compute` table QA confirmed Umami `/api/send` POST payloads for sortable headers: `button-click` with `action_name: table-sort`, `button_text: Sort by Subnet Fee`, and `destination: /compute?sort=fee-asc`.
 - Focused toast-action QA on `http://localhost:3403/capital` could not submit real wallet transactions without a wallet seed/session, so it paired code-level verification of `createTrackedExternalToastAction(...)` wiring with browser payload proof using the same emitted payload shape. Umami `/api/send` received `button-click` payloads with `element_area: notification`, `action_name: open-safe-wallet`, `button_text: Open Safe Wallet`, `destination: https://app.safe.global/transactions/queue?safe=eth:0x0000000000000000000000000000000000000001`, `link_domain: app.safe.global`, and `action_name: view-transaction`, `button_text: View Transaction`, `destination: https://etherscan.io/tx/0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef`, `link_domain: etherscan.io`.
+- Final source scan for non-native click wrappers identified the CSV upload wrapper and multi-selector focus wrapper; both now carry explicit `data-analytics-action` and `data-analytics-destination` metadata for root-tracker coverage.
+- Final verification reran `pnpm run build` after the wallet-toast and wrapper annotation fixes; it completed successfully with the same pre-existing external Dune/subgraph warnings seen before these analytics changes.
