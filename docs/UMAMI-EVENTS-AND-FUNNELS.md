@@ -20,7 +20,7 @@ Shared properties: `current_path`, `page_title`, `page_section`, and `element_ar
 
 ## Saved Umami reports
 
-- Funnel `DeFi Dashboard: capital action funnel`: `b9f15ba8-7050-4a82-b7d2-526d7f360add`.
+- Funnel `DeFi Dashboard: capital action funnel`: `b9f15ba8-7050-4a82-b7d2-526d7f360add` (`type: funnel`, steps: path `/capital` → event `button-click` → event `form-submit`, 30-minute window).
 - Journey `DeFi Dashboard: capital and builders journey`: `4e913e6f-345e-4de8-9418-4d58c25633a8`.
 - Breakdown `DeFi Dashboard: interaction breakdown`: `e4b0ad68-fdb9-4635-be85-097e38d98d80`.
 - Goal `DeFi Dashboard: form submit goal`: `9ac63e08-e0ca-4438-81ae-815a5605c77b`.
