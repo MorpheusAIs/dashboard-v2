@@ -474,6 +474,8 @@ export default function ComputePage() {
                     }}
                     loadingRows={6}
                     noResultsMessage="No subnets found."
+                    getRowAnalyticsLabel={(subnet) => `Open ${subnet.name || 'compute subnet'}`}
+                    getRowAnalyticsDestination={(subnet) => `/compute/${subnet.name.toLowerCase().replace(/\s+/g, '-')}`}
                     onRowClick={(subnet) => {
                       window.location.href = `/compute/${subnet.name.toLowerCase().replace(/\s+/g, '-')}`;
                     }}
@@ -526,6 +528,8 @@ export default function ComputePage() {
                     isLoading={false}
                     loadingRows={6}
                     noResultsMessage="No subnets found."
+                    getRowAnalyticsLabel={(subnet) => `Open ${subnet.name || 'subnet'}`}
+                    getRowAnalyticsDestination={(subnet) => `/subnets/${subnet.id}`}
                     onRowClick={(subnet) => {
                       window.location.href = `/subnets/${subnet.id}`;
                     }}

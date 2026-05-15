@@ -1284,6 +1284,8 @@ export default function BuildersPage() {
                     }}
                     loadingRows={6}
                     noResultsMessage="No builders found."
+                    getRowAnalyticsLabel={(builder) => `Open ${builder.name || 'builder'}`}
+                    getRowAnalyticsDestination={(builder) => `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`}
                     onRowClick={(builder) => {
                       window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
                     }}
@@ -1334,6 +1336,8 @@ export default function BuildersPage() {
                     isLoading={isLoadingUserAdminSubnets} // Use loading state from context
                     loadingRows={6}
                     noResultsMessage="No subnets administered by you were found." // Updated message
+                    getRowAnalyticsLabel={(subnet) => `Open ${subnet.name || 'subnet'}`}
+                    getRowAnalyticsDestination={(subnet) => `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}&network=${encodeURIComponent(subnet.networks?.[0] || subnet.network || '')}`}
                     onRowClick={(subnet) => {
                        // Link to builder/subnet detail page
                        window.location.href = `/builders/${getBuilderSlug(subnet, duplicateBuilderNames)}?subnet_id=${getSubnetId(subnet)}&network=${encodeURIComponent(subnet.networks?.[0] || subnet.network || '')}`; // Or /subnets/<id>
@@ -1373,6 +1377,8 @@ export default function BuildersPage() {
                     isLoading={isLoadingAuth || isLoadingUserStakedBuilders} // Use loading state from new hook
                     loadingRows={6}
                     noResultsMessage={isAuthenticated && userAddress ? "You have not staked in any builders on mainnet networks." : "No participating builders found."}
+                    getRowAnalyticsLabel={(builder) => `Open ${builder.name || 'builder'}`}
+                    getRowAnalyticsDestination={(builder) => `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`}
                     onRowClick={(builder) => {
                       window.location.href = `/builders/${getBuilderSlug(builder, duplicateBuilderNames)}?subnet_id=${getSubnetId(builder)}&network=${encodeURIComponent(builder.networks?.[0] || builder.network || '')}`;
                     }}

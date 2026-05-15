@@ -35,6 +35,8 @@ export interface DataTableProps<T> {
   onRowClick?: (item: T) => void
   onRowHover?: (itemId: string | null) => void
   getItemId?: (item: T) => string
+  getRowAnalyticsLabel?: (item: T) => string
+  getRowAnalyticsDestination?: (item: T) => string
 }
 
 export function DataTable<T>({
@@ -49,7 +51,22 @@ export function DataTable<T>({
   onRowClick,
   onRowHover,
   getItemId,
+  getRowAnalyticsLabel,
+  getRowAnalyticsDestination,
 }: DataTableProps<T>) {
+  const getSortDestination = (columnId: string): string | undefined => {
+    if (typeof window === "undefined") {
+      return undefined
+    }
+
+    const nextDirection = sorting?.id === columnId && !sorting.desc ? "desc" : "asc"
+    const params = new URLSearchParams(window.location.search)
+    params.set("sort", `${columnId}-${nextDirection}`)
+    const query = params.toString()
+
+    return `${window.location.pathname}${query ? `?${query}` : ""}`
+  }
+
   return (
     <div className={cn("table-container", className)}>
       <Table className="table-base">
@@ -67,6 +84,11 @@ export function DataTable<T>({
                     onSortingChange(column.id)
                   }
                 }}
+                role={column.enableSorting ? "button" : undefined}
+                tabIndex={column.enableSorting ? 0 : undefined}
+                data-analytics-action={column.enableSorting ? "table-sort" : undefined}
+                data-analytics-label={column.enableSorting && typeof column.header === "string" ? `Sort by ${column.header}` : undefined}
+                data-analytics-destination={column.enableSorting ? getSortDestination(column.id) : undefined}
               >
                 {typeof column.header === "string" ? (
                   <div className="flex items-center justify-between">
@@ -131,6 +153,11 @@ export function DataTable<T>({
                 onClick={() => onRowClick && onRowClick(item)}
                 onMouseEnter={() => onRowHover && getItemId && onRowHover(getItemId(item))}
                 onMouseLeave={() => onRowHover && onRowHover(null)}
+                role={onRowClick ? "button" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                data-analytics-action={onRowClick ? "table-row-open" : undefined}
+                data-analytics-label={onRowClick ? getRowAnalyticsLabel?.(item) || "Open table row" : undefined}
+                data-analytics-destination={onRowClick ? getRowAnalyticsDestination?.(item) : undefined}
                 style={onRowClick ? { cursor: 'pointer' } : undefined}
               >
                 {columns.map((column) => (
