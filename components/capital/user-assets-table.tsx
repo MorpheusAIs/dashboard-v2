@@ -201,6 +201,9 @@ export function UserAssetsTable({
                 onClick={() => onDropdownActionAction('stakeMorRewards', asset.assetSymbol)}
                 disabled={isAnyActionProcessing || isModalTransitioning || !asset.canClaim}
                 className={!asset.canClaim ? "text-gray-500 cursor-not-allowed" : ""}
+                data-analytics-action="open-stake-rewards"
+                data-analytics-label={`Stake rewards: ${asset.symbol}`}
+                data-analytics-destination={`capital-asset-action:${asset.assetSymbol}:stakeMorRewards`}
               >
                 <TrendingUp className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Stake Rewards'}
@@ -209,6 +212,9 @@ export function UserAssetsTable({
                 onClick={() => onDropdownActionAction('withdraw', asset.assetSymbol)}
                 disabled={isAnyActionProcessing || isModalTransitioning || !asset.canWithdraw}
                 className={!asset.canWithdraw ? "text-gray-500 cursor-not-allowed" : ""}
+                data-analytics-action="open-withdraw"
+                data-analytics-label={`Withdraw: ${asset.symbol}`}
+                data-analytics-destination={`capital-asset-action:${asset.assetSymbol}:withdraw`}
               >
                 <ArrowDownToLine className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Withdraw'}
@@ -217,6 +223,9 @@ export function UserAssetsTable({
                 onClick={() => onDropdownActionAction('lockMorRewards', asset.assetSymbol)}
                 disabled={isAnyActionProcessing || isModalTransitioning || asset.availableToClaim <= 0}
                 className={asset.availableToClaim <= 0 ? "text-gray-500 cursor-not-allowed" : ""}
+                data-analytics-action="open-lock-rewards"
+                data-analytics-label={`Lock rewards: ${asset.symbol}`}
+                data-analytics-destination={`capital-asset-action:${asset.assetSymbol}:lockMorRewards`}
               >
                 <Lock className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Lock Rewards'}
@@ -225,6 +234,9 @@ export function UserAssetsTable({
                 onClick={() => onDropdownActionAction('claimMorRewards', asset.assetSymbol)}
                 disabled={isAnyActionProcessing || isModalTransitioning || !asset.canClaim}
                 className={!asset.canClaim ? "text-gray-500 cursor-not-allowed" : ""}
+                data-analytics-action="open-claim-rewards"
+                data-analytics-label={`Claim rewards: ${asset.symbol}`}
+                data-analytics-destination={`capital-asset-action:${asset.assetSymbol}:claimMorRewards`}
               >
                 <HandCoins className="mr-2 h-4 w-4" />
                 {isModalTransitioning ? 'Opening...' : 'Claim Rewards'}
