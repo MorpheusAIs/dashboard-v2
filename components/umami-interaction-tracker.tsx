@@ -63,7 +63,7 @@ function getActionDestination(element: HTMLElement): Partial<Pick<UmamiPayload, 
     return {};
   }
 
-  if (!/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(destination)) {
+  if (!/^(?:https?:|mailto:|tel:|\/|#)/i.test(destination)) {
     return { destination };
   }
 
