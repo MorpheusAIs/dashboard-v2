@@ -43,3 +43,9 @@ Shared properties: `current_path`, `page_title`, `page_section`, and `element_ar
 - Dashboard routes are publicly renderable, while contract-writing actions are wallet-gated by Wagmi/Reown rather than username/password credentials.
 - No wallet seed or browser wallet session was available, so transaction submission flows were not executed.
 - No-wallet QA opened `/builders/newsubnet`, verified actionable controls render, and confirmed Umami sends `link-click-internal` for the `Cancel` action with `destination: /builders` and `element_area: main`.
+
+## Manual event QA
+
+- Production-server browser QA on `http://localhost:3403/` loaded both `script.js` and `recorder.js` for website id `93926d2b-ff86-4c74-8897-dbe12ea33be5`.
+- `/builders` table QA confirmed Umami `/api/send` POST payloads for sortable headers and clickable rows: `button-click` with `action_name: table-sort`, `button_text: Sort by MOR Staked`, `destination: /builders?sort=totalStaked-asc`, plus `button-click` with `action_name: table-row-open`, `button_text: Open Mor.org-BASE`, and destination `/builders/mororg-base?subnet_id=0xdccb9a7800ec49cd48db4d631f37c63a730ac8e8124901e59dd087ffcfc29564&network=Base`.
+- `/compute` table QA confirmed Umami `/api/send` POST payloads for sortable headers: `button-click` with `action_name: table-sort`, `button_text: Sort by Subnet Fee`, and `destination: /compute?sort=fee-asc`.
