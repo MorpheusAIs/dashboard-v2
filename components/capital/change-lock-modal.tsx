@@ -132,9 +132,30 @@ export function ChangeLockModal({
                     <SelectValue placeholder="Select unit" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="days">Days</SelectItem>
-                    <SelectItem value="months">Months</SelectItem>
-                    <SelectItem value="years">Years</SelectItem>
+                    <SelectItem
+                      value="days"
+                      data-analytics-action="select-change-lock-period-unit"
+                      data-analytics-label="Change lock period unit: Days"
+                      data-analytics-destination="change-lock-period-unit:days"
+                    >
+                      Days
+                    </SelectItem>
+                    <SelectItem
+                      value="months"
+                      data-analytics-action="select-change-lock-period-unit"
+                      data-analytics-label="Change lock period unit: Months"
+                      data-analytics-destination="change-lock-period-unit:months"
+                    >
+                      Months
+                    </SelectItem>
+                    <SelectItem
+                      value="years"
+                      data-analytics-action="select-change-lock-period-unit"
+                      data-analytics-label="Change lock period unit: Years"
+                      data-analytics-destination="change-lock-period-unit:years"
+                    >
+                      Years
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
