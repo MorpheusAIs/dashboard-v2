@@ -4,6 +4,7 @@ import localFont from "next/font/local"
 import Script from "next/script"
 import { FeaturebaseWidget } from '@/components/featurebase-widget'
 import { RootLayoutContent } from "@/components/root-layout"
+import { UmamiInteractionTracker } from "@/components/umami-interaction-tracker"
 import { cn } from "@/lib/utils"
 import { Suspense } from "react"
 import { Providers } from './providers'
@@ -105,6 +106,7 @@ export default async function RootLayout({
         />
         <Suspense fallback={null}>
           <Providers>
+            <UmamiInteractionTracker />
             <RootLayoutContent>{children}</RootLayoutContent>
             <FeaturebaseWidget />
           </Providers>
