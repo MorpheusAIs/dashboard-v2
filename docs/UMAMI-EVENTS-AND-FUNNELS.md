@@ -31,3 +31,15 @@ Shared properties: `current_path`, `page_title`, `page_section`, and `element_ar
 - Source inventory found 171 link/button/action/form patterns across 42 TSX files.
 - Root tracking covers all `a[href]`, `button`, `[role='button']`, `[data-umami-action]`, `[data-analytics-action]`, and form submits.
 - No non-native clickable `div`, `span`, `li`, or card wrappers were found in the source inventory; dashboard actions use native buttons or button-like components and are captured by the root handler.
+
+## Session replay verification
+
+- API check confirmed replay is enabled for website `93926d2b-ff86-4c74-8897-dbe12ea33be5` with `sampleRate: 0.15`, `maskLevel: moderate`, and `maxDuration: 300000`.
+- Forced sampled browser QA on `http://localhost:3303/` loaded `script.js` and `recorder.js`, obtained an Umami session cache, and received `200 {"ok":true}` from `/api/record`.
+- Replay list verification returned replay `7691a26e-eaa3-575d-85d3-99f2f242ba84` with session `1d008e38-2515-5d3d-9cad-4f34eaa03834`, `847` events, `9` chunks, and replay detail endpoint returned `847` playback events.
+
+## Wallet-gated-flow QA notes
+
+- Dashboard routes are publicly renderable, while contract-writing actions are wallet-gated by Wagmi/Reown rather than username/password credentials.
+- No wallet seed or browser wallet session was available, so transaction submission flows were not executed.
+- No-wallet QA opened `/builders/newsubnet`, verified actionable controls render, and confirmed Umami sends `link-click-internal` for the `Cancel` action with `destination: /builders` and `element_area: main`.
