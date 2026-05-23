@@ -13,10 +13,13 @@ import { useTokenPrices } from "./hooks/use-token-prices";
 import { useUserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAssetsTable } from "./hooks/use-assets-table";
 import { useDailyEmissions } from "./hooks/use-daily-emissions";
-import { useTotalMorEarned } from "@/hooks/use-total-mor-earned";
+import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
+import { parsePowerFactorValue } from "@/lib/utils/power-factor-utils";
 import {
   hasStakedAssets as checkHasStakedAssets,
-  formatUnlockDate
+  formatUnlockDateDisplay,
+  formatUnlockDateTooltip,
 } from "./utils/asset-formatters";
 import { getAssetConfig } from "./constants/asset-config";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
@@ -160,12 +163,23 @@ export function UserAssetsPanel() {
     wETH: wethEmissions,
   }), [stETHEmissions, usdcEmissions, usdtEmissions, wbtcEmissions, wethEmissions]);
 
-  // Fetch total MOR earned from Capital v2 subgraph (testnet only)
-  const totalMorEarnedResult = useTotalMorEarned(userAddress || null, networkEnv);
-  const {
-    totalEarned: totalMorEarned,
-    isLoading: isTotalMorEarnedLoading
-  } = totalMorEarnedResult;
+  const { morPrice } = useCapitalMetrics();
+  const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
+
+  const getEffectiveApr = useCallback((assetSymbol: AssetSymbol, powerFactor: string): string => {
+    const baseApr = poolData.assets[assetSymbol]?.apr;
+    if (!baseApr || baseApr === "N/A" || baseApr === "Coming Soon") {
+      return "N/A";
+    }
+
+    const baseAprNumeric = parseFloat(baseApr.replace("%", ""));
+    if (Number.isNaN(baseAprNumeric)) {
+      return "N/A";
+    }
+
+    const pfMultiplier = parsePowerFactorValue(powerFactor);
+    return `${(baseAprNumeric * pfMultiplier).toFixed(2)}%`;
+  }, [poolData.assets]);
 
   const { setCachedUserAssets } = useUserAssetsCache({
     userAddress,
@@ -427,8 +441,9 @@ export function UserAssetsPanel() {
         const multiplier = assetData.userMultiplierFormatted;
         const rawClaimUnlockDate = getAssetUnlockDateCallback(assetSymbol);
         const rawWithdrawUnlockDate = getAssetWithdrawUnlockDateCallback(assetSymbol);
-        const displayClaimUnlockDate = formatUnlockDate(rawClaimUnlockDate, assetSymbol);
-        const displayWithdrawUnlockDate = formatUnlockDate(rawWithdrawUnlockDate, assetSymbol);
+        const displayClaimUnlockDate = formatUnlockDateDisplay(rawClaimUnlockDate, assetSymbol);
+        const displayWithdrawUnlockDate = formatUnlockDateDisplay(rawWithdrawUnlockDate, assetSymbol);
+        const effectiveApr = getEffectiveApr(assetSymbol, multiplier || "x1.0");
 
         return {
           id: (index + 1).toString(),
@@ -438,9 +453,12 @@ export function UserAssetsPanel() {
           amountStaked: amount,
           available: available,
           dailyEmissions: emissions,
+          apr: effectiveApr,
           powerFactor: multiplier || "x1.0",
-          unlockDate: displayClaimUnlockDate, // For "Claim Unlock Date" column
-          withdrawUnlockDate: displayWithdrawUnlockDate, // For "Amount Staked" badge/tooltip  
+          unlockDate: displayClaimUnlockDate,
+          unlockDateTooltip: formatUnlockDateTooltip(rawClaimUnlockDate),
+          withdrawUnlockDate: displayWithdrawUnlockDate,
+          withdrawUnlockDateTooltip: formatUnlockDateTooltip(rawWithdrawUnlockDate),
           availableToClaim: claimable,
           canClaim: canAssetClaim(assetSymbol),
           canWithdraw: canAssetWithdraw(assetSymbol),
@@ -470,7 +488,7 @@ export function UserAssetsPanel() {
       // Assets with zero staked go to the end
       return aIsZeroStaked ? 1 : -1;
     }) as UserAsset[];
-  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, getAssetWithdrawUnlockDateCallback, assetEmissions, canAssetWithdraw, networkEnv]);
+  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, getAssetWithdrawUnlockDateCallback, assetEmissions, canAssetWithdraw, networkEnv, getEffectiveApr]);
 
   // Use sorting hook
   const { sortedUserAssets: userAssets, sorting, handleSortingChange } = useAssetsTable(unsortedUserAssets);
@@ -550,17 +568,30 @@ export function UserAssetsPanel() {
       return formatted;
     };
 
-    // Calculate lifetime earnings using subgraph data (both mainnet and testnet)
-    // Use same formatting logic as daily emissions for consistency
-    const lifetimeEarnings = isTotalMorEarnedLoading
-      ? "..."
-      : formatDailyEmissions(totalMorEarned);
+    let weightedAprTotal = 0;
+    let weightedAprWeight = 0;
+
+    unsortedUserAssets.forEach((asset) => {
+      const aprNumeric = parseFloat(asset.apr.replace("%", ""));
+      if (Number.isNaN(aprNumeric) || asset.amountStaked <= 0) {
+        return;
+      }
+
+      const assetPrice = getAssetPrice(asset.assetSymbol);
+      const weight = assetPrice && assetPrice > 0 ? asset.amountStaked * assetPrice : asset.amountStaked;
+      weightedAprTotal += aprNumeric * weight;
+      weightedAprWeight += weight;
+    });
+
+    const averageApr = weightedAprWeight > 0
+      ? `${(weightedAprTotal / weightedAprWeight).toFixed(2)}%`
+      : "N/A";
 
     const freshMetrics = {
       stakedValue: Math.floor(totalStakedValue).toLocaleString('en-US'),
       totalMorStaked: "0",
       dailyEmissionsEarned: formatDailyEmissions(totalDailyEmissions),
-      lifetimeEmissionsEarned: lifetimeEarnings,
+      averageApr,
       totalAvailableToClaim: formatNumber(totalTableAvailableToClaim),
       referralRewards: "0",
     };
@@ -587,7 +618,7 @@ export function UserAssetsPanel() {
     }
 
     return freshMetrics;
-  }, [hasStakedAssets, assets, stethPrice, linkPrice, unsortedUserAssets, networkEnv, isTotalMorEarnedLoading, totalMorEarned, userAddress, setCachedUserAssets, getAssetPrice, debugCacheState, hasValidData, isInitialLoad]);
+  }, [hasStakedAssets, assets, stethPrice, linkPrice, unsortedUserAssets, networkEnv, userAddress, setCachedUserAssets, getAssetPrice, debugCacheState, hasValidData, isInitialLoad, poolData.assets]);
 
 
   return (

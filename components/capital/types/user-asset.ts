@@ -8,9 +8,12 @@ export interface UserAsset {
   amountStaked: number;
   available: number;
   dailyEmissions: number;
+  apr: string;
   powerFactor: string;
-  unlockDate: string | null; // For "Claim Unlock Date" column
-  withdrawUnlockDate: string | null; // For "Amount Staked" badge/tooltip
+  unlockDate: string | null;
+  unlockDateTooltip: string | null;
+  withdrawUnlockDate: string | null;
+  withdrawUnlockDateTooltip: string | null;
   availableToClaim: number;
   canClaim: boolean;
   canWithdraw: boolean;

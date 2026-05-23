@@ -19,6 +19,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatNumber } from "@/lib/utils";
 import { formatAssetAmount, formatStakedAmount } from "./utils/asset-formatters";
 import type { UserAsset } from "./types/user-asset";
@@ -35,6 +41,38 @@ interface UserAssetsTableProps {
   isAnyActionProcessing: boolean;
   isModalTransitioning: boolean;
   isDropdownTransitioning: boolean;
+}
+
+function DateCell({
+  displayDate,
+  tooltipDate,
+}: {
+  displayDate: string | null;
+  tooltipDate: string | null;
+}) {
+  const label = displayDate || "N/A";
+
+  if (!tooltipDate || tooltipDate === label) {
+    return <span className="text-gray-300 whitespace-nowrap">{label}</span>;
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="text-gray-300 whitespace-nowrap cursor-help underline decoration-dotted decoration-gray-600 underline-offset-2">
+            {label}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
+        >
+          <p className="text-sm">{tooltipDate}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export function UserAssetsTable({
@@ -67,7 +105,7 @@ export function UserAssetsTable({
       },
       {
         id: "amountStaked",
-        header: "Amount Deposited",
+        header: "Deposited",
         accessorKey: "amountStaked",
         enableSorting: true,
         cell: (asset) => (
@@ -95,14 +133,15 @@ export function UserAssetsTable({
         id: "depositUnlockDate",
         header: "Deposit Unlock Date",
         cell: (asset) => (
-          <span className="text-gray-300 whitespace-nowrap">
-            {asset.withdrawUnlockDate || "N/A"}
-          </span>
+          <DateCell
+            displayDate={asset.withdrawUnlockDate}
+            tooltipDate={asset.withdrawUnlockDateTooltip}
+          />
         ),
       },
       {
         id: "available",
-        header: "Available to Deposit",
+        header: "Available",
         accessorKey: "available",
         enableSorting: true,
         cell: (asset) => (
@@ -113,7 +152,7 @@ export function UserAssetsTable({
       },
       {
         id: "dailyEmissions",
-        header: "Daily Emissions",
+        header: "MOR Daily Emissions",
         accessorKey: "dailyEmissions",
         enableSorting: true,
         cell: (asset) => {
@@ -123,10 +162,21 @@ export function UserAssetsTable({
 
           return (
             <span className="text-gray-200">
-              {formattedValue} MOR
+              {formattedValue}
             </span>
           );
         },
+      },
+      {
+        id: "apr",
+        header: "APR",
+        accessorKey: "apr",
+        enableSorting: true,
+        cell: (asset) => (
+          <span className="text-gray-200 whitespace-nowrap">
+            {asset.apr}
+          </span>
+        ),
       },
       {
         id: "powerFactor",
@@ -143,20 +193,21 @@ export function UserAssetsTable({
         id: "unlockDate",
         header: "MOR Unlock Date",
         cell: (asset) => (
-          <span className="text-gray-300 whitespace-nowrap">
-            {asset.unlockDate || "N/A"}
-          </span>
+          <DateCell
+            displayDate={asset.unlockDate}
+            tooltipDate={asset.unlockDateTooltip}
+          />
         ),
       },
       {
         id: "availableToClaim",
-        header: "Available to Claim",
+        header: "Earned",
         accessorKey: "availableToClaim",
         enableSorting: true,
         cell: (asset) => (
           <div className="flex items-center gap-2">
             <span className={asset.canClaim ? "text-gray-200" : "text-gray-500"}>
-              {formatNumber(asset.availableToClaim)} MOR
+              {formatNumber(asset.availableToClaim)}
             </span>
             {asset.amountStaked > 0 && (
               <Badge className={`h-4 min-w-4 rounded-full px-1 font-mono tabular-nums ${

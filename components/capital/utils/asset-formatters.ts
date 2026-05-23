@@ -110,20 +110,74 @@ export const isUnlockDateReached = (unlockDate: string | null, hasStakedAssets: 
   }
 };
 
-/**
- * Format unlock date for display - handles null dates gracefully
- */
-export const formatUnlockDate = (unlockDate: string | null, assetSymbol: string): string => {
+const NON_DATE_LABELS = new Set([
+  "--- --, ----",
+  "Never",
+  "Invalid Date",
+  "No lock set",
+  "Assets unlocked",
+  "N/A",
+]);
+
+function parseUnlockDateString(unlockDate: string): Date | null {
+  const date = new Date(unlockDate);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Date-only label for table cells (time shown in tooltip on hover) */
+export const formatUnlockDateDisplay = (
+  unlockDate: string | null,
+  assetSymbol: string
+): string => {
   if (!unlockDate) {
-    // For LINK assets with no lock set, show user-friendly message
-    if (assetSymbol === 'LINK') {
+    if (assetSymbol === "LINK") {
       return "Assets unlocked";
     }
     return "N/A";
   }
 
-  // Return the formatted date as-is
-  return unlockDate;
+  if (NON_DATE_LABELS.has(unlockDate)) {
+    return unlockDate;
+  }
+
+  const date = parseUnlockDateString(unlockDate);
+  if (!date) {
+    return unlockDate;
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+/** Full date + time for hover tooltips */
+export const formatUnlockDateTooltip = (unlockDate: string | null): string | null => {
+  if (!unlockDate || NON_DATE_LABELS.has(unlockDate)) {
+    return null;
+  }
+
+  const date = parseUnlockDateString(unlockDate);
+  if (!date) {
+    return unlockDate;
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+/**
+ * Format unlock date for display - handles null dates gracefully
+ * @deprecated Prefer formatUnlockDateDisplay for table cells
+ */
+export const formatUnlockDate = (unlockDate: string | null, assetSymbol: string): string => {
+  return formatUnlockDateDisplay(unlockDate, assetSymbol);
 };
 
 /**
