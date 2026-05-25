@@ -13,7 +13,7 @@ interface MetricsData {
   stakedValue: string;
   dailyEmissionsEarned: string;
   totalAvailableToClaim: string;
-  lifetimeEmissionsEarned: string;
+  averageApr: string;
 }
 
 interface UserAssetsMetricsProps {
@@ -22,6 +22,11 @@ interface UserAssetsMetricsProps {
 }
 
 export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsProps) {
+  const averageAprDisplay =
+    metricsData.averageApr === "N/A"
+      ? metricsData.averageApr
+      : metricsData.averageApr.replace("%", "");
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-x-2 sm:gap-x-4 gap-y-2 mb-6">
       <MetricCardMinimal
@@ -64,7 +69,7 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
       <MetricCardMinimal
         title={
           <div className="flex items-center gap-1">
-            Claimable Rewards
+            Total Earned
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -76,7 +81,7 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
                   className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl max-w-xs"
                 >
                   <p className="text-sm">
-                    Actual rewards that have already accrued and can be withdrawn at unlock date
+                    Total MOR rewards accrued across your positions, including amounts not yet claimable
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -93,7 +98,7 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
       <MetricCardMinimal
         title={
           <div className="flex items-center gap-1">
-            Total MOR Earned
+            Average APR
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -105,15 +110,15 @@ export function UserAssetsMetrics({ metricsData, isLoading }: UserAssetsMetricsP
                   className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl max-w-xs"
                 >
                   <p className="text-sm">
-                    Historical total of MOR rewards earned from staking.
+                    Deposit-weighted average estimated APR across your positions, including each asset&apos;s power factor
                   </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
         }
-        value={metricsData.lifetimeEmissionsEarned}
-        label="MOR"
+        value={averageAprDisplay}
+        label={metricsData.averageApr !== "N/A" ? "%" : undefined}
         disableGlow={true}
         autoFormatNumbers={false}
         className="col-span-1"

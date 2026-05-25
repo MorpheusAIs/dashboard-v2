@@ -515,6 +515,40 @@ export function getMinAllowedValue(unit: TimeUnit): number {
  * @param unit - Time unit
  * @returns Maximum allowed value as number
  */
+/** Calendar days from today until ~7 years — when power factor reaches x10.7 */
+export function getMaxLockSliderDays(): number {
+  const start = new Date();
+  const end = new Date(start);
+  end.setFullYear(start.getFullYear() + 7);
+  return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/** Human-readable lock duration label for slider tooltip / display */
+export function formatLockDurationFromDays(days: number): string {
+  if (days < 30) {
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+  if (days < 365) {
+    const months = Math.round(days / 30);
+    return `${months} month${months === 1 ? "" : "s"}`;
+  }
+  const years = Math.floor(days / 365);
+  const remainingMonths = Math.round((days % 365) / 30);
+  if (remainingMonths === 0) {
+    return `${years} year${years === 1 ? "" : "s"}`;
+  }
+  return `${years}y ${remainingMonths}m`;
+}
+
+/** Parse a formatted power factor string (e.g. "x2.5") to a numeric multiplier */
+export function parsePowerFactorValue(powerFactorString: string): number {
+  if (!powerFactorString || powerFactorString === "Loading...") {
+    return 1;
+  }
+  const numeric = parseFloat(powerFactorString.replace("x", ""));
+  return Number.isNaN(numeric) ? 1 : numeric;
+}
+
 export function getMaxAllowedValue(unit: TimeUnit): number {
   switch (unit) {
     case "years":

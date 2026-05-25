@@ -417,10 +417,25 @@ export function useCapitalMetrics(): CapitalMetrics {
 
   // Calculate core metrics from live pool data (excluding active stakers to avoid blocking)
   const coreMetrics = useMemo(() => {
-    // Check if we have the minimum required prices (stETH is most critical for mainnet)
-    const hasRequiredPrices = poolData.networkEnvironment === 'mainnet' 
-      ? (stethPrice !== null && morPrice !== null) // Mainnet needs at least stETH and MOR prices
-      : true; // Testnet can proceed with available prices
+    const getAssetPrice = (assetSymbol: AssetSymbol): number | null => {
+      if (assetSymbol === 'stETH') return stethPrice;
+      if (assetSymbol === 'LINK') return linkPrice;
+      if (assetSymbol === 'wBTC') return wbtcPrice;
+      if (assetSymbol === 'wETH') return wethPrice;
+      if (assetSymbol === 'USDC' || assetSymbol === 'USDT') return 1.0;
+      return null;
+    };
+
+    const hasRequiredPrices = morPrice !== null && supportedAssets.every(assetSymbol => {
+      const assetData = poolData.assets[assetSymbol];
+      const amount = parsePoolAmount(assetData?.totalStaked || '0');
+
+      if (amount <= 0) {
+        return true;
+      }
+
+      return getAssetPrice(assetSymbol) !== null;
+    });
     
     // Core metrics loading (DON'T include active stakers loading to avoid blocking chart)
     // Wait for prices to be loaded before proceeding with calculations
@@ -518,17 +533,9 @@ export function useCapitalMetrics(): CapitalMetrics {
 
       // Calculate USD value based on asset type using DefiLlama prices
       let usdValue = 0;
-      if (assetSymbol === 'stETH' && stethPrice && amount > 0) {
-        usdValue = amount * stethPrice;
-      } else if (assetSymbol === 'LINK' && linkPrice && amount > 0) {
-        usdValue = amount * linkPrice;
-      } else if (assetSymbol === 'wBTC' && wbtcPrice && amount > 0) {
-        usdValue = amount * wbtcPrice;
-      } else if (assetSymbol === 'wETH' && wethPrice && amount > 0) {
-        usdValue = amount * wethPrice;
-      } else if ((assetSymbol === 'USDC' || assetSymbol === 'USDT') && amount > 0) {
-        // Stablecoins are always $1.00
-        usdValue = amount * 1.0;
+      const assetPrice = getAssetPrice(assetSymbol);
+      if (assetPrice !== null && amount > 0) {
+        usdValue = amount * assetPrice;
       }
 
       assetUSDValues[assetSymbol] = usdValue;
@@ -625,27 +632,13 @@ export function useCapitalMetrics(): CapitalMetrics {
       const prices: Record<string, number> = {};
       let hasAnyPriceData = false;
 
-      // Collect available price data from DefiLlama
-      if (stethPrice) {
-        prices.stETH = stethPrice;
-        hasAnyPriceData = true;
-      }
-      if (linkPrice) {
-        prices.LINK = linkPrice;
-        hasAnyPriceData = true;
-      }
-      if (wbtcPrice) {
-        prices.wBTC = wbtcPrice;
-        hasAnyPriceData = true;
-      }
-      if (wethPrice) {
-        prices.wETH = wethPrice;
-        hasAnyPriceData = true;
-      }
-      // Always include stablecoin prices
-      prices.USDC = 1.0;
-      prices.USDT = 1.0;
-      hasAnyPriceData = true;
+      supportedAssets.forEach(assetSymbol => {
+        const assetPrice = getAssetPrice(assetSymbol);
+        if (assetPrice !== null) {
+          prices[assetSymbol] = assetPrice;
+          hasAnyPriceData = true;
+        }
+      });
 
       if (hasAnyPriceData) {
         const cacheData: TVLCache = {
@@ -667,14 +660,7 @@ export function useCapitalMetrics(): CapitalMetrics {
 
       // Check if we have any asset deposits but missing price data
       const hasAnyDeposits = supportedAssets.some(assetSymbol => assetAmounts[assetSymbol] > 0);
-      const hasAllPrices = supportedAssets.every(assetSymbol => {
-        if (assetSymbol === 'stETH') return !!stethPrice;
-        if (assetSymbol === 'LINK') return !!linkPrice;
-        if (assetSymbol === 'wBTC') return !!wbtcPrice;
-        if (assetSymbol === 'wETH') return !!wethPrice;
-        if (assetSymbol === 'USDC' || assetSymbol === 'USDT') return true; // Stablecoins always have price
-        return false;
-      });
+      const hasAllPrices = supportedAssets.every(assetSymbol => getAssetPrice(assetSymbol) !== null);
 
       if (hasAnyDeposits && !hasAllPrices) {
         // We have pool deposits but missing price data - try to use cached price

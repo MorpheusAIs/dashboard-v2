@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { getTokenPrice, updateSharedPrices } from "@/app/services/token-price.service";
+import { getSharedPrices, updateSharedPrices } from "@/app/services/token-price.service";
 import {
   type NetworkEnvironment,
   type AssetSymbol,
@@ -25,6 +25,118 @@ const TOKEN_PRICE_CACHE_KEY = 'morpheus_token_prices';
 const PRICE_CACHE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const PRICE_RETRY_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes before allowing retry
 export const MAX_PRICE_RETRIES = 3;
+
+type ApiPriceSymbol = Exclude<AssetSymbol, 'USDC' | 'USDT'> | 'MOR';
+
+interface TokenPricesApiResponse {
+  prices?: Partial<Record<ApiPriceSymbol, unknown>>;
+}
+
+interface TokenPriceSnapshot {
+  prices: Record<AssetSymbol, number | null>;
+  morPrice: number | null;
+}
+
+const inFlightPriceFetches: Partial<Record<NetworkEnvironment, Promise<TokenPriceSnapshot>>> = {};
+
+const createDefaultPrices = (): Record<AssetSymbol, number | null> => ({
+  stETH: null,
+  LINK: null,
+  USDC: 1.0,
+  USDT: 1.0,
+  wBTC: null,
+  wETH: null,
+});
+
+const parsePositivePrice = (value: unknown): number | null => {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+};
+
+const normalizeCachedPrices = (cachedPrices: TokenPriceCache): Record<AssetSymbol, number | null> => ({
+  ...createDefaultPrices(),
+  ...(cachedPrices.prices || {}),
+  stETH: cachedPrices.prices?.stETH ?? cachedPrices.stethPrice ?? null,
+  LINK: cachedPrices.prices?.LINK ?? cachedPrices.linkPrice ?? null,
+  USDC: 1.0,
+  USDT: 1.0,
+});
+
+const getSharedPriceSnapshot = (): TokenPriceSnapshot | null => {
+  const sharedPrices = getSharedPrices();
+
+  if (!sharedPrices.lastUpdated) {
+    return null;
+  }
+
+  return {
+    prices: {
+      ...createDefaultPrices(),
+      stETH: sharedPrices.stETH,
+      LINK: sharedPrices.LINK,
+      wBTC: sharedPrices.wBTC,
+      wETH: sharedPrices.wETH,
+    },
+    morPrice: sharedPrices.MOR,
+  };
+};
+
+const fetchTokenPriceSnapshot = async (networkEnvironment: NetworkEnvironment): Promise<TokenPriceSnapshot> => {
+  const inFlightPriceFetch = inFlightPriceFetches[networkEnvironment];
+  if (inFlightPriceFetch) {
+    return inFlightPriceFetch;
+  }
+
+  const nextFetch = (async () => {
+    const response = await fetch('/api/token-prices', {
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token price API responded with status ${response.status}`);
+    }
+
+    const data: TokenPricesApiResponse = await response.json();
+    const apiPrices = data.prices || {};
+    const availableAssets = getAssetsForNetwork(networkEnvironment);
+    const nextPrices = createDefaultPrices();
+
+    availableAssets.forEach((assetInfo) => {
+      const { symbol } = assetInfo.metadata;
+
+      if (symbol === 'USDC' || symbol === 'USDT') {
+        nextPrices[symbol] = 1.0;
+        return;
+      }
+
+      const price = parsePositivePrice(apiPrices[symbol]);
+      if (price === null) {
+        throw new Error(`Token price API did not return a valid ${symbol} price`);
+      }
+
+      nextPrices[symbol] = price;
+    });
+
+    const morPrice = parsePositivePrice(apiPrices.MOR);
+    if (morPrice === null) {
+      throw new Error('Token price API did not return a valid MOR price');
+    }
+
+    return {
+      prices: nextPrices,
+      morPrice,
+    };
+  })().finally(() => {
+    delete inFlightPriceFetches[networkEnvironment];
+  });
+
+  inFlightPriceFetches[networkEnvironment] = nextFetch;
+
+  return nextFetch;
+};
 
 // Helper to get user-specific cache key for better isolation
 const getUserPriceCacheKey = (userAddress?: string): string => {
@@ -64,12 +176,11 @@ export const setCachedPrices = (cache: TokenPriceCache, userAddress?: string): v
   if (typeof window === 'undefined') return;
   try {
     const cacheKey = getUserPriceCacheKey(userAddress);
-    localStorage.setItem(cacheKey, JSON.stringify(cache));
-    
-    // Also update global cache for fallback purposes (with rate limiting to avoid spam)
-    const globalCache = localStorage.getItem(TOKEN_PRICE_CACHE_KEY);
-    if (!globalCache || (cache.lastSuccessfulFetch > 0 && Math.random() < 0.1)) {
-      localStorage.setItem(TOKEN_PRICE_CACHE_KEY, JSON.stringify(cache));
+    const serializedCache = JSON.stringify(cache);
+    localStorage.setItem(cacheKey, serializedCache);
+
+    if (cache.lastSuccessfulFetch > 0 || cacheKey === TOKEN_PRICE_CACHE_KEY) {
+      localStorage.setItem(TOKEN_PRICE_CACHE_KEY, serializedCache);
     }
   } catch (error) {
     console.warn('Error saving token prices cache:', error);
@@ -103,14 +214,7 @@ export function useTokenPrices({
   networkEnv
 }: UseTokenPricesOptions) {
   // Dynamic price state for all assets - initialize stablecoins to $1.00
-  const [prices, setPrices] = useState<Record<AssetSymbol, number | null>>({
-    stETH: null,
-    LINK: null,
-    USDC: 1.0, // Stablecoin - always $1.00
-    USDT: 1.0, // Stablecoin - always $1.00
-    wBTC: null,
-    wETH: null,
-  });
+  const [prices, setPrices] = useState<Record<AssetSymbol, number | null>>(createDefaultPrices);
   const [morPrice, setMorPrice] = useState<number | null>(null);
   const [isPriceUpdating, startPriceTransition] = useTransition();
 
@@ -118,49 +222,19 @@ export function useTokenPrices({
   const stethPrice = prices.stETH;
   const linkPrice = prices.LINK;
 
-  // Load cached prices on mount
+  // Load shared in-memory prices on mount. Browser localStorage is used only as a
+  // network-failure fallback so different browsers do not render different cached prices first.
   useEffect(() => {
-    const cachedPrices = getCachedPrices(userAddress);
-    if (cachedPrices) {
-      console.log('💰 Loading cached token prices:', {
-        ...cachedPrices,
-        userAddress: userAddress?.slice(0, 6) || 'anonymous'
-      });
-
-      // Load dynamic prices if available, but preserve stablecoin prices
-      if (cachedPrices.prices) {
-        setPrices(prev => ({
-          ...prev,
-          ...cachedPrices.prices,
-          // Always ensure stablecoins are $1.00 regardless of cache
-          USDC: 1.0,
-          USDT: 1.0,
-        }));
-      } else {
-        // Fallback to legacy cache structure
-        setPrices(prev => ({
-          ...prev,
-          stETH: cachedPrices.stethPrice,
-          LINK: cachedPrices.linkPrice,
-          // Preserve stablecoin prices
-          USDC: 1.0,
-          USDT: 1.0,
-        }));
-      }
-      setMorPrice(cachedPrices.morPrice);
-
-      // Update shared state with cached prices
-      if (cachedPrices.prices || cachedPrices.stethPrice || cachedPrices.morPrice) {
-        updateSharedPrices({
-          stETH: cachedPrices.stethPrice || cachedPrices.prices?.stETH || null,
-          wBTC: cachedPrices.prices?.wBTC || null,
-          wETH: cachedPrices.prices?.wETH || null,
-          LINK: cachedPrices.linkPrice || cachedPrices.prices?.LINK || null,
-          MOR: cachedPrices.morPrice || null,
-        });
-      }
+    const sharedSnapshot = getSharedPriceSnapshot();
+    if (!sharedSnapshot) {
+      return;
     }
-  }, [userAddress]);
+
+    startPriceTransition(() => {
+      setPrices(sharedSnapshot.prices);
+      setMorPrice(sharedSnapshot.morPrice);
+    });
+  }, [startPriceTransition]);
 
   // Fetch token prices with robust retry and fallback logic
   useEffect(() => {
@@ -172,85 +246,16 @@ export function useTokenPrices({
     async function fetchTokenPricesWithRetry() {
       const cachedPrices = getCachedPrices(userAddress);
 
-      // Check if we should attempt a fresh fetch or use cache
-      if (cachedPrices && !shouldRetryPriceFetch(cachedPrices)) {
-        console.log('💰 Using cached prices due to retry limit or cooldown:', {
-          retryCount: cachedPrices.retryCount,
-          maxRetries: MAX_PRICE_RETRIES,
-          timeSinceLastTry: Date.now() - cachedPrices.timestamp,
-          userAddress: userAddress?.slice(0, 6) || 'anonymous'
-        });
-
-        // Use cached prices and reset loading flags
-        startPriceTransition(() => {
-          setPrices(prev => ({
-            ...prev,
-            stETH: cachedPrices.stethPrice,
-            LINK: cachedPrices.linkPrice,
-            // Always ensure stablecoins are $1.00
-            USDC: 1.0,
-            USDT: 1.0,
-          }));
-          setMorPrice(cachedPrices.morPrice);
-        });
-
-        // Update shared state
-        updateSharedPrices({
-          stETH: cachedPrices.stethPrice || null,
-          wBTC: cachedPrices.prices?.wBTC || null,
-          wETH: cachedPrices.prices?.wETH || null,
-          LINK: cachedPrices.linkPrice || null,
-          MOR: cachedPrices.morPrice || null,
-        });
-
-        return;
-      }
-
       try {
         console.log('💰 Attempting to fetch fresh token prices...', {
           retryCount: cachedPrices?.retryCount || 0,
           maxRetries: MAX_PRICE_RETRIES
         });
 
-        // Get all available assets and fetch prices dynamically
         const networkEnvironment: NetworkEnvironment = networkEnv as NetworkEnvironment;
-        const availableAssets = getAssetsForNetwork(networkEnvironment);
-
-        // Create price fetch promises for all available assets
-        const assetPricePromises = availableAssets.map(async (assetInfo) => {
-          try {
-            const price = await getTokenPrice(assetInfo.metadata.coinGeckoId, 'usd');
-            return { symbol: assetInfo.metadata.symbol, price };
-          } catch (error) {
-            console.warn(`Failed to fetch price for ${assetInfo.metadata.symbol}:`, error);
-            return { symbol: assetInfo.metadata.symbol, price: null };
-          }
-        });
-
-        // Fetch MOR price separately (from CoinGecko via server cache)
-        const morPricePromise = getTokenPrice('morpheusai', 'usd');
-
-        const [assetPriceResults, morPriceData] = await Promise.all([
-          Promise.all(assetPricePromises),
-          morPricePromise
-        ]);
-
-        // Build dynamic prices object - initialize stablecoins to $1.00
-        const newPrices: Record<AssetSymbol, number | null> = {
-          stETH: null,
-          LINK: null,
-          USDC: 1.0, // Always $1.00 for stablecoin
-          USDT: 1.0, // Always $1.00 for stablecoin
-          wBTC: null,
-          wETH: null,
-        };
-
-        // Update prices from API results (but skip stablecoins as they're already set)
-        assetPriceResults.forEach(({ symbol, price }) => {
-          if (symbol !== 'USDC' && symbol !== 'USDT') {
-            newPrices[symbol] = price;
-          }
-        });
+        const priceSnapshot = await fetchTokenPriceSnapshot(networkEnvironment);
+        const newPrices = priceSnapshot.prices;
+        const morPriceData = priceSnapshot.morPrice;
 
         // Update shared state with fresh prices
         updateSharedPrices({
@@ -302,18 +307,7 @@ export function useTokenPrices({
           setCachedPrices(updatedCache, userAddress);
 
           // Use cached prices as fallback, but preserve stablecoin prices
-          const fallbackPrices = cachedPrices.prices || {
-            stETH: cachedPrices.stethPrice,
-            LINK: cachedPrices.linkPrice,
-            USDC: 1.0, // Always $1.00 for stablecoin
-            USDT: 1.0, // Always $1.00 for stablecoin
-            wBTC: null,
-            wETH: null,
-          };
-
-          // Ensure stablecoins are always $1.00 even in fallback
-          fallbackPrices.USDC = 1.0;
-          fallbackPrices.USDT = 1.0;
+          const fallbackPrices = normalizeCachedPrices(cachedPrices);
 
           console.log('💰 Using cached prices as fallback after error:', {
             ...fallbackPrices,
@@ -337,14 +331,7 @@ export function useTokenPrices({
         } else {
           // No cache available, create empty cache with retry count (but preserve stablecoin prices)
           const errorCache: TokenPriceCache = {
-            prices: {
-              stETH: null,
-              LINK: null,
-              USDC: 1.0, // Always $1.00 for stablecoin
-              USDT: 1.0, // Always $1.00 for stablecoin
-              wBTC: null,
-              wETH: null,
-            },
+            prices: createDefaultPrices(),
             stethPrice: null,
             linkPrice: null,
             morPrice: null,

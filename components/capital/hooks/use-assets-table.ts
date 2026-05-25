@@ -32,6 +32,10 @@ export function useAssetsTable(userAssets: UserAsset[]) {
           aValue = a.dailyEmissions;
           bValue = b.dailyEmissions;
           break;
+        case 'apr':
+          aValue = parseFloat(a.apr.replace('%', '')) || 0;
+          bValue = parseFloat(b.apr.replace('%', '')) || 0;
+          break;
         case 'availableToClaim':
           aValue = a.availableToClaim;
           bValue = b.availableToClaim;

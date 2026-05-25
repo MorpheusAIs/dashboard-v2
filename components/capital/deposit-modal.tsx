@@ -11,18 +11,20 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogDescription, 
   DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 
 // Import Context and Hooks
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { usePowerFactor } from "@/hooks/use-power-factor";
-// import { useEstimatedRewards } from "@/hooks/use-estimated-rewards";
+import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
+import { useDailyEmissions } from "@/components/capital/hooks/use-daily-emissions";
+import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
 
 // Import Config and Utils
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
@@ -30,6 +32,9 @@ import {
   getMaxAllowedValue,
   getMinAllowedValue,
   durationToSeconds,
+  parsePowerFactorValue,
+  calculatePowerFactorFromDuration,
+  POWER_FACTOR_CONSTANTS,
   type TimeUnit
 } from "@/lib/utils/power-factor-utils";
 
@@ -44,6 +49,7 @@ import {
   type AssetContractInfo
 } from "./constants/asset-config";
 import { TimeLockPeriodSelector } from "./time-lock-period-selector";
+import { DepositModalResultsPanel } from "./deposit-modal-results-panel";
 
 export function DepositModal() {
   // Network switching hook
@@ -266,7 +272,10 @@ export function DepositModal() {
   const [amount, setAmount] = useState("");
   const [rawAmount, setRawAmount] = useState(""); // Store raw amount for transactions
   const [referrerAddress, setReferrerAddress] = useState("");
-  const [lockValue, setLockValue] = useState("7");
+  const [showReferrerField, setShowReferrerField] = useState(false);
+  const [cameFromReferralLink, setCameFromReferralLink] = useState(false);
+  const [lockDays, setLockDays] = useState<number>(POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS);
+  const [lockValue, setLockValue] = useState(String(POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS));
   const [lockUnit, setLockUnit] = useState<TimeUnit>("days");
   const [formError, setFormError] = useState<string | null>(null);
   const [referrerAddressError, setReferrerAddressError] = useState<string | null>(null);
@@ -276,12 +285,25 @@ export function DepositModal() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeLockDropdownRef = useRef<HTMLDivElement>(null);
 
+  const { morPrice } = useCapitalMetrics();
+  const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
+  const { getAssetPrice } = useTokenPrices({
+    isInitialLoad: true,
+    shouldRefreshData: false,
+    networkEnv,
+  });
+
   // Initialize power factor hook (after state declarations)
   const powerFactor = usePowerFactor({
     contractAddress: poolContractAddress,
     chainId: l1ChainId,
     enabled: true,
   });
+
+  const baselinePowerFactor = useMemo(
+    () => calculatePowerFactorFromDuration(String(POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS), "days"),
+    []
+  );
 
   // Get the deposit pool address for the selected asset (V7 protocol requirement)
   // const selectedAssetDepositPoolAddress = useMemo(() => {
@@ -337,32 +359,18 @@ export function DepositModal() {
   //   }
   // }, [powerFactor, estimatedRewards, poolContractAddress, l1ChainId, amount, lockValue, lockUnit]);
 
-  // Update power factor calculation when lock period changes
+  // Update power factor calculation when lock period changes (debounced for slider)
   useEffect(() => {
-    // if (process.env.NODE_ENV !== 'production') {
-    //   console.group('🎛️ [Deposit Modal Debug] Lock Period Change');
-    //   console.log('Lock Value:', lockValue);
-    //   console.log('Lock Unit:', lockUnit);
-    //   console.log('Power Factor Hook State:', {
-    //     contractAddress: poolContractAddress,
-    //     chainId: l1ChainId,
-    //     isLoading: powerFactor.isLoading,
-    //     contractError: powerFactor.contractError,
-    //     currentResult: powerFactor.currentResult
-    //   });
-    // }
-    
-    if (lockValue && parseInt(lockValue, 10) > 0) {
-      // if (process.env.NODE_ENV !== 'production') {
-      //   console.log('Calling powerFactor.setLockPeriod');
-      // }
-      powerFactor.setLockPeriod(lockValue, lockUnit);
+    if (!lockValue || parseInt(lockValue, 10) <= 0) {
+      return;
     }
-    
-    // if (process.env.NODE_ENV !== 'production') {
-    //   console.groupEnd();
-    // }
-  }, [lockValue, lockUnit, powerFactor, poolContractAddress, l1ChainId]);
+
+    const timer = window.setTimeout(() => {
+      powerFactor.setLockPeriod(lockValue, lockUnit);
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [lockValue, lockUnit, powerFactor]);
 
   // Note: We no longer use currentAsset directly, instead using currentAssetBalance for validation
   
@@ -512,6 +520,31 @@ export function DepositModal() {
       return BigInt(0);
     }
   }, [amount, rawAmount, selectedAsset, availableAssets]);
+
+  const assetPrice = getAssetPrice(selectedAsset);
+  const { emissions: baseDailyMor, isLoading: isLoadingDailyMor } = useDailyEmissions(
+    undefined,
+    amountBigInt > BigInt(0) ? amountBigInt : undefined,
+    selectedAsset,
+    networkEnv,
+    0,
+    undefined,
+    assetPrice ?? undefined
+  );
+
+  const displayPowerFactor = powerFactor.currentResult.isLoading
+    ? calculatePowerFactorFromDuration(lockValue, lockUnit)
+    : powerFactor.currentResult.powerFactor;
+
+  const currentPfMultiplier = parsePowerFactorValue(displayPowerFactor);
+  const baselinePfMultiplier = parsePowerFactorValue(baselinePowerFactor);
+  const dailyMorReward = baseDailyMor * currentPfMultiplier;
+  const baselineDailyMorReward = baseDailyMor * baselinePfMultiplier;
+  const baseApr = poolData.assets[selectedAsset]?.apr || "N/A";
+  const isMetricsLoading =
+    poolData.assets[selectedAsset]?.isLoading ||
+    poolData.assets[selectedAsset]?.aprLoading ||
+    isLoadingDailyMor;
 
   // ENS Resolution
   const isEnsName = useMemo(() => {
@@ -694,7 +727,18 @@ export function DepositModal() {
   const handleLockValueChange = useCallback((value: string) => {
     if (value === '' || /^\d+$/.test(value)) {
       setLockValue(value);
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        setLockDays(parsed);
+      }
     }
+  }, []);
+
+  const handleLockDaysChange = useCallback((days: number) => {
+    setLockDays(days);
+    setLockValue(String(days));
+    setLockUnit("days");
+    setFormError(null);
   }, []);
 
   // Handle lock unit changes
@@ -927,7 +971,10 @@ export function DepositModal() {
       setAmount("");
       setRawAmount("");
       setReferrerAddress("");
-      setLockValue("7");
+      setShowReferrerField(false);
+      setCameFromReferralLink(false);
+      setLockDays(POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS);
+      setLockValue(String(POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS));
       setLockUnit("days");
       setFormError(null);
       setReferrerAddressError(null);
@@ -943,6 +990,8 @@ export function DepositModal() {
       // Pre-populate referrer address when modal opens with URL referrer
       if (preReferrerAddress && !referrerAddress) {
         setReferrerAddress(preReferrerAddress);
+        setShowReferrerField(true);
+        setCameFromReferralLink(true);
         // Clear the pre-populated address after using it
         setPreReferrerAddress('');
       }
@@ -952,15 +1001,13 @@ export function DepositModal() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && setActiveModal(null)}>
       <DialogPortal>
-        <DialogContent className="h-[100vh] w-full sm:h-auto sm:max-w-[425px] bg-background border-gray-800 flex flex-col sm:block overflow-hidden">
+        <DialogContent className="h-[100vh] w-full sm:h-auto sm:max-w-[425px] md:max-w-[780px] bg-background border-gray-800 flex flex-col sm:block overflow-hidden">
           <DialogHeader className="flex-shrink-0 px-4 sm:px-0">
             <DialogTitle className="text-xl font-bold text-emerald-400">Deposit Capital</DialogTitle>
-            <DialogDescription className="text-gray-400">
-              Deposit an asset to start earning MOR rewards. Power factor activates after ~7-8 months and reaches maximum x10.7 at ~7 years from now.
-            </DialogDescription>
           </DialogHeader>
 
-          <form id="deposit-form" onSubmit={handleSubmit} className="space-y-4 pt-4 px-4 sm:px-0 pb-4 sm:pb-0 flex-1 overflow-y-auto sm:overflow-visible">
+          <form id="deposit-form" onSubmit={handleSubmit} className="pt-4 px-4 sm:px-0 pb-4 sm:pb-0 flex-1 overflow-y-auto sm:overflow-visible md:grid md:grid-cols-2 md:gap-8 md:items-start">
+            <div className="space-y-4">
             {/* Asset Selection */}
             <div className="space-y-2 relative">
               <Label className="text-sm font-medium text-white">Select Asset</Label>
@@ -1096,7 +1143,8 @@ export function DepositModal() {
               </p>
             </div>
 
-            {/* Referrer Address */}
+            {/* Referrer Address — shown when user arrived via referral link, otherwise collapsible */}
+            {(showReferrerField || cameFromReferralLink) ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Label className="text-sm font-medium text-white">Referrer Address</Label>
@@ -1109,7 +1157,7 @@ export function DepositModal() {
                   const value = e.target.value;
                   setReferrerAddress(value);
                   validateReferrerAddress(value);
-                  setFormError(null); // Clear form error on input change
+                  setFormError(null);
                 }}
                 onBlur={() => validateReferrerAddress(referrerAddress)}
                 className={`bg-background border-gray-700 text-sm ${
@@ -1120,7 +1168,6 @@ export function DepositModal() {
                 disabled={isProcessingDeposit}
               />
               
-              {/* Show resolved address */}
               {resolvedAddress && isEnsName && (
                 <div className="flex items-center gap-2 text-xs text-green-400">
                   <span>Address:</span>
@@ -1130,14 +1177,12 @@ export function DepositModal() {
                 </div>
               )}
               
-              {/* Show loading state */}
               {isResolvingEns && (
                 <div className="flex items-center gap-2 text-xs text-yellow-400">
                   <span>🔄 Resolving ENS name...</span>
                 </div>
               )}
               
-              {/* Show ENS error details */}
               {ensError && !isResolvingEns && (
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
@@ -1177,9 +1222,23 @@ export function DepositModal() {
                 </p>
               )}
             </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowReferrerField(true)}
+                className="flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                disabled={isProcessingDeposit}
+              >
+                <Plus className="h-4 w-4" />
+                Add referral address
+              </button>
+            )}
 
             {/* Time Lock Period */}
             <TimeLockPeriodSelector
+              variant="slider"
+              lockDays={lockDays}
+              onLockDaysChange={handleLockDaysChange}
               lockValue={lockValue}
               lockUnit={lockUnit}
               onLockValueChange={handleLockValueChange}
@@ -1191,85 +1250,25 @@ export function DepositModal() {
               onValueChangeExtra={() => setFormError(null)}
               onUnitChangeExtra={() => setFormError(null)}
             />
+            </div>
 
-            {/* Summary Section */}
-            {amount && parseFloat(amount) > 0 && lockValue && parseInt(lockValue, 10) > 0 && (
-              <div className="p-1 rounded-md text-sm bg-emerald-500/20 rounded-lg p-3">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Deposit Amount</span>
-                    <span className="text-white">{amount} {selectedAsset}</span>
-                  </div>
-                  {unlockDate && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-300">Mor Unlock Date</span>
-                      <span className="text-white">
-                        {unlockDate.toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Power Factor</span>
-                    <span className="text-white">
-                      {(() => {
-                        const displayValue = powerFactor.currentResult.isLoading 
-                          ? "Loading..." 
-                          : powerFactor.currentResult.powerFactor;
-                        
-                        if (process.env.NODE_ENV !== 'production') {
-                          console.log('🎨 [Deposit Modal] Power Factor Display:', {
-                            isLoading: powerFactor.currentResult.isLoading,
-                            powerFactorValue: powerFactor.currentResult.powerFactor,
-                            displayValue,
-                            fullCurrentResult: powerFactor.currentResult
-                          });
-                        }
-                        
-                        return displayValue;
-                      })()}
-                    </span>
-                  </div>
-                  
-                  {/* Show power factor warning if applicable */}
-                  {powerFactor.currentResult.warning && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      * {powerFactor.currentResult.warning}
-                    </div>
-                  )}
-                  
-                  {/* Show power factor error if applicable */}
-                  {powerFactor.currentResult.error && (
-                    <div className="text-xs text-red-400 mt-1">
-                      {powerFactor.currentResult.error}
-                    </div>
-                  )}
-                  {/* <div className="flex justify-between items-center">
-                    <span className="text-gray-300">Est. Rewards Earned</span>
-                    <span className="text-white">
-                      {estimatedRewards.estimatedRewards}
-                    </span>
-                  </div> */}
-                  
-                  {/* Show estimation note for valid calculations */}
-                  {/* {estimatedRewards.isValid && estimatedRewards.estimatedRewards !== "---" && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      * Estimated based on current pool rate and power factor
-                    </div>
-                  )} */}
-                  
-                  {/* Show error if calculation failed */}
-                  {/* {estimatedRewards.error && !estimatedRewards.isLoading && (
-                    <div className="text-xs text-red-400 mt-1">
-                      {estimatedRewards.error}
-                    </div>
-                  )} */}
-                </div>
-              </div>
-                        )}
+            {/* Results panel — right column on desktop */}
+            <div className="mt-6 md:mt-0">
+              <DepositModalResultsPanel
+                amount={amount}
+                selectedAsset={selectedAsset}
+                unlockDate={unlockDate}
+                powerFactor={displayPowerFactor}
+                baselinePowerFactor={baselinePowerFactor}
+                baseApr={baseApr}
+                dailyMorReward={dailyMorReward}
+                baselineDailyMorReward={baselineDailyMorReward}
+                isPowerFactorLoading={powerFactor.currentResult.isLoading}
+                isMetricsLoading={isMetricsLoading}
+                powerFactorError={powerFactor.currentResult.error}
+                powerFactorWarning={powerFactor.currentResult.warning}
+              />
+            </div>
           </form>
 
           <DialogFooter className="flex-shrink-0 px-4 sm:px-0 sm:mt-4">

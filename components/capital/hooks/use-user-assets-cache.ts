@@ -8,7 +8,7 @@ export interface UserAssetsCache {
     stakedValue: string;
     totalMorStaked: string;
     dailyEmissionsEarned: string;
-    lifetimeEmissionsEarned: string;
+    averageApr: string;
     totalAvailableToClaim: string;
     referralRewards: string;
   };
