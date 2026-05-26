@@ -126,6 +126,7 @@ export function StakeModal({
     isCorrectNetwork,
     tokenSymbol,
     needsApproval,
+    isLoadingData,
     isSubmitting,
     handleApprove,
     handleStake,
@@ -155,7 +156,7 @@ export function StakeModal({
 
   // Check if the stake amount is valid (following page.tsx validation pattern)
   const isValidForSubmission = useMemo(() => {
-    if (!stakeAmount || !effectiveTokenBalance) return false;
+    if (!stakeAmount || !effectiveTokenBalance || isLoadingData) return false;
     
     const amount = parseFloat(stakeAmount);
     if (isNaN(amount) || amount <= 0) return false;
@@ -167,7 +168,7 @@ export function StakeModal({
     if (selectedBuilder?.minDeposit && amount < selectedBuilder.minDeposit) return false;
     
     return true;
-  }, [stakeAmount, effectiveTokenBalance, selectedBuilder]);
+  }, [stakeAmount, effectiveTokenBalance, selectedBuilder, isLoadingData]);
 
   // Warning logic (following page.tsx pattern)
   const showWarning = useMemo(() => {
@@ -177,11 +178,12 @@ export function StakeModal({
     const amount = parseFloat(stakeAmount);
     if (isNaN(amount) || amount <= 0) return true;
     
-    // Show warning if on wrong network OR insufficient balance OR needs approval
+    // Show warning if on wrong network OR insufficient balance OR needs approval OR allowance still loading
     return chainId !== targetNetworkInfo.chainId ||
+           isLoadingData ||
            (needsApproval && amount > 0) ||
            (effectiveTokenBalance && amount > parseFloat(formatEther(effectiveTokenBalance)));
-  }, [stakeAmount, chainId, targetNetworkInfo.chainId, needsApproval, effectiveTokenBalance]);
+  }, [stakeAmount, chainId, targetNetworkInfo.chainId, needsApproval, effectiveTokenBalance, isLoadingData]);
 
   const warningMessage = useMemo(() => {
     // Show message if input is empty
@@ -236,6 +238,10 @@ export function StakeModal({
     if (chainId !== targetNetworkInfo.chainId) {
       return `Please switch to ${targetNetworkInfo.networkName} network to stake`;
     }
+
+    if (isLoadingData) {
+      return `Checking ${tokenSymbol} allowance...`;
+    }
     
     // Finally check approval
     if (needsApproval && amount > 0) {
@@ -243,14 +249,14 @@ export function StakeModal({
     }
     
     return "";
-  }, [stakeAmount, chainId, targetNetworkInfo, needsApproval, tokenSymbol, effectiveTokenBalance, selectedBuilder, isTestnet]);
+  }, [stakeAmount, chainId, targetNetworkInfo, needsApproval, tokenSymbol, effectiveTokenBalance, selectedBuilder, isTestnet, isLoadingData]);
 
-  // Check approval status when amount changes
+  // Check approval status when amount changes (wait until allowance data is loaded)
   useEffect(() => {
-    if (stakeAmount && parseFloat(stakeAmount) > 0) {
+    if (stakeAmount && parseFloat(stakeAmount) > 0 && !isLoadingData) {
       checkAndUpdateApprovalNeeded(stakeAmount);
     }
-  }, [stakeAmount, checkAndUpdateApprovalNeeded]);
+  }, [stakeAmount, checkAndUpdateApprovalNeeded, isLoadingData]);
 
   // Reset form state when modal opens or closes
   useEffect(() => {
@@ -290,9 +296,14 @@ export function StakeModal({
       }
 
       // Only proceed with approval/staking if we're on the correct network
-      const currentlyNeedsApproval = stakeAmount ? await checkAndUpdateApprovalNeeded(stakeAmount) : false;
+      const approvalStatus = stakeAmount ? checkAndUpdateApprovalNeeded(stakeAmount) : null;
 
-      if ((currentlyNeedsApproval || needsApproval) && stakeAmount && parseFloat(stakeAmount) > 0) {
+      if (approvalStatus === null) {
+        setFormError(`Still checking ${tokenSymbol} allowance. Please wait a moment.`);
+        return;
+      }
+
+      if ((approvalStatus || needsApproval) && stakeAmount && parseFloat(stakeAmount) > 0) {
         await handleApprove(stakeAmount);
       } else if (stakeAmount && parseFloat(stakeAmount) > 0) {
         await handleStake(stakeAmount);
@@ -399,11 +410,14 @@ export function StakeModal({
               }
               disabled={
                 isSubmitting || 
-                !isValidForSubmission
+                !isValidForSubmission ||
+                isLoadingData
               }
             >
               {isSubmitting ? (
                 "Processing..."
+              ) : isLoadingData ? (
+                "Checking allowance..."
               ) : chainId !== targetNetworkInfo.chainId ? (
                 `Switch to ${targetNetworkInfo.networkName}`
               ) : (needsApproval && stakeAmount && parseFloat(stakeAmount) > 0) ? (
