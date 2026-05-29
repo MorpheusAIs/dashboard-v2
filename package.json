@@ -6,7 +6,8 @@
     "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:safe-wallet-config": "node config/wagmi-connectors.test.mjs"
   },
   "engines": {
     "node": "^22.22.0"
@@ -43,6 +44,8 @@
     "@remixicon/react": "^4.6.0",
     "@reown/appkit": "^1.6.1",
     "@reown/appkit-adapter-wagmi": "^1.6.1",
+    "@safe-global/safe-apps-provider": "~0.18.6",
+    "@safe-global/safe-apps-sdk": "^9.1.0",
     "@supabase/supabase-js": "^2.49.4",
     "@tanstack/query-core": "^5.66.4",
     "@tanstack/react-query": "^5.76.0",
