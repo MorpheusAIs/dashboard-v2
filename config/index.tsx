@@ -1,6 +1,7 @@
 import type { Config } from 'wagmi';
 import { cookieStorage, createStorage, http } from 'wagmi';
 import { arbitrum, arbitrumSepolia, base, baseSepolia, mainnet, sepolia } from 'wagmi/chains';
+import { buildWalletConnectors } from './wagmi-connectors';
 // import { NetworkEnvironment } from './networks';
 
 export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
@@ -45,6 +46,7 @@ async function buildWagmiConfig() {
     chains,
     projectId: projectId!,
     metadata,
+    connectors: buildWalletConnectors(),
     ssr: true,
     storage: createStorage({
       storage: cookieStorage
