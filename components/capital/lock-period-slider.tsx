@@ -13,6 +13,8 @@ interface LockPeriodSliderProps {
   onLockDaysChange: (days: number) => void;
   disabled?: boolean;
   className?: string;
+  /** Dynamic max power factor achievable at max slider position (e.g. "x9.7") */
+  maxPowerFactor?: string;
 }
 
 export function LockPeriodSlider({
@@ -20,9 +22,11 @@ export function LockPeriodSlider({
   onLockDaysChange,
   disabled = false,
   className = "",
+  maxPowerFactor,
 }: LockPeriodSliderProps) {
   const minDays = POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS;
   const maxDays = useMemo(() => getMaxLockSliderDays(), []);
+  const maxDurationLabel = useMemo(() => formatLockDurationFromDays(maxDays), [maxDays]);
 
   return (
     <div className={`space-y-3 ${className}`}>
@@ -31,7 +35,7 @@ export function LockPeriodSlider({
         <span className="text-emerald-400 font-medium">
           {formatLockDurationFromDays(lockDays)}
         </span>
-        <span>~7 years (x10.7)</span>
+        <span>~{maxDurationLabel} ({maxPowerFactor ?? "..."})</span>
       </div>
 
       <Slider
@@ -48,8 +52,12 @@ export function LockPeriodSlider({
 
       <div className="flex justify-between text-[10px] text-gray-500 uppercase tracking-wide">
         <span>Min lock</span>
-        <span>Max power factor</span>
+        <span>Max achievable today</span>
       </div>
+
+      <p className="text-[10px] text-gray-500 leading-relaxed">
+        Power factor for a given lock length decreases over time as total MOR emissions grow.
+      </p>
     </div>
   );
 }

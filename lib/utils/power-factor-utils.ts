@@ -515,7 +515,7 @@ export function getMinAllowedValue(unit: TimeUnit): number {
  * @param unit - Time unit
  * @returns Maximum allowed value as number
  */
-/** Calendar days from today until ~7 years — when power factor reaches x10.7 */
+/** Calendar days from today until ~7 years (slider maximum) */
 export function getMaxLockSliderDays(): number {
   const start = new Date();
   const end = new Date(start);

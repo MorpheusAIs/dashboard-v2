@@ -22,6 +22,8 @@ interface TimeLockPeriodSelectorProps {
   variant?: "input" | "slider";
   lockDays?: number;
   onLockDaysChange?: (days: number) => void;
+  /** Dynamic max power factor achievable at max slider position */
+  maxPowerFactor?: string;
 }
 
 export function TimeLockPeriodSelector({
@@ -39,6 +41,7 @@ export function TimeLockPeriodSelector({
   variant = "input",
   lockDays,
   onLockDaysChange,
+  maxPowerFactor,
 }: TimeLockPeriodSelectorProps) {
   const handleValueChange = (value: string) => {
     onLockValueChange(value);
@@ -84,6 +87,7 @@ export function TimeLockPeriodSelector({
             handleUnitChange("days");
           }}
           disabled={disabled}
+          maxPowerFactor={maxPowerFactor}
         />
         {validationMessages}
       </div>
