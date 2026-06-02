@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { formatUnits, parseUnits, isAddress } from "viem";
-import { useEnsAddress, useBalance } from "wagmi";
+import { useEnsAddress, useBalance, useReadContract } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { AssetIcon } from "@/components/icons";
 import { 
@@ -31,12 +31,16 @@ import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
 import {
   getMaxAllowedValue,
   getMinAllowedValue,
+  getMaxLockSliderDays,
   durationToSeconds,
   parsePowerFactorValue,
   calculatePowerFactorFromDuration,
+  formatPowerFactorPrecise,
   POWER_FACTOR_CONSTANTS,
   type TimeUnit
 } from "@/lib/utils/power-factor-utils";
+
+import LockMultiplierMathAbi from "@/app/abi/LockMultiplierMath.json";
 
 // Import Constants
 import {
@@ -82,6 +86,35 @@ export function DepositModal() {
   const poolContractAddress = useMemo(() => {
     return l1ChainId ? getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined : undefined;
   }, [l1ChainId, networkEnv]);
+
+  // --- Max achievable power factor for the slider's right-end label ---
+  const lockMultiplierMathAddress = useMemo(() => {
+    if (!l1ChainId) return undefined;
+    return getContractAddress(l1ChainId, 'lockMultiplierMath', networkEnv) as `0x${string}` | undefined;
+  }, [l1ChainId, networkEnv]);
+
+  const maxSliderArgs = useMemo(() => {
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const maxDays = getMaxLockSliderDays();
+    return [now, now + BigInt(maxDays) * BigInt(86400)] as const;
+  }, []);
+
+  const { data: maxRawMultiplier } = useReadContract({
+    address: lockMultiplierMathAddress as `0x${string}`,
+    abi: LockMultiplierMathAbi,
+    functionName: 'getLockPeriodMultiplier',
+    args: maxSliderArgs,
+    chainId: l1ChainId,
+    query: {
+      enabled: !!lockMultiplierMathAddress && !!l1ChainId,
+      staleTime: 3_600_000,
+    },
+  });
+
+  const maxAchievablePowerFactor = useMemo(() => {
+    if (!maxRawMultiplier) return undefined;
+    return formatPowerFactorPrecise(maxRawMultiplier as bigint);
+  }, [maxRawMultiplier]);
 
   // Get available assets for current network environment
   const availableAssets = useMemo((): AssetContractInfo[] => {
@@ -1249,6 +1282,7 @@ export function DepositModal() {
               disabled={isProcessingDeposit}
               onValueChangeExtra={() => setFormError(null)}
               onUnitChangeExtra={() => setFormError(null)}
+              maxPowerFactor={maxAchievablePowerFactor}
             />
             </div>
 
@@ -1267,6 +1301,7 @@ export function DepositModal() {
                 isMetricsLoading={isMetricsLoading}
                 powerFactorError={powerFactor.currentResult.error}
                 powerFactorWarning={powerFactor.currentResult.warning}
+                maxAchievablePowerFactor={maxAchievablePowerFactor}
               />
             </div>
           </form>

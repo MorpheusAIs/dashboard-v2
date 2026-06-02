@@ -515,11 +515,10 @@ export function getMinAllowedValue(unit: TimeUnit): number {
  * @param unit - Time unit
  * @returns Maximum allowed value as number
  */
-/** Calendar days from today until ~7 years — when power factor reaches x10.7 */
 export function getMaxLockSliderDays(): number {
   const start = new Date();
   const end = new Date(start);
-  end.setFullYear(start.getFullYear() + 7);
+  end.setFullYear(start.getFullYear() + POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS);
   return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
