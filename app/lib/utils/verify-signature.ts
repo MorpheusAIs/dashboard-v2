@@ -29,6 +29,14 @@ export function buildUpdateMessage(
   return `Morpheus Dashboard: Authorize builder update\nBuilder ID: ${builderId}\nWallet: ${walletAddress}\nTimestamp: ${timestamp}`;
 }
 
+export function buildFeaturebaseMessage(
+  walletAddress: string,
+  nonce: string,
+  expiresAt: number,
+): string {
+  return `Morpheus Dashboard: Authorize Featurebase community identity\nWallet: ${walletAddress}\nNonce: ${nonce}\nExpires At: ${expiresAt}`;
+}
+
 /**
  * Verifies that `signature` was produced by `walletAddress` signing `message`,
  * and that `timestamp` is within the allowed age window.
