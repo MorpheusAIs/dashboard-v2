@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Web3ModalProvider from "@/context"
-import { cookieToInitialState } from "wagmi"
+import type { State } from "wagmi"
 import WalletErrorBoundary from './WalletErrorBoundary'
 import { NetworkProvider } from '@/context/network-context'
 import { NetworkEnvironment } from '@/config/networks'
@@ -12,7 +12,7 @@ export function Web3Providers({
   initialState
 }: { 
   children: React.ReactNode
-  initialState: ReturnType<typeof cookieToInitialState>
+  initialState?: State
 }) {
   // Default environment is mainnet for safety
   const defaultEnvironment: NetworkEnvironment = 'mainnet';
@@ -30,26 +30,21 @@ export function Web3Providers({
               key.includes('appkit-')) {
             try {
               const data = localStorage.getItem(key);
-              if (data) {
-                // Try to parse and check for expired proposals/sessions
-                const parsed = JSON.parse(data);
+              const trimmedData = data?.trim();
+              if (trimmedData?.startsWith('{') || trimmedData?.startsWith('[')) {
+                const parsed = JSON.parse(trimmedData);
                 if (parsed) {
                   const now = Date.now();
-                  const expiry = parsed.expiry || parsed.proposal?.expiry || parsed.session?.expiry;
-                  if (expiry && expiry < now) {
+                  const expiry = Number(parsed.expiry || parsed.proposal?.expiry || parsed.session?.expiry);
+                  const expiryMs = expiry < 1_000_000_000_000 ? expiry * 1000 : expiry;
+                  if (Number.isFinite(expiryMs) && expiryMs < now) {
                     console.log('🧹 Clearing expired wallet data:', key);
-                    localStorage.removeItem(key);
-                  } else if (parsed.topic && !expiry) {
-                    // Clear sessions without expiry info as they might be stale
-                    console.log('🧹 Clearing stale wallet data (no expiry):', key);
                     localStorage.removeItem(key);
                   }
                 }
               }
-            } catch {
-              // If we can't parse it, it's likely corrupt, so remove it
-              console.log('🧹 Clearing corrupt wallet data:', key);
-              localStorage.removeItem(key);
+            } catch (error) {
+              console.warn('Unable to inspect wallet storage entry:', key, error);
             }
           }
         });
@@ -123,18 +118,6 @@ export function Web3Providers({
       // Remove error handler
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       
-      // Clear any stored WalletConnect data from localStorage
-      Object.keys(localStorage).forEach(key => {
-        if (key.toLowerCase().includes('walletconnect')) {
-          localStorage.removeItem(key)
-        }
-      })
-
-      // Clear any stored session data
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('wagmi.connected')
-        window.localStorage.removeItem('wagmi.wallet')
-      }
     }
   }, [])
 
@@ -147,4 +130,4 @@ export function Web3Providers({
       </Web3ModalProvider>
     </WalletErrorBoundary>
   )
-} 
+}
