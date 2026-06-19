@@ -813,7 +813,7 @@ export const useStakingContractInteractions = ({
   }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, networkChainId, isTestnet, writeWithdraw]);
 
   // Handle claim
-  const handleClaim = useCallback(async () => {
+  const handleClaim = useCallback(async (receiverAddress?: `0x${string}`) => {
     if (!connectedAddress || !isCorrectNetwork()) {
       toast.error("Cannot claim: Wallet or network issue.");
       return false;
@@ -829,6 +829,15 @@ export const useStakingContractInteractions = ({
       return false;
     }
 
+    const receiver = receiverAddress && isAddress(receiverAddress)
+      ? receiverAddress
+      : connectedAddress;
+
+    if (!isAddress(receiver)) {
+      toast.error("Invalid claim-to address.");
+      return false;
+    }
+
     try {
       // Get network name for better logging
       const networkType = isTestnet ? 'testnet' : 'mainnet';
@@ -840,7 +849,8 @@ export const useStakingContractInteractions = ({
         contractAddress,
         chainId: networkChainId,
         networkName,
-        connectedAddress
+        connectedAddress,
+        receiver
       });
       
       // BuildersV4 (testnet, Base mainnet, Arbitrum mainnet) and legacy Builders use the same claim signature
@@ -849,7 +859,7 @@ export const useStakingContractInteractions = ({
         address: contractAddress,
         abi: isBuildersV4 ? BuildersV4Abi : BuildersAbi,
         functionName: 'claim',
-        args: [subnetId, connectedAddress],
+        args: [subnetId, receiver],
         chainId: networkChainId,
       });
       
@@ -859,7 +869,7 @@ export const useStakingContractInteractions = ({
       toast.error(`Failed to claim: ${error instanceof Error ? error.message : "Unknown error"}`);
       return false;
     }
-  }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, networkChainId, isTestnet, writeClaim]);
+  }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, networkChainId, isTestnet, writeClaim, isBuildersV4]);
 
   return {
     // State

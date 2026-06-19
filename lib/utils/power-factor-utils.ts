@@ -237,22 +237,21 @@ export function validateLockDuration(value: string, unit: TimeUnit): {
     };
   }
   
-  // Maximum period validation
-  if (unit === "years" && numValue > POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS) {
+  const maxForUnit = getMaxAllowedValue(unit);
+  if (numValue > maxForUnit) {
     return {
       isValid: false,
       errorMessage: `Maximum lock period is ${POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS} years`
     };
   }
-  
-  // Convert to total months for easier comparison
+
   let totalMonths: number;
   switch (unit) {
     case "minutes":
-      totalMonths = numValue / (30 * 24 * 60); // Convert minutes to months
+      totalMonths = numValue / (30 * 24 * 60);
       break;
     case "days":
-      totalMonths = numValue / 30; // Approximate
+      totalMonths = numValue / 30;
       break;
     case "months":
       totalMonths = numValue;
@@ -261,24 +260,14 @@ export function validateLockDuration(value: string, unit: TimeUnit): {
       totalMonths = numValue * 12;
       break;
   }
-  
-  // Maximum period validation (convert max years to months)
-  const maxMonths = POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS * 12;
-  if (totalMonths > maxMonths) {
-    return {
-      isValid: false,
-      errorMessage: `Maximum lock period is ${POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS} years`
-    };
-  }
-  
-  // Minimum period warning (power factor doesn't activate until 6 months)
+
   if (totalMonths < POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS) {
     return {
       isValid: true,
       warningMessage: `Power factor starts after ${POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS} months. This period will have 1.0x multiplier.`
     };
   }
-  
+
   return { isValid: true };
 }
 
@@ -515,11 +504,10 @@ export function getMinAllowedValue(unit: TimeUnit): number {
  * @param unit - Time unit
  * @returns Maximum allowed value as number
  */
-/** Calendar days from today until ~7 years — when power factor reaches x10.7 */
 export function getMaxLockSliderDays(): number {
   const start = new Date();
   const end = new Date(start);
-  end.setFullYear(start.getFullYear() + 7);
+  end.setFullYear(start.getFullYear() + POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS);
   return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 

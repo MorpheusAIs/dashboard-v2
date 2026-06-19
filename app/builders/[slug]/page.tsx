@@ -1322,13 +1322,14 @@ export default function BuilderPage() {
 					const ClaimFormWithGlow = isAdmin ? (
 						<div className="relative">
 							<ClaimFormCard
-								onClaim={async () => {
+								connectedAddress={userAddress}
+								onClaim={async (claimToAddress) => {
 									if (!isCorrectNetwork()) {
 										await handleNetworkSwitch();
 										return;
 									}
 
-									await handleClaim();
+									await handleClaim(claimToAddress);
 								}}
 								claimableAmount={
 									claimableAmount ? parseFloat(formatEther(claimableAmount)) : 0
