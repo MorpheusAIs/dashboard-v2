@@ -6,11 +6,8 @@ import { GoogleAnalytics } from '@next/third-parties/google'
 import { FeaturebaseWidget } from '@/components/featurebase-widget'
 import { RootLayoutContent } from "@/components/root-layout"
 import { cn } from "@/lib/utils"
-import { getWagmiConfig } from "@/config"
-import { cookies } from "next/headers"
 import { Suspense } from "react"
 import { Providers } from './providers'
-import { cookieToInitialState } from "wagmi"
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -84,24 +81,18 @@ export const viewport: Viewport = {
   ],
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [wagmiConfig, cookieStore] = await Promise.all([
-    getWagmiConfig(),
-    cookies(),
-  ]);
-  const initialState = cookieToInitialState(wagmiConfig, cookieStore.toString());
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", geistSans.variable, geistMono.variable)}>
         <GoogleAnalytics gaId='G-RTZPQB9Y3J' />
         <Analytics />
         <Suspense fallback={null}>
-          <Providers initialState={initialState}>
+          <Providers>
             <RootLayoutContent>{children}</RootLayoutContent>
             <FeaturebaseWidget />
           </Providers>
