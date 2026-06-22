@@ -13,6 +13,11 @@ interface FeaturebaseConfig {
   featurebaseJwt?: string
 }
 
+interface FeaturebaseIdentifyConfig {
+  organization: string
+  featurebaseJwt: string
+}
+
 interface FeaturebaseCallback {
   action: 'widgetReady' | 'widgetOpened' | 'feedbackSubmitted'
   post?: Record<string, unknown>
@@ -22,7 +27,7 @@ declare global {
   interface Window {
     Featurebase: (
       action: string, 
-      config: FeaturebaseConfig, 
+      config: FeaturebaseConfig | FeaturebaseIdentifyConfig, 
       callback?: (err: Error | null, callback: FeaturebaseCallback) => void
     ) => void
   }
@@ -227,14 +232,6 @@ export function FeaturebaseWidget({
         return
       }
 
-      let featurebaseJwt: CachedFeaturebaseJwt | null = null
-
-      try {
-        featurebaseJwt = await createFeaturebaseJwt()
-      } catch (error) {
-        console.warn('Featurebase secure identity is unavailable; loading anonymous widget.', error)
-      }
-
       if (cancelled) {
         return
       }
@@ -245,7 +242,7 @@ export function FeaturebaseWidget({
         placement,
         defaultBoard,
         locale,
-        featurebaseJwt ? address?.toLowerCase() : 'anonymous',
+        address?.toLowerCase() ?? 'anonymous',
       ].join(':')
 
       if (lastInitializedKey === initializedKey) {
@@ -258,7 +255,27 @@ export function FeaturebaseWidget({
         placement,
         defaultBoard,
         locale,
-        ...(featurebaseJwt ? { featurebaseJwt: featurebaseJwt.token } : {}),
+      }, (err, callback) => {
+        if (err || callback?.action !== 'widgetOpened') {
+          return
+        }
+
+        void (async () => {
+          try {
+            const featurebaseJwt = await createFeaturebaseJwt()
+
+            if (!featurebaseJwt || cancelled || !window.Featurebase) {
+              return
+            }
+
+            window.Featurebase('identify', {
+              organization,
+              featurebaseJwt: featurebaseJwt.token,
+            })
+          } catch (error) {
+            console.warn('Featurebase secure identity is unavailable; continuing anonymously.', error)
+          }
+        })()
       })
       lastInitializedKey = initializedKey
     }
