@@ -33,6 +33,49 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
+const CLIPBOARD_COPY_TIMEOUT_MS = 1500;
+
+const fallbackCopyToClipboard = (text: string) => {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.style.position = "fixed";
+  textArea.style.left = "-999999px";
+  textArea.style.top = "-999999px";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    const successful = document.execCommand("copy");
+    if (!successful) {
+      throw new Error("Copy command failed");
+    }
+  } finally {
+    document.body.removeChild(textArea);
+  }
+};
+
+const copyTextToClipboard = async (text: string) => {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(
+            () => reject(new Error("Clipboard write timed out")),
+            CLIPBOARD_COPY_TIMEOUT_MS,
+          );
+        }),
+      ]);
+      return;
+    } catch (error) {
+      console.warn("Modern clipboard copy failed, trying fallback:", error);
+    }
+  }
+
+  fallbackCopyToClipboard(text);
+};
+
 export function ReferralPanel() {
   const { userAddress, referralData, claimReferralRewards } = useCapitalContext();
   const [isCopying, setIsCopying] = useState(false);
@@ -55,35 +98,11 @@ export function ReferralPanel() {
   // Copy to clipboard function with fallback
   const handleCopyReferralLink = async () => {
     if (!referralLink) return;
-    
+
     setIsCopying(true);
     try {
-      // Try modern clipboard API first
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(referralLink);
-        toast.success("Referral link copied to clipboard");
-      } else {
-        // Fallback for older browsers or non-secure contexts
-        const textArea = document.createElement("textarea");
-        textArea.value = referralLink;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        
-        try {
-          const successful = document.execCommand('copy');
-          if (successful) {
-            toast.success("Referral link copied to clipboard");
-          } else {
-            throw new Error("Copy command failed");
-          }
-        } finally {
-          document.body.removeChild(textArea);
-        }
-      }
+      await copyTextToClipboard(referralLink);
+      toast.success("Referral link copied to clipboard");
     } catch (error) {
       console.error("Failed to copy referral link:", error);
       toast.error("Failed to copy referral link. Please select and copy manually.");
@@ -298,9 +317,12 @@ export function ReferralPanel() {
                         <div className="flex items-center gap-2">
                           <input
                             type="text"
+                            aria-label="Referral link"
+                            title={referralLink}
                             readOnly
                             value={referralLink}
                             className="text-gray-200 flex-1 font-mono text-xs bg-white/[0.05] border border-white/[0.1] rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 cursor-text"
+                            onFocus={(e) => e.currentTarget.select()}
                             onClick={(e) => e.currentTarget.select()}
                           />
                           <button
