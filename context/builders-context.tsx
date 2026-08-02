@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useMemo, type ReactNode, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import type { Builder } from '@/app/builders/builders-data';
 import { useUrlParams, useInitStateFromUrl, ParamConverters } from '@/lib/utils/url-params';
 import { useAllBuildersQuery } from '@/app/hooks/useAllBuildersQuery';
@@ -82,12 +83,18 @@ export function BuildersProvider({ children }: { children: ReactNode }) {
   useInitStateFromUrl('hasDescription', (value) => { if (value !== '') setHasDescriptionFilter(value === 'true'); }, ParamConverters.string.deserialize);
   useInitStateFromUrl('sort', (sorting) => { if (sorting.column) setSortColumn(sorting.column); if (sorting.direction) setSortDirection(sorting.direction); }, ParamConverters.sorting.deserialize);
 
+  // This provider is mounted globally, but its filter/sort params only belong
+  // in the URL of the builders list page. Without this guard the provider
+  // rewrites every page's URL on load (e.g. /bridge-mor?sort=totalStaked-desc).
+  const pathname = usePathname();
+  const isBuildersListPage = pathname === '/builders';
+
   const { setParam } = useUrlParams();
-  useEffect(() => { setParam('name', nameFilter || null); }, [nameFilter, setParam]);
-  useEffect(() => { setParam('rewardType', (rewardTypeFilter && rewardTypeFilter !== 'all') ? rewardTypeFilter : null); }, [rewardTypeFilter, setParam]);
-  useEffect(() => { setParam('network', (networkFilter && networkFilter !== 'all') ? networkFilter : null); }, [networkFilter, setParam]);
-  useEffect(() => { setParam('hasDescription', hasDescriptionFilter ? 'true' : null); }, [hasDescriptionFilter, setParam]);
-  useEffect(() => { setParam('sort', sortColumn ? ParamConverters.sorting.serialize({ column: sortColumn, direction: sortDirection }) : null); }, [sortColumn, sortDirection, setParam]);
+  useEffect(() => { if (isBuildersListPage) setParam('name', nameFilter || null); }, [nameFilter, setParam, isBuildersListPage]);
+  useEffect(() => { if (isBuildersListPage) setParam('rewardType', (rewardTypeFilter && rewardTypeFilter !== 'all') ? rewardTypeFilter : null); }, [rewardTypeFilter, setParam, isBuildersListPage]);
+  useEffect(() => { if (isBuildersListPage) setParam('network', (networkFilter && networkFilter !== 'all') ? networkFilter : null); }, [networkFilter, setParam, isBuildersListPage]);
+  useEffect(() => { if (isBuildersListPage) setParam('hasDescription', hasDescriptionFilter ? 'true' : null); }, [hasDescriptionFilter, setParam, isBuildersListPage]);
+  useEffect(() => { if (isBuildersListPage) setParam('sort', sortColumn ? ParamConverters.sorting.serialize({ column: sortColumn, direction: sortDirection }) : null); }, [sortColumn, sortDirection, setParam, isBuildersListPage]);
 
   const setSorting = (column: string) => {
     if (sortColumn === column) {

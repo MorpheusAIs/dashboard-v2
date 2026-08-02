@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAccount, useChainId } from "wagmi";
+import { useAccount } from "wagmi";
 import { arbitrum, base } from "wagmi/chains";
 import { formatEther } from "viem";
 import { BridgeFormCard } from "@/components/bridge/bridge-form-card";
@@ -18,10 +18,10 @@ const LAYERZERO_ENDPOINTS = {
 } as const;
 
 export default function BridgeMorPage() {
-  const { address } = useAccount();
-  const chainId = useChainId();
-  const { switchToChain, isNetworkSwitching } = useNetwork();
-  const networkSwitchAttempted = useRef(false);
+  // Use the wallet's actual chain (not the wagmi config default) so the
+  // network check reflects what the user is really connected to
+  const { address, chainId } = useAccount();
+  const { switchToChain } = useNetwork();
 
   // Bidirectional bridging: Arbitrum ↔ Base
   const [fromChain, setFromChain] = useState<"arbitrum" | "base">("arbitrum");
@@ -41,38 +41,10 @@ export default function BridgeMorPage() {
   const sourceChainId = fromChain === "arbitrum" ? arbitrum.id : base.id;
   const destinationEid = toChain === "base" ? LAYERZERO_ENDPOINTS.BASE : LAYERZERO_ENDPOINTS.ARBITRUM;
 
-  // Auto-switch to source chain when page loads or direction changes
-  useEffect(() => {
-    // Only switch if:
-    // 1. Wallet is connected
-    // 2. Not already on source chain
-    // 3. Haven't attempted switch yet
-    // 4. Not currently switching
-    if (
-      address &&
-      chainId !== undefined &&
-      chainId !== sourceChainId &&
-      !networkSwitchAttempted.current &&
-      !isNetworkSwitching
-    ) {
-      networkSwitchAttempted.current = true;
-      
-      // Small delay to ensure page is loaded
-      const timer = setTimeout(() => {
-        switchToChain(sourceChainId).catch((error) => {
-          console.error(`Failed to auto-switch to ${fromChain === "arbitrum" ? "Arbitrum One" : "Base"}:`, error);
-          networkSwitchAttempted.current = false; // Reset on error so user can try again
-        });
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-    
-    // Reset the flag when successfully on source chain
-    if (chainId === sourceChainId) {
-      networkSwitchAttempted.current = false;
-    }
-  }, [address, chainId, sourceChainId, switchToChain, isNetworkSwitching, fromChain]);
+  // Network switching is user-initiated only (via the alert banner below).
+  // Firing wallet_switchEthereumChain automatically on page load caused some
+  // wallet extensions to crash the tab (Chrome "Aw, Snap!"
+  // RESULT_CODE_KILLED_BAD_MESSAGE) while the page was still hydrating.
 
   // Use shared hook to get balances (prevents duplicate RPC calls)
   const { arbitrumBalance, baseBalance } = useMORBalances(address);
@@ -120,7 +92,11 @@ export default function BridgeMorPage() {
   // Handle chain switching
   const handleChainSwitch = async () => {
     if (chainId !== sourceChainId) {
-      await switchToChain(sourceChainId);
+      try {
+        await switchToChain(sourceChainId);
+      } catch (error) {
+        console.error(`Failed to switch to ${fromChain === "arbitrum" ? "Arbitrum One" : "Base"}:`, error);
+      }
     }
   };
 
