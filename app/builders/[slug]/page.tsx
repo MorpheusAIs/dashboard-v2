@@ -943,7 +943,11 @@ export default function BuilderPage() {
 			// Use a small delay to ensure the UI is fully rendered
 			const timer = setTimeout(() => {
 				// Call the network context's switchToChain function
-				switchToChain(networkInfo.targetChainId);
+				// Keep networkSwitchAttempted set even on failure so a rejected
+				// request doesn't re-trigger this effect in a prompt loop
+				switchToChain(networkInfo.targetChainId).catch((error) => {
+					console.error('Failed to switch network:', error);
+				});
 
 				// Hide notification after a brief period
 				setTimeout(() => {
