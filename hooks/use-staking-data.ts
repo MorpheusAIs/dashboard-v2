@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { fetchGraphQL, getEndpointForNetwork } from "@/app/graphql/client";
 import { BuildersGraphQLResponse, ComputeGraphQLResponse, StakingEntry, BuildersUser, SubnetUser, BuildersProject } from "@/app/graphql/types";
 import { GET_BUILDERS_PROJECT_BY_NAME, GET_BUILDERS_PROJECT_BY_NAME_V1, GET_BUILDERS_PROJECT_USERS, GET_BUILDER_SUBNET_BY_NAME, GET_BUILDER_SUBNET_USERS } from "@/app/graphql/queries/builders";
@@ -181,6 +181,7 @@ export function useStakingData({
   
   // Cache for storing fetched pages
   const [cachedPages, setCachedPages] = useState<Record<number, StakingEntry[]>>({});
+  const fetchGenerationRef = useRef(0);
   
   // Default formatter functions
   const defaultFormatAddress = (address: string): string => {
@@ -315,6 +316,9 @@ export function useStakingData({
 
   // Fetch data
   const fetchData = useCallback(async () => {
+    const generation = ++fetchGenerationRef.current;
+    const isCurrentRequest = () => generation === fetchGenerationRef.current;
+
     console.log('[useStakingData] fetchData CALLED. Internal id before any checks:', id, 'projectName:', projectName, 'currentPage:', pagination.currentPage);
     // We should set loading to true on initial load, even if we're already loading
     // This fixes the issue where tables are stuck in loading state
@@ -437,7 +441,10 @@ export function useStakingData({
             // Background prefetch the second page if there are more pages
             if (totalPages > 1 && pagination.currentPage === 1) {
               console.log(`[useStakingData] Background prefetching page 2 data`);
+              const prefetchGeneration = generation;
+              const prefetchProjectId = projectIdToUse;
               setTimeout(() => {
+                if (!isCurrentRequest()) return;
                 fetchGraphQL<BuildersGraphQLResponse>(
                   endpoint,
                   queryFunction || "getBuildersProjectUsers",
@@ -445,11 +452,12 @@ export function useStakingData({
                   {
                     first: pagination.pageSize,
                     skip: pagination.pageSize, // Skip first page
-                    buildersProjectId: projectIdToUse,
+                    buildersProjectId: prefetchProjectId,
                     orderBy: 'staked',
                     orderDirection: 'desc'
                   }
                 ).then(nextPageResponse => {
+                  if (!isCurrentRequest()) return;
                   if (nextPageResponse.data?.buildersUsers) {
                     // Format and cache the next page
                     const formattedNextPageEntries = (nextPageResponse.data.buildersUsers?.items || []).map(user => {
@@ -528,6 +536,8 @@ export function useStakingData({
         
         console.log('[useStakingData] Formatted compute entries:', formattedEntries);
         
+        if (!isCurrentRequest()) return;
+
         // Only update cache and state if we have data and we're still on the same page
         setCachedPages(prev => ({
           ...prev,
@@ -1035,6 +1045,8 @@ export function useStakingData({
             // Process current page
             const currentPageEntries = formatAndFilterEntries(currentPageUsers, 'Current Page');
             
+            if (!isCurrentRequest()) return;
+
             // Update current page in cache and state
             setCachedPages(prev => ({
               ...prev,
@@ -1046,6 +1058,8 @@ export function useStakingData({
             if (pagination.currentPage === 1 && nextPageUsers.length > 0) {
               const nextPageEntries = formatAndFilterEntries(nextPageUsers, 'Next Page');
               
+              if (!isCurrentRequest()) return;
+
               // Cache next page
               setCachedPages(prev => ({
                 ...prev,

@@ -792,13 +792,18 @@ export default function BuilderPage() {
 		}
 
 		// Force a fresh check for approval before proceeding
-		const currentlyNeedsApproval = stakeAmount
-			? await checkAndUpdateApprovalNeeded(stakeAmount)
-			: false;
+		const approvalStatus = stakeAmount
+			? checkAndUpdateApprovalNeeded(stakeAmount)
+			: null;
+
+		if (approvalStatus === null) {
+			showAlert(`Still checking ${tokenSymbol} allowance. Please wait a moment and try again.`);
+			return;
+		}
 
 		// Already on correct network, handle approval or staking
 		if (
-			(currentlyNeedsApproval || needsApproval) &&
+			(approvalStatus || needsApproval) &&
 			stakeAmount &&
 			parseFloat(stakeAmount) > 0
 		) {
@@ -808,7 +813,7 @@ export default function BuilderPage() {
 		} else {
 			console.warn("Neither approval nor staking conditions met:", {
 				needsApproval,
-				currentlyNeedsApproval,
+				approvalStatus,
 				stakeAmount,
 				parsed: parseFloat(stakeAmount || "0"),
 			});

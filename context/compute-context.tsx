@@ -326,90 +326,34 @@ export function ComputeProvider({ children }: { children: ReactNode }) {
         // console.log(`API call attempt ${retryCount + 1}:`, data);
       }
       
+      if (data.errors?.length) {
+        throw new Error(data.errors.map((e: { message: string }) => e.message).join('; '));
+      }
+
+      if (!data.data) {
+        throw new Error('Subgraph returned no data');
+      }
+
       // Set counters if available
-      if (data.data && data.data.counters) {
-        // console.log('Setting counters from API:', data.data.counters);
+      if (data.data.counters) {
         setCounters(data.data.counters);
       } else {
-        // console.log('Using fallback counter data');
-        // Fallback counter
-        setCounters([{ id: "0x00000000", totalSubnets: "2", __typename: "Counter" }]);
+        setCounters([{
+          id: "0x00000000",
+          totalSubnets: String(data.data.subnets?.length ?? 0),
+          __typename: "Counter"
+        }]);
       }
-      
-      // If API returns empty subnets array or there's any error, use fallback data
-      const shouldUseFallbackData = !data.data || !data.data.subnets || data.data.subnets.length === 0;
-      
-      if (shouldUseFallbackData) {
-        // console.log('Using fallback subnet data since API returned empty results');
-        
-        // Hard-coded fallback data
-        const fallbackSubnets = [
-          {
-            "id": "0x9ef62b6ce7dc1083b53a80d592cf021a21a03e20",
-            "fee": "9000000000000000000000000", // 90%
-            "name": "GenAscend",
-            "owner": "0x8b59ec5da5e5ce83abb3bd9079472f7b25666302",
-            "totalStaked": "72950000000000000000",
-            "totalClaimed": "0",
-            "deregistrationOpensAt": "1769230800",
-            "__typename": "Subnet"
-          },
-          {
-            "id": "0xa653ba99734766787d1f2dc068a67a27752935b6",
-            "fee": "9000000000000000000000000", // 90%
-            "name": "Titan.io",
-            "owner": "0xd6c8c7ebc21ec6cde34e845c9186d4e14597d847",
-            "totalStaked": "120000000000000000000",
-            "totalClaimed": "0",
-            "deregistrationOpensAt": "1770703200",
-            "__typename": "Subnet"
-          }
-        ];
-        
-        // console.log('Setting fallback subnets:', fallbackSubnets);
-        setRawSubnets(fallbackSubnets);
-      } else if (data.data && data.data.subnets) {
-        // console.log('Setting subnets from API:', data.data.subnets);
-        setRawSubnets(data.data.subnets);
-      }
-      
-      if (data.data && data.data.subnetUsers) {
-        setRawSubnetUsers(data.data.subnetUsers);
-      }
-      
+
+      setRawSubnets(data.data.subnets ?? []);
+      setRawSubnetUsers(data.data.subnetUsers ?? []);
       setError(null);
     } catch (err) {
       console.error('Error fetching compute data:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch compute data'));
-      
-      // Fallback data for development/testing
-      const fallbackSubnets = [
-        {
-          "id": "0x9ef62b6ce7dc1083b53a80d592cf021a21a03e20",
-          "fee": "9000000000000000000000000", // 90%
-          "name": "GenAscend",
-          "owner": "0x8b59ec5da5e5ce83abb3bd9079472f7b25666302",
-          "totalStaked": "72950000000000000000",
-          "totalClaimed": "0",
-          "deregistrationOpensAt": "1769230800",
-          "__typename": "Subnet"
-        },
-        {
-          "id": "0xa653ba99734766787d1f2dc068a67a27752935b6",
-          "fee": "9000000000000000000000000", // 90%
-          "name": "Titan.io",
-          "owner": "0xd6c8c7ebc21ec6cde34e845c9186d4e14597d847",
-          "totalStaked": "120000000000000000000",
-          "totalClaimed": "0",
-          "deregistrationOpensAt": "1770703200",
-          "__typename": "Subnet"
-        }
-      ];
-      
-      setRawSubnets(fallbackSubnets);
-      
-      // Set fallback counters as well
-      setCounters([{ id: "0x00000000", totalSubnets: "2", __typename: "Counter" }]);
+      setRawSubnets([]);
+      setRawSubnetUsers([]);
+      setCounters([]);
     } finally {
       setIsLoading(false);
     }
