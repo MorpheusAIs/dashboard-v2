@@ -1789,8 +1789,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-        // Refetch allowances for all assets dynamically
-        Object.values(assetContractData).forEach(asset => asset.refetch.allowance());
+        // Performance optimization: batch refetches with Promise.all instead of sequential forEach
+        Promise.all(Object.values(assetContractData).map(asset => asset.refetch.allowance()));
         setLastHandledApprovalHash(approveHash);
 
         // Add debugging for allowance refetch
@@ -1829,8 +1829,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserData();
           refetchUserReward();
 
-          // Refetch all asset contract data dynamically (balances, deposits, rewards, etc.)
-          Object.values(assetContractData).forEach(asset => asset.refetch.all());
+          // Performance optimization: batch refetches with Promise.all instead of sequential forEach
+          Promise.all(Object.values(assetContractData).map(asset => asset.refetch.all()));
 
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
@@ -1869,8 +1869,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserReward();
           refetchMorBalance();
 
-          // Refetch all asset reward data dynamically
-          Object.values(assetContractData).forEach(asset => asset.refetch.rewards());
+          // Performance optimization: batch refetches with Promise.all instead of sequential forEach
+          Promise.all(Object.values(assetContractData).map(asset => asset.refetch.rewards()));
 
           // Refetch reward pool data to update reward calculations
           capitalPoolData.refetch.rewardPoolData();
@@ -1906,8 +1906,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserData();
           refetchUserReward();
 
-          // Refetch all asset contract data dynamically (balances, deposits, etc.)
-          Object.values(assetContractData).forEach(asset => asset.refetch.all());
+          // Performance optimization: batch refetches with Promise.all instead of sequential forEach
+          Promise.all(Object.values(assetContractData).map(asset => asset.refetch.all()));
 
           // Refetch pool data to update total staked amounts and APY calculations
           capitalPoolData.refetch.refetchAll();
@@ -1944,8 +1944,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           refetchUserData();
           refetchUserMultiplier();
 
-          // Refetch all asset multiplier data dynamically
-          Object.values(assetContractData).forEach(asset => asset.refetch.multiplier());
+          // Performance optimization: batch refetches with Promise.all instead of sequential forEach
+          Promise.all(Object.values(assetContractData).map(asset => asset.refetch.multiplier()));
 
           setLastHandledLockClaimHash(lockClaimHash);
           setActiveModal(null); // Close modal on success

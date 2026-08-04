@@ -778,7 +778,19 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     const aprResults: Record<string, string> = {};
     const assetYields: Record<string, number> = {}; // USD-denominated yields
     let totalYieldUSD = 0;
-    
+
+    // Performance optimization: Create Map for O(1) aToken lookups instead of O(n) findIndex
+    const aTokenAddressToIndex = new Map(
+      aTokenBalanceContracts
+        .map((contract, idx) => {
+          if (contract && 'address' in contract) {
+            return [contract.address.toLowerCase(), idx] as const;
+          }
+          return null;
+        })
+        .filter((entry): entry is [string, number] => entry !== null)
+    );
+
     // Step 1: Calculate USD yield for each asset using REAL Distributor data
     configuredAssets.forEach((assetConfig, index) => {
       const symbol = assetConfig.metadata.symbol;
@@ -840,10 +852,9 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
         
         if (strategy === 2 && aToken && aToken !== '0x0000000000000000000000000000000000000000') {
           // AAVE strategy: get current aToken balance
-          const aTokenIndex = aTokenBalanceContracts.findIndex(contract => 
-            contract && 'address' in contract && contract.address.toLowerCase() === aToken.toLowerCase()
-          );
-          
+          // Use Map for O(1) lookup instead of O(n) findIndex
+          const aTokenIndex = aTokenAddressToIndex.get(aToken.toLowerCase()) ?? -1;
+
           console.log(`🔍 AAVE STRATEGY DEBUG [${symbol}]:`, {
             aToken,
             aTokenIndex,
