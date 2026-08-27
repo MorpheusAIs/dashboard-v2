@@ -64,7 +64,7 @@ function SortHeader({
         {label}
         <ChevronDown
           className={cn(
-            "absolute left-full top-1/2 ml-0.5 h-3 w-3 -translate-y-1/2 shrink-0 transition-transform duration-200",
+            "absolute left-full top-1/2 ml-0.5 hidden h-3 w-3 -translate-y-1/2 shrink-0 transition-transform duration-200 min-[2000px]:block",
             isActive ? "text-emerald-400" : "text-gray-600",
             isActive && sort.direction === 'asc' && "rotate-180"
           )}
@@ -229,10 +229,23 @@ export function CapitalInfoPanel() {
             <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr 1fr auto' }}>
               <div>Asset</div>
               <div className="text-center">
-                <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} className="translate-x-1.5" />
+                <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} className="min-[2000px]:translate-x-1.5" />
               </div>
               <div className="text-center">
-                <SortHeader label="Total Deposited ($)" column="deposited" sort={sort} onSort={handleSort} />
+                <SortHeader
+                  label="Total Deposited"
+                  column="deposited"
+                  sort={sort}
+                  onSort={handleSort}
+                  className="min-[2000px]:hidden"
+                />
+                <SortHeader
+                  label="Total Deposited ($)"
+                  column="deposited"
+                  sort={sort}
+                  onSort={handleSort}
+                  className="hidden min-[2000px]:flex"
+                />
               </div>
               <div className="text-center">Action</div>
             </div>
@@ -302,7 +315,7 @@ export function CapitalInfoPanel() {
 
                          return (
                            <div className="text-right">
-                             <span>$</span>
+                             <span className="hidden min-[2000px]:inline">$</span>
                              <NumberFlow
                                value={usdValue}
                                format={usdFormat}
