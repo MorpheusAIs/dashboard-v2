@@ -109,10 +109,10 @@ export function CapitalInfoPanel() {
         <div className="px-2 pt-2 pb-1 md:px-3 md:pt-3 md:pb-2 flex flex-col h-full">
           {/* Title & Subtitle */} 
           <div className="mb-6"> 
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-3xl font-bold text-white">Capital</h1>
-              <AprCalculationDialog />
-              {poolData.networkEnvironment === 'testnet' && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <h1 className="text-3xl font-bold text-white">Capital</h1>
+                {poolData.networkEnvironment === 'testnet' && (
                 <div className="flex gap-2">
                   <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
                     Live Data
@@ -127,7 +127,9 @@ export function CapitalInfoPanel() {
                     </span>
                   )} */}
                 </div>
-              )}
+                )}
+              </div>
+              <AprCalculationDialog />
             </div>
             <p className="text-gray-400 text-sm mt-1">
             Deposit one of the assets below to generate yield for the Morpheus protocol and earn daily MOR rewards in return
