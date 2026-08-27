@@ -39,11 +39,13 @@ function SortHeader({
   column,
   sort,
   onSort,
+  className,
 }: {
   label: string;
   column: SortColumn;
   sort: AssetSort;
   onSort: (column: SortColumn) => void;
+  className?: string;
 }) {
   const isActive = sort.column === column;
   const nextDirection = isActive && sort.direction === 'desc' ? 'ascending' : 'descending';
@@ -52,22 +54,23 @@ function SortHeader({
     <button
       type="button"
       onClick={() => onSort(column)}
-      className="grid w-full grid-cols-[1fr_auto_1fr] items-center text-xs font-medium text-gray-400 hover:text-white transition-colors"
+      className={cn(
+        "flex w-full items-center justify-center text-xs font-medium text-gray-400 hover:text-white transition-colors",
+        className
+      )}
       aria-label={`Sort by ${label} ${nextDirection}`}
     >
-      <span aria-hidden="true" />
-      <span className="inline-flex items-center justify-center gap-0.5 whitespace-nowrap">
+      <span className="relative inline-block whitespace-nowrap">
         {label}
         <ChevronDown
           className={cn(
-            "h-3 w-3 shrink-0 transition-transform duration-200",
+            "absolute left-full top-1/2 ml-0.5 h-3 w-3 -translate-y-1/2 shrink-0 transition-transform duration-200",
             isActive ? "text-emerald-400" : "text-gray-600",
             isActive && sort.direction === 'asc' && "rotate-180"
           )}
           aria-hidden="true"
         />
       </span>
-      <span aria-hidden="true" />
     </button>
   );
 }
@@ -226,7 +229,7 @@ export function CapitalInfoPanel() {
             <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr 1fr auto' }}>
               <div>Asset</div>
               <div className="text-center">
-                <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} />
+                <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} className="translate-x-1.5" />
               </div>
               <div className="text-center">
                 <SortHeader label="Total Deposited ($)" column="deposited" sort={sort} onSort={handleSort} />
