@@ -225,7 +225,7 @@ export function CapitalInfoPanel() {
                 <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} />
               </div>
               <div className="text-center">
-                <SortHeader label="Total Deposited" column="deposited" sort={sort} onSort={handleSort} />
+                <SortHeader label="Total Deposited ($)" column="deposited" sort={sort} onSort={handleSort} />
               </div>
               <div className="text-center">Action</div>
             </div>
