@@ -232,20 +232,7 @@ export function CapitalInfoPanel() {
                 <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} className="min-[2000px]:translate-x-1.5" />
               </div>
               <div className="text-center">
-                <SortHeader
-                  label="Total Deposited"
-                  column="deposited"
-                  sort={sort}
-                  onSort={handleSort}
-                  className="min-[2000px]:hidden"
-                />
-                <SortHeader
-                  label="Total Deposited ($)"
-                  column="deposited"
-                  sort={sort}
-                  onSort={handleSort}
-                  className="hidden min-[2000px]:flex"
-                />
+                <SortHeader label="Total Deposited ($)" column="deposited" sort={sort} onSort={handleSort} />
               </div>
               <div className="text-center">Action</div>
             </div>
