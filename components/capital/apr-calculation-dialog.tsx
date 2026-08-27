@@ -31,6 +31,23 @@ const APR_REFERENCES = [
   },
 ] as const;
 
+function Citation({ index }: { index: 1 | 2 | 3 }) {
+  const reference = APR_REFERENCES[index - 1];
+
+  return (
+    <a
+      href={reference.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={reference.label}
+      aria-label={`${reference.label} (opens in a new tab)`}
+      className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-2 font-medium"
+    >
+      [{index}]
+    </a>
+  );
+}
+
 export function AprCalculationDialog() {
   return (
     <Dialog>
@@ -49,37 +66,23 @@ export function AprCalculationDialog() {
 
         <ul className="space-y-3 text-sm text-muted-foreground list-disc pl-5">
           <li>
-            Higher-yielding assets (for example USDT on Aave versus wETH) receive a larger share of daily MOR, so they show a higher APR even with the same USD deposited.
+            Higher-yielding assets (for example USDT on Aave versus wETH) receive a larger share of daily MOR, so they show a higher APR even with the same USD deposited.{" "}
+            <Citation index={1} />
           </li>
           <li>
-            For each asset, the protocol measures USD yield, splits daily MOR emissions by those shares, then annualizes: (daily MOR × 365) ÷ total deposited.
+            For each asset, the protocol measures USD yield, splits daily MOR emissions by those shares, then annualizes: (daily MOR × 365) ÷ total deposited.{" "}
+            <Citation index={1} />{" "}
+            <Citation index={2} />
           </li>
           <li>
-            Other assets&apos; yields — not their TVL — can change your asset&apos;s share. More deposits in the same asset spread the same rewards thinner.
+            Other assets&apos; yields — not their TVL — can change your asset&apos;s share. More deposits in the same asset spread the same rewards thinner.{" "}
+            <Citation index={2} />
           </li>
           <li>
-            APR can move day to day as yields, deposits, and MOR emissions change. Emissions also decay over time.
+            APR can move day to day as yields, deposits, and MOR emissions change. Emissions also decay over time.{" "}
+            <Citation index={3} />
           </li>
         </ul>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-white">References</p>
-          <ul className="space-y-1.5">
-            {APR_REFERENCES.map((reference) => (
-              <li key={reference.href}>
-                <a
-                  href={reference.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-500 hover:text-emerald-400 hover:underline hover:underline-offset-3 inline-flex items-center gap-1 text-sm"
-                >
-                  {reference.label}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
 
         <DialogFooter className="sm:justify-between sm:items-center gap-3">
           <a
