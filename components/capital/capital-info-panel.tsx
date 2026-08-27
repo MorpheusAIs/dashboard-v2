@@ -19,6 +19,7 @@ import type { AssetSymbol } from "@/context/CapitalPageContext";
 import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
 import { getContractAddress } from "@/config/networks";
 import type { Format} from '@number-flow/react';
+import { AprCalculationDialog } from "./apr-calculation-dialog";
 
 export function CapitalInfoPanel() {
   const {
@@ -108,8 +109,9 @@ export function CapitalInfoPanel() {
         <div className="px-2 pt-2 pb-1 md:px-3 md:pt-3 md:pb-2 flex flex-col h-full">
           {/* Title & Subtitle */} 
           <div className="mb-6"> 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-bold text-white">Capital</h1>
+              <AprCalculationDialog />
               {poolData.networkEnvironment === 'testnet' && (
                 <div className="flex gap-2">
                   <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
