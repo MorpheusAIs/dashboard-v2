@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from 'next/dynamic'
+import { ChevronDown } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
+import { cn } from "@/lib/utils";
 
 // Dynamically import NumberFlow with SSR disabled to prevent hydration errors
 const NumberFlow = dynamic(() => import('@number-flow/react'), {
@@ -21,12 +24,61 @@ import { getContractAddress } from "@/config/networks";
 import type { Format} from '@number-flow/react';
 import { AprCalculationDialog } from "./apr-calculation-dialog";
 
+type SortColumn = 'apr' | 'deposited';
+type SortDirection = 'asc' | 'desc';
+type AssetSort = { column: SortColumn; direction: SortDirection };
+
+function parseAprValue(apr: string): number | null {
+  if (!apr || apr === 'N/A' || apr === 'Coming Soon') return null;
+  const value = Number.parseFloat(apr.replace('%', ''));
+  return Number.isFinite(value) ? value : null;
+}
+
+function SortHeader({
+  label,
+  column,
+  sort,
+  onSort,
+}: {
+  label: string;
+  column: SortColumn;
+  sort: AssetSort;
+  onSort: (column: SortColumn) => void;
+}) {
+  const isActive = sort.column === column;
+  const nextDirection = isActive && sort.direction === 'desc' ? 'ascending' : 'descending';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(column)}
+      className="inline-flex items-center justify-center gap-0.5 w-full text-xs font-medium text-gray-400 hover:text-white transition-colors"
+      aria-label={`Sort by ${label} ${nextDirection}`}
+    >
+      {label}
+      <ChevronDown
+        className={cn(
+          "h-3 w-3 shrink-0 transition-transform duration-200",
+          isActive ? "text-emerald-400" : "text-gray-600",
+          isActive && sort.direction === 'asc' && "rotate-180"
+        )}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
 export function CapitalInfoPanel() {
   const {
     userAddress,
     setActiveModal,
     setSelectedAsset,
   } = useCapitalContext();
+
+  const [sort, setSort] = useState<AssetSort>({
+    column: 'deposited',
+    direction: 'desc',
+  });
 
   // Token prices from DefiLlama (stETH, wETH, wBTC, LINK) and CoinGecko (MOR),
   // served by /api/token-prices with a 10-minute cache. Stablecoins are $1.
@@ -88,10 +140,27 @@ export function CapitalInfoPanel() {
       disabled: assetConfig.metadata.disabled || (!hasDepositPool),
     };
   }).sort((a, b) => {
-    const aValue = getAssetUsdValue(a.symbol as AssetSymbol, a.totalStaked) ?? -1;
-    const bValue = getAssetUsdValue(b.symbol as AssetSymbol, b.totalStaked) ?? -1;
-    return bValue - aValue;
+    const getSortValue = (asset: Asset) => {
+      if (sort.column === 'apr') {
+        return parseAprValue(asset.apr);
+      }
+      return getAssetUsdValue(asset.symbol as AssetSymbol, asset.totalStaked);
+    };
+
+    const unknownValue = sort.direction === 'desc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+    const aValue = getSortValue(a) ?? unknownValue;
+    const bValue = getSortValue(b) ?? unknownValue;
+    return sort.direction === 'desc' ? bValue - aValue : aValue - bValue;
   });
+
+  const handleSort = (column: SortColumn) => {
+    setSort((current) => {
+      if (current.column === column) {
+        return { column, direction: current.direction === 'desc' ? 'asc' : 'desc' };
+      }
+      return { column, direction: 'desc' };
+    });
+  };
 
   const handleStakeClick = (assetSymbol: AssetSymbol) => {
     // Set the selected asset in the context before opening the modal
@@ -152,8 +221,12 @@ export function CapitalInfoPanel() {
             {/* Fixed Header */}
             <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr 1fr auto' }}>
               <div>Asset</div>
-              <div className="text-center">APR</div>
-              <div className="text-center">Total Deposited</div>
+              <div className="text-center">
+                <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} />
+              </div>
+              <div className="text-center">
+                <SortHeader label="Total Deposited" column="deposited" sort={sort} onSort={handleSort} />
+              </div>
               <div className="text-center">Action</div>
             </div>
             
@@ -259,4 +332,4 @@ export function CapitalInfoPanel() {
       </div>
     </div>
   );
-} 
+}
