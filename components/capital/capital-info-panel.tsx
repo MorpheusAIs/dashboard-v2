@@ -52,18 +52,22 @@ function SortHeader({
     <button
       type="button"
       onClick={() => onSort(column)}
-      className="inline-flex items-center justify-center gap-0.5 w-full text-xs font-medium text-gray-400 hover:text-white transition-colors"
+      className="grid w-full grid-cols-[1fr_auto_1fr] items-center text-xs font-medium text-gray-400 hover:text-white transition-colors"
       aria-label={`Sort by ${label} ${nextDirection}`}
     >
-      {label}
-      <ChevronDown
-        className={cn(
-          "h-3 w-3 shrink-0 transition-transform duration-200",
-          isActive ? "text-emerald-400" : "text-gray-600",
-          isActive && sort.direction === 'asc' && "rotate-180"
-        )}
-        aria-hidden="true"
-      />
+      <span aria-hidden="true" />
+      <span className="inline-flex items-center justify-center gap-0.5 whitespace-nowrap">
+        {label}
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 shrink-0 transition-transform duration-200",
+            isActive ? "text-emerald-400" : "text-gray-600",
+            isActive && sort.direction === 'asc' && "rotate-180"
+          )}
+          aria-hidden="true"
+        />
+      </span>
+      <span aria-hidden="true" />
     </button>
   );
 }
