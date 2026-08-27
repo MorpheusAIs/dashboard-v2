@@ -28,15 +28,30 @@ export function CapitalInfoPanel() {
     setSelectedAsset,
   } = useCapitalContext();
 
-  // Get MOR price from metrics (which already uses useTokenPrices correctly)
-  const { morPrice } = useCapitalMetrics();
+  // Token prices from DefiLlama (stETH, wETH, wBTC, LINK) and CoinGecko (MOR),
+  // served by /api/token-prices with a 10-minute cache. Stablecoins are $1.
+  const { morPrice, stethPrice, linkPrice, wbtcPrice, wethPrice } = useCapitalMetrics();
 
   console.log('💰 [CapitalInfoPanel] MOR price from metrics:', { morPrice });
 
   // Get live contract data with MOR price
   const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
 
+  const getAssetUsdPrice = (symbol: AssetSymbol): number | null => {
+    if (symbol === 'USDC' || symbol === 'USDT') return 1;
+    if (symbol === 'stETH') return stethPrice;
+    if (symbol === 'LINK') return linkPrice;
+    if (symbol === 'wBTC') return wbtcPrice;
+    if (symbol === 'wETH') return wethPrice;
+    return null;
+  };
 
+  const getAssetUsdValue = (symbol: AssetSymbol, totalStaked: string): number | null => {
+    if (!totalStaked || totalStaked === 'N/A') return null;
+    const price = getAssetUsdPrice(symbol);
+    if (price === null) return null;
+    return parseStakedAmount(totalStaked) * price;
+  };
 
   // Get network environment from pool data
   const networkEnvironment: NetworkEnvironment = poolData.networkEnvironment as NetworkEnvironment;
@@ -73,17 +88,8 @@ export function CapitalInfoPanel() {
       disabled: assetConfig.metadata.disabled || (!hasDepositPool),
     };
   }).sort((a, b) => {
-    // Sort by APR (highest first)
-    const parseApr = (apr: string): number => {
-      if (apr === 'Coming Soon') return -2;
-      if (apr === 'N/A') return -1;
-      // Extract numeric value from percentage string (e.g., "5.23%" -> 5.23)
-      const numericValue = parseFloat(apr.replace('%', ''));
-      return isNaN(numericValue) ? -2 : numericValue;
-    };
-    
-    const aValue = parseApr(a.apr);
-    const bValue = parseApr(b.apr);
+    const aValue = getAssetUsdValue(a.symbol as AssetSymbol, a.totalStaked) ?? -1;
+    const bValue = getAssetUsdValue(b.symbol as AssetSymbol, b.totalStaked) ?? -1;
     return bValue - aValue;
   });
 
@@ -91,6 +97,11 @@ export function CapitalInfoPanel() {
     // Set the selected asset in the context before opening the modal
     setSelectedAsset(assetSymbol);
     setActiveModal('deposit');
+  };
+
+  const usdFormat: Format = {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   };
 
   return (
@@ -187,7 +198,7 @@ export function CapitalInfoPanel() {
                       })()}
                     </div>
 
-                    {/* Total Staked */}
+                    {/* Total Deposited (USD) */}
                     <div className={`text-right text-sm font-semibold flex justify-center ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
@@ -203,34 +214,18 @@ export function CapitalInfoPanel() {
                         if (assetPoolData.totalStaked === 'N/A') {
                           return 'N/A';
                         }
-                        const parsedValue = parseStakedAmount(assetPoolData.totalStaked);
 
-                        // Use NumberFlow's format prop for proper decimal display
-                        let formatOptions: Format = {};
-                        if (asset.symbol === 'wETH' || asset.symbol === 'wBTC') {
-                          if (parsedValue < 0.01) {
-                            formatOptions = {
-                              minimumFractionDigits: 4,
-                              maximumFractionDigits: 4
-                            };
-                          } else if (parsedValue < 1) {
-                            formatOptions = {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            };
-                          } else if (parsedValue < 10) {
-                            formatOptions = {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            };
-                          }
+                        const usdValue = getAssetUsdValue(asset.symbol as AssetSymbol, assetPoolData.totalStaked);
+                        if (usdValue === null) {
+                          return <Skeleton className="h-4 w-12 bg-gray-700" />;
                         }
 
                          return (
                            <div className="text-right">
+                             <span>$</span>
                              <NumberFlow
-                               value={parsedValue}
-                               format={formatOptions}
+                               value={usdValue}
+                               format={usdFormat}
                                locales="en-US"
                              />
                            </div>
