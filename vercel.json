@@ -6,8 +6,7 @@
     },
     {
       "path": "/api/cron/check-cumulative-deposits",
-      "schedule": "0 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
-

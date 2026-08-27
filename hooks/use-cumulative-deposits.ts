@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 
 // Cache management for cumulative deposits data
 const CUMULATIVE_DEPOSITS_CACHE_KEY = 'morpheus_cumulative_deposits_cache';
-const CACHE_EXPIRY_MS = 3 * 60 * 60 * 1000; // 3 hours
+const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours, matches server ISR
 
 interface CumulativeDepositsCache {
   data: CumulativeDepositsPoint[];
