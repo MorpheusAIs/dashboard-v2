@@ -27,7 +27,9 @@ export default function BridgeMorPage() {
   const [fromChain, setFromChain] = useState<"arbitrum" | "base">("arbitrum");
   const [toChain, setToChain] = useState<"arbitrum" | "base">("base");
   const [bridgeAmount, setBridgeAmount] = useState<string>("");
+  const [fromAddress, setFromAddress] = useState<string>("");
   const [recipientAddress, setRecipientAddress] = useState<string>("");
+  const [isFromAutoSet, setIsFromAutoSet] = useState<boolean>(false); // Track if from was auto-set to the connected wallet
   const [isRecipientAutoSet, setIsRecipientAutoSet] = useState<boolean>(false); // Track if recipient was auto-set
 
   // Handle switching bridge direction
@@ -47,7 +49,11 @@ export default function BridgeMorPage() {
   // RESULT_CODE_KILLED_BAD_MESSAGE) while the page was still hydrating.
 
   // Use shared hook to get balances (prevents duplicate RPC calls)
-  const { arbitrumBalance, baseBalance } = useMORBalances(address);
+  // Balances follow the from address (the source of funds), falling back to
+  // the connected wallet while the from address is empty or invalid
+  const isFromAddressValid = /^0x[a-fA-F0-9]{40}$/.test(fromAddress);
+  const balanceAddress = (isFromAddressValid ? fromAddress : address) as `0x${string}` | undefined;
+  const { arbitrumBalance, baseBalance } = useMORBalances(balanceAddress);
 
   // Get balance for source chain (Arbitrum or Base)
   const sourceBalance = sourceChainId === arbitrum.id ? arbitrumBalance : baseBalance;
@@ -58,30 +64,50 @@ export default function BridgeMorPage() {
     return parseFloat(formatEther(sourceBalance));
   }, [sourceBalance]);
 
-  // Update recipient address when wallet connects (only when empty)
+  // Initialize the from address from the connected wallet (only when empty)
   useEffect(() => {
-    if (address && !recipientAddress) {
-      setRecipientAddress(address);
+    if (address && !fromAddress) {
+      setFromAddress(address);
+      setIsFromAutoSet(true);
+    }
+  }, [address, fromAddress]);
+
+  // The recipient defaults to the from address (the source of funds), not the
+  // signing wallet, so Safe flows keep the vault as the default destination
+  useEffect(() => {
+    if (!recipientAddress && (fromAddress || address)) {
+      setRecipientAddress((fromAddress || address) as string);
       setIsRecipientAutoSet(true);
     }
-  }, [address, recipientAddress]);
+  }, [address, fromAddress, recipientAddress]);
 
-  // Handle account changes: update recipient if it was auto-set to a previous account
+  // Recipient tracks the from address while it was never manually edited
   useEffect(() => {
-    if (address && recipientAddress && isRecipientAutoSet && recipientAddress !== address) {
-      // If recipient was auto-set and doesn't match current address, update it
-      // This handles the case where user switches between multiple connected accounts
-      // Only updates if it was auto-set to prevent overwriting manually entered addresses
-      setRecipientAddress(address);
+    if (fromAddress && isRecipientAutoSet && recipientAddress && recipientAddress !== fromAddress) {
+      setRecipientAddress(fromAddress);
     }
-  }, [address, recipientAddress, isRecipientAutoSet]);
+  }, [fromAddress, isRecipientAutoSet, recipientAddress]);
 
-  // Reset auto-set flag when wallet disconnects (but keep manual addresses)
+  // Handle account changes: auto-set addresses follow the new account, manual entries are kept
+  useEffect(() => {
+    if (address && fromAddress && isFromAutoSet && fromAddress !== address) {
+      setFromAddress(address);
+    }
+  }, [address, fromAddress, isFromAutoSet]);
+
+  // Reset auto-set flags when wallet disconnects (but keep manual addresses)
   useEffect(() => {
     if (!address) {
+      setIsFromAutoSet(false);
       setIsRecipientAutoSet(false);
     }
   }, [address]);
+
+  // Track when the user manually changes the from address (not auto-set)
+  const handleFromChange = (newAddress: string) => {
+    setFromAddress(newAddress);
+    setIsFromAutoSet(false); // Mark as manually set
+  };
 
   // Track when user manually changes recipient address (not auto-set)
   const handleRecipientChange = (newAddress: string) => {
@@ -158,6 +184,9 @@ export default function BridgeMorPage() {
         balance={formattedBalance}
         bridgeAmount={bridgeAmount}
         onAmountChange={setBridgeAmount}
+        fromAddress={fromAddress}
+        onFromChange={handleFromChange}
+        signerAddress={address ?? ""}
         recipientAddress={recipientAddress}
         onRecipientChange={handleRecipientChange}
         onBridgeSuccess={handleBridgeSuccess}
