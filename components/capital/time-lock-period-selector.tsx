@@ -4,7 +4,7 @@ import React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type TimeUnit } from "@/lib/utils/power-factor-utils";
+import { POWER_FACTOR_CONSTANTS, type TimeUnit } from "@/lib/utils/power-factor-utils";
 import { LockPeriodSlider } from "./lock-period-slider";
 
 interface TimeLockPeriodSelectorProps {
@@ -22,6 +22,8 @@ interface TimeLockPeriodSelectorProps {
   variant?: "input" | "slider";
   lockDays?: number;
   onLockDaysChange?: (days: number) => void;
+  /** Dynamic max power factor achievable at max slider position */
+  maxPowerFactor?: string;
 }
 
 export function TimeLockPeriodSelector({
@@ -39,6 +41,7 @@ export function TimeLockPeriodSelector({
   variant = "input",
   lockDays,
   onLockDaysChange,
+  maxPowerFactor,
 }: TimeLockPeriodSelectorProps) {
   const handleValueChange = (value: string) => {
     onLockValueChange(value);
@@ -71,7 +74,7 @@ export function TimeLockPeriodSelector({
   );
 
   if (variant === "slider") {
-    const sliderDays = lockDays ?? (parseInt(lockValue, 10) || 7);
+    const sliderDays = lockDays ?? (parseInt(lockValue, 10) || POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS);
 
     return (
       <div className={`space-y-3 ${className}`}>
@@ -84,6 +87,7 @@ export function TimeLockPeriodSelector({
             handleUnitChange("days");
           }}
           disabled={disabled}
+          maxPowerFactor={maxPowerFactor}
         />
         {validationMessages}
       </div>
@@ -94,7 +98,7 @@ export function TimeLockPeriodSelector({
     <div className={`space-y-2 ${className}`}>
       <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
       <p className="text-xs text-gray-400">
-        Minimum 7 days required.
+        Minimum 30 days required.
       </p>
 
       <div className="flex gap-2">

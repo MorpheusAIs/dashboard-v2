@@ -34,7 +34,7 @@
 - **Dependencies**:
   - `useCapitalContext` - Main context
   - `DataTable` - Table component
-  - `useDailyEmissions` - Emissions calculation
+  - `useCapitalPoolData` + `estimateDailyMor` - APR and MOR/day (virtual-deposit weighted)
   - `useTotalMorEarned` - Historical earnings
   - `getTokenPrice` - Price service
   - `MetricCardMinimal` - Metrics display

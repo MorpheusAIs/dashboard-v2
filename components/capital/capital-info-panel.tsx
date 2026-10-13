@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from 'next/dynamic'
+import { ChevronDown } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
+import { cn } from "@/lib/utils";
 
 // Dynamically import NumberFlow with SSR disabled to prevent hydration errors
 const NumberFlow = dynamic(() => import('@number-flow/react'), {
@@ -19,6 +22,58 @@ import type { AssetSymbol } from "@/context/CapitalPageContext";
 import { getAssetsForNetwork, type NetworkEnvironment } from "./constants/asset-config";
 import { getContractAddress } from "@/config/networks";
 import type { Format} from '@number-flow/react';
+import { AprCalculationDialog } from "./apr-calculation-dialog";
+
+type SortColumn = 'apr' | 'deposited';
+type SortDirection = 'asc' | 'desc';
+type AssetSort = { column: SortColumn; direction: SortDirection };
+
+function parseAprValue(apr: string): number | null {
+  if (!apr || apr === 'N/A' || apr === 'Coming Soon') return null;
+  const value = Number.parseFloat(apr.replace('%', ''));
+  return Number.isFinite(value) ? value : null;
+}
+
+function SortHeader({
+  label,
+  column,
+  sort,
+  onSort,
+  className,
+}: {
+  label: string;
+  column: SortColumn;
+  sort: AssetSort;
+  onSort: (column: SortColumn) => void;
+  className?: string;
+}) {
+  const isActive = sort.column === column;
+  const nextDirection = isActive && sort.direction === 'desc' ? 'ascending' : 'descending';
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(column)}
+      className={cn(
+        "flex w-full items-center justify-center text-xs font-medium text-gray-400 hover:text-white transition-colors",
+        className
+      )}
+      aria-label={`Sort by ${label} ${nextDirection}`}
+    >
+      <span className="relative inline-block whitespace-nowrap">
+        {label}
+        <ChevronDown
+          className={cn(
+            "absolute left-full top-1/2 ml-0.5 hidden h-3 w-3 -translate-y-1/2 shrink-0 transition-transform duration-200 min-[2000px]:block",
+            isActive ? "text-emerald-400" : "text-gray-600",
+            isActive && sort.direction === 'asc' && "rotate-180"
+          )}
+          aria-hidden="true"
+        />
+      </span>
+    </button>
+  );
+}
 
 export function CapitalInfoPanel() {
   const {
@@ -27,15 +82,35 @@ export function CapitalInfoPanel() {
     setSelectedAsset,
   } = useCapitalContext();
 
-  // Get MOR price from metrics (which already uses useTokenPrices correctly)
-  const { morPrice } = useCapitalMetrics();
+  const [sort, setSort] = useState<AssetSort>({
+    column: 'deposited',
+    direction: 'desc',
+  });
+
+  // Token prices from DefiLlama (stETH, wETH, wBTC, LINK) and CoinGecko (MOR),
+  // served by /api/token-prices with a 10-minute cache. Stablecoins are $1.
+  const { morPrice, stethPrice, linkPrice, wbtcPrice, wethPrice } = useCapitalMetrics();
 
   console.log('💰 [CapitalInfoPanel] MOR price from metrics:', { morPrice });
 
   // Get live contract data with MOR price
   const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
 
+  const getAssetUsdPrice = (symbol: AssetSymbol): number | null => {
+    if (symbol === 'USDC' || symbol === 'USDT') return 1;
+    if (symbol === 'stETH') return stethPrice;
+    if (symbol === 'LINK') return linkPrice;
+    if (symbol === 'wBTC') return wbtcPrice;
+    if (symbol === 'wETH') return wethPrice;
+    return null;
+  };
 
+  const getAssetUsdValue = (symbol: AssetSymbol, totalStaked: string): number | null => {
+    if (!totalStaked || totalStaked === 'N/A') return null;
+    const price = getAssetUsdPrice(symbol);
+    if (price === null) return null;
+    return parseStakedAmount(totalStaked) * price;
+  };
 
   // Get network environment from pool data
   const networkEnvironment: NetworkEnvironment = poolData.networkEnvironment as NetworkEnvironment;
@@ -72,24 +147,37 @@ export function CapitalInfoPanel() {
       disabled: assetConfig.metadata.disabled || (!hasDepositPool),
     };
   }).sort((a, b) => {
-    // Sort by APR (highest first)
-    const parseApr = (apr: string): number => {
-      if (apr === 'Coming Soon') return -2;
-      if (apr === 'N/A') return -1;
-      // Extract numeric value from percentage string (e.g., "5.23%" -> 5.23)
-      const numericValue = parseFloat(apr.replace('%', ''));
-      return isNaN(numericValue) ? -2 : numericValue;
+    const getSortValue = (asset: Asset) => {
+      if (sort.column === 'apr') {
+        return parseAprValue(asset.apr);
+      }
+      return getAssetUsdValue(asset.symbol as AssetSymbol, asset.totalStaked);
     };
-    
-    const aValue = parseApr(a.apr);
-    const bValue = parseApr(b.apr);
-    return bValue - aValue;
+
+    const unknownValue = sort.direction === 'desc' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+    const aValue = getSortValue(a) ?? unknownValue;
+    const bValue = getSortValue(b) ?? unknownValue;
+    return sort.direction === 'desc' ? bValue - aValue : aValue - bValue;
   });
+
+  const handleSort = (column: SortColumn) => {
+    setSort((current) => {
+      if (current.column === column) {
+        return { column, direction: current.direction === 'desc' ? 'asc' : 'desc' };
+      }
+      return { column, direction: 'desc' };
+    });
+  };
 
   const handleStakeClick = (assetSymbol: AssetSymbol) => {
     // Set the selected asset in the context before opening the modal
     setSelectedAsset(assetSymbol);
     setActiveModal('deposit');
+  };
+
+  const usdFormat: Format = {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   };
 
   return (
@@ -108,9 +196,10 @@ export function CapitalInfoPanel() {
         <div className="px-2 pt-2 pb-1 md:px-3 md:pt-3 md:pb-2 flex flex-col h-full">
           {/* Title & Subtitle */} 
           <div className="mb-6"> 
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-white">Capital</h1>
-              {poolData.networkEnvironment === 'testnet' && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <h1 className="text-3xl font-bold text-white">Capital</h1>
+                {poolData.networkEnvironment === 'testnet' && (
                 <div className="flex gap-2">
                   <span className="px-2 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-xs font-medium">
                     Live Data
@@ -125,7 +214,9 @@ export function CapitalInfoPanel() {
                     </span>
                   )} */}
                 </div>
-              )}
+                )}
+              </div>
+              <AprCalculationDialog />
             </div>
             <p className="text-gray-400 text-sm mt-1">
             Deposit one of the assets below to generate yield for the Morpheus protocol and earn daily MOR rewards in return
@@ -137,8 +228,12 @@ export function CapitalInfoPanel() {
             {/* Fixed Header */}
             <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr 1fr auto' }}>
               <div>Asset</div>
-              <div className="text-center">APR</div>
-              <div className="text-center">Total Deposited</div>
+              <div className="text-center">
+                <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} className="min-[2000px]:translate-x-1.5" />
+              </div>
+              <div className="text-center">
+                <SortHeader label="Total Deposited ($)" column="deposited" sort={sort} onSort={handleSort} />
+              </div>
               <div className="text-center">Action</div>
             </div>
             
@@ -183,7 +278,7 @@ export function CapitalInfoPanel() {
                       })()}
                     </div>
 
-                    {/* Total Staked */}
+                    {/* Total Deposited (USD) */}
                     <div className={`text-right text-sm font-semibold flex justify-center ${
                       asset.disabled ? 'text-gray-500' : 'text-white'
                     }`}>
@@ -199,34 +294,18 @@ export function CapitalInfoPanel() {
                         if (assetPoolData.totalStaked === 'N/A') {
                           return 'N/A';
                         }
-                        const parsedValue = parseStakedAmount(assetPoolData.totalStaked);
 
-                        // Use NumberFlow's format prop for proper decimal display
-                        let formatOptions: Format = {};
-                        if (asset.symbol === 'wETH' || asset.symbol === 'wBTC') {
-                          if (parsedValue < 0.01) {
-                            formatOptions = {
-                              minimumFractionDigits: 4,
-                              maximumFractionDigits: 4
-                            };
-                          } else if (parsedValue < 1) {
-                            formatOptions = {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            };
-                          } else if (parsedValue < 10) {
-                            formatOptions = {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            };
-                          }
+                        const usdValue = getAssetUsdValue(asset.symbol as AssetSymbol, assetPoolData.totalStaked);
+                        if (usdValue === null) {
+                          return <Skeleton className="h-4 w-12 bg-gray-700" />;
                         }
 
                          return (
                            <div className="text-right">
+                             <span className="hidden min-[2000px]:inline">$</span>
                              <NumberFlow
-                               value={parsedValue}
-                               format={formatOptions}
+                               value={usdValue}
+                               format={usdFormat}
                                locales="en-US"
                              />
                            </div>
@@ -260,4 +339,4 @@ export function CapitalInfoPanel() {
       </div>
     </div>
   );
-} 
+}

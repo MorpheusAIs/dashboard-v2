@@ -948,7 +948,11 @@ export default function BuilderPage() {
 			// Use a small delay to ensure the UI is fully rendered
 			const timer = setTimeout(() => {
 				// Call the network context's switchToChain function
-				switchToChain(networkInfo.targetChainId);
+				// Keep networkSwitchAttempted set even on failure so a rejected
+				// request doesn't re-trigger this effect in a prompt loop
+				switchToChain(networkInfo.targetChainId).catch((error) => {
+					console.error('Failed to switch network:', error);
+				});
 
 				// Hide notification after a brief period
 				setTimeout(() => {
@@ -1327,13 +1331,14 @@ export default function BuilderPage() {
 					const ClaimFormWithGlow = isAdmin ? (
 						<div className="relative">
 							<ClaimFormCard
-								onClaim={async () => {
+								connectedAddress={userAddress}
+								onClaim={async (claimToAddress) => {
 									if (!isCorrectNetwork()) {
 										await handleNetworkSwitch();
 										return;
 									}
 
-									await handleClaim();
+									await handleClaim(claimToAddress);
 								}}
 								claimableAmount={
 									claimableAmount ? parseFloat(formatEther(claimableAmount)) : 0

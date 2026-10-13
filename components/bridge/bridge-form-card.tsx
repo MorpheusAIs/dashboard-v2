@@ -27,6 +27,9 @@ interface BridgeFormCardProps {
   balance: number;
   bridgeAmount: string;
   onAmountChange: (amount: string) => void;
+  fromAddress: string;
+  onFromChange: (address: string) => void;
+  signerAddress: string;
   recipientAddress: string;
   onRecipientChange: (address: string) => void;
   onBridgeSuccess: () => void;
@@ -42,6 +45,9 @@ export function BridgeFormCard({
   balance,
   bridgeAmount,
   onAmountChange,
+  fromAddress,
+  onFromChange,
+  signerAddress,
   recipientAddress,
   onRecipientChange,
   onBridgeSuccess,
@@ -64,6 +70,13 @@ export function BridgeFormCard({
       refetchInterval: false, // Disable automatic polling - only fetch when needed
     }
   });
+
+  // Validate from address
+  const isFromValid = useMemo(() => {
+    if (!fromAddress) return false;
+    // Basic Ethereum address validation
+    return /^0x[a-fA-F0-9]{40}$/.test(fromAddress);
+  }, [fromAddress]);
 
   // Validate recipient address
   const isRecipientValid = useMemo(() => {
@@ -366,7 +379,7 @@ export function BridgeFormCard({
 
   // Handle bridge
   const handleBridge = async () => {
-    if (!isAmountValid || !isRecipientValid || !morTokenAddress || !quoteFee || !address) {
+    if (!isAmountValid || !isFromValid || !isRecipientValid || !morTokenAddress || !quoteFee || !address) {
       if (!morTokenAddress) {
         toast.error(`MOR token contract not found on ${fromChain === "arbitrum" ? "Arbitrum One" : "Base"}. Please check your network connection.`, { duration: 8000 });
       }
@@ -545,6 +558,29 @@ export function BridgeFormCard({
             )}
           </div>
 
+          {/* From Address */}
+          <div className="space-y-2">
+            <Label htmlFor="from-address">From Address</Label>
+            <Input
+              id="from-address"
+              type="text"
+              placeholder="0x..."
+              value={fromAddress}
+              onChange={(e) => onFromChange(e.target.value)}
+              disabled={!address || !isCorrectNetwork || isProcessing}
+            />
+            {fromAddress && !isFromValid && (
+              <div className="text-yellow-400 text-sm">
+                Invalid Ethereum address
+              </div>
+            )}
+            {signerAddress && fromAddress && isFromValid && signerAddress.toLowerCase() !== fromAddress.toLowerCase() && (
+              <div className="text-xs text-gray-500">
+                The connected wallet submits the transaction and pays gas. To move funds held by this address, execute the bridge from it (e.g. via the Safe app).
+              </div>
+            )}
+          </div>
+
           {/* Recipient Address */}
           <div className="space-y-2">
             <Label htmlFor="recipient-address">Recipient Address</Label>
@@ -556,6 +592,11 @@ export function BridgeFormCard({
               onChange={(e) => onRecipientChange(e.target.value)}
               disabled={!address || !isCorrectNetwork || isProcessing}
             />
+            {fromAddress && isFromValid && (!recipientAddress || (isRecipientValid && recipientAddress.toLowerCase() === fromAddress.toLowerCase())) && (
+              <div className="text-xs text-gray-500">
+                Defaults to the from address.
+              </div>
+            )}
             {recipientAddress && !isRecipientValid && (
               <div className="text-yellow-400 text-sm">
                 Invalid Ethereum address
@@ -616,6 +657,7 @@ export function BridgeFormCard({
               className="w-full copy-button-base copy-button"
               disabled={
                 !isAmountValid ||
+                !isFromValid ||
                 !isRecipientValid ||
                 !quoteFee ||
                 isProcessing ||

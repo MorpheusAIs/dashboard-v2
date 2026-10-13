@@ -92,6 +92,7 @@ interface DepositModalResultsPanelProps {
   isMetricsLoading?: boolean;
   powerFactorError?: string;
   powerFactorWarning?: string;
+  maxAchievablePowerFactor?: string;
 }
 
 export function DepositModalResultsPanel({
@@ -107,6 +108,7 @@ export function DepositModalResultsPanel({
   isMetricsLoading,
   powerFactorError,
   powerFactorWarning,
+  maxAchievablePowerFactor,
 }: DepositModalResultsPanelProps) {
   const hasAmount = !!amount && parseFloat(amount) > 0;
   const currentPf = parsePowerFactorValue(powerFactor);
@@ -200,7 +202,7 @@ export function DepositModalResultsPanel({
       )}
 
       <p className="text-[11px] text-gray-500 mt-4 leading-relaxed">
-        Drag the lock slider to compare claim timing against reward multipliers. Longer locks increase power factor up to x10.7.
+        Drag the lock slider to compare claim timing against reward multipliers. Longer locks increase power factor up to {maxAchievablePowerFactor ?? "the contract maximum"}.
       </p>
     </div>
   );

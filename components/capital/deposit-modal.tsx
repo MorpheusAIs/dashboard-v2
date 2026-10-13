@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { formatUnits, parseUnits, isAddress } from "viem";
-import { useEnsAddress, useBalance } from "wagmi";
+import { useEnsAddress, useBalance, useReadContract } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import { AssetIcon } from "@/components/icons";
 import { 
@@ -21,22 +21,24 @@ import { ChevronDown, Plus } from "lucide-react";
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { usePowerFactor } from "@/hooks/use-power-factor";
-import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useCapitalPoolData, estimateDailyMor } from "@/hooks/use-capital-pool-data";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
-import { useDailyEmissions } from "@/components/capital/hooks/use-daily-emissions";
-import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
 
 // Import Config and Utils
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
 import {
   getMaxAllowedValue,
   getMinAllowedValue,
+  getMaxLockSliderDays,
   durationToSeconds,
   parsePowerFactorValue,
   calculatePowerFactorFromDuration,
+  formatPowerFactorPrecise,
   POWER_FACTOR_CONSTANTS,
   type TimeUnit
 } from "@/lib/utils/power-factor-utils";
+
+import LockMultiplierMathAbi from "@/app/abi/LockMultiplierMath.json";
 
 // Import Constants
 import {
@@ -82,6 +84,35 @@ export function DepositModal() {
   const poolContractAddress = useMemo(() => {
     return l1ChainId ? getContractAddress(l1ChainId, 'distributorV2', networkEnv) as `0x${string}` | undefined : undefined;
   }, [l1ChainId, networkEnv]);
+
+  // --- Max achievable power factor for the slider's right-end label ---
+  const lockMultiplierMathAddress = useMemo(() => {
+    if (!l1ChainId) return undefined;
+    return getContractAddress(l1ChainId, 'lockMultiplierMath', networkEnv) as `0x${string}` | undefined;
+  }, [l1ChainId, networkEnv]);
+
+  const maxSliderArgs = useMemo(() => {
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const maxDays = getMaxLockSliderDays();
+    return [now, now + BigInt(maxDays) * BigInt(86400)] as const;
+  }, []);
+
+  const { data: maxRawMultiplier } = useReadContract({
+    address: lockMultiplierMathAddress as `0x${string}`,
+    abi: LockMultiplierMathAbi,
+    functionName: 'getLockPeriodMultiplier',
+    args: maxSliderArgs,
+    chainId: l1ChainId,
+    query: {
+      enabled: !!lockMultiplierMathAddress && !!l1ChainId,
+      staleTime: 3_600_000,
+    },
+  });
+
+  const maxAchievablePowerFactor = useMemo(() => {
+    if (!maxRawMultiplier) return undefined;
+    return formatPowerFactorPrecise(maxRawMultiplier as bigint);
+  }, [maxRawMultiplier]);
 
   // Get available assets for current network environment
   const availableAssets = useMemo((): AssetContractInfo[] => {
@@ -287,11 +318,6 @@ export function DepositModal() {
 
   const { morPrice } = useCapitalMetrics();
   const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
-  const { getAssetPrice } = useTokenPrices({
-    isInitialLoad: true,
-    shouldRefreshData: false,
-    networkEnv,
-  });
 
   // Initialize power factor hook (after state declarations)
   const powerFactor = usePowerFactor({
@@ -521,30 +547,20 @@ export function DepositModal() {
     }
   }, [amount, rawAmount, selectedAsset, availableAssets]);
 
-  const assetPrice = getAssetPrice(selectedAsset);
-  const { emissions: baseDailyMor, isLoading: isLoadingDailyMor } = useDailyEmissions(
-    undefined,
-    amountBigInt > BigInt(0) ? amountBigInt : undefined,
-    selectedAsset,
-    networkEnv,
-    0,
-    undefined,
-    assetPrice ?? undefined
-  );
-
   const displayPowerFactor = powerFactor.currentResult.isLoading
     ? calculatePowerFactorFromDuration(lockValue, lockUnit)
     : powerFactor.currentResult.powerFactor;
 
   const currentPfMultiplier = parsePowerFactorValue(displayPowerFactor);
   const baselinePfMultiplier = parsePowerFactorValue(baselinePowerFactor);
-  const dailyMorReward = baseDailyMor * currentPfMultiplier;
-  const baselineDailyMorReward = baseDailyMor * baselinePfMultiplier;
-  const baseApr = poolData.assets[selectedAsset]?.apr || "N/A";
-  const isMetricsLoading =
-    poolData.assets[selectedAsset]?.isLoading ||
-    poolData.assets[selectedAsset]?.aprLoading ||
-    isLoadingDailyMor;
+  const selectedPool = poolData.assets[selectedAsset];
+  const depositAmount = Number(
+    formatUnits(amountBigInt, availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.decimals || 18)
+  );
+  const dailyMorReward = estimateDailyMor(selectedPool, depositAmount * currentPfMultiplier, true);
+  const baselineDailyMorReward = estimateDailyMor(selectedPool, depositAmount * baselinePfMultiplier, true);
+  const baseApr = selectedPool?.apr || "N/A";
+  const isMetricsLoading = selectedPool?.isLoading || selectedPool?.aprLoading;
 
   // ENS Resolution
   const isEnsName = useMemo(() => {
@@ -1139,7 +1155,7 @@ export function DepositModal() {
               
               {/* Deposit lock period info */}
               <p className="text-xs text-gray-400 mt-2">
-                Deposits are locked for the first 7 days.
+                Deposits are locked for the first 30 days.
               </p>
             </div>
 
@@ -1249,6 +1265,7 @@ export function DepositModal() {
               disabled={isProcessingDeposit}
               onValueChangeExtra={() => setFormError(null)}
               onUnitChangeExtra={() => setFormError(null)}
+              maxPowerFactor={maxAchievablePowerFactor}
             />
             </div>
 
@@ -1267,6 +1284,7 @@ export function DepositModal() {
                 isMetricsLoading={isMetricsLoading}
                 powerFactorError={powerFactor.currentResult.error}
                 powerFactorWarning={powerFactor.currentResult.warning}
+                maxAchievablePowerFactor={maxAchievablePowerFactor}
               />
             </div>
           </form>

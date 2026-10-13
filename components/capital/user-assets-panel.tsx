@@ -12,8 +12,7 @@ import { EmptyAssetsState } from "./empty-assets-state";
 import { useTokenPrices } from "./hooks/use-token-prices";
 import { useUserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAssetsTable } from "./hooks/use-assets-table";
-import { useDailyEmissions } from "./hooks/use-daily-emissions";
-import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useCapitalPoolData, estimateDailyMor } from "@/hooks/use-capital-pool-data";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 import { parsePowerFactorValue } from "@/lib/utils/power-factor-utils";
 import {
@@ -32,7 +31,7 @@ import { useWalletCacheManager } from "@/hooks/use-wallet-cache-manager";
 const PromotionalBanner = () => (
   <div className="px-4 py-2 bg-emerald-400/10 border-2 border-emerald-400 rounded-xl animate-pulse">
     <span className="text-emerald-400 font-medium text-sm animate-bounce">
-      New deposits: Claim lock for rewards is 7 days only for a limited time!
+      New deposits: Claim lock for rewards is 30 days only for a limited time!
     </span>
   </div>
 );
@@ -85,84 +84,6 @@ export function UserAssetsPanel() {
     networkEnv
   });
 
-  // All assets use the same reward pool (index 0) - confirmed via DistributorV2.depositPools() calls
-  // All mainnet capital assets (stETH, USDC, USDT, wBTC, wETH) are in reward pool index 0
-
-  // Calculate total USD value across all pools for proportional distribution
-  const totalUSDValueAllPools = useMemo(() => {
-    return Object.values(assets).reduce((total, asset) => {
-      const assetConfigData = getAssetConfig(asset.symbol, networkEnv);
-      const decimals = assetConfigData?.metadata?.decimals || 18;
-      const totalStaked = Number(asset.totalDeposited) / Math.pow(10, decimals);
-      const assetPrice = getAssetPrice(asset.symbol);
-      
-      if (assetPrice && assetPrice > 0 && totalStaked > 0) {
-        return total + (totalStaked * assetPrice);
-      }
-      return total;
-    }, 0);
-  }, [assets, getAssetPrice, networkEnv]);
-
-  // Calculate daily emissions for each asset dynamically using real contract data
-  const stETHEmissions = useDailyEmissions(
-    assets.stETH?.claimableAmount,
-    assets.stETH?.userDeposited,
-    'stETH',
-    networkEnv,
-    0, // All assets use reward pool index 0
-    totalUSDValueAllPools,
-    getAssetPrice('stETH') || undefined
-  );
-
-  const usdcEmissions = useDailyEmissions(
-    assets.USDC?.claimableAmount,
-    assets.USDC?.userDeposited,
-    'USDC',
-    networkEnv,
-    0, // All assets use reward pool index 0
-    totalUSDValueAllPools,
-    getAssetPrice('USDC') || undefined
-  );
-
-  const usdtEmissions = useDailyEmissions(
-    assets.USDT?.claimableAmount,
-    assets.USDT?.userDeposited,
-    'USDT',
-    networkEnv,
-    0, // All assets use reward pool index 0
-    totalUSDValueAllPools,
-    getAssetPrice('USDT') || undefined
-  );
-
-  const wbtcEmissions = useDailyEmissions(
-    assets.wBTC?.claimableAmount,
-    assets.wBTC?.userDeposited,
-    'wBTC',
-    networkEnv,
-    0, // All assets use reward pool index 0
-    totalUSDValueAllPools,
-    getAssetPrice('wBTC') || undefined
-  );
-
-  const wethEmissions = useDailyEmissions(
-    assets.wETH?.claimableAmount,
-    assets.wETH?.userDeposited,
-    'wETH',
-    networkEnv,
-    0, // All assets use reward pool index 0
-    totalUSDValueAllPools,
-    getAssetPrice('wETH') || undefined
-  );
-
-  // Create a mapping of asset symbols to their emission data for easy lookup
-  const assetEmissions = useMemo(() => ({
-    stETH: stETHEmissions,
-    USDC: usdcEmissions,
-    USDT: usdtEmissions,
-    wBTC: wbtcEmissions,
-    wETH: wethEmissions,
-  }), [stETHEmissions, usdcEmissions, usdtEmissions, wbtcEmissions, wethEmissions]);
-
   const { morPrice } = useCapitalMetrics();
   const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
 
@@ -191,9 +112,6 @@ export function UserAssetsPanel() {
       setIsInitialLoad(false);
     }
   });
-
-  // Note: Daily emissions loading state is tracked individually in assetEmissions.*.isLoading
-  // Could be used for combined loading state if needed: Object.values(assetEmissions).some(emission => emission.isLoading)
 
   // Handle cache loading and initial state
   useEffect(() => {
@@ -434,11 +352,12 @@ export function UserAssetsPanel() {
       const available = Number(assetData.userBalance) / Math.pow(10, decimals);
       const claimable = Number(assetData.claimableAmount) / Math.pow(10, 18); // MOR rewards always 18 decimals
       
-      // Use dynamic emissions data based on asset symbol
-      // LINK is not available on mainnet, so this will be 0
-      const emissions = assetEmissions[assetSymbol as keyof typeof assetEmissions]?.emissions || 0;
-      
         const multiplier = assetData.userMultiplierFormatted;
+        // Position's share of pool MOR/day by virtual weight (deposit × power factor)
+        const emissions = estimateDailyMor(
+          poolData.assets[assetSymbol],
+          amount * parsePowerFactorValue(multiplier || "x1.0")
+        );
         const rawClaimUnlockDate = getAssetUnlockDateCallback(assetSymbol);
         const rawWithdrawUnlockDate = getAssetWithdrawUnlockDateCallback(assetSymbol);
         const displayClaimUnlockDate = formatUnlockDateDisplay(rawClaimUnlockDate, assetSymbol);
@@ -488,7 +407,7 @@ export function UserAssetsPanel() {
       // Assets with zero staked go to the end
       return aIsZeroStaked ? 1 : -1;
     }) as UserAsset[];
-  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, getAssetWithdrawUnlockDateCallback, assetEmissions, canAssetWithdraw, networkEnv, getEffectiveApr]);
+  }, [hasStakedAssets, assets, canAssetClaim, getAssetUnlockDateCallback, getAssetWithdrawUnlockDateCallback, canAssetWithdraw, networkEnv, getEffectiveApr, poolData.assets]);
 
   // Use sorting hook
   const { sortedUserAssets: userAssets, sorting, handleSortingChange } = useAssetsTable(unsortedUserAssets);

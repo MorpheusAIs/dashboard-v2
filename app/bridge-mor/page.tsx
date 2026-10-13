@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAccount, useChainId } from "wagmi";
+import { useAccount } from "wagmi";
 import { arbitrum, base } from "wagmi/chains";
 import { formatEther } from "viem";
 import { BridgeFormCard } from "@/components/bridge/bridge-form-card";
@@ -18,16 +18,18 @@ const LAYERZERO_ENDPOINTS = {
 } as const;
 
 export default function BridgeMorPage() {
-  const { address } = useAccount();
-  const chainId = useChainId();
-  const { switchToChain, isNetworkSwitching } = useNetwork();
-  const networkSwitchAttempted = useRef(false);
+  // Use the wallet's actual chain (not the wagmi config default) so the
+  // network check reflects what the user is really connected to
+  const { address, chainId } = useAccount();
+  const { switchToChain } = useNetwork();
 
   // Bidirectional bridging: Arbitrum ↔ Base
   const [fromChain, setFromChain] = useState<"arbitrum" | "base">("arbitrum");
   const [toChain, setToChain] = useState<"arbitrum" | "base">("base");
   const [bridgeAmount, setBridgeAmount] = useState<string>("");
+  const [fromAddress, setFromAddress] = useState<string>("");
   const [recipientAddress, setRecipientAddress] = useState<string>("");
+  const [isFromAutoSet, setIsFromAutoSet] = useState<boolean>(false); // Track if from was auto-set to the connected wallet
   const [isRecipientAutoSet, setIsRecipientAutoSet] = useState<boolean>(false); // Track if recipient was auto-set
 
   // Handle switching bridge direction
@@ -41,41 +43,17 @@ export default function BridgeMorPage() {
   const sourceChainId = fromChain === "arbitrum" ? arbitrum.id : base.id;
   const destinationEid = toChain === "base" ? LAYERZERO_ENDPOINTS.BASE : LAYERZERO_ENDPOINTS.ARBITRUM;
 
-  // Auto-switch to source chain when page loads or direction changes
-  useEffect(() => {
-    // Only switch if:
-    // 1. Wallet is connected
-    // 2. Not already on source chain
-    // 3. Haven't attempted switch yet
-    // 4. Not currently switching
-    if (
-      address &&
-      chainId !== undefined &&
-      chainId !== sourceChainId &&
-      !networkSwitchAttempted.current &&
-      !isNetworkSwitching
-    ) {
-      networkSwitchAttempted.current = true;
-      
-      // Small delay to ensure page is loaded
-      const timer = setTimeout(() => {
-        switchToChain(sourceChainId).catch((error) => {
-          console.error(`Failed to auto-switch to ${fromChain === "arbitrum" ? "Arbitrum One" : "Base"}:`, error);
-          networkSwitchAttempted.current = false; // Reset on error so user can try again
-        });
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-    
-    // Reset the flag when successfully on source chain
-    if (chainId === sourceChainId) {
-      networkSwitchAttempted.current = false;
-    }
-  }, [address, chainId, sourceChainId, switchToChain, isNetworkSwitching, fromChain]);
+  // Network switching is user-initiated only (via the alert banner below).
+  // Firing wallet_switchEthereumChain automatically on page load caused some
+  // wallet extensions to crash the tab (Chrome "Aw, Snap!"
+  // RESULT_CODE_KILLED_BAD_MESSAGE) while the page was still hydrating.
 
   // Use shared hook to get balances (prevents duplicate RPC calls)
-  const { arbitrumBalance, baseBalance } = useMORBalances(address);
+  // Balances follow the from address (the source of funds), falling back to
+  // the connected wallet while the from address is empty or invalid
+  const isFromAddressValid = /^0x[a-fA-F0-9]{40}$/.test(fromAddress);
+  const balanceAddress = (isFromAddressValid ? fromAddress : address) as `0x${string}` | undefined;
+  const { arbitrumBalance, baseBalance } = useMORBalances(balanceAddress);
 
   // Get balance for source chain (Arbitrum or Base)
   const sourceBalance = sourceChainId === arbitrum.id ? arbitrumBalance : baseBalance;
@@ -86,30 +64,50 @@ export default function BridgeMorPage() {
     return parseFloat(formatEther(sourceBalance));
   }, [sourceBalance]);
 
-  // Update recipient address when wallet connects (only when empty)
+  // Initialize the from address from the connected wallet (only when empty)
   useEffect(() => {
-    if (address && !recipientAddress) {
-      setRecipientAddress(address);
+    if (address && !fromAddress) {
+      setFromAddress(address);
+      setIsFromAutoSet(true);
+    }
+  }, [address, fromAddress]);
+
+  // The recipient defaults to the from address (the source of funds), not the
+  // signing wallet, so Safe flows keep the vault as the default destination
+  useEffect(() => {
+    if (!recipientAddress && (fromAddress || address)) {
+      setRecipientAddress((fromAddress || address) as string);
       setIsRecipientAutoSet(true);
     }
-  }, [address, recipientAddress]);
+  }, [address, fromAddress, recipientAddress]);
 
-  // Handle account changes: update recipient if it was auto-set to a previous account
+  // Recipient tracks the from address while it was never manually edited
   useEffect(() => {
-    if (address && recipientAddress && isRecipientAutoSet && recipientAddress !== address) {
-      // If recipient was auto-set and doesn't match current address, update it
-      // This handles the case where user switches between multiple connected accounts
-      // Only updates if it was auto-set to prevent overwriting manually entered addresses
-      setRecipientAddress(address);
+    if (fromAddress && isRecipientAutoSet && recipientAddress && recipientAddress !== fromAddress) {
+      setRecipientAddress(fromAddress);
     }
-  }, [address, recipientAddress, isRecipientAutoSet]);
+  }, [fromAddress, isRecipientAutoSet, recipientAddress]);
 
-  // Reset auto-set flag when wallet disconnects (but keep manual addresses)
+  // Handle account changes: auto-set addresses follow the new account, manual entries are kept
+  useEffect(() => {
+    if (address && fromAddress && isFromAutoSet && fromAddress !== address) {
+      setFromAddress(address);
+    }
+  }, [address, fromAddress, isFromAutoSet]);
+
+  // Reset auto-set flags when wallet disconnects (but keep manual addresses)
   useEffect(() => {
     if (!address) {
+      setIsFromAutoSet(false);
       setIsRecipientAutoSet(false);
     }
   }, [address]);
+
+  // Track when the user manually changes the from address (not auto-set)
+  const handleFromChange = (newAddress: string) => {
+    setFromAddress(newAddress);
+    setIsFromAutoSet(false); // Mark as manually set
+  };
 
   // Track when user manually changes recipient address (not auto-set)
   const handleRecipientChange = (newAddress: string) => {
@@ -120,7 +118,11 @@ export default function BridgeMorPage() {
   // Handle chain switching
   const handleChainSwitch = async () => {
     if (chainId !== sourceChainId) {
-      await switchToChain(sourceChainId);
+      try {
+        await switchToChain(sourceChainId);
+      } catch (error) {
+        console.error(`Failed to switch to ${fromChain === "arbitrum" ? "Arbitrum One" : "Base"}:`, error);
+      }
     }
   };
 
@@ -182,6 +184,9 @@ export default function BridgeMorPage() {
         balance={formattedBalance}
         bridgeAmount={bridgeAmount}
         onAmountChange={setBridgeAmount}
+        fromAddress={fromAddress}
+        onFromChange={handleFromChange}
+        signerAddress={address ?? ""}
         recipientAddress={recipientAddress}
         onRecipientChange={handleRecipientChange}
         onBridgeSuccess={handleBridgeSuccess}

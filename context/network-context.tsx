@@ -33,7 +33,9 @@ export function NetworkProvider({
   const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
   
   const { chainId } = useAccount();
-  const { switchChain } = useSwitchChain();
+  // switchChainAsync (not switchChain) so awaiting actually waits for the
+  // wallet's response and rejections are catchable by callers
+  const { switchChainAsync } = useSwitchChain();
   
   const currentChainId = chainId;
   const isMainnet = environment === 'mainnet';
@@ -45,14 +47,14 @@ export function NetworkProvider({
       
       // If switching to testnet, switch to Base Sepolia
       if (newEnvironment === 'testnet') {
-        await switchChain({ chainId: baseSepolia.id });
+        await switchChainAsync({ chainId: baseSepolia.id });
       }
       // If switching to mainnet, keep current chain if it's a mainnet chain, otherwise switch to Arbitrum
       else if (newEnvironment === 'mainnet') {
         const mainnetChainIds = [mainnet.id, arbitrum.id, base.id] as const;
         const currentChainIsMainnet = mainnetChainIds.includes(currentChainId as typeof mainnetChainIds[number]);
         if (!currentChainIsMainnet) {
-          await switchChain({ chainId: arbitrum.id });
+          await switchChainAsync({ chainId: arbitrum.id });
         }
       }
       
@@ -68,7 +70,7 @@ export function NetworkProvider({
   const switchToChain = async (chainId: number) => {
     try {
       setIsNetworkSwitching(true);
-      await switchChain({ chainId });
+      await switchChainAsync({ chainId });
     } catch (error) {
       console.error('Failed to switch chain:', error);
       throw error;

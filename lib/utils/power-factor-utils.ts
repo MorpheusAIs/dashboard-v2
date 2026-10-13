@@ -9,7 +9,7 @@ export const POWER_FACTOR_CONSTANTS = {
   REWARDS_DIVIDER: 10000, // Final division factor
   MAX_POWER_FACTOR: 10.7, // ✅ ACTUAL contract maximum (verified through testing)
   MIN_ACTIVATION_PERIOD_MONTHS: 7, // Minimum period before power factor activates
-  MIN_DEPOSIT_LOCK_DAYS: 7, // Minimum deposit lock period: 7 days
+  MIN_DEPOSIT_LOCK_DAYS: 30, // Minimum deposit lock period: 30 days
   MAX_LOCK_PERIOD_YEARS: 10, // Maximum lock period allowed
   SECONDS_PER_DAY: 86400,
   // Note: We now use real calendar calculations instead of these approximations
@@ -237,22 +237,21 @@ export function validateLockDuration(value: string, unit: TimeUnit): {
     };
   }
   
-  // Maximum period validation
-  if (unit === "years" && numValue > POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS) {
+  const maxForUnit = getMaxAllowedValue(unit);
+  if (numValue > maxForUnit) {
     return {
       isValid: false,
       errorMessage: `Maximum lock period is ${POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS} years`
     };
   }
-  
-  // Convert to total months for easier comparison
+
   let totalMonths: number;
   switch (unit) {
     case "minutes":
-      totalMonths = numValue / (30 * 24 * 60); // Convert minutes to months
+      totalMonths = numValue / (30 * 24 * 60);
       break;
     case "days":
-      totalMonths = numValue / 30; // Approximate
+      totalMonths = numValue / 30;
       break;
     case "months":
       totalMonths = numValue;
@@ -261,24 +260,14 @@ export function validateLockDuration(value: string, unit: TimeUnit): {
       totalMonths = numValue * 12;
       break;
   }
-  
-  // Maximum period validation (convert max years to months)
-  const maxMonths = POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS * 12;
-  if (totalMonths > maxMonths) {
-    return {
-      isValid: false,
-      errorMessage: `Maximum lock period is ${POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS} years`
-    };
-  }
-  
-  // Minimum period warning (power factor doesn't activate until 6 months)
+
   if (totalMonths < POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS) {
     return {
       isValid: true,
       warningMessage: `Power factor starts after ${POWER_FACTOR_CONSTANTS.MIN_ACTIVATION_PERIOD_MONTHS} months. This period will have 1.0x multiplier.`
     };
   }
-  
+
   return { isValid: true };
 }
 
@@ -502,9 +491,9 @@ export function getMinAllowedValue(unit: TimeUnit): number {
     case "months":
       return 1; // No minimum requirement for months (minimum validation is in days)
     case "days":
-      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS; // Minimum 7 days
+      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS; // Minimum 30 days
     case "minutes":
-      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS * 24 * 60; // Minimum 7 days in minutes
+      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS * 24 * 60; // Minimum 30 days in minutes
     default:
       return 1;
   }
@@ -515,11 +504,10 @@ export function getMinAllowedValue(unit: TimeUnit): number {
  * @param unit - Time unit
  * @returns Maximum allowed value as number
  */
-/** Calendar days from today until ~7 years — when power factor reaches x10.7 */
 export function getMaxLockSliderDays(): number {
   const start = new Date();
   const end = new Date(start);
-  end.setFullYear(start.getFullYear() + 7);
+  end.setFullYear(start.getFullYear() + POWER_FACTOR_CONSTANTS.MAX_LOCK_PERIOD_YEARS);
   return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
