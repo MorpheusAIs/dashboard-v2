@@ -19,6 +19,8 @@ export interface AssetPoolData {
   isLoading: boolean;
   error: Error | null;
   aprLoading?: boolean; // Separate loading state for APR calculation
+  poolDailyMor?: number; // MOR/day assigned to this deposit pool (same share × emissions basis as APR)
+  totalVirtualDeposited?: number; // Sum of deposit × power factor; the denominator DepositPool splits rewards by
 }
 
 export interface CapitalPoolData {
@@ -34,6 +36,22 @@ export interface CapitalPoolData {
 
 export interface CapitalPoolDataOptions {
   morPrice?: number | null; // MOR price for APR calculation in USD terms
+}
+
+/**
+ * Estimate MOR/day for a position. DepositPool splits a pool's rewards by virtual deposits
+ * (deposit × power factor), so a position earns poolDailyMor × its virtual weight / total
+ * virtual weight. Set isNewDeposit for a deposit not yet in the pool so its own weight is
+ * added to the denominator.
+ */
+export function estimateDailyMor(
+  pool: AssetPoolData | undefined,
+  virtualDeposit: number,
+  isNewDeposit = false
+): number {
+  if (!pool?.poolDailyMor || virtualDeposit <= 0) return 0;
+  const totalVirtual = (pool.totalVirtualDeposited ?? 0) + (isNewDeposit ? virtualDeposit : 0);
+  return totalVirtual > 0 ? (pool.poolDailyMor * virtualDeposit) / totalVirtual : 0;
 }
 
 // Mapping from asset symbols to their deposit pool contract keys
@@ -776,6 +794,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     });
 
     const aprResults: Record<string, string> = {};
+    const poolDailyMor: Record<string, number> = {};
     const assetYields: Record<string, number> = {}; // USD-denominated yields
     let totalYieldUSD = 0;
     
@@ -962,7 +981,11 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
         : 0;
       
       const totalVirtual = Number(formatUnits(totalVirtualDeposited as bigint, decimals));
-      const tvlForAPR = totalActualDeposited > 0 ? totalActualDeposited : totalVirtual;
+      // DepositPool splits pool rewards by virtual deposits (deposit × power factor), so a new
+      // x1.0 depositor competes against totalVirtualDeposited, not actual TVL. Dividing by actual
+      // TVL inflates APR by totalVirtual/totalActual. Effective APR = this × user power factor.
+      // See docs/APR_VIRTUAL_STAKE_EXPLAINER.md (Recommendation 1).
+      const tvlForAPR = totalVirtual > 0 ? totalVirtual : totalActualDeposited;
       
       // Get asset price from Distributor
       const distributorPoolResult = distributorPoolResults?.find((_, idx) => 
@@ -979,6 +1002,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
           : (totalYieldUSD > 0 ? assetYieldUSD / totalYieldUSD : 0);
         
         const assetAnnualShareMOR = share * annualEmissionsMOR;
+        poolDailyMor[symbol] = assetAnnualShareMOR / 365;
         
         // Calculate APR in USD terms with MOR price
         let aprPercentage: number;
@@ -1018,7 +1042,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
       }
     });
 
-    return aprResults;
+    return { aprResults, poolDailyMor };
   }, [
     networkEnvironment,
     contractData,
@@ -1086,7 +1110,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     console.log('🔧 ASSET DATA GENERATION - START:', {
       totalAssets: configuredAssets.length,
       assetSymbols: configuredAssets.map(a => a.metadata.symbol),
-      calculateV7APR: calculateV7APR ? Object.keys(calculateV7APR) : 'null (still loading dependencies)'
+      calculateV7APR: calculateV7APR ? Object.keys(calculateV7APR.aprResults) : 'null (still loading dependencies)'
     });
 
     configuredAssets.forEach(assetConfig => {
@@ -1130,8 +1154,8 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
           },
           aprCalculation: {
             calculateV7APRExists: !!calculateV7APR,
-            hasWBTCInAPR: calculateV7APR ? 'wBTC' in calculateV7APR : false,
-            aprValue: calculateV7APR?.['wBTC'] || 'not calculated'
+            hasWBTCInAPR: calculateV7APR ? 'wBTC' in calculateV7APR.aprResults : false,
+            aprValue: calculateV7APR?.aprResults['wBTC'] || 'not calculated'
           },
           finalLoadingState: contract?.isLoading || rewardRateData?.isLoading || false,
           decimals
@@ -1161,7 +1185,9 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
         const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
         result[symbol] = {
           totalStaked: virtualStake > 0 ? virtualStake.toString() : '0', // Use virtual stake if available
-          apr: (calculateV7APR && calculateV7APR[symbol]) || 'N/A',
+          apr: calculateV7APR?.aprResults[symbol] || 'N/A',
+          poolDailyMor: calculateV7APR?.poolDailyMor[symbol],
+          totalVirtualDeposited: virtualStake,
           isLoading: contract.isLoading || rewardRateData?.isLoading || false,
           error: (contract.error || rewardRateData?.error) as Error | null
         };
@@ -1195,7 +1221,9 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
 
         result[symbol] = {
           totalStaked,
-          apr: (calculateV7APR && calculateV7APR[symbol]) || 'N/A',
+          apr: calculateV7APR?.aprResults[symbol] || 'N/A',
+          poolDailyMor: calculateV7APR?.poolDailyMor[symbol],
+          totalVirtualDeposited: virtualStake,
           isLoading: contract.isLoading || rewardRateData?.isLoading || false,
           error: (contract.error || rewardRateData?.error) as Error | null
         };
