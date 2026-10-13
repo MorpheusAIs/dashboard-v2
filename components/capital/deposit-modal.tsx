@@ -21,10 +21,8 @@ import { ChevronDown, Plus } from "lucide-react";
 import { useCapitalContext, type AssetSymbol } from "@/context/CapitalPageContext";
 import { useNetwork } from "@/context/network-context";
 import { usePowerFactor } from "@/hooks/use-power-factor";
-import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
+import { useCapitalPoolData, estimateDailyMor } from "@/hooks/use-capital-pool-data";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
-import { useDailyEmissions } from "@/components/capital/hooks/use-daily-emissions";
-import { useTokenPrices } from "@/components/capital/hooks/use-token-prices";
 
 // Import Config and Utils
 import { getContractAddress, type NetworkEnvironment } from "@/config/networks";
@@ -320,11 +318,6 @@ export function DepositModal() {
 
   const { morPrice } = useCapitalMetrics();
   const poolData = useCapitalPoolData({ morPrice: morPrice || undefined });
-  const { getAssetPrice } = useTokenPrices({
-    isInitialLoad: true,
-    shouldRefreshData: false,
-    networkEnv,
-  });
 
   // Initialize power factor hook (after state declarations)
   const powerFactor = usePowerFactor({
@@ -554,30 +547,20 @@ export function DepositModal() {
     }
   }, [amount, rawAmount, selectedAsset, availableAssets]);
 
-  const assetPrice = getAssetPrice(selectedAsset);
-  const { emissions: baseDailyMor, isLoading: isLoadingDailyMor } = useDailyEmissions(
-    undefined,
-    amountBigInt > BigInt(0) ? amountBigInt : undefined,
-    selectedAsset,
-    networkEnv,
-    0,
-    undefined,
-    assetPrice ?? undefined
-  );
-
   const displayPowerFactor = powerFactor.currentResult.isLoading
     ? calculatePowerFactorFromDuration(lockValue, lockUnit)
     : powerFactor.currentResult.powerFactor;
 
   const currentPfMultiplier = parsePowerFactorValue(displayPowerFactor);
   const baselinePfMultiplier = parsePowerFactorValue(baselinePowerFactor);
-  const dailyMorReward = baseDailyMor * currentPfMultiplier;
-  const baselineDailyMorReward = baseDailyMor * baselinePfMultiplier;
-  const baseApr = poolData.assets[selectedAsset]?.apr || "N/A";
-  const isMetricsLoading =
-    poolData.assets[selectedAsset]?.isLoading ||
-    poolData.assets[selectedAsset]?.aprLoading ||
-    isLoadingDailyMor;
+  const selectedPool = poolData.assets[selectedAsset];
+  const depositAmount = Number(
+    formatUnits(amountBigInt, availableAssets.find(asset => asset.metadata.symbol === selectedAsset)?.metadata.decimals || 18)
+  );
+  const dailyMorReward = estimateDailyMor(selectedPool, depositAmount * currentPfMultiplier, true);
+  const baselineDailyMorReward = estimateDailyMor(selectedPool, depositAmount * baselinePfMultiplier, true);
+  const baseApr = selectedPool?.apr || "N/A";
+  const isMetricsLoading = selectedPool?.isLoading || selectedPool?.aprLoading;
 
   // ENS Resolution
   const isEnsName = useMemo(() => {
