@@ -566,7 +566,7 @@ export default function BuilderPage() {
 
 	// Create a ref to store the approval refresh function
 	const refreshApprovalRef = useRef<
-		((amount: string) => Promise<boolean> | boolean) | null
+		((amount: string) => boolean | null) | null
 	>(null);
 	// Create a ref to store the allowance refetch function
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
