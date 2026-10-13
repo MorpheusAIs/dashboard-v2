@@ -606,19 +606,10 @@ export const useStakingContractInteractions = ({
         return false;
       }
       
-      // If no allowance data yet, don't assume approval is needed - wait for data to load
-      // This prevents false positives when user types a number before allowance loads
+      // If allowance data is not ready yet, caller must wait before staking
       if (allowance === undefined || !tokenAddress || !contractAddress) {
-        const missingData = [];
-        if (allowance === undefined) missingData.push("allowance");
-        if (!tokenAddress) missingData.push("tokenAddress");
-        if (!contractAddress) missingData.push("contractAddress");
-        
-        console.log(`Waiting for data: ${missingData.join(", ")}. Chain: ${networkChainId}, isTestnet: ${isTestnet}. Not assuming approval needed.`);
-        
-        // Don't set needsApproval to true when data is missing - wait for it to load
-        // This prevents the button from switching to "Approve" prematurely
-        return false; // Return false to indicate we're waiting, not that approval is needed
+        console.log(`Allowance check skipped, data still loading. Chain: ${networkChainId}, isTestnet: ${isTestnet}`);
+        return null;
       }
       
       const parsedAmount = parseEther(stakeAmount);
@@ -643,9 +634,8 @@ export const useStakingContractInteractions = ({
       return approvalNeeded;
     } catch (error) {
       console.error("Error checking approval:", error);
-      // On error, don't assume approval is needed - let the user try staking
-      // The contract will reject if approval is actually needed
-      return false;
+      setNeedsApproval(true);
+      return true;
     }
   }, [allowance, tokenAddress, contractAddress, networkChainId, isTestnet]);
 
@@ -729,6 +719,18 @@ export const useStakingContractInteractions = ({
         toast.error(`Insufficient balance. You have ${formatEther(userBalance)} ${tokenSymbol}.`);
         return false;
       }
+
+      if (allowance === undefined) {
+        toast.error(`Still checking ${tokenSymbol} allowance. Please wait a moment and try again.`);
+        return false;
+      }
+
+      const currentAllowance = allowance || BigInt(0);
+      if (currentAllowance < parsedAmount) {
+        setNeedsApproval(true);
+        toast.error(`Approve ${tokenSymbol} spending before staking.`);
+        return false;
+      }
       
       // BuildersV4 uses deposit() like mainnet, so we can unify the logic
       const networkName = isTestnet ? 'Base Sepolia' : 
@@ -758,7 +760,7 @@ export const useStakingContractInteractions = ({
       toast.error(`Failed to stake: ${error instanceof Error ? error.message : "Unknown error"}`);
       return false;
     }
-  }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, tokenBalance, networkChainId, isTestnet, tokenSymbol, writeStake, getChainById, lockPeriodInSeconds]);
+  }, [connectedAddress, isCorrectNetwork, contractAddress, subnetId, tokenBalance, allowance, networkChainId, isTestnet, tokenSymbol, writeStake, getChainById, lockPeriodInSeconds]);
 
   // Handle withdraw
   const handleWithdraw = useCallback(async (amount: string) => {
