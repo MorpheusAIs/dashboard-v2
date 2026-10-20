@@ -9,7 +9,6 @@ import {
   useBalance, 
   useWriteContract, 
   useWaitForTransactionReceipt, 
-  useSimulateContract,
   usePublicClient,
   type BaseError 
 } from "wagmi";
@@ -46,7 +45,6 @@ import { incrementLocalDepositorCount } from "@/app/hooks/useCapitalMetrics";
 
 
 // Static ABI imports as fallbacks - keep these for reliability
-import ERC1967ProxyAbi from "@/app/abi/ERC1967Proxy.json";
 import DepositPoolAbi from "@/app/abi/DepositPool.json"; // V2 ABI - Now using!
 import ERC20Abi from "@/app/abi/ERC20.json";
 
@@ -94,6 +92,7 @@ interface ReferralData {
 }
 
 interface PoolLimitsData {
+  withdrawLockPeriodAfterStake: bigint; // uint128
   claimLockPeriodAfterStake: bigint; // uint128
   claimLockPeriodAfterClaim: bigint; // uint128
 }
@@ -118,9 +117,7 @@ interface ReferralContractData {
   lastClaim: bigint;
 }
 
-// --- Types & Helpers moved from ChangeLockModal ---
-type ActiveModal = "deposit" | "withdraw" | "changeLock" | "stakeMorRewards" | "lockMorRewards" | "claimMorRewards" | null;
-type TimeUnit = "days" | "months" | "years";
+type ActiveModal = "deposit" | "withdraw" | "stakeMorRewards" | "lockMorRewards" | "claimMorRewards" | null;
 
 // V2 Asset Types (imported from asset-config.ts)
 // All assets are dynamically supported based on network configuration
@@ -166,56 +163,6 @@ interface AssetData {
   canClaim: boolean;
   canWithdraw: boolean;
 }
-
-// Use the same contract-expected calculations as our utils
-const durationToSeconds = (value: string, unit: TimeUnit): bigint => {
-  const numValue = parseInt(value, 10);
-  if (isNaN(numValue) || numValue <= 0) return BigInt(0);
-  
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('📅 [Context Duration] Using contract-expected calculation for:', { value, unit });
-  }
-  
-  let diffSeconds: number;
-  
-  // Use contract-expected calculations to match exactly what the contract expects
-  switch (unit) {
-    case "days":
-      diffSeconds = numValue * 86400; // 24 * 60 * 60
-      // Add 5-minute safety buffer to prevent timing race conditions
-      diffSeconds += 300; // 5 minutes = 300 seconds
-      break;
-    case "months":
-      diffSeconds = numValue * 30 * 86400; // 30 days per month (contract expectation)
-      // Add 5-minute safety buffer for timing
-      diffSeconds += 300;
-      break;
-    case "years":
-      // Special case: For 6 years, use the EXACT value the contract expects for maximum power factor
-      if (numValue === 6) {
-        diffSeconds = 189216000; // Exact value from documentation: 6 * 365 * 24 * 60 * 60
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('🎯 [Context 6-YEAR SPECIAL] Using exact 189,216,000 seconds for maximum power factor');
-          console.log('  Context matches utils: exactly 2190 days');
-        }
-      } else {
-        diffSeconds = numValue * 365 * 86400; // 365 days per year
-      }
-      // Add 5-minute safety buffer for years as well
-      diffSeconds += 300;
-      break;
-    default:
-      return BigInt(0);
-  }
-  
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('📅 [Context Duration] Contract-expected result with buffer (seconds):', diffSeconds);
-    console.log('📅 [Context Duration] Contract-expected result with buffer (days):', diffSeconds / 86400);
-    console.log('📅 [Context Duration] Safety buffer: 300 seconds (5 minutes)');
-  }
-  
-  return BigInt(diffSeconds);
-};
 
 // --- Helper: BigInt Max ---
 const maxBigInt = (...args: (bigint | undefined | null)[]): bigint => {
@@ -361,7 +308,6 @@ interface CapitalContextState {
   userDepositFormatted: string;
   claimableAmountFormatted: string;
   userData?: UserPoolData;
-  currentUserMultiplierData?: bigint;
   poolInfo?: PoolInfoData;
 
   // Action States
@@ -380,7 +326,6 @@ interface CapitalContextState {
   deposit: (asset: AssetSymbol, amount: string, lockDurationSeconds?: bigint, referrerAddress?: string) => Promise<void>;
   claim: () => Promise<void>; // Claims from all pools
   withdraw: (asset: AssetSymbol, amount: string) => Promise<void>;
-  changeLock: (lockValue: string, lockUnit: TimeUnit) => Promise<void>;
   approveToken: (asset: AssetSymbol) => Promise<void>;
   claimAssetRewards: (asset: AssetSymbol) => Promise<void>;
   lockAssetRewards: (asset: AssetSymbol, lockDurationSeconds: bigint) => Promise<void>;
@@ -397,12 +342,6 @@ interface CapitalContextState {
   // Pre-populated referrer address (for URL referral links)
   preReferrerAddress: string;
   setPreReferrerAddress: (address: string) => void;
-
-  // Multiplier simulation for selected asset
-  multiplierSimArgs: {value: string, unit: TimeUnit} | null;
-  triggerMultiplierEstimation: (lockValue: string, lockUnit: TimeUnit) => void;
-  estimatedMultiplierValue: string;
-  isSimulatingMultiplier: boolean;
 
   // Dynamic Contract Loading
   dynamicContracts: {
@@ -694,11 +633,13 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
      if (!poolLimitsResult) return undefined;
      // eslint-disable-next-line @typescript-eslint/no-explicit-any
      const dataArray = poolLimitsResult as any[]; // Cast needed because wagmi returns struct as unknown[]/any[]
-     if (!Array.isArray(dataArray) || dataArray.length < 2) return undefined;
+     if (!Array.isArray(dataArray) || dataArray.length < 3) return undefined;
      try {
+       // rewardPoolsProtocolDetails: [withdrawLockPeriodAfterStake, claimLockPeriodAfterStake, claimLockPeriodAfterClaim, minimalStake, distributedRewards]
        return {
-         claimLockPeriodAfterStake: BigInt(dataArray[0]),
-         claimLockPeriodAfterClaim: BigInt(dataArray[1]),
+         withdrawLockPeriodAfterStake: BigInt(dataArray[0]),
+         claimLockPeriodAfterStake: BigInt(dataArray[1]),
+         claimLockPeriodAfterClaim: BigInt(dataArray[2]),
        };
      } catch (e) {
         console.error("Error parsing poolLimitsData:", e);
@@ -747,16 +688,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     query: { enabled: !!stETHDepositPoolAddress && !!userAddress, refetchInterval: 2 * 60 * 1000 } 
   });
   const currentUserRewardData = useMemo(() => currentUserRewardDataRaw as bigint | undefined, [currentUserRewardDataRaw]);
-
-  const { data: currentUserMultiplierDataRaw, isLoading: isLoadingUserMultiplier, refetch: refetchUserMultiplier } = useReadContract({
-    address: distributorV2Address,
-    abi: ERC1967ProxyAbi, // DistributorV2 uses this ABI
-    functionName: 'getCurrentUserMultiplier',
-    args: [PUBLIC_POOL_ID, userAddress || zeroAddress],
-    chainId: l1ChainId,
-    query: { enabled: !!distributorV2Address && !!userAddress } 
-  });
-  const currentUserMultiplierData = useMemo(() => currentUserMultiplierDataRaw as bigint | undefined, [currentUserMultiplierDataRaw]);
 
   const { data: stEthBalanceData, isLoading: isLoadingStEthBalance, error: stEthBalanceError } = useBalance({ address: userAddress, token: stEthContractAddress, chainId: l1ChainId, query: { enabled: !!userAddress && !!stEthContractAddress } });
   
@@ -955,7 +886,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   // --- Combined Loading States (Dynamic) ---
   // These are now calculated from the dynamic assetContractData loading states
-  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingUserMultiplier || isLoadingStETHV2User || isLoadingLinkV2User; 
+  const isLoadingUserData = isLoadingUserDataRaw || isLoadingUserReward || isLoadingStETHV2User || isLoadingLinkV2User; 
   const isLoadingBalances = isLoadingStEthBalance || isLoadingMorBalance || Object.values(assetContractData).some(asset => asset.isLoading);
   const isLoadingAllowances = isLoadingAllowance || Object.values(assetContractData).some(asset => asset.isLoading);
   const isLoadingRewards = isLoadingStETHV2Reward || isLoadingLinkV2Reward || Object.values(assetContractData).some(asset => asset.isLoading);
@@ -983,9 +914,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // Removed unused currentDailyReward calculation
 
   const withdrawUnlockTimestamp = useMemo(() => {
-    if (!userData?.lastStake || !poolInfo?.withdrawLockPeriodAfterStake) return undefined;
-    return userData.lastStake + poolInfo.withdrawLockPeriodAfterStake;
-  }, [userData?.lastStake, poolInfo?.withdrawLockPeriodAfterStake]);
+    if (!userData?.lastStake || !poolLimits) return undefined;
+    return userData.lastStake + poolLimits.withdrawLockPeriodAfterStake;
+  }, [userData?.lastStake, poolLimits]);
 
   const claimUnlockTimestamp = useMemo(() => {
     // Debug logging for claim unlock calculation
@@ -1014,10 +945,9 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     if (
       !poolInfo?.payoutStart ||
       !poolInfo.claimLockPeriod ||
-      !poolLimits?.claimLockPeriodAfterClaim ||
-      !poolLimits.claimLockPeriodAfterStake ||
+      !poolLimits ||
       !userData?.lastStake ||
-      !userData.lastClaim ||
+      userData.lastClaim === undefined ||
       userData.claimLockEnd === undefined
     ) {
       // console.log("❌ claimUnlockTimestamp is undefined due to missing data:", {
@@ -1063,14 +993,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Formatted Data ---
   const userDepositFormatted = formatBigInt(userData?.deposited, 18, 2);
   const claimableAmountFormatted = formatBigInt(currentUserRewardData, 18, 2);
-
-  // --- Log Raw Multiplier Data ---
-  useEffect(() => {
-    if (currentUserMultiplierData !== undefined) {
-      console.log("Raw currentUserMultiplierData:", currentUserMultiplierData);
-    }
-  }, [currentUserMultiplierData]);
-  // --------------------------------
 
   // Removed unused formatted timestamp variables - V2 specific ones are used instead
 
@@ -1722,43 +1644,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
 
   // Removed unused legacyWithdraw function
   
-  const changeLock = useCallback(async (lockValue: string, lockUnit: TimeUnit) => {
-      if (!l1ChainId) throw new Error("Change lock prerequisites not met");
-      
-      // Use the selected asset's deposit pool for lock changes
-      const currentAssetData = assets[selectedAsset];
-      if (!currentAssetData) {
-        throw new Error(`${selectedAsset} data not available for lock change`);
-      }
-      
-      const durationSeconds = durationToSeconds(lockValue, lockUnit);
-      if (durationSeconds <= BigInt(0)) throw new Error("Invalid lock duration");
-      const finalLockEndTimestamp = BigInt(Math.floor(Date.now() / 1000)) + durationSeconds;
-
-      console.log(`🔒 ${selectedAsset} Lock Change Details:`, {
-        asset: selectedAsset,
-        depositPoolAddress: currentAssetData.config.depositPoolAddress,
-        lockValue,
-        lockUnit,
-        durationSeconds: durationSeconds.toString(),
-        finalLockEndTimestamp: finalLockEndTimestamp.toString(),
-        poolIndex: PUBLIC_POOL_ID.toString(),
-        chainId: l1ChainId
-      });
-      
-      await handleTransaction(() => lockClaimAsync({
-          address: currentAssetData.config.depositPoolAddress,
-          abi: poolAbi,
-          functionName: 'lockClaim',
-          args: [PUBLIC_POOL_ID, finalLockEndTimestamp],
-          chainId: l1ChainId,
-      }), {
-          loading: `Requesting ${selectedAsset} lock change...`,
-          success: `Successfully updated ${selectedAsset} lock period!`,
-          error: `${selectedAsset} lock update failed`
-      });
-  }, [lockClaimAsync, l1ChainId, assets, selectedAsset, handleTransaction]);
-
 
   
   // --- Transaction Success/Error Effects (Update to close modal) ---
@@ -1940,9 +1825,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
             }
           });
 
-          // Refetch legacy user data and multiplier (these are general/MOR-related)
+          // Refetch legacy user data (general/MOR-related)
           refetchUserData();
-          refetchUserMultiplier();
 
           // Refetch all asset multiplier data dynamically
           Object.values(assetContractData).forEach(asset => asset.refetch.multiplier());
@@ -1950,7 +1834,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
           setLastHandledLockClaimHash(lockClaimHash);
           setActiveModal(null); // Close modal on success
       }
-  }, [isLockClaimSuccess, lockClaimHash, lastHandledLockClaimHash, refetchUserData, refetchUserMultiplier, setActiveModal, assetContractData, l1ChainId]);
+  }, [isLockClaimSuccess, lockClaimHash, lastHandledLockClaimHash, refetchUserData, setActiveModal, assetContractData, l1ChainId]);
 
   // --- Transaction Error Effects ---
   useEffect(() => {
@@ -2069,66 +1953,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       }
   }, [isLockClaimError, lockClaimError, lockClaimHash, l1ChainId]);
 
-  // --- New state for multiplier simulation ---
-  const [multiplierSimArgs, setMultiplierSimArgs] = useState<{value: string, unit: TimeUnit} | null>(null);
-
-  const { data: simulatedMultiplierResult, error: simulateMultiplierError, isLoading: isSimulatingMultiplier } = useSimulateContract({
-    address: distributorV2Address,
-    abi: ERC1967ProxyAbi, // DistributorV2 uses this ABI
-    functionName: 'getClaimLockPeriodMultiplier',
-    args: useMemo(() => {
-      if (!multiplierSimArgs) return undefined;
-      const durationSeconds = durationToSeconds(multiplierSimArgs.value, multiplierSimArgs.unit);
-      if (durationSeconds <= BigInt(0)) return undefined;
-      const estimatedLockStartTimestamp = BigInt(Math.floor(Date.now() / 1000));
-      const estimatedLockEndTimestamp = estimatedLockStartTimestamp + durationSeconds;
-      return [PUBLIC_POOL_ID, estimatedLockStartTimestamp, estimatedLockEndTimestamp];
-    }, [multiplierSimArgs]),
-    chainId: l1ChainId,
-    query: { 
-      enabled: !!multiplierSimArgs && !!distributorV2Address && !!l1ChainId, // Only run when args are set
-    } 
-  });
-
-  // This function is now just used by the modal to set the simulation arguments
-  const triggerMultiplierEstimation = useCallback((lockValue: string, lockUnit: TimeUnit) => {
-      if (lockValue && parseInt(lockValue, 10) > 0) {
-          setMultiplierSimArgs({ value: lockValue, unit: lockUnit });
-      } else {
-          setMultiplierSimArgs(null); // Clear args if input is invalid
-      }
-  }, []);
-
-  // The estimated multiplier result is now derived from the simulation state
-  const estimatedMultiplierValue = useMemo(() => {
-      if (isSimulatingMultiplier) return "Loading...";
-      if (simulateMultiplierError) return "Error";
-      if (simulatedMultiplierResult?.result) {
-          // --- Log Raw Simulated Multiplier Data ---
-          if (process.env.NODE_ENV !== 'production') {
-            console.group('⚠️ [LEGACY Context] Power Factor Calculation');
-            console.log("Raw simulatedMultiplierResult.result:", simulatedMultiplierResult.result);
-            console.log("USING LEGACY CONTEXT - Should use new hook instead!");
-          }
-          // -----------------------------------------
-          // FIXED: Use 21 decimals as per documentation, not 24
-          const rawFormatted = formatBigInt(simulatedMultiplierResult.result as bigint, 21, 1);
-          const numValue = parseFloat(rawFormatted);
-          // Cap at actual contract maximum of 9.7x
-          const cappedValue = Math.min(numValue, 9.7);
-          const result = cappedValue.toFixed(1) + "x";
-          
-          if (process.env.NODE_ENV !== 'production') {
-            console.log("Raw formatted value:", rawFormatted);
-            console.log("Numeric value:", numValue);
-            console.log("Capped value:", cappedValue);
-            console.log("Final legacy result:", result);
-            console.groupEnd();
-          }
-          return result;
-      }
-      return "---x"; // Default or if no valid args set
-  }, [simulatedMultiplierResult, simulateMultiplierError, isSimulatingMultiplier]);
 
   // Parse V2 user data (only keep what's still needed for legacy exports)
   const stETHV2UserParsed = useMemo(() => parseV2UserData(stETHV2UserData), [stETHV2UserData]);
@@ -2761,7 +2585,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     deposit,
     claim, // Claims from all pools
     withdraw,
-    changeLock,
     approveToken,
     claimAssetRewards,
     lockAssetRewards,
@@ -2779,12 +2602,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     preReferrerAddress,
     setPreReferrerAddress,
 
-    // Multiplier simulation for selected asset
-    multiplierSimArgs,
-    triggerMultiplierEstimation,
-    estimatedMultiplierValue,
-    isSimulatingMultiplier,
-
     // Dynamic Contract Loading
     dynamicContracts,
 
@@ -2792,7 +2609,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     userDepositFormatted,
     claimableAmountFormatted,
     userData,
-    currentUserMultiplierData,
     poolInfo,
   }), [
     // Core system dependencies
@@ -2807,7 +2623,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     morBalance,
     
     // Legacy pool data (for backward compatibility)
-    userData, currentUserRewardData, currentUserMultiplierData, poolInfo, poolLimits,
+    userData, currentUserRewardData, poolInfo, poolLimits,
     withdrawUnlockTimestamp, claimUnlockTimestamp, canWithdraw, canClaim,
     
     // V2-specific data for components that still use hardcoded exports (now derived from assets)
@@ -2822,14 +2638,11 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     isApprovalSuccess, isClaimSuccess, claimHash, lastHandledClaimHash,
     
     // Action functions
-    deposit, claim, withdraw, changeLock, approveToken, needsApproval, checkAndUpdateApprovalNeeded,
+    deposit, claim, withdraw, approveToken, needsApproval, checkAndUpdateApprovalNeeded,
     claimAssetRewards, lockAssetRewards, claimReferralRewards,
     
     // Referral data
     referralData,
-    
-    // Multiplier simulation
-    triggerMultiplierEstimation, estimatedMultiplierValue, isSimulatingMultiplier, multiplierSimArgs,
     
     // Modal state
     activeModal, setActiveModal, preReferrerAddress, setPreReferrerAddress,
