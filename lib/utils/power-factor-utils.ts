@@ -9,7 +9,7 @@ export const POWER_FACTOR_CONSTANTS = {
   REWARDS_DIVIDER: 10000, // Final division factor
   MAX_POWER_FACTOR: 10.7, // ✅ ACTUAL contract maximum (verified through testing)
   MIN_ACTIVATION_PERIOD_MONTHS: 7, // Minimum period before power factor activates
-  MIN_DEPOSIT_LOCK_DAYS: 30, // Minimum deposit lock period: 30 days
+  MIN_DEPOSIT_LOCK_DAYS: 14, // Minimum claim lock: 14 days, matching DepositPool's claimLockPeriodAfterStake (the contract sets no minimum of its own)
   MAX_LOCK_PERIOD_YEARS: 10, // Maximum lock period allowed
   SECONDS_PER_DAY: 86400,
   // Note: We now use real calendar calculations instead of these approximations
@@ -491,9 +491,9 @@ export function getMinAllowedValue(unit: TimeUnit): number {
     case "months":
       return 1; // No minimum requirement for months (minimum validation is in days)
     case "days":
-      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS; // Minimum 30 days
+      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS; // Minimum 14 days
     case "minutes":
-      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS * 24 * 60; // Minimum 30 days in minutes
+      return POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS * 24 * 60; // Minimum 14 days in minutes
     default:
       return 1;
   }

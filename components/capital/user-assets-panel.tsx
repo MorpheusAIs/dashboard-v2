@@ -14,7 +14,7 @@ import { useUserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAssetsTable } from "./hooks/use-assets-table";
 import { useCapitalPoolData, estimateDailyMor } from "@/hooks/use-capital-pool-data";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
-import { parsePowerFactorValue } from "@/lib/utils/power-factor-utils";
+import { parsePowerFactorValue, POWER_FACTOR_CONSTANTS } from "@/lib/utils/power-factor-utils";
 import {
   hasStakedAssets as checkHasStakedAssets,
   formatUnlockDateDisplay,
@@ -27,14 +27,28 @@ import type { UserAssetsCache } from "./hooks/use-user-assets-cache";
 import { useAuth } from "@/context/auth-context";
 import { useWalletCacheManager } from "@/hooks/use-wallet-cache-manager";
 
-// Promotional banner component
-const PromotionalBanner = () => (
-  <div className="px-4 py-2 bg-emerald-400/10 border-2 border-emerald-400 rounded-xl animate-pulse">
-    <span className="text-emerald-400 font-medium text-sm animate-bounce">
-      New deposits: Claim lock for rewards is 30 days only for a limited time!
-    </span>
-  </div>
-);
+const SECONDS_PER_DAY = 86400;
+
+// Lock-period banner. Withdraw and claim locks come from the pool's rewardPoolsProtocolDetails(0);
+// a deposit made here also can't be claimed before the deposit modal's minimum lock.
+const PromotionalBanner = () => {
+  const { poolLimits } = useCapitalContext();
+  if (!poolLimits) return null;
+
+  const withdrawDays = Math.ceil(Number(poolLimits.withdrawLockPeriodAfterStake) / SECONDS_PER_DAY);
+  const claimDays = Math.max(
+    Math.ceil(Number(poolLimits.claimLockPeriodAfterStake) / SECONDS_PER_DAY),
+    POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS
+  );
+
+  return (
+    <div className="px-4 py-2 bg-emerald-400/10 border-2 border-emerald-400 rounded-xl animate-pulse">
+      <span className="text-emerald-400 font-medium text-sm animate-bounce">
+        New deposits: withdraw after {withdrawDays} days, claim rewards after {claimDays} days
+      </span>
+    </div>
+  );
+};
 
 // Type for modal actions that can be triggered from dropdowns
 type ModalAction = "deposit" | "withdraw" | "stakeMorRewards" | "lockMorRewards" | "claimMorRewards";

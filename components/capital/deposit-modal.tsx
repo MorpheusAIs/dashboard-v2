@@ -74,6 +74,7 @@ export function DepositModal() {
     // Dynamic assets system provides all unlock timestamps
     // Get contract details for power factor hook
     l1ChainId,
+    poolLimits,
   } = useCapitalContext();
 
   // Calculate network environment and contract address
@@ -1153,10 +1154,13 @@ export function DepositModal() {
                 </p>
               )}
               
-              {/* Deposit lock period info */}
-              <p className="text-xs text-gray-400 mt-2">
-                Deposits are locked for the first 30 days.
-              </p>
+              {/* Deposit lock period info, from the pool's rewardPoolsProtocolDetails(0) */}
+              {poolLimits && (
+                <p className="text-xs text-gray-400 mt-2">
+                  Withdrawals unlock {Math.ceil(Number(poolLimits.withdrawLockPeriodAfterStake) / 86400)} days after depositing.
+                  Rewards can be claimed after {Math.ceil(Number(poolLimits.claimLockPeriodAfterStake) / 86400)} days at the earliest.
+                </p>
+              )}
             </div>
 
             {/* Referrer Address — shown when user arrived via referral link, otherwise collapsible */}

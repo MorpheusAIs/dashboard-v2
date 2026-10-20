@@ -3,9 +3,12 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import React from 'react';
 import { useContractReads, useChainId, usePublicClient } from 'wagmi';
+import { useQuery } from '@tanstack/react-query';
 import { formatUnits } from 'viem';
 import { NetworkEnvironment, getContractAddress, testnetChains, mainnetChains } from '@/config/networks';
 import { getAssetsForNetwork, type AssetSymbol } from '@/components/capital/constants/asset-config';
+import { useTokenPrices } from '@/components/capital/hooks/use-token-prices';
+import type { UnlockedRatesResponse } from '@/app/api/capital/unlocked-apr/route';
 
 // Import ABIs
 import DepositPoolAbi from '@/app/abi/DepositPool.json'; // Use the generic ABI that has all functions
@@ -15,7 +18,9 @@ import ERC20Abi from '@/app/abi/ERC20.json'; // For aToken balance calls
 
 export interface AssetPoolData {
   totalStaked: string;
-  apr: string; // Renamed from 'apy' - we calculate APR (no compounding), not APY
+  apr: string; // Unlocked (1×) APR: credited over the last ~30 days when available, else projected
+  projectedApr?: string; // Projection from the pool's 7-day share of emissions, at live prices
+  aprMethod?: 'credited' | 'projected';
   isLoading: boolean;
   error: Error | null;
   aprLoading?: boolean; // Separate loading state for APR calculation
@@ -35,7 +40,7 @@ export interface CapitalPoolData {
 }
 
 export interface CapitalPoolDataOptions {
-  morPrice?: number | null; // MOR price for APR calculation in USD terms
+  morPrice?: number | null; // MOR price for APR calculation in USD terms (defaults to the live price)
 }
 
 /**
@@ -69,9 +74,13 @@ const ASSET_TO_DEPOSIT_POOL_MAP: Partial<Record<AssetSymbol, keyof import('@/con
  * 
  * CURRENT IMPLEMENTATION (Dynamic Asset Support):
  * - Dynamically handles any assets with deployed deposit pool contracts based on network config
- * - Uses DepositPool.rewardPoolsData() to get live daily reward rates for accurate APR calculation
+ * - Headline APR is the unlocked (1×) rate actually credited over the last ~30 days, from the change in
+ *   DepositPool.rewardPoolsData(0).rate (computed server-side by /api/capital/unlocked-apr):
+ *   morPerTokenPerYear * morPrice / assetPrice * 100
+ * - Projected APR (fallback and secondary) = annual emissions * the pool's 7-day distributedRewards share
+ *   * morPrice / (totalVirtualDeposited * assetPrice) * 100
+ * - Asset and MOR prices are live market prices (/api/token-prices), not Distributor.depositPools().tokenPrice
  * - Uses DepositPool.totalDepositedInPublicPools() to get total staked amounts
- * - Calculates APR using: ((dailyRewardRate * morPrice) * 365) / (totalVirtualDeposited * assetPrice) * 100
  * - Supports all configured assets (mainnet: stETH, USDC, USDT, wBTC, wETH; testnet: stETH, LINK)
  * - Shows N/A for assets without deposit pool contracts
  * 
@@ -93,6 +102,27 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
   const networkEnvironment = useMemo((): NetworkEnvironment => {
     return [1, 42161, 8453].includes(chainId) ? 'mainnet' : 'testnet';
   }, [chainId]);
+
+  // Live market prices. Distributor.depositPools().tokenPrice is only refreshed when the
+  // Distributor updates, so it can drift several percent from market.
+  const { morPrice: liveMorPrice, prices: liveAssetPrices } = useTokenPrices({
+    isInitialLoad: true,
+    shouldRefreshData: false,
+    networkEnv: networkEnvironment,
+  });
+  const morPrice = morPriceOption || liveMorPrice || undefined;
+
+  // MOR actually credited per token to unlocked (1×) deposits over the last ~30 days
+  const { data: unlockedRates } = useQuery({
+    queryKey: ['capital-unlocked-rates', networkEnvironment],
+    queryFn: async (): Promise<UnlockedRatesResponse> => {
+      const response = await fetch(`/api/capital/unlocked-apr?network=${networkEnvironment}`);
+      if (!response.ok) throw new Error(`Unlocked APR API responded with status ${response.status}`);
+      return response.json();
+    },
+    staleTime: 60 * 60 * 1000,
+    refetchInterval: 60 * 60 * 1000,
+  });
 
   // Historical window (7 days) for stable yield deltas
   const WINDOW_DAYS = 7;
@@ -723,6 +753,17 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     rewardPoolRateData
   ]);
 
+  // Live market price, falling back to the Distributor's stored price when the price API is unavailable
+  const getAssetPriceUSD = useCallback((symbol: AssetSymbol): number | null => {
+    const livePrice = liveAssetPrices[symbol];
+    if (livePrice && livePrice > 0) return livePrice;
+    const index = configuredAssets.findIndex((config) => config.metadata.symbol === symbol);
+    const distributorPoolResult = index >= 0 ? distributorPoolResults?.[index] : undefined;
+    return distributorPoolResult?.status === 'success' && Array.isArray(distributorPoolResult.result)
+      ? Number(formatUnits(distributorPoolResult.result[2] as bigint, 18))
+      : null;
+  }, [liveAssetPrices, configuredAssets, distributorPoolResults]);
+
   // ✅ REAL V7 Protocol APR Calculation using actual yield data from Distributor contract
   const calculateV7APR = useMemo(() => {
     // ⏳ CHECK #1: Wait for historical data
@@ -845,7 +886,8 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
         });
         
         const assetDecimals = assetConfig.metadata.decimals;
-        const priceUSD = Number(formatUnits(tokenPrice as bigint, 18)); // Price from Distributor is normalized to 18 decimals
+        // Live market price; the Distributor's stored price (18 decimals) is only a fallback
+        const priceUSD = liveAssetPrices[symbol] || Number(formatUnits(tokenPrice as bigint, 18));
         
         let currentBalance = 0;
         const lastBalance = Number(formatUnits(lastUnderlyingBalance as bigint, assetDecimals));
@@ -987,13 +1029,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
       // See docs/APR_VIRTUAL_STAKE_EXPLAINER.md (Recommendation 1).
       const tvlForAPR = totalVirtual > 0 ? totalVirtual : totalActualDeposited;
       
-      // Get asset price from Distributor
-      const distributorPoolResult = distributorPoolResults?.find((_, idx) => 
-        configuredAssets[idx]?.metadata.symbol === symbol
-      );
-      const assetPriceUSD = distributorPoolResult?.status === 'success' && Array.isArray(distributorPoolResult.result)
-        ? Number(formatUnits(distributorPoolResult.result[2] as bigint, 18))
-        : 1.0;
+      const assetPriceUSD = getAssetPriceUSD(symbol as AssetSymbol) ?? 1.0;
       
       if (tvlForAPR > 0 && annualEmissionsMOR && annualEmissionsMOR > 0) {
         // Use distributedRewards share if available, otherwise fall back to yield share
@@ -1006,8 +1042,8 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
         
         // Calculate APR in USD terms with MOR price
         let aprPercentage: number;
-        if (morPriceOption && morPriceOption > 0) {
-          const annualRewardsUSD = assetAnnualShareMOR * morPriceOption;
+        if (morPrice && morPrice > 0) {
+          const annualRewardsUSD = assetAnnualShareMOR * morPrice;
           const tvlUSD = tvlForAPR * assetPriceUSD;
           aprPercentage = tvlUSD > 0 ? (annualRewardsUSD / tvlUSD) * 100 : 0;
         } else {
@@ -1015,27 +1051,15 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
           aprPercentage = (assetAnnualShareMOR / tvlForAPR) * 100;
         }
         
-        // Special case for wBTC: If APR is extremely low or 0 due to minimal/no AAVE yield activity,
-        // show 0.01% instead of N/A since the pool is still active and earning rewards.
-        // wBTC on AAVE generates very low yield, so 7-day windows may show 0 yield even though rewards are distributed.
-        if (symbol === 'wBTC' && aprPercentage >= 0 && aprPercentage < 0.01 && tvlForAPR > 0) {
-          aprResults[symbol] = '0.01%';
-          console.log(`📊 [APR CALC] wBTC - Applied minimum APR floor (0.01%) due to low/zero AAVE yield in 7-day window`, {
-            calculatedAPR: aprPercentage,
-            tvl: tvlForAPR,
-            reason: 'wBTC AAVE yield is too low to show meaningful change in 7 days'
-          });
-        } else {
-          aprResults[symbol] = aprPercentage > 0.01 ? `${aprPercentage.toFixed(2)}%` : 'N/A';
-        }
+        aprResults[symbol] = Number.isFinite(aprPercentage) && aprPercentage >= 0 ? `${aprPercentage.toFixed(2)}%` : 'N/A';
         
         console.log(`✅ [APR CALC] ${symbol} - REAL YIELD-BASED APR:`, {
           poolShare: (share * 100).toFixed(2) + '%',
           annualRewardsMOR: assetAnnualShareMOR.toFixed(2) + ' MOR/year',
-          morPrice: morPriceOption || 'not provided',
+          morPrice: morPrice || 'not provided',
           tvlUSD: (tvlForAPR * assetPriceUSD).toFixed(2),
           finalAPR: aprResults[symbol],
-          calculationMethod: morPriceOption ? 'USD-based (actual capital)' : 'MOR-based fallback'
+          calculationMethod: morPrice ? 'USD-based (actual capital)' : 'MOR-based fallback'
         });
       } else {
         aprResults[symbol] = 'N/A';
@@ -1063,7 +1087,9 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     pastBlockNumber,
     pastBlockTimestamp,
     depositPoolAddresses,
-    morPriceOption
+    liveAssetPrices,
+    getAssetPriceUSD,
+    morPrice
   ]);
 
   // Calculate virtual stake data for fallback use (available to both APR calc and asset data)
@@ -1103,9 +1129,41 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     return stakeData;
   }, [configuredAssets, rewardPoolRateData]);
 
+  // Headline APR: what unlocked (1×) deposits were actually credited over the last ~30 days, valued
+  // at today's prices. The 7-day projection runs high whenever the Distributor hands out less than
+  // the scheduled emissions.
+  const creditedAPR = useMemo(() => {
+    if (!unlockedRates || unlockedRates.network !== networkEnvironment || !morPrice) return null;
+    const aprResults: Partial<Record<AssetSymbol, string>> = {};
+    const poolDailyMor: Partial<Record<AssetSymbol, number>> = {};
+    configuredAssets.forEach(({ metadata: { symbol } }) => {
+      const rate = unlockedRates.pools[symbol];
+      const assetPriceUSD = getAssetPriceUSD(symbol);
+      if (!rate || !assetPriceUSD) return;
+      const aprPercentage = (rate.morPerTokenPerYear * morPrice / assetPriceUSD) * 100;
+      aprResults[symbol] = `${aprPercentage.toFixed(2)}%`;
+      poolDailyMor[symbol] = (rate.morPerTokenPerYear / 365) * (virtualStakeByAsset[symbol] ?? 0);
+    });
+    return { aprResults, poolDailyMor };
+  }, [unlockedRates, networkEnvironment, morPrice, configuredAssets, getAssetPriceUSD, virtualStakeByAsset]);
+
   // Generate asset pool data dynamically
   const assetsData = useMemo(() => {
     const result: Partial<Record<AssetSymbol, AssetPoolData>> = {};
+
+    const getAprFields = (symbol: AssetSymbol): Pick<AssetPoolData, 'apr' | 'projectedApr' | 'aprMethod' | 'poolDailyMor'> => {
+      const projectedApr = calculateV7APR?.aprResults[symbol];
+      const creditedApr = creditedAPR?.aprResults[symbol];
+      if (creditedApr) {
+        return { apr: creditedApr, projectedApr, aprMethod: 'credited', poolDailyMor: creditedAPR?.poolDailyMor[symbol] };
+      }
+      return {
+        apr: projectedApr || 'N/A',
+        projectedApr,
+        aprMethod: projectedApr ? 'projected' : undefined,
+        poolDailyMor: calculateV7APR?.poolDailyMor[symbol],
+      };
+    };
 
     console.log('🔧 ASSET DATA GENERATION - START:', {
       totalAssets: configuredAssets.length,
@@ -1185,8 +1243,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
         const rewardRateData = rewardPoolRateData[symbol as keyof typeof rewardPoolRateData];
         result[symbol] = {
           totalStaked: virtualStake > 0 ? virtualStake.toString() : '0', // Use virtual stake if available
-          apr: calculateV7APR?.aprResults[symbol] || 'N/A',
-          poolDailyMor: calculateV7APR?.poolDailyMor[symbol],
+          ...getAprFields(symbol),
           totalVirtualDeposited: virtualStake,
           isLoading: contract.isLoading || rewardRateData?.isLoading || false,
           error: (contract.error || rewardRateData?.error) as Error | null
@@ -1221,8 +1278,7 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
 
         result[symbol] = {
           totalStaked,
-          apr: calculateV7APR?.aprResults[symbol] || 'N/A',
-          poolDailyMor: calculateV7APR?.poolDailyMor[symbol],
+          ...getAprFields(symbol),
           totalVirtualDeposited: virtualStake,
           isLoading: contract.isLoading || rewardRateData?.isLoading || false,
           error: (contract.error || rewardRateData?.error) as Error | null
@@ -1236,7 +1292,8 @@ export function useCapitalPoolData(options?: CapitalPoolDataOptions): CapitalPoo
     contractData,
     depositPoolAddresses,
     rewardPoolRateData,
-    calculateV7APR
+    calculateV7APR,
+    creditedAPR
   ]);
 
   // Create refetch functions (now using dynamic system with yield tracking)
