@@ -98,7 +98,7 @@ export function TimeLockPeriodSelector({
     <div className={`space-y-2 ${className}`}>
       <Label className="text-sm font-medium text-white">MOR Claims Lock Period</Label>
       <p className="text-xs text-gray-400">
-        Minimum 30 days required.
+        Minimum {POWER_FACTOR_CONSTANTS.MIN_DEPOSIT_LOCK_DAYS} days required.
       </p>
 
       <div className="flex gap-2">
