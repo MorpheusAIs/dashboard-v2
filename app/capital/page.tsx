@@ -60,6 +60,24 @@ const ReferralPanel = dynamic(() => import("@/components/capital/referral-panel"
     </div>
   )
 });
+// Import LockMultiplierPreview dynamically: it reads the current time to build on-chain lock args
+const LockMultiplierPreview = dynamic(() => import("@/components/capital/lock-multiplier-preview").then(mod => ({ default: mod.LockMultiplierPreview })), {
+  ssr: false,
+  loading: () => (
+    <div className="page-section mt-8">
+      <div className="relative">
+        <div className="section-content group relative px-1 py-4 sm:p-6">
+          <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Lock Multiplier Preview</h2>
+              <div className="text-gray-400">Loading...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+});
 import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 
 // Import Context and Config
@@ -192,6 +210,9 @@ function CapitalPageContent() {
 
       {/* User Assets Panel */}
       <UserAssetsPanel />
+
+      {/* Lock Multiplier Preview */}
+      <LockMultiplierPreview />
 
       {/* Referral Panel */}
       <ReferralPanel />
