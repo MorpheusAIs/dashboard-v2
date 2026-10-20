@@ -190,8 +190,7 @@ All API routes use Next.js App Router pattern (`/app/api/*/route.ts`):
 - Supports V2 protocol with multiple deposit pools: stETH, LINK, USDC, USDT, WBTC, WETH
 - `DepositModal` - Multi-asset deposit management
 - `WithdrawModal` - Withdrawal with lock period awareness
-- `ClaimMorRewardsModal` - MOR reward claiming
-- `ChangeLockModal` - Lock period modifications
+- `ClaimMorRewardsModal` - MOR reward claiming, and lock-period changes (`lockClaim`) in its lock mode
 - `CapitalInfoPanel` - Overview metrics
 - `UserAssetsPanel` - User holdings (dynamically imported to avoid hydration issues)
 - `ReferralPanel` - Referral tracking (dynamically imported)

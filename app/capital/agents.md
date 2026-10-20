@@ -55,9 +55,8 @@
 1. **DepositModal** - Asset deposits with lock periods
 2. **WithdrawModal** - Asset withdrawals
 3. **ClaimModal** - Reward claiming
-4. **ClaimMorRewardsModal** - MOR reward claiming
-5. **ChangeLockModal** - Lock period modifications
-6. **StakeMorRewardsModal** - MOR staking
+4. **ClaimMorRewardsModal** - MOR reward claiming; its lock mode ("Lock Rewards") changes the lock period via `lockClaim`
+5. **StakeMorRewardsModal** - MOR staking
 
 **Key Modal Dependencies**:
 - `useCapitalContext` - State management

@@ -11,7 +11,6 @@ import { mainnet } from "wagmi/chains";
 import { DepositModal } from "@/components/capital/deposit-modal";
 import { WithdrawModal } from "@/components/capital/withdraw-modal";
 import { ClaimMorRewardsModal } from "@/components/capital/claim-mor-rewards-modal";
-import { ChangeLockModal } from "@/components/capital/change-lock-modal";
 
 // Import new components
 import { CapitalInfoPanel } from "@/components/capital/capital-info-panel";
@@ -87,9 +86,6 @@ import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext
 
 function CapitalPageContent() {
   const {
-    // Raw data needed by modals
-    userData,
-    currentUserMultiplierData,
     // isLoadingUserData,
     // Modal controls
     setActiveModal,
@@ -221,10 +217,6 @@ function CapitalPageContent() {
       <DepositModal />
       <WithdrawModal />
       <ClaimMorRewardsModal />
-      <ChangeLockModal
-        currentUserMultiplierData={currentUserMultiplierData}
-        userData={{ claimLockEnd: userData?.claimLockEnd }}
-      />
 
       {/* Placeholder for Assets to Deposit Section */}
       {/* The original 'Assets to Deposit' section seems misplaced. Keeping it commented out for now. */}
