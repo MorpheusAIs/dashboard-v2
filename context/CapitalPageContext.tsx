@@ -309,6 +309,7 @@ interface CapitalContextState {
   claimableAmountFormatted: string;
   userData?: UserPoolData;
   poolInfo?: PoolInfoData;
+  poolLimits?: PoolLimitsData; // stETH pool's rewardPoolsProtocolDetails(0) lock periods
 
   // Action States
   isProcessingDeposit: boolean;
@@ -2536,6 +2537,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     selectedAssetMinimalStakeFormatted: assets[selectedAsset]?.minimalStakeFormatted || "100",
     
     // Calculated Data (for selected asset) - TODO: Make asset-aware
+    poolLimits: poolLimits,
     withdrawUnlockTimestamp: withdrawUnlockTimestamp,
     claimUnlockTimestamp: claimUnlockTimestamp,
     withdrawUnlockTimestampFormatted: formatTimestamp(withdrawUnlockTimestamp),

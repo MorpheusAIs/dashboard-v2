@@ -16,6 +16,7 @@ import { useCapitalPoolData } from "@/hooks/use-capital-pool-data";
 import { useCapitalMetrics } from "@/app/hooks/useCapitalMetrics";
 import { AssetIcon } from "@/components/icons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Asset } from "./types/asset";
 import { parseStakedAmount } from "./utils/parse-staked-amount";
 import type { AssetSymbol } from "@/context/CapitalPageContext";
@@ -40,17 +41,19 @@ function SortHeader({
   sort,
   onSort,
   className,
+  tooltip,
 }: {
   label: string;
   column: SortColumn;
   sort: AssetSort;
   onSort: (column: SortColumn) => void;
   className?: string;
+  tooltip?: string;
 }) {
   const isActive = sort.column === column;
   const nextDirection = isActive && sort.direction === 'desc' ? 'ascending' : 'descending';
 
-  return (
+  const button = (
     <button
       type="button"
       onClick={() => onSort(column)}
@@ -72,6 +75,22 @@ function SortHeader({
         />
       </span>
     </button>
+  );
+
+  if (!tooltip) return button;
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent
+          side="top"
+          className="bg-black/90 text-white border-emerald-500/20 z-50 rounded-xl"
+        >
+          <p className="text-sm">{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -229,7 +248,14 @@ export function CapitalInfoPanel() {
             <div className="grid gap-2 text-xs font-medium text-gray-400 px-2 py-1 border-b border-gray-800 bg-black-900/90 backdrop-blur-sm sticky top-0 z-10" style={{ gridTemplateColumns: 'auto 1fr 1fr auto' }}>
               <div>Asset</div>
               <div className="text-center">
-                <SortHeader label="APR" column="apr" sort={sort} onSort={handleSort} className="min-[2000px]:translate-x-1.5" />
+                <SortHeader
+                  label="Unlocked APR (1×)"
+                  column="apr"
+                  sort={sort}
+                  onSort={handleSort}
+                  className="min-[2000px]:translate-x-1.5"
+                  tooltip="Your rate = unlocked APR × your multiplier."
+                />
               </div>
               <div className="text-center">
                 <SortHeader label="Total Deposited ($)" column="deposited" sort={sort} onSort={handleSort} />

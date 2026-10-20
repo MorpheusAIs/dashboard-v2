@@ -60,19 +60,25 @@ export function AprCalculationDialog() {
         <DialogHeader>
           <DialogTitle>How is APR calculated?</DialogTitle>
           <DialogDescription>
-            Daily MOR rewards are shared by the yield each asset actually generates — not just how much is deposited.
+            The APR shown is the unlocked (1×) rate: what a deposit with no lock bonus was actually credited over the last 30 days.
           </DialogDescription>
         </DialogHeader>
 
         <ul className="space-y-3 text-sm text-muted-foreground list-disc pl-5">
           <li>
-            Higher-yielding assets (for example USDT on Aave versus wETH) receive a larger share of daily MOR, so they show a higher APR even with the same USD deposited.{" "}
-            <Citation index={1} />
+            Each pool&apos;s contract records the total MOR paid per deposited token. The change over the last 30 days, annualized and valued at today&apos;s MOR and asset prices, is the APR.{" "}
+            <Citation index={3} />
           </li>
           <li>
-            For each asset, the protocol measures USD yield, splits daily MOR emissions by those shares, then annualizes: (daily MOR × 365) ÷ total deposited.{" "}
+            Your rate = unlocked APR × your multiplier. Locking your claims raises the multiplier.
+          </li>
+          <li>
+            Daily MOR is split between pools by the yield each asset generates, so higher-yielding assets (for example USDT on Aave versus wETH) earn a larger share.{" "}
             <Citation index={1} />{" "}
             <Citation index={2} />
+          </li>
+          <li>
+            If the 30-day figure is unavailable, the page shows a projection from each pool&apos;s 7-day share of scheduled emissions, which can run higher than what was credited.
           </li>
           <li>
             Other assets&apos; yields — not their TVL — can change your asset&apos;s share. More deposits in the same asset spread the same rewards thinner.{" "}

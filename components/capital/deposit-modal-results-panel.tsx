@@ -165,7 +165,7 @@ export function DepositModalResultsPanel({
           label={
             <InfoLabel
               label="APR"
-              tooltip="Annual Percentage Rate based on current pool yield, your deposit share, and MOR price. Effective APR = base pool APR × your power factor."
+              tooltip="Unlocked pool APR (MOR credited to 1× deposits over the last 30 days, at today's prices) × your power factor."
             />
           }
           value={
