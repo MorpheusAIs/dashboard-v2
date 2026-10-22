@@ -109,7 +109,6 @@ export default function BuilderPage() {
 	const [rawStakedAmount, setRawStakedAmount] = useState<bigint | null>(null);
 	const [timeLeft, setTimeLeft] = useState<string>("");
 	const [withdrawLockPeriod] = useState<number>(30 * 24 * 60 * 60); // Default to 30 days
-	const refreshStakingDataRef = useRef(false); // Add a ref to track if refresh has been called
 	const [builder, setBuilder] = useState<Builder | null>(null);
 	const [subnetId, setSubnetId] = useState<Address | null>(null);
 	const [stakeAmount, setStakeAmount] = useState<string>("");
@@ -540,28 +539,10 @@ export default function BuilderPage() {
 		refresh: refreshStakingEntries,
 	} = useStakingData(stakingDataHookProps);
 
-	// useEffect for triggering refresh based on refreshStakingDataRef
+	// Keep the latest refresh function in a ref so onTxSuccess can call it directly
+	const refreshStakingEntriesRef = useRef(refreshStakingEntries);
 	useEffect(() => {
-		if (refreshStakingDataRef.current) {
-
-			// Refresh multiple times to ensure we get updated data from blockchain
-			const refreshMultipleTimes = () => {
-				// First immediate refresh
-				refreshStakingEntries();
-
-				// Then refresh again after delays
-				setTimeout(() => {
-					refreshStakingEntries();
-				}, 2000);
-
-				setTimeout(() => {
-					refreshStakingEntries();
-				}, 4000);
-			};
-
-			refreshMultipleTimes();
-			refreshStakingDataRef.current = false;
-		}
+		refreshStakingEntriesRef.current = refreshStakingEntries;
 	}, [refreshStakingEntries]);
 
 	// Create a ref to store the approval refresh function
@@ -578,7 +559,10 @@ export default function BuilderPage() {
 			subnetId: subnetId || undefined,
 			networkChainId: subnetChainId,
 			onTxSuccess: () => {
-				refreshStakingDataRef.current = true; // For the main staking table
+				// Refresh the main staking table now and again after delays, since the subgraph lags the chain
+				refreshStakingEntriesRef.current();
+				setTimeout(() => refreshStakingEntriesRef.current(), 2000);
+				setTimeout(() => refreshStakingEntriesRef.current(), 4000);
 				const currentStakeAmount = stakeAmount; // Capture current stake amount
 				setStakeAmount(""); // Clear stake input
 
