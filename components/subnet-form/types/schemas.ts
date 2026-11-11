@@ -22,7 +22,7 @@ export const subnetContractSchema = z.object({
   name: z.string().min(1, "Subnet name is required"),
   minStake: z.number().min(0, "Minimum stake must be a non-negative number"),
   withdrawLockPeriod: z.number().min(7, "Withdraw lock period must be at least 7 days"),
-  networkChainId: z.number({ required_error: "Please select a network" }),
+  networkChainId: z.number({ message: "Please select a network" }),
   claimAdmin: z.string().refine((val) => {
     if (!val || val.trim() === '') return false;
     // Basic Ethereum address validation (0x followed by 40 hex characters)
@@ -135,4 +135,4 @@ export const formSchema = z.object({
 
 
 // Type for form data
-export type FormData = z.infer<typeof formSchema>; 
+export type FormData = z.infer<typeof formSchema>;
