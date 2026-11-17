@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { useAccount, useSwitchChain } from 'wagmi';
+import { useAccount, useConfig, useSwitchChain } from 'wagmi';
+import { getAccount } from '@wagmi/core';
 import type { Connector } from 'wagmi';
 import { baseSepolia, mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
 import { toast } from 'sonner';
@@ -53,9 +54,12 @@ async function isSafeConnection(connector: Connector | undefined): Promise<boole
   if (connector.id === 'walletConnect' || connector.type === 'walletConnect') {
     try {
       const provider = (await connector.getProvider()) as
-        | { session?: { peer?: { metadata?: { name?: string } } } }
+        | { session?: { peer?: { metadata?: { name?: string; url?: string } } } }
         | undefined;
-      return /safe/i.test(provider?.session?.peer?.metadata?.name ?? '');
+      const peer = provider?.session?.peer?.metadata;
+      // Match Safe{Wallet} only — not wallets that merely contain "safe" (e.g. SafePal)
+      return /^safe(\{wallet\})?$|gnosis safe/i.test(peer?.name ?? '') ||
+        /(^|\.)safe\.global/i.test(peer?.url ?? '');
     } catch {
       return false;
     }
@@ -74,6 +78,7 @@ export function NetworkProvider({
   const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
   
   const { chainId, connector } = useAccount();
+  const config = useConfig();
   // switchChainAsync (not switchChain) so awaiting actually waits for the
   // wallet's response and rejections are catchable by callers
   const { switchChainAsync } = useSwitchChain();
@@ -84,7 +89,8 @@ export function NetworkProvider({
 
   // Never ask a Safe to change networks; tell the user which Safe to open instead.
   const guardSafeSwitch = async (targetChainId: number) => {
-    if (currentChainId === targetChainId) return;
+    // Live chain, not React state: callers may switch several times inside one closure
+    if (getAccount(config).chainId === targetChainId) return;
     if (await isSafeConnection(connector)) {
       const error = new SafeChainSwitchError(targetChainId);
       toast.error(error.message);
@@ -123,6 +129,7 @@ export function NetworkProvider({
   const switchToChain = async (chainId: number) => {
     try {
       setIsNetworkSwitching(true);
+      if (getAccount(config).chainId === chainId) return;
       await guardSafeSwitch(chainId);
       await switchChainAsync({ chainId });
     } catch (error) {

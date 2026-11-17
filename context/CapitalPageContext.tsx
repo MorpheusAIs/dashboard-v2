@@ -367,7 +367,6 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   // --- Hooks from Page ---
   const { address: userAddress } = useAccount();
   const chainId = useChainId();
-  const publicClient = usePublicClient();
   const { switchToChain } = useNetwork();
 
   const networkEnv = useMemo((): NetworkEnvironment => {
@@ -377,6 +376,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
   const l1ChainId = useMemo(() => {
     return networkEnv === 'mainnet' ? mainnetChains.mainnet.id : testnetChains.sepolia.id;
   }, [networkEnv]);
+  // Pinned to L1: capital simulations/estimates must not follow the wallet's current chain
+  const publicClient = usePublicClient({ chainId: l1ChainId });
   const l2ChainId = useMemo(() => {
     return networkEnv === 'mainnet' ? mainnetChains.arbitrum.id : testnetChains.baseSepolia.id;
   }, [networkEnv]);
@@ -1033,9 +1034,8 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
     try {
       // Capital contracts live on L1. Ask the wallet to switch only now, when the user
       // submits a transaction (Safes get a message instead; see network-context).
-      if (chainId !== l1ChainId) {
-        await switchToChain(l1ChainId);
-      }
+      await switchToChain(l1ChainId); // no-op when the wallet is already on L1
+
       const hash = await txFunction();
       console.log("Transaction initiated:", hash);
       toast.dismiss(toastId); 
@@ -1098,7 +1098,7 @@ export function CapitalProvider({ children }: { children: React.ReactNode }) {
       });
       throw error; // Re-throw for modal error handling
     }
-  }, [userAddress, l1ChainId, chainId, switchToChain]);
+  }, [userAddress, l1ChainId, switchToChain]);
   
   // V2 Asset-aware functions - Dynamic approval using distributor address
   const approveToken = useCallback(async (asset: AssetSymbol) => {

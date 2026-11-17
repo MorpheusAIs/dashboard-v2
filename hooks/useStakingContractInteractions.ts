@@ -4,7 +4,7 @@ import { useWaitForTransactionReceipt, useWriteContract, useReadContract } from 
 import { parseEther, formatEther, Address, isAddress, maxUint256 } from 'viem';
 import { toast } from "sonner";
 import { getSafeWalletUrlIfApplicable } from "@/lib/utils/safe-wallet-detection";
-import { useNetwork } from "@/context/network-context";
+import { useNetwork, SafeChainSwitchError } from "@/context/network-context";
 import { baseSepolia, base, arbitrum } from 'wagmi/chains';
 
 // Import the ABIs
@@ -591,6 +591,10 @@ export const useStakingContractInteractions = ({
     } catch (error) {
       console.error("Failed to switch network:", error);
       setIsNetworkSwitching(false);
+      if (error instanceof SafeChainSwitchError) {
+        toast.dismiss("network-switch"); // network-context already explained what to do
+        return false;
+      }
       toast.error(`Failed to switch to ${getNetworkName(networkChainId)}. Please switch manually.`, { id: "network-switch" });
       return false;
     }

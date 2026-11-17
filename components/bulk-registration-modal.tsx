@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { useNetwork } from "@/context/network-context";
+import { useNetwork, SafeChainSwitchError } from "@/context/network-context";
 import { toast } from "sonner";
 import { useBuilderContract } from "@/hooks/use-builder-contract";
 import { Upload } from "lucide-react";
@@ -72,7 +72,7 @@ export function BulkRegistrationModal({
       return true;
     } catch (error) {
       console.error("Failed to switch network:", error);
-      toast.error(`Failed to switch to ${selectedNetwork}`);
+      if (!(error instanceof SafeChainSwitchError)) toast.error(`Failed to switch to ${selectedNetwork}`);
       return false;
     }
   }, [selectedNetwork, switchToChain]);
