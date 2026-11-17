@@ -1,11 +1,8 @@
 "use client"
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useNetwork } from "@/context/network-context";
-import { useChainId, useSwitchChain, useAccount, useConnectorClient } from "wagmi";
-import { mainnet } from "wagmi/chains";
 
 // Import Modals (updated to kebab-case)
 import { DepositModal } from "@/components/capital/deposit-modal";
@@ -77,7 +74,6 @@ const LockMultiplierPreview = dynamic(() => import("@/components/capital/lock-mu
     </div>
   )
 });
-import { NetworkSwitchNotification } from "@/components/network-switch-notification";
 
 // Import Context and Config
 import { CapitalProvider, useCapitalContext } from "@/context/CapitalPageContext";
@@ -92,77 +88,8 @@ function CapitalPageContent() {
     setPreReferrerAddress,
   } = useCapitalContext();
 
-  const { switchToChain: contextSwitchToChain, isNetworkSwitching } = useNetwork();
-  const chainId = useChainId();
-  const { switchChain } = useSwitchChain();
-  const { isConnected, isConnecting, isReconnecting } = useAccount();
-  const { data: connectorClient } = useConnectorClient();
   const searchParams = useSearchParams();
-  const [showNetworkSwitchNotice, setShowNetworkSwitchNotice] = useState(false);
-  const networkSwitchAttempted = useRef(false);
-  const userManuallyLeftMainnet = useRef(false);
   const referrerProcessed = useRef(false);
-
-  useEffect(() => {
-    console.log('Auto-switch useEffect running:', {
-      chainId,
-      mainnetId: mainnet.id,
-      isConnected,
-      isConnecting,
-      isReconnecting,
-      connectorClient: !!connectorClient,
-      isNetworkSwitching,
-      networkSwitchAttempted: networkSwitchAttempted.current,
-      userManuallyLeftMainnet: userManuallyLeftMainnet.current
-    });
-
-    // Only attempt network switch when wallet is fully connected and ready
-    // Wait for wallet connection to stabilize (not connecting/reconnecting)
-    const isWalletReady = isConnected && !isConnecting && !isReconnecting && connectorClient;
-    
-    // We want to be on mainnet for the capital page.
-    const shouldSwitch = chainId !== mainnet.id && chainId !== undefined && isWalletReady;
-
-    console.log('Should switch:', shouldSwitch);
-
-    if (shouldSwitch && !networkSwitchAttempted.current && !isNetworkSwitching && !userManuallyLeftMainnet.current) {
-      console.log(`Auto-switching network to Ethereum Mainnet (chainId: ${mainnet.id}) for Capital page.`);
-
-      networkSwitchAttempted.current = true;
-      setShowNetworkSwitchNotice(true);
-
-      const timer = setTimeout(() => {
-        console.log('Attempting to switch to mainnet...');
-        switchChain({ chainId: mainnet.id });
-        setTimeout(() => {
-          setShowNetworkSwitchNotice(false);
-          networkSwitchAttempted.current = false; // Reset so it can work again on refresh
-        }, 3000);
-      }, 1500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [chainId, contextSwitchToChain, isNetworkSwitching, isConnected, isConnecting, isReconnecting, connectorClient, switchChain]);
-
-  // Separate effect to handle manual network changes and hide notification
-  useEffect(() => {
-    // If user manually switches away from mainnet, hide the notification and mark as manual switch
-    if (chainId !== mainnet.id && showNetworkSwitchNotice) {
-      console.log('User switched away from mainnet, hiding network notification');
-      setShowNetworkSwitchNotice(false);
-      userManuallyLeftMainnet.current = true; // Prevent auto-switch back
-    }
-    // If user switches back to mainnet manually, also hide notification
-    else if (chainId === mainnet.id && showNetworkSwitchNotice) {
-      console.log('User is now on mainnet, hiding network notification');
-      setShowNetworkSwitchNotice(false);
-    }
-  }, [chainId, showNetworkSwitchNotice]);
-
-  // Reset manual flag on component mount (page refresh/reload)
-  useEffect(() => {
-    userManuallyLeftMainnet.current = false;
-  }, []);
 
   // Handle referrer URL parameter to auto-open deposit modal
   useEffect(() => {
@@ -175,7 +102,7 @@ function CapitalPageContent() {
       // Set the pre-populated referrer address
       setPreReferrerAddress(referrerParam);
       
-      // Small delay to ensure the modal opens after any network switching
+      // Small delay so the modal opens after the page has settled
       const timer = setTimeout(() => {
         setActiveModal('deposit');
         referrerProcessed.current = true;
@@ -187,10 +114,6 @@ function CapitalPageContent() {
 
   return (
     <div className="page-container">
-      <NetworkSwitchNotification 
-        show={showNetworkSwitchNotice}
-        networkName="Ethereum Mainnet"
-      />
       {/* --- New Top Row: Grid Layout --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8"> 
         

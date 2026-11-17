@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { useAccount, useSwitchChain } from 'wagmi';
-import { baseSepolia, mainnet, arbitrum, base } from 'wagmi/chains';
+import type { Connector } from 'wagmi';
+import { baseSepolia, mainnet, arbitrum, base, arbitrumSepolia, sepolia } from 'wagmi/chains';
+import { toast } from 'sonner';
 import { NetworkEnvironment, apiUrls, getChains, getL1Chains, getL2Chains } from '../config/networks';
 
 interface NetworkContextType {
@@ -22,6 +24,45 @@ interface NetworkContextType {
 
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
+const CHAIN_NAMES: Record<number, string> = {
+  [mainnet.id]: 'Ethereum',
+  [arbitrum.id]: 'Arbitrum',
+  [base.id]: 'Base',
+  [baseSepolia.id]: 'Base Sepolia',
+  [arbitrumSepolia.id]: 'Arbitrum Sepolia',
+  [sepolia.id]: 'Sepolia',
+};
+
+/**
+ * Thrown instead of asking a Safe to change networks. A Safe account exists on one
+ * chain; Safe{Wallet} cannot switch it the way an EOA wallet switches, so a
+ * switch request either fails or pushes the user toward a Safe on another chain.
+ */
+export class SafeChainSwitchError extends Error {
+  constructor(public readonly targetChainId: number) {
+    const name = CHAIN_NAMES[targetChainId] ?? `chain ${targetChainId}`;
+    super(`This action runs on ${name}. Safe accounts can't switch networks — open your ${name} Safe in Safe{Wallet} and connect it here.`);
+    this.name = 'SafeChainSwitchError';
+  }
+}
+
+/** True when the connected account is a Safe: Safe Apps iframe, or Safe{Wallet} over WalletConnect. */
+async function isSafeConnection(connector: Connector | undefined): Promise<boolean> {
+  if (!connector) return false;
+  if (connector.id === 'safe' || connector.type === 'safe') return true;
+  if (connector.id === 'walletConnect' || connector.type === 'walletConnect') {
+    try {
+      const provider = (await connector.getProvider()) as
+        | { session?: { peer?: { metadata?: { name?: string } } } }
+        | undefined;
+      return /safe/i.test(provider?.session?.peer?.metadata?.name ?? '');
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 export function NetworkProvider({ 
   children, 
   defaultEnvironment = 'mainnet' 
@@ -32,7 +73,7 @@ export function NetworkProvider({
   const [environment, setEnvironment] = useState<NetworkEnvironment>(defaultEnvironment);
   const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
   
-  const { chainId } = useAccount();
+  const { chainId, connector } = useAccount();
   // switchChainAsync (not switchChain) so awaiting actually waits for the
   // wallet's response and rejections are catchable by callers
   const { switchChainAsync } = useSwitchChain();
@@ -41,12 +82,23 @@ export function NetworkProvider({
   const isMainnet = environment === 'mainnet';
   const isTestnet = environment === 'testnet';
 
+  // Never ask a Safe to change networks; tell the user which Safe to open instead.
+  const guardSafeSwitch = async (targetChainId: number) => {
+    if (currentChainId === targetChainId) return;
+    if (await isSafeConnection(connector)) {
+      const error = new SafeChainSwitchError(targetChainId);
+      toast.error(error.message);
+      throw error;
+    }
+  };
+
   const switchToEnvironment = async (newEnvironment: NetworkEnvironment) => {
     try {
       setIsNetworkSwitching(true);
       
       // If switching to testnet, switch to Base Sepolia
       if (newEnvironment === 'testnet') {
+        await guardSafeSwitch(baseSepolia.id);
         await switchChainAsync({ chainId: baseSepolia.id });
       }
       // If switching to mainnet, keep current chain if it's a mainnet chain, otherwise switch to Arbitrum
@@ -54,6 +106,7 @@ export function NetworkProvider({
         const mainnetChainIds = [mainnet.id, arbitrum.id, base.id] as const;
         const currentChainIsMainnet = mainnetChainIds.includes(currentChainId as typeof mainnetChainIds[number]);
         if (!currentChainIsMainnet) {
+          await guardSafeSwitch(arbitrum.id);
           await switchChainAsync({ chainId: arbitrum.id });
         }
       }
@@ -70,6 +123,7 @@ export function NetworkProvider({
   const switchToChain = async (chainId: number) => {
     try {
       setIsNetworkSwitching(true);
+      await guardSafeSwitch(chainId);
       await switchChainAsync({ chainId });
     } catch (error) {
       console.error('Failed to switch chain:', error);
