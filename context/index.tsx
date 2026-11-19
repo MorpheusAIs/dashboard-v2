@@ -6,7 +6,6 @@ import { getWagmiConfig, projectId, type WagmiConfig } from "@/config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { State } from "wagmi";
 import { WagmiProvider } from "wagmi";
-import { mainnet } from "wagmi/chains";
 
 // Configure QueryClient with conservative refetch intervals to reduce RPC calls
 const queryClient = new QueryClient({
@@ -56,7 +55,6 @@ export default function Web3ModalProvider({ children, initialState }: { children
             enableAnalytics: true,
             enableOnramp: true,
             themeMode: "dark",
-            defaultChain: mainnet,
             featuredWalletIds: [
               'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase Wallet (Base Wallet)
               'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
