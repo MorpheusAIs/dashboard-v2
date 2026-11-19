@@ -32,8 +32,8 @@ if (!INFURA_API_KEY) {
 const metadata = {
   name: 'Morpheus Dashboard',
   description: 'Morpheus Dashboard',
-  url: 'https://morpheus.reown.com',
-  icons: ['https://morpheus.reown.com/favicon.ico']
+  url: 'https://dashboard.mor.org',
+  icons: ['https://dashboard.mor.org/favicon.png']
 };
 
 async function buildWagmiConfig() {
