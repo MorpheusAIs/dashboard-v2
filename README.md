@@ -1,5 +1,7 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+**Community:** questions and ideas go in [Morpheus Discussions](https://github.com/orgs/MorpheusAIs/discussions).
+
 ## Getting Started
 
 First, run the development server:
